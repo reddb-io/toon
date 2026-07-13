@@ -65,6 +65,43 @@ fn toon_json_toon_round_trips_to_same_canonical_form() {
     );
 }
 
+#[test]
+fn jq_oracle_core_filters() {
+    let input = r#"{"users":[{"name":"Ada","score":41,"active":true},{"name":"Bob","score":7,"active":false}],"meta":{"team":"core"},"empty":null}"#;
+    let filters = [
+        ".users[]|select(.active)|{name:.name,next:(.score+1)}",
+        ".users|map(.score)|length",
+        ".meta|keys",
+        ".meta|has(\"team\")",
+        ".empty==null,.users|length>1",
+        "[.users[].name]",
+    ];
+
+    for filter in filters {
+        let tq = run_tq(&["-p", "json", "-o", "json", "-c", filter], input);
+        assert_eq!(
+            tq.status.code(),
+            Some(0),
+            "tq exits cleanly for {filter}: {}",
+            String::from_utf8_lossy(&tq.stderr)
+        );
+
+        let jq = run_jq(filter, input);
+        assert_eq!(
+            jq.status.code(),
+            Some(0),
+            "jq exits cleanly for {filter}: {}",
+            String::from_utf8_lossy(&jq.stderr)
+        );
+
+        assert_eq!(
+            String::from_utf8(tq.stdout).expect("tq stdout is utf-8"),
+            String::from_utf8(jq.stdout).expect("jq stdout is utf-8"),
+            "oracle match for {filter}"
+        );
+    }
+}
+
 fn read_case(path: &std::path::Path) -> Case {
     let args = fs::read_to_string(path.join("args.txt"))
         .expect("args fixture exists")
@@ -111,4 +148,23 @@ fn run_tq(args: &[&str], stdin: &str) -> std::process::Output {
         .expect("write stdin");
 
     child.wait_with_output().expect("wait for tq")
+}
+
+fn run_jq(filter: &str, stdin: &str) -> std::process::Output {
+    let mut child = Command::new("jq")
+        .args(["-c", filter])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn jq");
+
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin is piped")
+        .write_all(stdin.as_bytes())
+        .expect("write jq stdin");
+
+    child.wait_with_output().expect("wait for jq")
 }
