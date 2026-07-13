@@ -102,6 +102,48 @@ fn jq_oracle_core_filters() {
     }
 }
 
+#[test]
+fn jq_oracle_aggregation_ordering_and_strings() {
+    let input = r#"{"users":[{"name":"Ada","score":41,"team":"research"},{"name":"Bob","score":7,"team":"ops"},{"name":"Cid","score":19,"team":"research"}],"tags":["ops","core","ops","dev"],"meta":{"team":"core","level":2},"phrase":"Ada-Lovelace"}"#;
+    let filters = [
+        ".users|sort_by(.score)|map(.name)",
+        ".users|group_by(.team)|map({team:.[0].team,names:map(.name)})",
+        ".tags|unique",
+        ".users|map(.score)|add",
+        ".users|min_by(.score)|.name",
+        ".users|max_by(.score)|.name",
+        ".meta|to_entries|sort_by(.key)",
+        ".meta|to_entries|from_entries",
+        ".phrase|split(\"-\")",
+        "[.users[].name]|join(\",\")",
+        ".phrase|test(\"^Ada\")",
+    ];
+
+    for filter in filters {
+        let tq = run_tq(&["-p", "json", "-o", "json", "-c", filter], input);
+        assert_eq!(
+            tq.status.code(),
+            Some(0),
+            "tq exits cleanly for {filter}: {}",
+            String::from_utf8_lossy(&tq.stderr)
+        );
+
+        let jq = run_jq(filter, input);
+        assert_eq!(
+            jq.status.code(),
+            Some(0),
+            "jq exits cleanly for {filter}: {}",
+            String::from_utf8_lossy(&jq.stderr)
+        );
+
+        assert_eq!(
+            String::from_utf8(tq.stdout).expect("tq stdout is utf-8"),
+            String::from_utf8(jq.stdout).expect("jq stdout is utf-8"),
+            "oracle match for {filter}"
+        );
+    }
+}
+
 fn read_case(path: &std::path::Path) -> Case {
     let args = fs::read_to_string(path.join("args.txt"))
         .expect("args fixture exists")
