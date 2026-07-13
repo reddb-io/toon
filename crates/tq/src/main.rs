@@ -147,11 +147,22 @@ enum BinaryOp {
 
 #[derive(Debug, Clone, PartialEq)]
 enum Builtin {
+    Add,
+    FromEntries,
+    GroupBy(Box<Expr>),
     Has(Box<Expr>),
+    Join(Box<Expr>),
     Keys,
     Length,
     Map(Box<Expr>),
+    MaxBy(Box<Expr>),
+    MinBy(Box<Expr>),
     Select(Box<Expr>),
+    SortBy(Box<Expr>),
+    Split(Box<Expr>),
+    Test(Box<Expr>),
+    ToEntries,
+    Unique,
 }
 
 impl Expr {
@@ -253,11 +264,18 @@ fn evaluate_object(fields: &[(String, Expr)], input: &Value) -> Result<Vec<Value
 
 fn evaluate_builtin(builtin: &Builtin, input: &Value) -> Result<Vec<Value>, String> {
     match builtin {
+        Builtin::Add => evaluate_add(input).map(|value| vec![value]),
+        Builtin::FromEntries => evaluate_from_entries(input).map(|value| vec![value]),
+        Builtin::GroupBy(filter) => evaluate_group_by(input, filter).map(|value| vec![value]),
         Builtin::Has(key_filter) => {
             let keys = key_filter.eval(input)?;
             keys.into_iter()
                 .map(|key| evaluate_has(input, &key))
                 .collect()
+        }
+        Builtin::Join(separator_filter) => {
+            evaluate_join(input, &single_string_arg(separator_filter, input, "join")?)
+                .map(|value| vec![value])
         }
         Builtin::Keys => evaluate_keys(input).map(|value| vec![value]),
         Builtin::Length => evaluate_length(input).map(|value| vec![value]),
@@ -280,7 +298,133 @@ fn evaluate_builtin(builtin: &Builtin, input: &Value) -> Result<Vec<Value>, Stri
             }
             Ok(values)
         }
+        Builtin::MaxBy(filter) => evaluate_min_max_by(input, filter, true).map(|value| vec![value]),
+        Builtin::MinBy(filter) => {
+            evaluate_min_max_by(input, filter, false).map(|value| vec![value])
+        }
+        Builtin::SortBy(filter) => evaluate_sort_by(input, filter).map(|value| vec![value]),
+        Builtin::Split(separator_filter) => {
+            evaluate_split(input, &single_string_arg(separator_filter, input, "split")?)
+                .map(|value| vec![value])
+        }
+        Builtin::Test(pattern_filter) => {
+            evaluate_test(input, &single_string_arg(pattern_filter, input, "test")?)
+                .map(|value| vec![value])
+        }
+        Builtin::ToEntries => evaluate_to_entries(input).map(|value| vec![value]),
+        Builtin::Unique => evaluate_unique(input).map(|value| vec![value]),
     }
+}
+
+fn evaluate_add(input: &Value) -> Result<Value, String> {
+    let Value::Array(array) = input else {
+        return Err("add cannot be applied to this value".to_owned());
+    };
+
+    let mut values = array.values().into_iter();
+    let Some(mut total) = values.next() else {
+        return Ok(Value::Null);
+    };
+    for value in values {
+        total = add_values(&total, &value)?;
+    }
+    Ok(total)
+}
+
+fn evaluate_sort_by(input: &Value, filter: &Expr) -> Result<Value, String> {
+    let mut keyed = keyed_array_values(input, filter)?;
+    keyed.sort_by(|left, right| compare_key_json(&left.0, &right.0));
+    Ok(Value::Array(Array::List(
+        keyed.into_iter().map(|(_, value)| value).collect(),
+    )))
+}
+
+fn evaluate_group_by(input: &Value, filter: &Expr) -> Result<Value, String> {
+    let mut keyed = keyed_array_values(input, filter)?;
+    keyed.sort_by(|left, right| compare_key_json(&left.0, &right.0));
+
+    let mut groups: Vec<Value> = Vec::new();
+    let mut current_key: Option<serde_json::Value> = None;
+    let mut current_values = Vec::new();
+    for (key, value) in keyed {
+        if current_key.as_ref().is_some_and(|current| *current != key) {
+            groups.push(Value::Array(Array::List(std::mem::take(
+                &mut current_values,
+            ))));
+        }
+        current_key = Some(key);
+        current_values.push(value);
+    }
+    if current_key.is_some() {
+        groups.push(Value::Array(Array::List(current_values)));
+    }
+
+    Ok(Value::Array(Array::List(groups)))
+}
+
+fn evaluate_unique(input: &Value) -> Result<Value, String> {
+    let Value::Array(array) = input else {
+        return Err("unique cannot be applied to this value".to_owned());
+    };
+
+    let mut values = array.values();
+    values.sort_by(|left, right| compare_key_json(&left.to_json_value(), &right.to_json_value()));
+    values.dedup_by(|left, right| left.to_json_value() == right.to_json_value());
+    Ok(Value::Array(Array::List(values)))
+}
+
+fn evaluate_min_max_by(input: &Value, filter: &Expr, max: bool) -> Result<Value, String> {
+    let keyed = keyed_array_values(input, filter)?;
+    let selected = if max {
+        keyed
+            .into_iter()
+            .max_by(|left, right| compare_key_json(&left.0, &right.0))
+    } else {
+        keyed
+            .into_iter()
+            .min_by(|left, right| compare_key_json(&left.0, &right.0))
+    };
+    Ok(selected.map(|(_, value)| value).unwrap_or(Value::Null))
+}
+
+fn keyed_array_values(
+    input: &Value,
+    filter: &Expr,
+) -> Result<Vec<(serde_json::Value, Value)>, String> {
+    let Value::Array(array) = input else {
+        return Err("cannot order non-array".to_owned());
+    };
+
+    array
+        .values()
+        .into_iter()
+        .map(|value| {
+            let key = sort_key(filter, &value)?;
+            Ok((key, value))
+        })
+        .collect()
+}
+
+fn sort_key(filter: &Expr, input: &Value) -> Result<serde_json::Value, String> {
+    let values = filter.eval(input)?;
+    if values.len() == 1 {
+        Ok(values
+            .into_iter()
+            .next()
+            .expect("one sort key exists")
+            .to_json_value())
+    } else {
+        Ok(serde_json::Value::Array(
+            values
+                .into_iter()
+                .map(|value| value.to_json_value())
+                .collect(),
+        ))
+    }
+}
+
+fn compare_key_json(left: &serde_json::Value, right: &serde_json::Value) -> std::cmp::Ordering {
+    compare_json_values(left, right).unwrap_or(std::cmp::Ordering::Equal)
 }
 
 fn evaluate_has(input: &Value, key: &Value) -> Result<Value, String> {
@@ -296,6 +440,121 @@ fn evaluate_has(input: &Value, key: &Value) -> Result<Value, String> {
             Ok(Value::Bool(document.get(key).is_some()))
         }
         _ => Err("has() cannot check this value".to_owned()),
+    }
+}
+
+fn evaluate_to_entries(input: &Value) -> Result<Value, String> {
+    let entries = match input {
+        Value::Array(array) => array
+            .values()
+            .into_iter()
+            .enumerate()
+            .map(|(index, value)| entry_value(Value::Number(index.to_string()), value))
+            .collect(),
+        Value::Object(document) => {
+            let serde_json::Value::Object(map) = document.to_json_value() else {
+                unreachable!("document serializes as object");
+            };
+            map.into_iter()
+                .map(|(key, value)| entry_value(Value::String(key), Value::from_json_value(value)))
+                .collect()
+        }
+        _ => return Err("to_entries cannot be applied to this value".to_owned()),
+    };
+    Ok(Value::Array(Array::List(entries)))
+}
+
+fn entry_value(key: Value, value: Value) -> Value {
+    let mut object = serde_json::Map::new();
+    object.insert("key".to_owned(), key.to_json_value());
+    object.insert("value".to_owned(), value.to_json_value());
+    Value::from_json_value(serde_json::Value::Object(object))
+}
+
+fn evaluate_from_entries(input: &Value) -> Result<Value, String> {
+    let Value::Array(array) = input else {
+        return Err("from_entries cannot be applied to this value".to_owned());
+    };
+
+    let mut object = serde_json::Map::new();
+    for entry in array.values() {
+        let Value::Object(document) = entry else {
+            return Err("from_entries expects object entries".to_owned());
+        };
+        let key = document
+            .get("key")
+            .or_else(|| document.get("Key"))
+            .or_else(|| document.get("name"))
+            .or_else(|| document.get("Name"))
+            .ok_or_else(|| "from_entries entry missing key".to_owned())?;
+        let value = document
+            .get("value")
+            .or_else(|| document.get("Value"))
+            .ok_or_else(|| "from_entries entry missing value".to_owned())?;
+        object.insert(entry_key_string(key)?, value.to_json_value());
+    }
+
+    Ok(Value::from_json_value(serde_json::Value::Object(object)))
+}
+
+fn entry_key_string(value: &Value) -> Result<String, String> {
+    match value {
+        Value::Number(value) | Value::String(value) => Ok(value.clone()),
+        _ => Err("from_entries keys must be strings or numbers".to_owned()),
+    }
+}
+
+fn evaluate_split(input: &Value, separator: &str) -> Result<Value, String> {
+    let Value::String(value) = input else {
+        return Err("split cannot be applied to this value".to_owned());
+    };
+
+    let values = if separator.is_empty() {
+        value
+            .chars()
+            .map(|character| Value::String(character.to_string()))
+            .collect()
+    } else {
+        value
+            .split(separator)
+            .map(|part| Value::String(part.to_owned()))
+            .collect()
+    };
+    Ok(Value::Array(Array::List(values)))
+}
+
+fn evaluate_join(input: &Value, separator: &str) -> Result<Value, String> {
+    let Value::Array(array) = input else {
+        return Err("join cannot be applied to this value".to_owned());
+    };
+
+    let parts = array
+        .values()
+        .into_iter()
+        .map(|value| match value {
+            Value::Bool(value) => Ok(value.to_string()),
+            Value::Null => Ok(String::new()),
+            Value::Number(value) | Value::String(value) => Ok(value),
+            _ => Err("join cannot stringify this value".to_owned()),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Value::String(parts.join(separator)))
+}
+
+fn evaluate_test(input: &Value, pattern: &str) -> Result<Value, String> {
+    let Value::String(value) = input else {
+        return Err("test cannot be applied to this value".to_owned());
+    };
+    let regex = regex::Regex::new(pattern).map_err(|error| format!("invalid regex: {error}"))?;
+    Ok(Value::Bool(regex.is_match(value)))
+}
+
+fn single_string_arg(filter: &Expr, input: &Value, builtin: &str) -> Result<String, String> {
+    let values = filter.eval(input)?;
+    match values.as_slice() {
+        [Value::String(value)] => Ok(value.clone()),
+        [_] => Err(format!("{builtin} argument must be a string")),
+        _ => Err(format!("{builtin} argument must produce one value")),
     }
 }
 
@@ -700,12 +959,26 @@ impl Parser {
 
     fn parse_identifier(&mut self, value: String) -> Result<Expr, String> {
         match value.as_str() {
+            "add" => Ok(Expr::Builtin(Builtin::Add)),
             "false" => Ok(Expr::Literal(Value::Bool(false))),
+            "from_entries" => Ok(Expr::Builtin(Builtin::FromEntries)),
+            "group_by" => {
+                self.expect(LexToken::LParen)?;
+                let filter = self.parse_pipe()?;
+                self.expect(LexToken::RParen)?;
+                Ok(Expr::Builtin(Builtin::GroupBy(Box::new(filter))))
+            }
             "has" => {
                 self.expect(LexToken::LParen)?;
                 let filter = self.parse_pipe()?;
                 self.expect(LexToken::RParen)?;
                 Ok(Expr::Builtin(Builtin::Has(Box::new(filter))))
+            }
+            "join" => {
+                self.expect(LexToken::LParen)?;
+                let separator = self.parse_pipe()?;
+                self.expect(LexToken::RParen)?;
+                Ok(Expr::Builtin(Builtin::Join(Box::new(separator))))
             }
             "keys" => Ok(Expr::Builtin(Builtin::Keys)),
             "length" => Ok(Expr::Builtin(Builtin::Length)),
@@ -715,6 +988,18 @@ impl Parser {
                 self.expect(LexToken::RParen)?;
                 Ok(Expr::Builtin(Builtin::Map(Box::new(filter))))
             }
+            "max_by" => {
+                self.expect(LexToken::LParen)?;
+                let filter = self.parse_pipe()?;
+                self.expect(LexToken::RParen)?;
+                Ok(Expr::Builtin(Builtin::MaxBy(Box::new(filter))))
+            }
+            "min_by" => {
+                self.expect(LexToken::LParen)?;
+                let filter = self.parse_pipe()?;
+                self.expect(LexToken::RParen)?;
+                Ok(Expr::Builtin(Builtin::MinBy(Box::new(filter))))
+            }
             "null" => Ok(Expr::Literal(Value::Null)),
             "select" => {
                 self.expect(LexToken::LParen)?;
@@ -722,7 +1007,27 @@ impl Parser {
                 self.expect(LexToken::RParen)?;
                 Ok(Expr::Builtin(Builtin::Select(Box::new(filter))))
             }
+            "sort_by" => {
+                self.expect(LexToken::LParen)?;
+                let filter = self.parse_pipe()?;
+                self.expect(LexToken::RParen)?;
+                Ok(Expr::Builtin(Builtin::SortBy(Box::new(filter))))
+            }
+            "split" => {
+                self.expect(LexToken::LParen)?;
+                let separator = self.parse_pipe()?;
+                self.expect(LexToken::RParen)?;
+                Ok(Expr::Builtin(Builtin::Split(Box::new(separator))))
+            }
+            "test" => {
+                self.expect(LexToken::LParen)?;
+                let pattern = self.parse_pipe()?;
+                self.expect(LexToken::RParen)?;
+                Ok(Expr::Builtin(Builtin::Test(Box::new(pattern))))
+            }
+            "to_entries" => Ok(Expr::Builtin(Builtin::ToEntries)),
             "true" => Ok(Expr::Literal(Value::Bool(true))),
+            "unique" => Ok(Expr::Builtin(Builtin::Unique)),
             _ => Err(format!("unsupported identifier `{value}`")),
         }
     }
