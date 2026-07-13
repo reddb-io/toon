@@ -45,20 +45,32 @@ fn read_stdin() -> Result<String, String> {
     Ok(input)
 }
 
-fn evaluate(document: &Document<'_>, query: &str) -> Result<String, String> {
+fn evaluate(document: &Document, query: &str) -> Result<String, String> {
     if query == "." {
         return Ok(document.to_canonical_toon());
     }
 
-    if let Some(field) = query.strip_prefix('.') {
-        if field.is_empty() || field.contains('.') {
+    if let Some(path) = query.strip_prefix('.') {
+        if path.is_empty() || path.split('.').any(str::is_empty) {
             return Err(format!("unsupported query `{query}`"));
         }
 
-        let scalar = document
-            .get(field)
-            .ok_or_else(|| format!("field `{field}` not found"))?;
-        return Ok(format!("{}\n", scalar.to_canonical_toon()));
+        let mut components = path.split('.').peekable();
+        let mut current = document;
+        while let Some(component) = components.next() {
+            let Some(value) = current.get(component) else {
+                return Ok("null\n".to_owned());
+            };
+
+            if components.peek().is_none() {
+                return Ok(format!("{}\n", value.to_canonical_toon()));
+            }
+
+            let Some(document) = value.as_object() else {
+                return Ok("null\n".to_owned());
+            };
+            current = document;
+        }
     }
 
     Err(format!("unsupported query `{query}`"))
