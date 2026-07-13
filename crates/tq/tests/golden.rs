@@ -46,6 +46,25 @@ fn golden_cli_cases() {
     }
 }
 
+#[test]
+fn toon_json_toon_round_trips_to_same_canonical_form() {
+    let input = "name: Ada\nusers[2]{id,name}:\n  1,Ada\n  2,Bob\n";
+    let to_json = run_tq(&["-o", "json", "."], input);
+    assert_eq!(to_json.status.code(), Some(0), "TOON to JSON exits cleanly");
+
+    let json = String::from_utf8(to_json.stdout).expect("json stdout is utf-8");
+    let back_to_toon = run_tq(&["-p", "json", "-o", "toon", "."], &json);
+    assert_eq!(
+        back_to_toon.status.code(),
+        Some(0),
+        "JSON to TOON exits cleanly"
+    );
+    assert_eq!(
+        String::from_utf8(back_to_toon.stdout).expect("toon stdout is utf-8"),
+        input
+    );
+}
+
 fn read_case(path: &std::path::Path) -> Case {
     let args = fs::read_to_string(path.join("args.txt"))
         .expect("args fixture exists")
@@ -69,8 +88,15 @@ fn read_case(path: &std::path::Path) -> Case {
 }
 
 fn run_case(case: &Case) -> std::process::Output {
+    run_tq(
+        &case.args.iter().map(String::as_str).collect::<Vec<_>>(),
+        &case.stdin,
+    )
+}
+
+fn run_tq(args: &[&str], stdin: &str) -> std::process::Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_tq"))
-        .args(&case.args)
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -81,7 +107,7 @@ fn run_case(case: &Case) -> std::process::Output {
         .stdin
         .as_mut()
         .expect("stdin is piped")
-        .write_all(case.stdin.as_bytes())
+        .write_all(stdin.as_bytes())
         .expect("write stdin");
 
     child.wait_with_output().expect("wait for tq")
