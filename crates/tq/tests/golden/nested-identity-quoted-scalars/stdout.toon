@@ -1,0 +1,6 @@
+person:
+  name: "Ada Lovelace"
+  quote: "line\nbreak"
+  active: true
+  count: -3.5
+  nothing: null
