@@ -1,0 +1,5 @@
+person:
+  name: Ada
+  address:
+    city: London
+    zip: 12345
