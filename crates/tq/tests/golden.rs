@@ -73,7 +73,7 @@ fn jq_oracle_core_filters() {
         ".users|map(.score)|length",
         ".meta|keys",
         ".meta|has(\"team\")",
-        ".empty==null,.users|length>1",
+        ".empty==null,(.users|length>1)",
         "[.users[].name]",
     ];
 
