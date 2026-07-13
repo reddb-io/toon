@@ -1,0 +1,11 @@
+[package]
+name = "reddb-io-toon"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "reddb_io_toon"
+path = "src/lib.rs"
