@@ -4,13 +4,20 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const FIXTURE_ROOT: &str = "tests/fixtures/toon-spec/fixtures";
-const EXPECTED_FAILURE_LEDGER: &str = "tests/fixtures/toon-spec/expected-failures.txt";
+/// Fixtures come from the `toon-format/spec` submodule, so the corpus tracks
+/// upstream instead of drifting from a vendored copy.
+const FIXTURE_ROOT: &str = "../../vendor/toon-spec/tests/fixtures";
+const EXPECTED_FAILURE_LEDGER: &str = "tests/expected-failures.txt";
 
 #[test]
 fn official_toon_spec_fixtures_do_not_regress() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let fixture_root = manifest_dir.join(FIXTURE_ROOT);
+    assert!(
+        fixture_root.is_dir(),
+        "spec fixtures missing at {} — run `git submodule update --init`",
+        fixture_root.display()
+    );
     let expected_failures = read_expected_failures(&manifest_dir.join(EXPECTED_FAILURE_LEDGER));
     let mut seen = BTreeSet::new();
     let mut unexpected_failures = Vec::new();
@@ -43,7 +50,23 @@ fn official_toon_spec_fixtures_do_not_regress() {
                         .and_then(Value::as_bool)
                         .unwrap_or(false);
 
-                    parse_round_trips(input).is_ok() != should_error
+                    match (Document::parse(input), should_error) {
+                        // A rejection the spec asked for.
+                        (Err(_), true) => true,
+                        (Ok(_), true) | (Err(_), false) => false,
+                        // Parsing without an error is not enough. The decoded
+                        // value has to be the one the spec says it is, and our
+                        // own canonical output has to decode back to that same
+                        // value — otherwise either the parser returns wrong data
+                        // silently, or the serializer emits TOON we cannot read.
+                        (Ok(document), false) => {
+                            let decoded = document.to_json_value();
+                            let matches_spec = test
+                                .get("expected")
+                                .is_some_and(|expected| decoded == *expected);
+                            matches_spec && round_trips_to(&document, &decoded)
+                        }
+                    }
                 }
                 "encode" => {
                     let expected = test
@@ -110,6 +133,12 @@ fn fixture_id(root: &Path, path: &Path, name: &str) -> String {
         .to_string_lossy()
         .replace('\\', "/");
     format!("{relative}::{name}")
+}
+
+/// Our canonical output has to decode back to the value we started from.
+fn round_trips_to(document: &Document, decoded: &Value) -> bool {
+    Document::parse(&document.to_canonical_toon())
+        .is_ok_and(|reparsed| reparsed.to_json_value() == *decoded)
 }
 
 fn parse_round_trips(input: &str) -> Result<(), String> {
