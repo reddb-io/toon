@@ -12,3 +12,4 @@ path = "src/main.rs"
 
 [dependencies]
 reddb-io-toon = { path = "../toon" }
+serde_json = { version = "1", features = ["preserve_order"] }
