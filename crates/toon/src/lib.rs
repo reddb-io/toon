@@ -268,6 +268,10 @@ impl Array {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn get(&self, index: usize) -> Option<Value> {
         match self {
             Self::List(values) => values.get(index).cloned(),
@@ -706,7 +710,6 @@ fn parse_array_header_with_options(
         let raw_names = split_delimited_values(&suffix[1..suffix.len() - 1], delimiter, line)?;
         let names = raw_names
             .iter()
-            .into_iter()
             .map(|name| parse_key(name, line))
             .collect::<Result<Vec<_>, _>>()?;
         if names
@@ -1121,17 +1124,14 @@ fn invalid_quoted_string<T>(line: usize) -> Result<T, ParseError> {
     })
 }
 
-fn split_field<'a>(content: &'a str, line: usize) -> Result<(&'a str, &'a str), ParseError> {
+fn split_field(content: &str, line: usize) -> Result<(&str, &str), ParseError> {
     try_split_field(content, line)?.ok_or(ParseError {
         line,
         message: "expected `key: value`",
     })
 }
 
-fn try_split_field<'a>(
-    content: &'a str,
-    line: usize,
-) -> Result<Option<(&'a str, &'a str)>, ParseError> {
+fn try_split_field(content: &str, line: usize) -> Result<Option<(&str, &str)>, ParseError> {
     let mut in_string = false;
     let mut escaped = false;
 
