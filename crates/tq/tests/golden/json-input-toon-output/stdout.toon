@@ -1,0 +1,9 @@
+name: "Ada Lovelace"
+active: true
+count: 3
+tags[2]: admin,ops
+users[2]{id,name}:
+  1,Ada
+  2,Bob
+meta:
+  empty: null

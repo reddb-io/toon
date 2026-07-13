@@ -16,30 +16,21 @@ decode/arrays-nested.json::parses root-level array mixing primitive, object, and
 decode/arrays-nested.json::parses root-level array of arrays
 decode/arrays-nested.json::parses empty root-level array
 decode/arrays-nested.json::parses arrays mixing objects and arrays
-decode/arrays-primitive.json::parses quoted key containing brackets with inline array
-decode/arrays-tabular.json::parses quoted header keys in tabular arrays
 decode/blank-lines.json::throws on blank line inside list array
 decode/blank-lines.json::throws on blank line inside tabular array
 decode/blank-lines.json::throws on multiple blank lines inside array
 decode/blank-lines.json::throws on blank line with spaces inside array
-decode/delimiters.json::parses primitive arrays with tab delimiter
 decode/delimiters.json::parses tabular arrays with tab delimiter
 decode/delimiters.json::parses tabular arrays with pipe delimiter
 decode/delimiters.json::parses nested arrays with tab delimiter
 decode/delimiters.json::parses nested arrays with pipe delimiter
-decode/delimiters.json::parses nested arrays inside list items with default comma delimiter
 decode/delimiters.json::parses root-level array with tab delimiter
 decode/delimiters.json::parses root-level array with pipe delimiter
 decode/delimiters.json::parses root-level array of objects with tab delimiter
 decode/delimiters.json::parses root-level array of objects with pipe delimiter
-decode/delimiters.json::parses values containing tab delimiter when quoted
-decode/delimiters.json::does not split on commas when using tab delimiter
 decode/delimiters.json::does not require quoting commas with tab delimiter
-decode/delimiters.json::object values in list items follow document delimiter
 decode/delimiters.json::parses nested array values containing pipe delimiter
 decode/delimiters.json::parses nested array values containing tab delimiter
-decode/delimiters.json::preserves quoted ambiguity with tab delimiter
-decode/delimiters.json::parses structural-looking strings when quoted with tab delimiter
 decode/indentation-errors.json::accepts correct indentation with custom indent size (4 spaces with indent=4)
 decode/indentation-errors.json::accepts tabs in quoted string values
 decode/indentation-errors.json::accepts tabs in quoted keys
@@ -55,14 +46,9 @@ decode/numbers.json::treats unquoted octal-like as string
 decode/numbers.json::treats unquoted negative leading-zero number as string
 decode/objects.json::parses empty nested object header
 decode/objects.json::bare key: with no children decodes as empty object, not array
-decode/objects.json::parses quoted key with colon
-decode/objects.json::parses quoted key with brackets
 decode/objects.json::treats extra brackets after valid array segment as literal key (non-strict)
 decode/objects.json::treats non-integer bracket content as literal key (non-strict)
 decode/objects.json::treats text between bracket segment and colon as literal key (non-strict)
-decode/objects.json::parses quoted key with spaces
-decode/objects.json::parses quoted key with leading and trailing spaces
-decode/objects.json::unescapes quotes in key
 decode/path-expansion.json::throws on expansion conflict (object vs primitive) when strict=true
 decode/path-expansion.json::throws on expansion conflict (object vs array) when strict=true
 decode/path-expansion.json::expands keys creating empty nested objects
@@ -100,7 +86,6 @@ decode/validation-errors.json::throws on duplicate sibling keys in strict mode
 decode/validation-errors.json::throws on bracket length with leading zeros in strict mode
 decode/validation-errors.json::throws on nested duplicate sibling keys in strict mode
 decode/validation-errors.json::throws on duplicate keys within a list-item object in strict mode
-decode/whitespace.json::tolerates spaces around tabs in inline arrays
 decode/whitespace.json::parses empty tokens as empty string
 encode/arrays-nested.json::encodes nested arrays of primitives
 encode/arrays-nested.json::quotes strings containing delimiters in nested arrays
@@ -120,8 +105,6 @@ encode/arrays-objects.json::uses canonical encoding for multi-field list-item ob
 encode/arrays-objects.json::uses canonical encoding for single-field list-item tabular arrays
 encode/arrays-objects.json::encodes empty object list items as bare hyphen
 encode/arrays-objects.json::uses expanded list for arrays containing empty objects
-encode/arrays-tabular.json::encodes tabular arrays with keys needing quotes
-encode/delimiters.json::encodes primitive arrays with tab delimiter
 encode/delimiters.json::encodes tabular arrays with tab delimiter
 encode/delimiters.json::encodes tabular arrays with pipe delimiter
 encode/delimiters.json::encodes nested arrays with tab delimiter
@@ -130,17 +113,10 @@ encode/delimiters.json::encodes root-level array with tab delimiter
 encode/delimiters.json::encodes root-level array with pipe delimiter
 encode/delimiters.json::encodes root-level array of objects with tab delimiter
 encode/delimiters.json::encodes root-level array of objects with pipe delimiter
-encode/delimiters.json::quotes strings containing tab delimiter
-encode/delimiters.json::does not quote commas with tab delimiter
 encode/delimiters.json::does not quote commas in tabular values with tab delimiter
 encode/delimiters.json::quotes nested array values containing pipe delimiter
 encode/delimiters.json::quotes nested array values containing tab delimiter
 encode/key-folding.json::encodes folded chain ending with empty object
-encode/objects.json::quotes key with colon
-encode/objects.json::quotes key with brackets
-encode/objects.json::quotes key with spaces
-encode/objects.json::quotes key with leading and trailing spaces
-encode/objects.json::escapes quotes in key
 encode/objects.json::encodes empty nested object
 encode/primitives.json::encodes safe strings without quotes
 encode/primitives.json::encodes safe string with underscore and numbers

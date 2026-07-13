@@ -10,5 +10,5 @@ rust-version.workspace = true
 name = "reddb_io_toon"
 path = "src/lib.rs"
 
-[dev-dependencies]
-serde_json = "1"
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }

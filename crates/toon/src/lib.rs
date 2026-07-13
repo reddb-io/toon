@@ -65,9 +65,13 @@ struct ArrayHeader {
 
 impl Document {
     pub fn parse(input: &str) -> Result<Self, ParseError> {
-        let lines = collect_lines(input)?;
-        let mut index = 0;
-        parse_object(&lines, &mut index, 0)
+        match Value::parse_toon(input)? {
+            Value::Object(document) => Ok(document),
+            _ => Err(ParseError {
+                line: 1,
+                message: "expected `key: value`",
+            }),
+        }
     }
 
     pub fn get(&self, key: &str) -> Option<&Value> {
@@ -83,20 +87,28 @@ impl Document {
         output
     }
 
+    pub fn to_json_value(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        for field in &self.fields {
+            map.insert(field.key.clone(), field.value.to_json_value());
+        }
+        serde_json::Value::Object(map)
+    }
+
     fn write_canonical_toon(&self, output: &mut String, depth: usize) {
         for field in &self.fields {
             output.push_str(&" ".repeat(depth * INDENT_WIDTH));
             match &field.value {
                 Value::Array(array) => {
-                    array.write_canonical_toon(output, Some(&field.key), depth);
+                    array.write_canonical_toon(output, Some(field.key.as_str()), depth);
                 }
                 Value::Object(document) => {
-                    output.push_str(&field.key);
+                    output.push_str(&canonical_key(&field.key));
                     output.push_str(":\n");
                     document.write_canonical_toon(output, depth + 1);
                 }
                 value => {
-                    output.push_str(&field.key);
+                    output.push_str(&canonical_key(&field.key));
                     output.push_str(": ");
                     output.push_str(&value.to_canonical_toon());
                     output.push('\n');
@@ -125,6 +137,72 @@ impl fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 impl Value {
+    pub fn parse_toon(input: &str) -> Result<Self, ParseError> {
+        let lines = collect_lines(input)?;
+        let Some(first_line) = lines.first() else {
+            return Ok(Self::Object(Document { fields: Vec::new() }));
+        };
+        if first_line.depth != 0 {
+            return Err(ParseError {
+                line: first_line.number,
+                message: "invalid indentation",
+            });
+        }
+
+        if let Some(value) = parse_root_array(&lines)? {
+            return Ok(value);
+        }
+
+        if lines.len() == 1 && try_split_field(first_line.content, first_line.number)?.is_none() {
+            let value_text = first_line.content.trim();
+            if value_text == "[]" {
+                return Ok(Self::Array(Array::List(Vec::new())));
+            }
+            let value = parse_scalar(value_text, first_line.number)?;
+            if matches!(value, Self::String(_)) && !value_text.starts_with('"') {
+                return Err(ParseError {
+                    line: first_line.number,
+                    message: "expected `key: value`",
+                });
+            }
+            return Ok(value);
+        }
+
+        let mut index = 0;
+        let document = parse_object(&lines, &mut index, 0)?;
+        if let Some(line) = lines.get(index) {
+            return Err(ParseError {
+                line: line.number,
+                message: "expected end of document",
+            });
+        }
+        Ok(Self::Object(document))
+    }
+
+    pub fn from_json_str(input: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(input).map(Self::from_json_value)
+    }
+
+    pub fn from_json_value(value: serde_json::Value) -> Self {
+        match value {
+            serde_json::Value::Array(values) => Self::Array(Array::from_json_values(values)),
+            serde_json::Value::Bool(value) => Self::Bool(value),
+            serde_json::Value::Null => Self::Null,
+            serde_json::Value::Number(value) => Self::Number(value.to_string()),
+            serde_json::Value::Object(map) => {
+                let fields = map
+                    .into_iter()
+                    .map(|(key, value)| Field {
+                        key,
+                        value: Self::from_json_value(value),
+                    })
+                    .collect();
+                Self::Object(Document { fields })
+            }
+            serde_json::Value::String(value) => Self::String(value),
+        }
+    }
+
     pub fn to_canonical_toon(&self) -> String {
         match self {
             Self::Array(array) => array.to_canonical_toon(),
@@ -133,6 +211,29 @@ impl Value {
             Self::Number(value) => value.clone(),
             Self::Object(document) => document.to_canonical_toon(),
             Self::String(value) => canonical_string(value),
+        }
+    }
+
+    pub fn to_json_value(&self) -> serde_json::Value {
+        match self {
+            Self::Array(array) => array.to_json_value(),
+            Self::Bool(value) => serde_json::Value::Bool(*value),
+            Self::Null => serde_json::Value::Null,
+            Self::Number(value) => serde_json::from_str(value)
+                .ok()
+                .filter(serde_json::Value::is_number)
+                .unwrap_or_else(|| serde_json::Value::String(value.clone())),
+            Self::Object(document) => document.to_json_value(),
+            Self::String(value) => serde_json::Value::String(value.clone()),
+        }
+    }
+
+    pub fn to_json_string(&self, compact: bool) -> Result<String, serde_json::Error> {
+        let value = self.to_json_value();
+        if compact {
+            serde_json::to_string(&value)
+        } else {
+            serde_json::to_string_pretty(&value)
         }
     }
 
@@ -152,6 +253,14 @@ impl Value {
 }
 
 impl Array {
+    fn from_json_values(values: Vec<serde_json::Value>) -> Self {
+        let values = values
+            .into_iter()
+            .map(Value::from_json_value)
+            .collect::<Vec<_>>();
+        try_tabular_json_array(&values).unwrap_or(Self::List(values))
+    }
+
     pub fn len(&self) -> usize {
         match self {
             Self::List(values) => values.len(),
@@ -198,6 +307,15 @@ impl Array {
         output
     }
 
+    pub fn to_json_value(&self) -> serde_json::Value {
+        serde_json::Value::Array(
+            self.values()
+                .into_iter()
+                .map(|value| value.to_json_value())
+                .collect(),
+        )
+    }
+
     fn write_canonical_toon(&self, output: &mut String, key: Option<&str>, depth: usize) {
         self.write_body(output, key, depth);
     }
@@ -206,7 +324,7 @@ impl Array {
         match self {
             Self::List(values) if values.is_empty() => match key {
                 Some(key) => {
-                    output.push_str(key);
+                    output.push_str(&canonical_key(key));
                     output.push_str(": []\n");
                 }
                 None => output.push_str("[]\n"),
@@ -296,6 +414,89 @@ impl TabularArray {
     }
 }
 
+fn parse_root_array(lines: &[Line<'_>]) -> Result<Option<Value>, ParseError> {
+    let first_line = &lines[0];
+    let Some((raw_key, raw_value)) = try_split_field(first_line.content, first_line.number)? else {
+        return Ok(None);
+    };
+    if !raw_key.trim_start().starts_with('[') {
+        return Ok(None);
+    }
+
+    let Some(header) = parse_array_header_with_options(raw_key.trim(), first_line.number, true)?
+    else {
+        return Ok(None);
+    };
+    let mut index = 0;
+    let value = parse_array_value(
+        &header,
+        raw_value.trim(),
+        lines,
+        &mut index,
+        0,
+        first_line.number,
+    )?;
+    if let Some(line) = lines.get(index) {
+        return Err(ParseError {
+            line: line.number,
+            message: "expected end of document",
+        });
+    }
+    Ok(Some(value))
+}
+
+fn try_tabular_json_array(values: &[Value]) -> Option<Array> {
+    let Value::Object(first) = values.first()? else {
+        return None;
+    };
+    if first.fields.is_empty()
+        || first
+            .fields
+            .iter()
+            .any(|field| !is_tabular_json_value(&field.value))
+    {
+        return None;
+    }
+
+    let fields = first
+        .fields
+        .iter()
+        .map(|field| field.key.clone())
+        .collect::<Vec<_>>();
+    let mut rows = Vec::with_capacity(values.len());
+
+    for value in values {
+        let Value::Object(document) = value else {
+            return None;
+        };
+        if document.fields.len() != fields.len() {
+            return None;
+        }
+
+        let mut row_values = Vec::with_capacity(fields.len());
+        for (field, expected_key) in document.fields.iter().zip(&fields) {
+            if field.key != *expected_key || !is_tabular_json_value(&field.value) {
+                return None;
+            }
+            row_values.push(field.value.to_canonical_toon());
+        }
+        rows.push(TabularRow {
+            line: 0,
+            values: row_values,
+        });
+    }
+
+    Some(Array::Tabular(TabularArray {
+        fields,
+        rows,
+        delimiter: ',',
+    }))
+}
+
+fn is_tabular_json_value(value: &Value) -> bool {
+    !matches!(value, Value::Array(_) | Value::Object(_))
+}
+
 fn collect_lines(input: &str) -> Result<Vec<Line<'_>>, ParseError> {
     let mut lines = Vec::new();
 
@@ -355,17 +556,7 @@ fn parse_object(
             });
         }
 
-        let (key, raw_value) = line.content.split_once(':').ok_or(ParseError {
-            line: line.number,
-            message: "expected `key: value`",
-        })?;
-        let key = key.trim();
-        if key.is_empty() || key.contains(char::is_whitespace) {
-            return Err(ParseError {
-                line: line.number,
-                message: "expected non-empty field name",
-            });
-        }
+        let (key, raw_value) = split_field(line.content, line.number)?;
 
         let value_text = raw_value.trim();
         if let Some(header) = parse_array_header(key, line.number)? {
@@ -378,9 +569,17 @@ fn parse_object(
         }
 
         if value_text == "[]" {
+            let raw_key = key;
+            let key = parse_key(raw_key, line.number)?;
+            if key.is_empty() && !raw_key.trim().starts_with('"') {
+                return Err(ParseError {
+                    line: line.number,
+                    message: "expected non-empty field name",
+                });
+            }
             *index += 1;
             fields.push(Field {
-                key: key.to_owned(),
+                key,
                 value: Value::Array(Array::List(Vec::new())),
             });
             continue;
@@ -390,9 +589,17 @@ fn parse_object(
             *index += 1;
             match lines.get(*index) {
                 Some(next_line) if next_line.depth == depth + 1 => {
+                    let raw_key = key;
+                    let key = parse_key(raw_key, line.number)?;
+                    if key.is_empty() && !raw_key.trim().starts_with('"') {
+                        return Err(ParseError {
+                            line: line.number,
+                            message: "expected non-empty field name",
+                        });
+                    }
                     let nested = parse_object(lines, index, depth + 1)?;
                     fields.push(Field {
-                        key: key.to_owned(),
+                        key,
                         value: Value::Object(nested),
                     });
                 }
@@ -422,17 +629,30 @@ fn parse_object(
                 });
             }
         }
-        fields.push(Field {
-            key: key.to_owned(),
-            value,
-        });
+        let raw_key = key;
+        let key = parse_key(raw_key, line.number)?;
+        if key.is_empty() && !raw_key.trim().starts_with('"') {
+            return Err(ParseError {
+                line: line.number,
+                message: "expected non-empty field name",
+            });
+        }
+        fields.push(Field { key, value });
     }
 
     Ok(Document { fields })
 }
 
 fn parse_array_header(key: &str, line: usize) -> Result<Option<ArrayHeader>, ParseError> {
-    let Some(open) = key.find('[') else {
+    parse_array_header_with_options(key, line, false)
+}
+
+fn parse_array_header_with_options(
+    key: &str,
+    line: usize,
+    allow_empty_key: bool,
+) -> Result<Option<ArrayHeader>, ParseError> {
+    let Some(open) = find_unquoted_char(key, '[', line)? else {
         return Ok(None);
     };
     let Some(close) = key[open + 1..].find(']').map(|offset| open + 1 + offset) else {
@@ -442,8 +662,9 @@ fn parse_array_header(key: &str, line: usize) -> Result<Option<ArrayHeader>, Par
         });
     };
 
-    let name = &key[..open];
-    if name.is_empty() || name.contains(char::is_whitespace) {
+    let raw_name = &key[..open];
+    let name = parse_key(raw_name, line)?;
+    if !allow_empty_key && name.is_empty() && !raw_name.trim().starts_with('"') {
         return Err(ParseError {
             line,
             message: "expected non-empty field name",
@@ -482,8 +703,17 @@ fn parse_array_header(key: &str, line: usize) -> Result<Option<ArrayHeader>, Par
     let fields = if suffix.is_empty() {
         None
     } else if suffix.starts_with('{') && suffix.ends_with('}') {
-        let names = split_delimited_values(&suffix[1..suffix.len() - 1], delimiter, line)?;
-        if names.iter().any(|name| name.is_empty()) {
+        let raw_names = split_delimited_values(&suffix[1..suffix.len() - 1], delimiter, line)?;
+        let names = raw_names
+            .iter()
+            .into_iter()
+            .map(|name| parse_key(name, line))
+            .collect::<Result<Vec<_>, _>>()?;
+        if names
+            .iter()
+            .zip(&raw_names)
+            .any(|(name, raw_name)| name.is_empty() && !raw_name.trim().starts_with('"'))
+        {
             return Err(ParseError {
                 line,
                 message: "invalid array header",
@@ -498,7 +728,7 @@ fn parse_array_header(key: &str, line: usize) -> Result<Option<ArrayHeader>, Par
     };
 
     Ok(Some(ArrayHeader {
-        key: name.to_owned(),
+        key: name,
         len,
         delimiter,
         fields,
@@ -638,7 +868,7 @@ fn parse_expanded_list_array(
             });
         };
         let value_text = rest.trim_start();
-        if value_text.contains(':') {
+        if try_split_field(value_text, line.number)?.is_some() {
             let mut nested_lines = vec![Line {
                 number: line.number,
                 depth: 0,
@@ -757,14 +987,20 @@ fn write_array_header(
     fields: Option<&[String]>,
 ) {
     if let Some(key) = key {
-        output.push_str(key);
+        output.push_str(&canonical_key(key));
     }
     output.push('[');
     output.push_str(&len.to_string());
     output.push(']');
     if let Some(fields) = fields {
         output.push('{');
-        output.push_str(&fields.join(","));
+        output.push_str(
+            &fields
+                .iter()
+                .map(|field| canonical_key(field))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
         output.push('}');
     }
     output.push(':');
@@ -776,12 +1012,12 @@ fn write_field(output: &mut String, field: &Field, depth: usize) {
             array.write_canonical_toon(output, Some(&field.key), depth);
         }
         Value::Object(document) => {
-            output.push_str(&field.key);
+            output.push_str(&canonical_key(&field.key));
             output.push_str(":\n");
             document.write_canonical_toon(output, depth + 1);
         }
         value => {
-            output.push_str(&field.key);
+            output.push_str(&canonical_key(&field.key));
             output.push_str(": ");
             output.push_str(&value.to_canonical_toon());
             output.push('\n');
@@ -883,6 +1119,98 @@ fn invalid_quoted_string<T>(line: usize) -> Result<T, ParseError> {
         line,
         message: "invalid quoted string",
     })
+}
+
+fn split_field<'a>(content: &'a str, line: usize) -> Result<(&'a str, &'a str), ParseError> {
+    try_split_field(content, line)?.ok_or(ParseError {
+        line,
+        message: "expected `key: value`",
+    })
+}
+
+fn try_split_field<'a>(
+    content: &'a str,
+    line: usize,
+) -> Result<Option<(&'a str, &'a str)>, ParseError> {
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (index, character) in content.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+
+        match character {
+            '\\' if in_string => escaped = true,
+            '"' => in_string = !in_string,
+            ':' if !in_string => return Ok(Some((&content[..index], &content[index + 1..]))),
+            _ => {}
+        }
+    }
+
+    if in_string || escaped {
+        return invalid_quoted_string(line);
+    }
+
+    Ok(None)
+}
+
+fn find_unquoted_char(value: &str, needle: char, line: usize) -> Result<Option<usize>, ParseError> {
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (index, character) in value.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+
+        match character {
+            '\\' if in_string => escaped = true,
+            '"' => in_string = !in_string,
+            character if character == needle && !in_string => return Ok(Some(index)),
+            _ => {}
+        }
+    }
+
+    if in_string || escaped {
+        return invalid_quoted_string(line);
+    }
+
+    Ok(None)
+}
+
+fn parse_key(value: &str, line: usize) -> Result<String, ParseError> {
+    let value = value.trim();
+    if value.starts_with('"') {
+        return parse_quoted_string(value, line);
+    }
+    if value.is_empty() {
+        return Ok(String::new());
+    }
+    if value.contains('"') || value.contains(char::is_whitespace) {
+        return Err(ParseError {
+            line,
+            message: "expected non-empty field name",
+        });
+    }
+    Ok(value.to_owned())
+}
+
+fn canonical_key(value: &str) -> String {
+    if can_write_bare_key(value) {
+        value.to_owned()
+    } else {
+        canonical_string(value)
+    }
+}
+
+fn can_write_bare_key(value: &str) -> bool {
+    !value.is_empty()
+        && value.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '.')
+        })
 }
 
 fn canonical_string(value: &str) -> String {
