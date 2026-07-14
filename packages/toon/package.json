@@ -1,0 +1,46 @@
+{
+  "name": "@reddb-io/toon",
+  "version": "0.1.0",
+  "description": "TOON v3.3 parser and serializer, plus TOONL v0.1 append-only streaming. Dependency-free ESM, conformant against the official spec corpus.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "types": "./index.d.ts"
+    }
+  },
+  "types": "./index.d.ts",
+  "files": [
+    "src/",
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/toon.test.mjs test/toonl.test.mjs test/conformance.test.mjs test/readme-examples.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "toon",
+    "toonl",
+    "parser",
+    "serializer",
+    "streaming",
+    "json",
+    "tokens",
+    "llm"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/reddb-io/tq",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reddb-io/tq.git",
+    "directory": "packages/toon"
+  },
+  "bugs": {
+    "url": "https://github.com/reddb-io/tq/issues"
+  }
+}
