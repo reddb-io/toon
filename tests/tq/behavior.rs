@@ -332,6 +332,53 @@ fn selects_output_shape_with_raw_pretty_and_toon_modes() {
     );
 }
 
+#[test]
+fn supports_toonl_row_streams_slurp_output_and_file_detection() {
+    let input = "[]{id,name}:\n1,Ada\n2,Linus\n[=2]\n";
+
+    let rows = run_tq(&["-p", "toonl", "-o", "json", "-c", ".name"], input);
+    assert_eq!(rows.status.code(), Some(0), "toonl rows exit cleanly");
+    assert_eq!(
+        String::from_utf8(rows.stdout).expect("stdout is utf-8"),
+        "\"Ada\"\n\"Linus\"\n"
+    );
+
+    let slurped = run_tq(
+        &["-p", "toonl", "-o", "json", "-c", "-s", "map(.name)"],
+        input,
+    );
+    assert_eq!(slurped.status.code(), Some(0), "toonl slurp exits cleanly");
+    assert_eq!(
+        String::from_utf8(slurped.stdout).expect("stdout is utf-8"),
+        "[\"Ada\",\"Linus\"]\n"
+    );
+
+    let toonl = run_tq(
+        &["-p", "json", "-o", "toonl", "."],
+        r#"{"id":1,"name":"Ada"}"#,
+    );
+    assert_eq!(toonl.status.code(), Some(0), "toonl output exits cleanly");
+    assert_eq!(
+        String::from_utf8(toonl.stdout).expect("stdout is utf-8"),
+        "[]{id,name}:\n1,Ada\n[=1]\n"
+    );
+
+    let path = std::env::temp_dir().join("tq-behavior-input.toonl");
+    std::fs::write(&path, input).expect("write toonl temp input");
+    let detected = run_tq(&["-o", "json", "-c", ".id", path.to_str().unwrap()], "");
+    assert_eq!(
+        detected.status.code(),
+        Some(0),
+        "detects .toonl input: {}",
+        String::from_utf8_lossy(&detected.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(detected.stdout).expect("stdout is utf-8"),
+        "1\n2\n"
+    );
+    std::fs::remove_file(&path).expect("remove toonl temp input");
+}
+
 fn assert_error(args: &[&str], stdin: &str, message: &str) {
     let output = run_tq(args, stdin);
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
