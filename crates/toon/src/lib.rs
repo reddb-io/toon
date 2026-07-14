@@ -1295,7 +1295,9 @@ fn write_array(
         return;
     }
 
-    if let Some(fields) = tabular_fields(values) {
+    // In list-item position the tabular form has nowhere to put its field list,
+    // so §9.4 requires the expanded list even for a uniform array of objects.
+    if let Some(fields) = tabular_fields(values).filter(|_| !list_item) {
         write_array_header(output, key, values.len(), Some(&fields));
         output.push('\n');
         for value in values {
