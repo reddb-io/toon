@@ -72,6 +72,12 @@ export function parseRecords(input: string): ToonlRecord[]
 /** Closes a TOONL stream: one canonical TOON document per segment. */
 export function closeTransform(input: string): string[]
 
+/** Converts a whole JSON document string to canonical TOON. */
+export function jsonToToon(input: string): string
+
+/** Converts a whole TOON document string to compact JSON. */
+export function toonToJson(input: string): string
+
 /**
  * Decodes a TOONL stream record by record. Follows schema rotation, skips blank
  * lines, and validates every `[=N]` trailer against the rows seen.
@@ -102,6 +108,29 @@ export function encodeRecords(
   records: Iterable<ToonlRecord>,
   options?: EncodeLinesOptions,
 ): string
+
+/** Web Streams decoder: TOONL `string | Uint8Array` chunks in, records out. */
+export function ToonlDecodeStream(): TransformStream<string | Uint8Array, ToonlRecord>
+
+/** Web Streams encoder: records in, TOONL text chunks out. */
+export function ToonlEncodeStream(options?: EncodeLinesOptions): TransformStream<ToonlRecord, string>
+
+/** JSONL text chunks in, TOONL text chunks out. */
+export function JsonlToToonl(
+  options?: EncodeLinesOptions,
+): TransformStream<string | Uint8Array, string>
+
+/** TOONL text chunks in, JSONL text chunks out. */
+export function ToonlToJsonl(): TransformStream<string | Uint8Array, string>
+
+/**
+ * Maps or filters record streams and emits TOONL. Return `undefined` or `null`
+ * to drop a record; schema rotation is handled by the output encoder.
+ */
+export function recordTransform(
+  fn: (record: ToonlRecord) => ToonlRecord | null | undefined,
+  options?: EncodeLinesOptions,
+): TransformStream<ToonlRecord, string>
 
 /** A single TOONL segment with a fixed schema, closed by its `[=N]` trailer. */
 export class ToonlEncoder {
