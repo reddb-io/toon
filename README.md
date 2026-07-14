@@ -2,8 +2,8 @@
 
 <img src="docs/hero.svg" alt="tq — jq for TOON &amp; TOONL. Query, convert, and stream TOON ⇄ JSON." width="100%">
 
-[![Release](https://img.shields.io/github/v/release/reddb-io/tq?include_prereleases&style=for-the-badge&color=ff2056&labelColor=0d1117)](https://github.com/reddb-io/tq/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/reddb-io/tq/ci.yml?branch=main&style=for-the-badge&label=CI&labelColor=0d1117)](https://github.com/reddb-io/tq/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/reddb-io/toon?include_prereleases&style=for-the-badge&color=ff2056&labelColor=0d1117)](https://github.com/reddb-io/toon/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/reddb-io/toon/ci.yml?branch=main&style=for-the-badge&label=CI&labelColor=0d1117)](https://github.com/reddb-io/toon/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge&labelColor=0d1117)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-8b949e?style=for-the-badge&labelColor=0d1117)](#prebuilt-binaries)
 
@@ -89,7 +89,7 @@ TOON is also *self-checking* in a way JSON is not: `[4]` declares the row count 
 Detects your OS and architecture, resolves the latest release, verifies the SHA-256 checksum, and installs — or updates an existing `tq` in place.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/reddb-io/tq/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/reddb-io/toon/main/install.sh | sh
 ```
 
 It is idempotent: re-running it when you are already on the latest version is a no-op. Knobs:
@@ -103,7 +103,7 @@ It is idempotent: re-running it when you are already on the latest version is a 
 
 ```bash
 # Pin an exact version into a directory you control.
-curl -fsSL https://raw.githubusercontent.com/reddb-io/tq/main/install.sh \
+curl -fsSL https://raw.githubusercontent.com/reddb-io/toon/main/install.sh \
   | TQ_VERSION=v0.1.0 TQ_INSTALL_DIR="$HOME/.local/bin" sh
 ```
 
@@ -118,7 +118,7 @@ cargo install reddb-io-tq   # installs the `tq` binary
 Until then, install straight from the repository:
 
 ```bash
-cargo install --git https://github.com/reddb-io/tq reddb-io-tq
+cargo install --git https://github.com/reddb-io/toon reddb-io-tq
 ```
 
 ### Prebuilt binaries
@@ -141,11 +141,11 @@ Each release ships a `SHA256SUMS` manifest (also as `checksums.txt`) covering ev
 
 ```bash
 TAG=v0.1.0
-curl -fsSLO https://github.com/reddb-io/tq/releases/download/$TAG/tq-linux-x86_64
-curl -fsSL  https://github.com/reddb-io/tq/releases/download/$TAG/SHA256SUMS -o SHA256SUMS
+curl -fsSLO https://github.com/reddb-io/toon/releases/download/$TAG/tq-linux-x86_64
+curl -fsSL  https://github.com/reddb-io/toon/releases/download/$TAG/SHA256SUMS -o SHA256SUMS
 
 grep '  tq-linux-x86_64$' SHA256SUMS | sha256sum -c -
-gh attestation verify tq-linux-x86_64 --repo reddb-io/tq
+gh attestation verify tq-linux-x86_64 --repo reddb-io/toon
 ```
 
 ---
@@ -543,8 +543,8 @@ error: disk full
 Both channels build the same seven-asset matrix with checksums and attestations. The installer follows `stable` by default; opt into the bleeding edge, or pin an exact build, with:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/reddb-io/tq/main/install.sh | TQ_CHANNEL=next sh
-curl -fsSL https://raw.githubusercontent.com/reddb-io/tq/main/install.sh | TQ_VERSION=v0.1.0 sh
+curl -fsSL https://raw.githubusercontent.com/reddb-io/toon/main/install.sh | TQ_CHANNEL=next sh
+curl -fsSL https://raw.githubusercontent.com/reddb-io/toon/main/install.sh | TQ_VERSION=v0.1.0 sh
 ```
 
 ---
@@ -552,7 +552,7 @@ curl -fsSL https://raw.githubusercontent.com/reddb-io/tq/main/install.sh | TQ_VE
 ## Develop
 
 ```bash
-git clone https://github.com/reddb-io/tq
+git clone https://github.com/reddb-io/toon
 cd tq
 git submodule update --init          # the official TOON spec corpus
 

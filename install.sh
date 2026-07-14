@@ -1,7 +1,7 @@
 #!/bin/sh
-# tq installer — https://github.com/reddb-io/tq
+# tq installer — https://github.com/reddb-io/toon
 #
-#   curl -fsSL https://raw.githubusercontent.com/reddb-io/tq/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/reddb-io/toon/main/install.sh | sh
 #
 # Detects OS/architecture, resolves the latest release, and installs the
 # right prebuilt binary. If tq is already installed it becomes an update:
@@ -17,7 +17,7 @@
 
 set -u
 
-REPO="reddb-io/tq"
+REPO="reddb-io/toon"
 API="https://api.github.com/repos/${REPO}"
 
 say() { printf '%s\n' "$*"; }

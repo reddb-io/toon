@@ -10,7 +10,7 @@
 
 ### Issue tracker
 
-Issues and Specs live on GitHub Issues (reddb-io/tq) via the `gh` CLI. See `.red/agents/issue-tracker.md`.
+Issues and Specs live on GitHub Issues (reddb-io/toon) via the `gh` CLI. See `.red/agents/issue-tracker.md`.
 
 ### Triage labels
 

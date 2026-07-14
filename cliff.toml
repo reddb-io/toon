@@ -28,7 +28,7 @@ body = """
 {% endfor %}
 {% endfor -%}
 {% if previous and previous.version %}
-**Full Changelog**: https://github.com/reddb-io/tq/compare/{{ previous.version }}...{{ version }}
+**Full Changelog**: https://github.com/reddb-io/toon/compare/{{ previous.version }}...{{ version }}
 {% endif %}
 """
 

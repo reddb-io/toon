@@ -2,7 +2,7 @@
 
 TOON v3.3 parser and serializer, plus TOONL v0.1 append-only streaming — in dependency-free ESM.
 
-TOON ([Token-Oriented Object Notation](https://github.com/toon-format/spec)) is JSON's data model in a layout that costs far fewer tokens to hand to a model. This package decodes TOON to plain JSON values and encodes them back to canonical TOON, and it runs the **official spec corpus** — all 389 fixtures, no exceptions — as part of its test suite, alongside the Rust implementation that powers the [`tq`](https://github.com/reddb-io/tq) CLI.
+TOON ([Token-Oriented Object Notation](https://github.com/toon-format/spec)) is JSON's data model in a layout that costs far fewer tokens to hand to a model. This package decodes TOON to plain JSON values and encodes them back to canonical TOON, and it runs the **official spec corpus** — all 389 fixtures, no exceptions — as part of its test suite, alongside the Rust implementation that powers the [`tq`](https://github.com/reddb-io/toon) CLI.
 
 Zero dependencies, no build step, hand-written types.
 
