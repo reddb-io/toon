@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-labelledby="tq-hero-title tq-hero-desc">
   <title id="tq-hero-title">TOON &amp; TOONL — token-oriented data formats</title>
-  <desc id="tq-hero-desc">The TOON and TOONL formats, and the three implementations that speak them: the tq CLI, the reddb-io-toon Rust crate, and the @reddb-io/toon JS/TS package.</desc>
+  <desc id="tq-hero-desc">The TOON and TOONL formats and the four packages that ship them: the tq CLI, the reddb-io-toon and reddb-io-tq Rust crates, and the @reddb-io/toon JS/TS package.</desc>
 
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -41,13 +41,16 @@
       <text x="72" y="272" font-size="19" fill="#8b949e">Token-oriented object notation,</text>
       <text x="72" y="298" font-size="19" fill="#8b949e">and its append-only stream.</text>
 
+      <text x="72" y="320" font-size="11" fill="#6e7681" letter-spacing="2.5">SHIPS FOUR PACKAGES</text>
       <g font-size="14" fill="#6e7681">
-        <rect x="72" y="326" width="94" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ff2056" stroke-opacity="0.35"/>
-        <text x="88" y="345" fill="#c9d1d9">tq &#183; CLI</text>
-        <rect x="176" y="326" width="116" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
-        <text x="192" y="345">Rust crate</text>
-        <rect x="302" y="326" width="150" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
-        <text x="318" y="345">JS/TS package</text>
+        <rect x="72" y="330" width="96" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ff2056" stroke-opacity="0.35"/>
+        <text x="88" y="349" fill="#c9d1d9">tq &#183; CLI</text>
+        <rect x="180" y="330" width="196" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
+        <text x="196" y="349"><tspan fill="#c9d1d9">@reddb-io/toon</tspan> &#183; npm</text>
+        <rect x="72" y="366" width="232" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
+        <text x="88" y="385"><tspan fill="#c9d1d9">reddb-io-toon</tspan> &#183; crates.io</text>
+        <rect x="316" y="366" width="216" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
+        <text x="332" y="385"><tspan fill="#c9d1d9">reddb-io-tq</tspan> &#183; crates.io</text>
       </g>
     </g>
 
@@ -73,8 +76,8 @@
       <g transform="translate(844 210)">
         <line x1="12" y1="0" x2="60" y2="0" stroke="#ff2056" stroke-width="2" stroke-opacity="0.55"/>
         <path d="M60 -6 L74 0 L60 6 Z" fill="#ff2056"/>
-        <rect x="6" y="-46" width="72" height="26" rx="13" fill="#ff2056" fill-opacity="0.14" stroke="#ff2056" stroke-opacity="0.5"/>
-        <text x="20" y="-28" font-size="13" fill="#ff2056">tq -o toon</text>
+        <rect x="0" y="-45" width="86" height="24" rx="12" fill="#ff2056" fill-opacity="0.14" stroke="#ff2056" stroke-opacity="0.5"/>
+        <text x="8" y="-28" font-size="12" fill="#ff2056">tq -o toon</text>
       </g>
 
       <rect x="932" y="56" width="212" height="308" rx="12" fill="#0b0f15" stroke="#ff2056" stroke-opacity="0.35"/>

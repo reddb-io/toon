@@ -634,11 +634,7 @@ impl<W: Write> ToonlWriter<W> {
         validate_toonl_delimiter(self.delimiter)?;
         let fields = toonl_value_fields(record)?;
 
-        if self
-            .fields
-            .as_ref()
-            .map_or(true, |current| current != &fields)
-        {
+        if self.fields.as_ref() != Some(&fields) {
             self.close_segment()?;
             self.write_header(&fields)?;
             self.fields = Some(fields);
