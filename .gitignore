@@ -2,3 +2,7 @@
 .red/state/
 node_modules/
 target/
+
+# Worker/runtime state must never be committed, at any depth.
+**/.red/tmp/
+**/.red/state/
