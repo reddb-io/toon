@@ -6,6 +6,7 @@
  */
 
 import { asToonlError, toonlError } from './errors.js'
+import { parse, serialize } from './toon.js'
 import {
   DOCUMENT_DELIMITER,
   canonicalKey,
@@ -19,6 +20,13 @@ import {
 } from './lexical.js'
 
 const DELIMITERS = [DOCUMENT_DELIMITER, '|', '\t']
+
+function requireTransformStream() {
+  if (typeof TransformStream === 'undefined') {
+    throw toonlError(0, 'Web Streams API is not available in this runtime')
+  }
+  return TransformStream
+}
 
 // ---------------------------------------------------------------------------
 // Line grammar
@@ -249,28 +257,220 @@ async function* toLines(source) {
  * `source` is a string, or an (async) iterable of string/Uint8Array chunks.
  */
 export async function* decodeLines(source) {
-  let open = null
-  let lineNumber = 0
+  const state = createDecodeState()
 
   for await (const line of toLines(source)) {
-    lineNumber += 1
-    if (line === '') {
-      continue
+    const record = consumeDecodeLine(state, line)
+    if (record !== undefined) {
+      yield record
     }
-
-    const step = classifyLine(line, lineNumber, open)
-    if (step.kind === 'trailer') {
-      open = null
-      continue
-    }
-    if (step.kind === 'header') {
-      open = { delimiter: step.header.delimiter, fields: step.header.fields, rowCount: 0 }
-      continue
-    }
-
-    open.rowCount += 1
-    yield rowRecord(open.fields, step.cells, lineNumber)
   }
+}
+
+function createDecodeState() {
+  return { open: null, lineNumber: 0 }
+}
+
+function consumeDecodeLine(state, line) {
+  state.lineNumber += 1
+  if (line === '') {
+    return undefined
+  }
+
+  const step = classifyLine(line, state.lineNumber, state.open)
+  if (step.kind === 'trailer') {
+    state.open = null
+    return undefined
+  }
+  if (step.kind === 'header') {
+    state.open = { delimiter: step.header.delimiter, fields: step.header.fields, rowCount: 0 }
+    return undefined
+  }
+
+  state.open.rowCount += 1
+  return rowRecord(state.open.fields, step.cells, state.lineNumber)
+}
+
+function chunkText(decoder, chunk, stream) {
+  return typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream })
+}
+
+function consumeBufferedLines(state, text, controller, onLine) {
+  state.buffer += text
+  let newline = state.buffer.indexOf('\n')
+  while (newline !== -1) {
+    const rawLine = state.buffer.slice(0, newline)
+    onLine(state, rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine, controller)
+    state.buffer = state.buffer.slice(newline + 1)
+    newline = state.buffer.indexOf('\n')
+  }
+}
+
+function consumeBufferedFlush(state, controller, onLine) {
+  if (state.buffer !== '') {
+    const line = state.buffer.endsWith('\r') ? state.buffer.slice(0, -1) : state.buffer
+    state.buffer = ''
+    onLine(state, line, controller)
+  }
+}
+
+function enqueueRecordJson(record, controller) {
+  controller.enqueue(`${JSON.stringify(record)}\n`)
+}
+
+function enqueueDecodedRecord(state, line, controller) {
+  const record = consumeDecodeLine(state.decoder, line)
+  if (record !== undefined) {
+    controller.enqueue(record)
+  }
+}
+
+function enqueueJsonlRecord(state, line, controller) {
+  const record = consumeDecodeLine(state.decoder, line)
+  if (record !== undefined) {
+    enqueueRecordJson(record, controller)
+  }
+}
+
+function enqueueEncodedJson(state, line, controller) {
+  if (line === '') {
+    return
+  }
+  const parsed = JSON.parse(line)
+  const output = state.emitter.push(parsed)
+  if (output !== '') {
+    controller.enqueue(output)
+  }
+}
+
+function finishEmitter(state, controller) {
+  const output = state.emitter.end()
+  if (output !== '') {
+    controller.enqueue(output)
+  }
+}
+
+/**
+ * Web Streams decoder: TOONL `string | Uint8Array` chunks in, records out.
+ * It shares the same line grammar and trailer checks as `decodeLines`.
+ */
+export function ToonlDecodeStream() {
+  const WebTransformStream = requireTransformStream()
+  const state = { buffer: '', decoder: createDecodeState(), textDecoder: new TextDecoder() }
+
+  return new WebTransformStream({
+    transform(chunk, controller) {
+      consumeBufferedLines(
+        state,
+        chunkText(state.textDecoder, chunk, true),
+        controller,
+        enqueueDecodedRecord,
+      )
+    },
+    flush(controller) {
+      consumeBufferedLines(state, state.textDecoder.decode(), controller, enqueueDecodedRecord)
+      consumeBufferedFlush(state, controller, enqueueDecodedRecord)
+    },
+  })
+}
+
+/** Web Streams encoder: records in, TOONL text chunks out. */
+export function ToonlEncodeStream(options) {
+  const WebTransformStream = requireTransformStream()
+  const state = { emitter: encodeLines(options) }
+
+  return new WebTransformStream({
+    transform(record, controller) {
+      const output = state.emitter.push(record)
+      if (output !== '') {
+        controller.enqueue(output)
+      }
+    },
+    flush(controller) {
+      finishEmitter(state, controller)
+    },
+  })
+}
+
+/** JSONL text chunks in, TOONL text chunks out. */
+export function JsonlToToonl(options) {
+  const WebTransformStream = requireTransformStream()
+  const state = { buffer: '', emitter: encodeLines(options), textDecoder: new TextDecoder() }
+
+  return new WebTransformStream({
+    transform(chunk, controller) {
+      consumeBufferedLines(
+        state,
+        chunkText(state.textDecoder, chunk, true),
+        controller,
+        enqueueEncodedJson,
+      )
+    },
+    flush(controller) {
+      consumeBufferedLines(state, state.textDecoder.decode(), controller, enqueueEncodedJson)
+      consumeBufferedFlush(state, controller, enqueueEncodedJson)
+      finishEmitter(state, controller)
+    },
+  })
+}
+
+/** TOONL text chunks in, JSONL text chunks out. */
+export function ToonlToJsonl() {
+  const WebTransformStream = requireTransformStream()
+  const state = { buffer: '', decoder: createDecodeState(), textDecoder: new TextDecoder() }
+
+  return new WebTransformStream({
+    transform(chunk, controller) {
+      consumeBufferedLines(
+        state,
+        chunkText(state.textDecoder, chunk, true),
+        controller,
+        enqueueJsonlRecord,
+      )
+    },
+    flush(controller) {
+      consumeBufferedLines(state, state.textDecoder.decode(), controller, enqueueJsonlRecord)
+      consumeBufferedFlush(state, controller, enqueueJsonlRecord)
+    },
+  })
+}
+
+/**
+ * Maps or filters record streams and emits TOONL. Return `undefined` or `null`
+ * to drop a record; schema rotation is handled by the output encoder.
+ */
+export function recordTransform(fn, options) {
+  if (typeof fn !== 'function') {
+    throw toonlError(0, 'recordTransform requires a function')
+  }
+  const WebTransformStream = requireTransformStream()
+  const state = { emitter: encodeLines(options) }
+
+  return new WebTransformStream({
+    transform(record, controller) {
+      const next = fn(record)
+      if (next === undefined || next === null) {
+        return
+      }
+      const output = state.emitter.push(next)
+      if (output !== '') {
+        controller.enqueue(output)
+      }
+    },
+    flush(controller) {
+      finishEmitter(state, controller)
+    },
+  })
+}
+
+/** Converts a whole JSON document string to canonical TOON. */
+export function jsonToToon(input) {
+  return serialize(JSON.parse(input))
+}
+
+/** Converts a whole TOON document string to compact JSON. */
+export function toonToJson(input) {
+  return JSON.stringify(parse(input))
 }
 
 // ---------------------------------------------------------------------------
