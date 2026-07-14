@@ -452,11 +452,14 @@ jobs:
   publish-npm:
     name: Publish @reddb-io/toon to npm
     # Like publish-cargo, this is a source publish: it needs nothing from the
-    # binary build matrix, so it runs in parallel with everything else. Both
-    # channels publish — stable to `latest`, prereleases to the `next` tag.
+    # binary build matrix, so it runs in parallel with everything else. npm
+    # publishing follows the reddb pattern: stable tags only — main-push
+    # prereleases ship binaries on the GitHub Release but never hit npm.
     needs: [plan]
     runs-on: ubuntu-latest
-    if: needs.plan.outputs.should_skip != 'true'
+    if: |
+      needs.plan.outputs.should_skip != 'true' &&
+      needs.plan.outputs.release_channel == 'stable'
     steps:
       - uses: actions/checkout@v4
         with:
