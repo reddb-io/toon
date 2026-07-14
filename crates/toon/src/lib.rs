@@ -6,7 +6,7 @@
 //! two-space indentation, no key folding.
 
 use std::fmt;
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 
 /// Spaces per indentation level unless [`ParseOptions::indent`] says otherwise.
 pub const DEFAULT_INDENT: usize = 2;
@@ -133,6 +133,18 @@ pub struct ToonlRowReader<R> {
     line: String,
     line_number: usize,
     current: Option<OpenToonlSegment>,
+    finished: bool,
+}
+
+pub type Record = Value;
+pub type ToonlReader<R> = ToonlRowReader<R>;
+
+#[derive(Debug)]
+pub struct ToonlWriter<W> {
+    writer: W,
+    delimiter: char,
+    fields: Option<Vec<String>>,
+    row_count: usize,
     finished: bool,
 }
 
@@ -598,6 +610,202 @@ pub fn encode_toonl_values(values: &[Value]) -> Result<String, ToonlError> {
     }
 
     Ok(output)
+}
+
+impl<W: Write> ToonlWriter<W> {
+    pub fn new(writer: W) -> Self {
+        Self::with_delimiter(writer, DOCUMENT_DELIMITER)
+    }
+
+    pub fn with_delimiter(writer: W, delimiter: char) -> Self {
+        Self {
+            writer,
+            delimiter,
+            fields: None,
+            row_count: 0,
+            finished: false,
+        }
+    }
+
+    pub fn write_record(&mut self, record: &Record) -> Result<(), ToonlError> {
+        if self.finished {
+            return Err(toonl_error(0, "TOONL writer is closed"));
+        }
+        validate_toonl_delimiter(self.delimiter)?;
+        let fields = toonl_value_fields(record)?;
+
+        if self
+            .fields
+            .as_ref()
+            .map_or(true, |current| current != &fields)
+        {
+            self.close_segment()?;
+            self.write_header(&fields)?;
+            self.fields = Some(fields);
+            self.row_count = 0;
+        }
+
+        self.write_value_row(record)?;
+        self.row_count += 1;
+        Ok(())
+    }
+
+    pub fn finish(mut self) -> Result<W, ToonlError> {
+        if !self.finished {
+            self.close_segment()?;
+            self.finished = true;
+        }
+        self.writer.flush().map_err(write_toonl_error)?;
+        Ok(self.writer)
+    }
+
+    fn close_segment(&mut self) -> Result<(), ToonlError> {
+        if self.fields.is_none() {
+            return Ok(());
+        }
+        writeln!(self.writer, "[={}]", self.row_count).map_err(write_toonl_error)
+    }
+
+    fn write_header(&mut self, fields: &[String]) -> Result<(), ToonlError> {
+        write!(self.writer, "[").map_err(write_toonl_error)?;
+        if self.delimiter != DOCUMENT_DELIMITER {
+            write!(self.writer, "{}", self.delimiter).map_err(write_toonl_error)?;
+        }
+        write!(self.writer, "]{{").map_err(write_toonl_error)?;
+        let encoded_fields = fields
+            .iter()
+            .map(|field| canonical_key(field))
+            .collect::<Vec<_>>();
+        write!(
+            self.writer,
+            "{}",
+            encoded_fields.join(&self.delimiter.to_string())
+        )
+        .map_err(write_toonl_error)?;
+        writeln!(self.writer, "}}:").map_err(write_toonl_error)
+    }
+
+    fn write_value_row(&mut self, value: &Record) -> Result<(), ToonlError> {
+        let fields = self
+            .fields
+            .as_ref()
+            .expect("fields are set before rows are written");
+        let Value::Object(document) = value else {
+            return Err(toonl_error(0, "TOONL output requires object rows"));
+        };
+        let mut cells = Vec::with_capacity(fields.len());
+        for field in fields {
+            let Some(value) = document.get(field) else {
+                return Err(toonl_error(0, "TOONL output schema changed"));
+            };
+            if !value.is_primitive() {
+                return Err(toonl_error(0, "TOONL rows must be flat objects"));
+            }
+            cells.push(primitive_text(value, self.delimiter));
+        }
+        writeln!(self.writer, "{}", cells.join(&self.delimiter.to_string()))
+            .map_err(write_toonl_error)
+    }
+}
+
+pub fn jsonl_to_toonl<R: BufRead, W: Write>(mut reader: R, writer: W) -> Result<(), ToonlError> {
+    let mut line = String::new();
+    let mut line_number = 0;
+    let mut toonl = ToonlWriter::new(writer);
+
+    loop {
+        line.clear();
+        match reader.read_line(&mut line) {
+            Ok(0) => break,
+            Ok(_) => {}
+            Err(error) => return Err(read_toonl_error(error)),
+        }
+        line_number += 1;
+        let line = line.trim_end_matches('\n').trim_end_matches('\r');
+        if line.is_empty() {
+            continue;
+        }
+        let value = serde_json::from_str(line)
+            .map(Value::from_json_value)
+            .map_err(|error| toonl_error(line_number, format!("invalid JSONL: {error}")))?;
+        toonl.write_record(&value)?;
+    }
+
+    toonl.finish().map(|_| ())
+}
+
+pub fn toonl_to_jsonl<R: BufRead, W: Write>(reader: R, mut writer: W) -> Result<(), ToonlError> {
+    for record in ToonlReader::new(reader) {
+        let record = record?;
+        serde_json::to_writer(&mut writer, &record.to_json_value())
+            .map_err(|error| toonl_error(0, format!("write error: {error}")))?;
+        writer.write_all(b"\n").map_err(write_toonl_error)?;
+    }
+    writer.flush().map_err(write_toonl_error)
+}
+
+pub fn close_transform_stream<R: BufRead, W: Write>(
+    mut reader: R,
+    mut writer: W,
+) -> Result<(), ToonlError> {
+    let mut line = String::new();
+    let mut line_number = 0;
+    let mut current: Option<ToonlSegment> = None;
+
+    loop {
+        line.clear();
+        match reader.read_line(&mut line) {
+            Ok(0) => break,
+            Ok(_) => {}
+            Err(error) => return Err(read_toonl_error(error)),
+        }
+        line_number += 1;
+        let line = line.trim_end_matches('\n').trim_end_matches('\r');
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with("- ") {
+            return Err(toonl_error(line_number, "reserved line prefix"));
+        }
+        if let Some(expected) = toonl_trailer_count(line, line_number)? {
+            let segment = current
+                .take()
+                .ok_or_else(|| toonl_error(line_number, "trailer without header"))?;
+            if segment.rows.len() != expected {
+                return Err(toonl_error(line_number, "trailer count mismatch"));
+            }
+            writer
+                .write_all(segment.to_closed_toon_document().as_bytes())
+                .map_err(write_toonl_error)?;
+            continue;
+        }
+        if let Some((delimiter, fields)) = parse_toonl_header(line, line_number)? {
+            if let Some(segment) = current.take() {
+                writer
+                    .write_all(segment.to_closed_toon_document().as_bytes())
+                    .map_err(write_toonl_error)?;
+            }
+            current = Some(ToonlSegment {
+                delimiter,
+                fields,
+                rows: Vec::new(),
+            });
+            continue;
+        }
+
+        let segment = current
+            .as_mut()
+            .ok_or_else(|| toonl_error(line_number, "row before header"))?;
+        let row = parse_toonl_row(line, segment.delimiter, segment.fields.len(), line_number)?;
+        segment.rows.push(row);
+    }
+
+    if let Some(segment) = current {
+        writer
+            .write_all(segment.to_closed_toon_document().as_bytes())
+            .map_err(write_toonl_error)?;
+    }
+    writer.flush().map_err(write_toonl_error)
 }
 
 impl<R: BufRead> ToonlRowReader<R> {
@@ -1392,6 +1600,14 @@ fn toonl_error(line: usize, message: impl Into<String>) -> ToonlError {
         line,
         message: message.into(),
     }
+}
+
+fn read_toonl_error(error: std::io::Error) -> ToonlError {
+    toonl_error(0, format!("read error: {error}"))
+}
+
+fn write_toonl_error(error: std::io::Error) -> ToonlError {
+    toonl_error(0, format!("write error: {error}"))
 }
 
 // ---------------------------------------------------------------------------
