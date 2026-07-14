@@ -274,7 +274,7 @@ jobs:
           cat release/checksums.txt
 
       - name: Attest release artifacts
-        uses: actions/attest@v2
+        uses: actions/attest-build-provenance@v2
         with:
           subject-checksums: release/SHA256SUMS
 
