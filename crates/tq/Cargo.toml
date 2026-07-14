@@ -1,6 +1,7 @@
 [package]
 name = "reddb-io-tq"
-version = "0.1.0"
+version.workspace = true
+description = "jq-style query CLI and JSON <-> TOON converter for the TOON format (ships the `tq` binary)"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -19,6 +20,6 @@ name = "behavior"
 path = "../../tests/tq/behavior.rs"
 
 [dependencies]
-reddb-io-toon = { path = "../toon" }
+reddb-io-toon = { path = "../toon", version = "0.1.0" }
 regex = "1"
 serde_json = { version = "1", features = ["preserve_order"] }

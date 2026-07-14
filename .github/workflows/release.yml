@@ -1,0 +1,432 @@
+name: Release
+
+# reddb-style release pipeline (ADR 0003): a `plan` job resolving stable
+# (tag v*.*.*) vs `next` (push to main → prerelease) channels, a
+# multi-platform build matrix including fully-static musl assets, a GitHub
+# Release with checksums/attestations, and lockstep crate publishing
+# (reddb-io-toon → reddb-io-tq).
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - next
+      version:
+        description: Optional version for stable (e.g. 0.1.2)
+        required: false
+      publish_cargo:
+        description: Publish crates to crates.io from GitHub Actions
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: tq
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan release
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.plan.outputs.should_skip }}
+      release_channel: ${{ steps.plan.outputs.release_channel }}
+      release_tag: ${{ steps.plan.outputs.release_tag }}
+      package_version: ${{ steps.plan.outputs.package_version }}
+      github_prerelease: ${{ steps.plan.outputs.github_prerelease }}
+      publish_cargo: ${{ steps.plan.outputs.publish_cargo }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decide release target
+        id: plan
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          EVENT_NAME="${{ github.event_name }}"
+          REF="${{ github.ref }}"
+          INPUT_CHANNEL="${{ github.event.inputs.channel || 'stable' }}"
+          INPUT_VERSION="${{ github.event.inputs.version || '' }}"
+          INPUT_PUBLISH_CARGO="${{ github.event.inputs.publish_cargo || 'false' }}"
+          SHOULD_SKIP=false
+          RELEASE_CHANNEL=""
+          RELEASE_TAG=""
+          PACKAGE_VERSION=""
+          IS_PRERELEASE=false
+          PUBLISH_CARGO=false
+
+          normalize_version() { echo "${1#v}"; }
+          base_version() { awk -F'"' '/^version = /{print $2; exit}' Cargo.toml; }
+          next_version() { echo "$(base_version)-next.${GITHUB_RUN_NUMBER}"; }
+
+          if [[ "$EVENT_NAME" == "push" && "$REF" == refs/tags/v* ]]; then
+            RELEASE_CHANNEL="stable"
+            RELEASE_TAG="${REF#refs/tags/}"
+            PACKAGE_VERSION="$(normalize_version "$RELEASE_TAG")"
+            # Tag-driven stable releases always publish to crates.io. The
+            # `workflow_dispatch` toggle below stays as the escape hatch for
+            # re-running publish-cargo independently of a tag bump.
+            PUBLISH_CARGO=true
+          elif [[ "$EVENT_NAME" == "push" && "$REF" == "refs/heads/main" ]]; then
+            COMMIT_MSG="${HEAD_COMMIT_MESSAGE}"
+            if [[ "$COMMIT_MSG" =~ ^chore:\ release ]] || [[ "$COMMIT_MSG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              SHOULD_SKIP=true
+            else
+              PACKAGE_VERSION="$(next_version)"
+              RELEASE_CHANNEL="next"
+              RELEASE_TAG="v${PACKAGE_VERSION}"
+              IS_PRERELEASE=true
+            fi
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$INPUT_CHANNEL" == "stable" ]]; then
+              [[ -z "$INPUT_VERSION" ]] && { echo "Stable requires version"; exit 1; }
+              RELEASE_CHANNEL="stable"
+              PACKAGE_VERSION="$(normalize_version "$INPUT_VERSION")"
+              RELEASE_TAG="v${PACKAGE_VERSION}"
+            else
+              PACKAGE_VERSION="${INPUT_VERSION:-$(next_version)}"
+              RELEASE_CHANNEL="next"
+              RELEASE_TAG="v${PACKAGE_VERSION}"
+              IS_PRERELEASE=true
+            fi
+            if [[ "$INPUT_PUBLISH_CARGO" == "true" ]]; then
+              PUBLISH_CARGO=true
+            fi
+          else
+            SHOULD_SKIP=true
+          fi
+
+          if [[ "$SHOULD_SKIP" != "true" && "$EVENT_NAME" == "push" && "$REF" == refs/tags/v* ]]; then
+            MANIFEST_VERSION="$(base_version)"
+            if [[ "$MANIFEST_VERSION" != "$PACKAGE_VERSION" ]]; then
+              echo "Tag ${RELEASE_TAG} resolves to ${PACKAGE_VERSION}, but Cargo.toml is ${MANIFEST_VERSION}."
+              echo "Run scripts/sync-version.sh ${PACKAGE_VERSION}, commit, then re-tag."
+              exit 1
+            fi
+          fi
+
+          echo "should_skip=${SHOULD_SKIP}" >> "$GITHUB_OUTPUT"
+          echo "release_channel=${RELEASE_CHANNEL}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "github_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "publish_cargo=${PUBLISH_CARGO}" >> "$GITHUB_OUTPUT"
+
+      - name: Check workspace version consistency
+        if: steps.plan.outputs.should_skip != 'true'
+        run: bash scripts/check-versions.sh
+
+  build:
+    name: Build ${{ matrix.asset_name }}
+    needs: [plan]
+    if: needs.plan.outputs.should_skip != 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    continue-on-error: ${{ matrix.optional == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,     target: x86_64-unknown-linux-gnu,   asset_name: linux-x86_64 }
+          - { os: ubuntu-24.04-arm,  target: aarch64-unknown-linux-gnu,  asset_name: linux-aarch64 }
+          # musl: THE portable Linux assets. Fully static → zero runtime
+          # deps, they run on any Linux regardless of glibc version.
+          - { os: ubuntu-latest,     target: x86_64-unknown-linux-musl,  asset_name: linux-x86_64-static,  musl: true }
+          - { os: ubuntu-24.04-arm,  target: aarch64-unknown-linux-musl, asset_name: linux-aarch64-static, musl: true, optional: true }
+          # Build Intel macOS on the ARM macOS pool; the resulting binary
+          # cannot be smoke-tested without Rosetta, so smoke is off.
+          - { os: macos-14,          target: x86_64-apple-darwin,        asset_name: macos-x86_64,         smoke: false, optional: true }
+          - { os: macos-14,          target: aarch64-apple-darwin,       asset_name: macos-aarch64 }
+          - { os: windows-latest,    target: x86_64-pc-windows-msvc,     asset_name: windows-x86_64,       optional: true }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync release version
+        shell: bash
+        run: bash scripts/sync-version.sh "${{ needs.plan.outputs.package_version }}"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl toolchain
+        if: matrix.musl
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Regenerate lockfile after version sync
+        run: cargo generate-lockfile
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ runner.os }}-${{ matrix.target }}
+          cache-on-failure: "true"
+
+      - name: Build
+        shell: bash
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: ${{ matrix.target == 'x86_64-unknown-linux-musl' && 'musl-gcc' || '' }}
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: ${{ matrix.target == 'aarch64-unknown-linux-musl' && 'musl-gcc' || '' }}
+        run: cargo build --locked --release --target ${{ matrix.target }} --bin tq
+
+      - name: Strip (Linux gnu)
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-gnu'
+        run: strip target/${{ matrix.target }}/release/tq
+
+      - name: Package asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXT=""; [[ "${{ matrix.target }}" == *windows* ]] && EXT=".exe"
+          ASSET="tq-${{ matrix.asset_name }}${EXT}"
+          cp "target/${{ matrix.target }}/release/tq${EXT}" "${ASSET}"
+          shasum -a 256 "${ASSET}" > "${ASSET}.sha256" 2>/dev/null || sha256sum "${ASSET}" > "${ASSET}.sha256"
+
+      - name: Verify portability (musl — static, runs anywhere)
+        if: matrix.musl
+        shell: bash
+        run: |
+          asset="tq-${{ matrix.asset_name }}"
+          if ldd "$asset" 2>&1 | grep -qE "not a dynamic executable|statically linked"; then
+            echo "OK: $asset is fully static (no glibc dependency)."
+          else
+            echo "FAIL: $asset is dynamically linked — would not run on every Linux:"
+            ldd "$asset" || true
+            exit 1
+          fi
+
+      - name: Smoke test
+        if: matrix.smoke != false
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXT=""; [[ "${{ matrix.target }}" == *windows* ]] && EXT=".exe"
+          ASSET="./tq-${{ matrix.asset_name }}${EXT}"
+          VERSION_OUTPUT="$("$ASSET" --version)"
+          [[ "$VERSION_OUTPUT" == "tq ${{ needs.plan.outputs.package_version }}" ]] \
+            || { echo "version smoke: expected 'tq ${{ needs.plan.outputs.package_version }}', got '${VERSION_OUTPUT}'"; exit 1; }
+          QUERY_OUTPUT="$(printf 'name: Ada\n' | "$ASSET" -o json -c .name)"
+          [[ "$QUERY_OUTPUT" == '"Ada"' ]] \
+            || { echo "query smoke: expected '\"Ada\"', got '${QUERY_OUTPUT}'"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: tq-${{ matrix.asset_name }}*
+
+  publish-github:
+    name: GitHub Release
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    if: needs.plan.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # git-cliff walks the full commit history to build the changelog.
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Generate checksum manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd release
+            find . -maxdepth 1 -type f -name 'tq-*' ! -name '*.sha256' -print0 \
+              | sort -z \
+              | xargs -0 sha256sum \
+              | sed 's#  \./#  #'
+          ) > release/checksums.txt
+          test -s release/checksums.txt
+          cp release/checksums.txt release/SHA256SUMS
+          echo "---- checksums.txt ----"
+          cat release/checksums.txt
+
+      - name: Attest release artifacts
+        uses: actions/attest@v2
+        with:
+          subject-checksums: release/SHA256SUMS
+
+      - name: Resolve stable changelog range
+        id: changelog_range
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.plan.outputs.release_tag }}"
+          TARGET_REF="$TAG"
+          if ! git rev-parse -q --verify "${TAG}^{commit}" >/dev/null; then
+            TARGET_REF="HEAD"
+          fi
+
+          PREVIOUS_TAG="$(git tag --merged "$TARGET_REF" --list 'v*' --sort=-v:refname \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | grep -vx "$TAG" \
+            | head -n 1 || true)"
+
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            echo "range=${PREVIOUS_TAG}..${TARGET_REF}" >> "$GITHUB_OUTPUT"
+            echo "Release changelog range: ${PREVIOUS_TAG}..${TARGET_REF}"
+          else
+            echo "range=${TARGET_REF}" >> "$GITHUB_OUTPUT"
+            echo "Release changelog range: ${TARGET_REF}"
+          fi
+
+      - name: Generate changelog from commits
+        uses: orhun/git-cliff-action@v4
+        id: changelog
+        with:
+          config: cliff.toml
+          # The explicit range uses the previous stable tag, so prerelease
+          # tags do not become the public release-notes baseline.
+          args: ${{ steps.changelog_range.outputs.range }} --tag ${{ needs.plan.outputs.release_tag }} --strip header
+        env:
+          OUTPUT: release-changelog.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Compose release body
+        env:
+          TAG: ${{ needs.plan.outputs.release_tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          CHANGELOG="$(cat release-changelog.md)"
+          cat > release-body.md <<MARKDOWN
+          # tq ${TAG}
+
+          ${CHANGELOG}
+
+          ---
+
+          ## Installation
+
+          **Cargo:**
+          \`\`\`bash
+          cargo install reddb-io-tq   # installs the \`tq\` binary
+          \`\`\`
+
+          **Prebuilt binaries:**
+
+          | Platform | Asset |
+          | --- | --- |
+          | Linux x86_64 (glibc) | \`tq-linux-x86_64\` |
+          | Linux x86_64 (static musl — runs on any Linux) | \`tq-linux-x86_64-static\` |
+          | Linux aarch64 (glibc) | \`tq-linux-aarch64\` |
+          | Linux aarch64 (static musl) | \`tq-linux-aarch64-static\` |
+          | macOS Intel | \`tq-macos-x86_64\` |
+          | macOS Apple Silicon | \`tq-macos-aarch64\` |
+          | Windows x86_64 | \`tq-windows-x86_64.exe\` |
+
+          Example for Linux x86_64:
+          \`\`\`bash
+          curl -fsSLO https://github.com/${REPO}/releases/download/${TAG}/tq-linux-x86_64
+          chmod +x tq-linux-x86_64
+          ./tq-linux-x86_64 --version
+          \`\`\`
+
+          ## Crates (Rust)
+
+          Published in lockstep from this tag:
+
+          \`\`\`toml
+          [dependencies]
+          reddb-io-toon = "${VERSION}"   # TOON parser/serializer/lazy document model
+          \`\`\`
+
+          ## Verification
+
+          \`\`\`bash
+          curl -fsSL https://github.com/${REPO}/releases/download/${TAG}/SHA256SUMS -o SHA256SUMS
+          grep '  tq-linux-x86_64$' SHA256SUMS | sha256sum -c -
+
+          gh attestation verify tq-linux-x86_64 --repo ${REPO}
+          \`\`\`
+
+          \`checksums.txt\` / \`SHA256SUMS\` carry the same aggregate SHA-256 manifest for every release binary.
+          MARKDOWN
+          echo "---- composed body ----"
+          cat release-body.md
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.plan.outputs.release_tag }}
+          name: tq ${{ needs.plan.outputs.release_tag }}
+          body_path: release-body.md
+          prerelease: ${{ needs.plan.outputs.github_prerelease }}
+          files: release/*
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-cargo:
+    name: Publish crates to crates.io
+    # Only depends on `plan`. Source publishing doesn't need binaries from
+    # the `build` matrix, so it runs in parallel with everything else.
+    needs: [plan]
+    runs-on: ubuntu-latest
+    if: |
+      needs.plan.outputs.should_skip != 'true' &&
+      needs.plan.outputs.release_channel == 'stable' &&
+      needs.plan.outputs.publish_cargo == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Sync release version
+        run: bash scripts/sync-version.sh "${{ needs.plan.outputs.package_version }}"
+      - name: Regenerate lockfile after version sync
+        run: cargo generate-lockfile
+      - name: Publish workspace crates (lockstep)
+        env:
+          # cargo reads CARGO_REGISTRY_TOKEN from the environment directly.
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CARGO_REGISTRY_TOKEN}" ]]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN secret not set — skipping. Add a crates.io API token as CARGO_REGISTRY_TOKEN in repo secrets."
+            exit 0
+          fi
+          VERSION="${{ needs.plan.outputs.package_version }}"
+          publish_one() {
+            local crate="$1"
+            echo "==> publish ${crate}@${VERSION}"
+            local out
+            out=$(cargo publish --locked --allow-dirty -p "$crate" 2>&1) && { echo "$out"; return 0; }
+            if echo "$out" | grep -qE "already uploaded|already exists"; then
+              echo "  ${crate}@${VERSION} already on crates.io — skipping"
+            else
+              echo "$out" >&2
+              return 1
+            fi
+          }
+
+          # Lockstep order (ADR 0003): the library first, then the crate
+          # that depends on it. `cargo publish` itself waits for the crate
+          # it published to be visible in the index.
+          publish_one reddb-io-toon
+          publish_one reddb-io-tq

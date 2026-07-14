@@ -1,6 +1,7 @@
 [package]
 name = "reddb-io-toon"
-version = "0.1.0"
+version.workspace = true
+description = "TOON (Token-Oriented Object Notation) parser, serializer, and lazy zero-copy document model"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
