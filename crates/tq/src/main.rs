@@ -1,16 +1,18 @@
 use std::env;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, BufRead, BufReader, Read};
 use std::process::ExitCode;
 
-use reddb_io_toon::{Array, Value};
+use reddb_io_toon::{encode_toonl_values, Array, ToonlRowReader, Value};
 
-const USAGE: &str = "usage: tq [-p toon|json] [-o toon|json] [-r] [-c] <query> [file]";
+const USAGE: &str =
+    "usage: tq [-p toon|json|toonl] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] <query> [file]";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Format {
     Json,
     Toon,
+    Toonl,
 }
 
 #[derive(Debug)]
@@ -21,6 +23,7 @@ struct Options {
     output_format: Format,
     raw_output: bool,
     compact: bool,
+    slurp: bool,
 }
 
 fn main() -> ExitCode {
@@ -46,24 +49,52 @@ fn run() -> Result<String, String> {
     }
     let options = parse_args(args)?;
 
-    let input = match &options.input_path {
-        Some(path) => fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?,
-        None => read_stdin()?,
-    };
-    let document = match options.input_format {
-        Format::Json => Value::from_json_str(&input).map_err(|error| error.to_string())?,
-        Format::Toon => Value::parse_toon(&input).map_err(|error| error.to_string())?,
-    };
+    if options.input_format == Format::Toonl {
+        return run_toonl(&options);
+    }
 
-    let values = evaluate(&document, &options.query)?;
+    let input = read_input(&options)?;
+    let values = match options.input_format {
+        Format::Json => {
+            let document = Value::from_json_str(&input).map_err(|error| error.to_string())?;
+            evaluate(&document, &options.query)?
+        }
+        Format::Toon => {
+            let document = Value::parse_toon(&input).map_err(|error| error.to_string())?;
+            evaluate(&document, &options.query)?
+        }
+        Format::Toonl => unreachable!("TOONL input is handled before reading into a string"),
+    };
     format_values(&values, &options)
 }
 
+fn run_toonl(options: &Options) -> Result<String, String> {
+    let reader = input_reader(options)?;
+    let mut rows = Vec::new();
+    let mut values = Vec::new();
+
+    for row in ToonlRowReader::new(reader) {
+        let row = row.map_err(|error| error.to_string())?;
+        if options.slurp {
+            rows.push(row);
+        } else {
+            values.extend(evaluate(&row, &options.query)?);
+        }
+    }
+
+    if options.slurp {
+        values = evaluate(&Value::Array(Array::List(rows)), &options.query)?;
+    }
+
+    format_values(&values, options)
+}
+
 fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
-    let mut input_format = Format::Toon;
+    let mut input_format = None;
     let mut output_format = None;
     let mut raw_output = false;
     let mut compact = false;
+    let mut slurp = false;
     let mut positional = Vec::new();
     let mut args = args.peekable();
 
@@ -71,7 +102,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         match arg.as_str() {
             "-p" => {
                 let format = args.next().ok_or_else(|| USAGE.to_owned())?;
-                input_format = parse_format(&format)?;
+                input_format = Some(parse_format(&format)?);
             }
             "-o" => {
                 let format = args.next().ok_or_else(|| USAGE.to_owned())?;
@@ -79,6 +110,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
             }
             "-r" => raw_output = true,
             "-c" => compact = true,
+            "-s" | "--slurp" => slurp = true,
             "--" => {
                 positional.extend(args);
                 break;
@@ -92,13 +124,18 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         return Err(USAGE.to_owned());
     }
 
+    let query = positional.remove(0);
+    let input_path = positional.pop();
+    let input_format = input_format.unwrap_or_else(|| detect_input_format(input_path.as_deref()));
+
     Ok(Options {
-        query: positional.remove(0),
-        input_path: positional.pop(),
+        query,
+        input_path,
         input_format,
         output_format: output_format.unwrap_or(input_format),
         raw_output,
         compact,
+        slurp,
     })
 }
 
@@ -106,7 +143,16 @@ fn parse_format(value: &str) -> Result<Format, String> {
     match value {
         "json" => Ok(Format::Json),
         "toon" => Ok(Format::Toon),
+        "toonl" => Ok(Format::Toonl),
         _ => Err(format!("unsupported format `{value}`")),
+    }
+}
+
+fn detect_input_format(path: Option<&str>) -> Format {
+    if path.is_some_and(|path| path.ends_with(".toonl")) {
+        Format::Toonl
+    } else {
+        Format::Toon
     }
 }
 
@@ -116,6 +162,22 @@ fn read_stdin() -> Result<String, String> {
         .read_to_string(&mut input)
         .map_err(|error| format!("stdin: {error}"))?;
     Ok(input)
+}
+
+fn read_input(options: &Options) -> Result<String, String> {
+    match &options.input_path {
+        Some(path) => fs::read_to_string(path).map_err(|error| format!("{path}: {error}")),
+        None => read_stdin(),
+    }
+}
+
+fn input_reader(options: &Options) -> Result<Box<dyn BufRead>, String> {
+    match &options.input_path {
+        Some(path) => fs::File::open(path)
+            .map(|file| Box::new(BufReader::new(file)) as Box<dyn BufRead>)
+            .map_err(|error| format!("{path}: {error}")),
+        None => Ok(Box::new(BufReader::new(io::stdin()))),
+    }
 }
 
 fn evaluate(document: &Value, query: &str) -> Result<Vec<Value>, String> {
@@ -1292,6 +1354,10 @@ fn is_ident_continue(character: char) -> bool {
 }
 
 fn format_values(values: &[Value], options: &Options) -> Result<String, String> {
+    if options.output_format == Format::Toonl {
+        return encode_toonl_values(values).map_err(|error| error.to_string());
+    }
+
     let mut output = String::new();
     for value in values {
         if options.raw_output {
@@ -1317,6 +1383,7 @@ fn format_values(values: &[Value], options: &Options) -> Result<String, String> 
                     output.push('\n');
                 }
             }
+            Format::Toonl => unreachable!("TOONL output is handled before the loop"),
         }
     }
     Ok(output)

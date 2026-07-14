@@ -6,6 +6,7 @@
 //! two-space indentation, no key folding.
 
 use std::fmt;
+use std::io::BufRead;
 
 /// Spaces per indentation level unless [`ParseOptions::indent`] says otherwise.
 pub const DEFAULT_INDENT: usize = 2;
@@ -91,6 +92,48 @@ struct Header {
     len: usize,
     delimiter: char,
     fields: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToonlError {
+    line: usize,
+    message: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ToonlStream {
+    segments: Vec<ToonlSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToonlSegment {
+    delimiter: char,
+    fields: Vec<String>,
+    rows: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToonlEncoder {
+    delimiter: char,
+    fields: Vec<String>,
+    output: String,
+    row_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OpenToonlSegment {
+    delimiter: char,
+    fields: Vec<String>,
+    row_count: usize,
+}
+
+#[derive(Debug)]
+pub struct ToonlRowReader<R> {
+    reader: R,
+    line: String,
+    line_number: usize,
+    current: Option<OpenToonlSegment>,
+    finished: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -296,6 +339,374 @@ impl Value {
 
     fn is_primitive(&self) -> bool {
         !matches!(self, Self::Array(_) | Self::Object(_))
+    }
+}
+
+impl ToonlError {
+    fn from_parse_error(error: ParseError) -> Self {
+        Self {
+            line: error.line,
+            message: error.message.to_owned(),
+        }
+    }
+
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl fmt::Display for ToonlError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.line == 0 {
+            write!(formatter, "{}", self.message)
+        } else {
+            write!(formatter, "line {}: {}", self.line, self.message)
+        }
+    }
+}
+
+impl std::error::Error for ToonlError {}
+
+impl ToonlStream {
+    pub fn parse(input: &str) -> Result<Self, ToonlError> {
+        let mut segments = Vec::new();
+        let mut current: Option<ToonlSegment> = None;
+
+        for (offset, raw_line) in input.lines().enumerate() {
+            let line_number = offset + 1;
+            let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+            if line.is_empty() {
+                continue;
+            }
+            if line.starts_with("- ") {
+                return Err(toonl_error(line_number, "reserved line prefix"));
+            }
+            if let Some(expected) = toonl_trailer_count(line, line_number)? {
+                let segment = current
+                    .take()
+                    .ok_or_else(|| toonl_error(line_number, "trailer without header"))?;
+                if segment.rows.len() != expected {
+                    return Err(toonl_error(line_number, "trailer count mismatch"));
+                }
+                segments.push(segment);
+                continue;
+            }
+            if let Some((delimiter, fields)) = parse_toonl_header(line, line_number)? {
+                if let Some(segment) = current.take() {
+                    segments.push(segment);
+                }
+                current = Some(ToonlSegment {
+                    delimiter,
+                    fields,
+                    rows: Vec::new(),
+                });
+                continue;
+            }
+
+            let segment = current
+                .as_mut()
+                .ok_or_else(|| toonl_error(line_number, "row before header"))?;
+            let row = parse_toonl_row(line, segment.delimiter, segment.fields.len(), line_number)?;
+            segment.rows.push(row);
+        }
+
+        if let Some(segment) = current {
+            segments.push(segment);
+        }
+
+        Ok(Self { segments })
+    }
+
+    pub fn segments(&self) -> &[ToonlSegment] {
+        &self.segments
+    }
+
+    pub fn row_values(&self) -> Result<Vec<Value>, ToonlError> {
+        let mut values = Vec::new();
+        for segment in &self.segments {
+            for row in &segment.rows {
+                values.push(segment.row_value(row, 0)?);
+            }
+        }
+        Ok(values)
+    }
+
+    pub fn close_transform_documents(&self) -> Result<Vec<String>, ToonlError> {
+        Ok(self
+            .segments
+            .iter()
+            .map(ToonlSegment::to_closed_toon_document)
+            .collect())
+    }
+}
+
+impl ToonlSegment {
+    pub fn delimiter(&self) -> char {
+        self.delimiter
+    }
+
+    pub fn fields(&self) -> &[String] {
+        &self.fields
+    }
+
+    pub fn rows(&self) -> &[Vec<String>] {
+        &self.rows
+    }
+
+    fn row_value(&self, row: &[String], line: usize) -> Result<Value, ToonlError> {
+        toonl_row_value(&self.fields, row, line)
+    }
+
+    fn to_closed_toon_document(&self) -> String {
+        let mut output = String::new();
+        output.push('[');
+        output.push_str(&self.rows.len().to_string());
+        if self.delimiter != DOCUMENT_DELIMITER {
+            output.push(self.delimiter);
+        }
+        output.push_str("]{");
+        let fields = self
+            .fields
+            .iter()
+            .map(|field| canonical_key(field))
+            .collect::<Vec<_>>();
+        output.push_str(&fields.join(&self.delimiter.to_string()));
+        output.push_str("}:\n");
+        for row in &self.rows {
+            output.push_str("  ");
+            output.push_str(&row.join(&self.delimiter.to_string()));
+            output.push('\n');
+        }
+        output
+    }
+}
+
+impl ToonlEncoder {
+    pub fn new<T: AsRef<str>>(delimiter: char, fields: &[T]) -> Result<Self, ToonlError> {
+        validate_toonl_delimiter(delimiter)?;
+        if fields.is_empty() {
+            return Err(toonl_error(0, "TOONL header requires fields"));
+        }
+        let fields = fields
+            .iter()
+            .map(|field| {
+                let (field, _) =
+                    parse_key(field.as_ref(), 0).map_err(ToonlError::from_parse_error)?;
+                if field.is_empty() {
+                    return Err(toonl_error(0, "TOONL header requires fields"));
+                }
+                Ok(field)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut output = String::new();
+        output.push('[');
+        if delimiter != DOCUMENT_DELIMITER {
+            output.push(delimiter);
+        }
+        output.push_str("]{");
+        let encoded_fields = fields
+            .iter()
+            .map(|field| canonical_key(field))
+            .collect::<Vec<_>>();
+        output.push_str(&encoded_fields.join(&delimiter.to_string()));
+        output.push_str("}:\n");
+
+        Ok(Self {
+            delimiter,
+            fields,
+            output,
+            row_count: 0,
+        })
+    }
+
+    pub fn fields(&self) -> &[String] {
+        &self.fields
+    }
+
+    pub fn push_raw_row<T: AsRef<str>>(&mut self, cells: &[T]) -> Result<(), ToonlError> {
+        if cells.len() != self.fields.len() {
+            return Err(toonl_error(0, "row arity mismatch"));
+        }
+        let cells = cells
+            .iter()
+            .map(|cell| {
+                let cell = cell.as_ref();
+                parse_scalar(cell, 0).map_err(ToonlError::from_parse_error)?;
+                Ok(cell.to_owned())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.output
+            .push_str(&cells.join(&self.delimiter.to_string()));
+        self.output.push('\n');
+        self.row_count += 1;
+        Ok(())
+    }
+
+    pub fn push_value_row(&mut self, value: &Value) -> Result<(), ToonlError> {
+        let Value::Object(document) = value else {
+            return Err(toonl_error(0, "TOONL output requires object rows"));
+        };
+        let mut cells = Vec::with_capacity(self.fields.len());
+        for field in &self.fields {
+            let Some(value) = document.get(field) else {
+                return Err(toonl_error(0, "TOONL output schema changed"));
+            };
+            if !value.is_primitive() {
+                return Err(toonl_error(0, "TOONL rows must be flat objects"));
+            }
+            cells.push(primitive_text(value, self.delimiter));
+        }
+        self.push_raw_row(&cells)
+    }
+
+    pub fn finish(mut self) -> String {
+        self.output.push_str("[=");
+        self.output.push_str(&self.row_count.to_string());
+        self.output.push_str("]\n");
+        self.output
+    }
+}
+
+pub fn encode_toonl_values(values: &[Value]) -> Result<String, ToonlError> {
+    let mut output = String::new();
+    let mut encoder: Option<ToonlEncoder> = None;
+
+    for value in values {
+        let fields = toonl_value_fields(value)?;
+        if encoder
+            .as_ref()
+            .map_or(true, |encoder| encoder.fields() != fields.as_slice())
+        {
+            if let Some(encoder) = encoder.take() {
+                output.push_str(&encoder.finish());
+            }
+            encoder = Some(ToonlEncoder::new(DOCUMENT_DELIMITER, &fields)?);
+        }
+        encoder
+            .as_mut()
+            .expect("encoder exists")
+            .push_value_row(value)?;
+    }
+
+    if let Some(encoder) = encoder {
+        output.push_str(&encoder.finish());
+    }
+
+    Ok(output)
+}
+
+impl<R: BufRead> ToonlRowReader<R> {
+    pub fn new(reader: R) -> Self {
+        Self {
+            reader,
+            line: String::new(),
+            line_number: 0,
+            current: None,
+            finished: false,
+        }
+    }
+}
+
+impl<R: BufRead> Iterator for ToonlRowReader<R> {
+    type Item = Result<Value, ToonlError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+
+        loop {
+            self.line.clear();
+            match self.reader.read_line(&mut self.line) {
+                Ok(0) => {
+                    self.finished = true;
+                    return None;
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    self.finished = true;
+                    return Some(Err(toonl_error(0, format!("read error: {error}"))));
+                }
+            }
+            self.line_number += 1;
+
+            let line = self
+                .line
+                .trim_end_matches('\n')
+                .trim_end_matches('\r')
+                .to_owned();
+            if line.is_empty() {
+                continue;
+            }
+            if let Err(error) = self.consume_non_blank_line(&line) {
+                self.finished = true;
+                return Some(Err(error));
+            }
+            if let Some(row) = self.current_row_value(&line) {
+                return Some(row);
+            }
+        }
+    }
+}
+
+impl<R: BufRead> ToonlRowReader<R> {
+    fn consume_non_blank_line(&mut self, line: &str) -> Result<(), ToonlError> {
+        if line.starts_with("- ") {
+            return Err(toonl_error(self.line_number, "reserved line prefix"));
+        }
+        if let Some(expected) = toonl_trailer_count(line, self.line_number)? {
+            let segment = self
+                .current
+                .take()
+                .ok_or_else(|| toonl_error(self.line_number, "trailer without header"))?;
+            if segment.row_count != expected {
+                return Err(toonl_error(self.line_number, "trailer count mismatch"));
+            }
+            return Ok(());
+        }
+        if let Some((delimiter, fields)) = parse_toonl_header(line, self.line_number)? {
+            self.current = Some(OpenToonlSegment {
+                delimiter,
+                fields,
+                row_count: 0,
+            });
+        }
+        Ok(())
+    }
+
+    fn current_row_value(&mut self, line: &str) -> Option<Result<Value, ToonlError>> {
+        if line.starts_with('[')
+            && (toonl_trailer_count(line, self.line_number)
+                .ok()
+                .flatten()
+                .is_some()
+                || parse_toonl_header(line, self.line_number)
+                    .ok()
+                    .flatten()
+                    .is_some())
+        {
+            return None;
+        }
+
+        let Some(segment) = self.current.as_mut() else {
+            return Some(Err(toonl_error(self.line_number, "row before header")));
+        };
+        let row = match parse_toonl_row(
+            line,
+            segment.delimiter,
+            segment.fields.len(),
+            self.line_number,
+        ) {
+            Ok(row) => row,
+            Err(error) => return Some(Err(error)),
+        };
+        segment.row_count += 1;
+        Some(toonl_row_value(&segment.fields, &row, self.line_number))
     }
 }
 
@@ -864,6 +1275,123 @@ fn parse_header(content: &str, colon: Option<usize>) -> Result<Header, HeaderErr
         delimiter,
         fields,
     })
+}
+
+fn parse_toonl_header(
+    line: &str,
+    line_number: usize,
+) -> Result<Option<(char, Vec<String>)>, ToonlError> {
+    let Some(rest) = line.strip_prefix('[') else {
+        return Ok(None);
+    };
+    let close_bracket = rest
+        .find(']')
+        .ok_or_else(|| toonl_error(line_number, "invalid header"))?;
+    let delimiter = match &rest[..close_bracket] {
+        "" => DOCUMENT_DELIMITER,
+        "|" => '|',
+        "\t" => '\t',
+        other if other.starts_with('=') => return Ok(None),
+        _ => return Err(toonl_error(line_number, "invalid header delimiter")),
+    };
+    let suffix = &rest[close_bracket + 1..];
+    if !suffix.starts_with('{') || !suffix.ends_with("}:") {
+        return Err(toonl_error(line_number, "invalid header"));
+    }
+
+    let field_text = &suffix[1..suffix.len() - 2];
+    let fields = split_delimited(field_text, delimiter, line_number)
+        .map_err(ToonlError::from_parse_error)?
+        .into_iter()
+        .map(|field| {
+            let (field, _) =
+                parse_key(&field, line_number).map_err(ToonlError::from_parse_error)?;
+            if field.is_empty() {
+                return Err(toonl_error(line_number, "invalid header fields"));
+            }
+            Ok(field)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if fields.is_empty() {
+        return Err(toonl_error(line_number, "invalid header fields"));
+    }
+
+    Ok(Some((delimiter, fields)))
+}
+
+fn toonl_trailer_count(line: &str, line_number: usize) -> Result<Option<usize>, ToonlError> {
+    if !(line.starts_with("[=") && line.ends_with(']')) {
+        return Ok(None);
+    }
+    line[2..line.len() - 1]
+        .parse::<usize>()
+        .map(Some)
+        .map_err(|_| toonl_error(line_number, "invalid trailer count"))
+}
+
+fn parse_toonl_row(
+    line: &str,
+    delimiter: char,
+    expected_cells: usize,
+    line_number: usize,
+) -> Result<Vec<String>, ToonlError> {
+    let row =
+        split_delimited(line, delimiter, line_number).map_err(ToonlError::from_parse_error)?;
+    if row.len() != expected_cells {
+        return Err(toonl_error(line_number, "row arity mismatch"));
+    }
+    for cell in &row {
+        parse_scalar(cell, line_number).map_err(ToonlError::from_parse_error)?;
+    }
+    Ok(row)
+}
+
+fn toonl_row_value(fields: &[String], row: &[String], line: usize) -> Result<Value, ToonlError> {
+    let fields = fields
+        .iter()
+        .zip(row)
+        .map(|(key, cell)| {
+            Ok(Field {
+                key: key.clone(),
+                value: parse_scalar(cell, line).map_err(ToonlError::from_parse_error)?,
+            })
+        })
+        .collect::<Result<Vec<_>, ToonlError>>()?;
+    Ok(Value::Object(Document { fields }))
+}
+
+fn validate_toonl_delimiter(delimiter: char) -> Result<(), ToonlError> {
+    if matches!(delimiter, DOCUMENT_DELIMITER | '|' | '\t') {
+        Ok(())
+    } else {
+        Err(toonl_error(0, "invalid header delimiter"))
+    }
+}
+
+fn toonl_value_fields(value: &Value) -> Result<Vec<String>, ToonlError> {
+    let Value::Object(document) = value else {
+        return Err(toonl_error(0, "TOONL output requires object rows"));
+    };
+    if document.fields.is_empty() {
+        return Err(toonl_error(0, "TOONL output requires object rows"));
+    }
+    for field in &document.fields {
+        if !field.value.is_primitive() {
+            return Err(toonl_error(0, "TOONL rows must be flat objects"));
+        }
+    }
+    Ok(document
+        .fields
+        .iter()
+        .map(|field| field.key.clone())
+        .collect())
+}
+
+fn toonl_error(line: usize, message: impl Into<String>) -> ToonlError {
+    ToonlError {
+        line,
+        message: message.into(),
+    }
 }
 
 // ---------------------------------------------------------------------------
