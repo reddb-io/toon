@@ -1,0 +1,3 @@
+[submodule "vendor/toon-spec"]
+	path = vendor/toon-spec
+	url = https://github.com/toon-format/spec
