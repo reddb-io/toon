@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{self, BufRead, BufReader, Read};
 use std::process::ExitCode;
 
-use reddb_io_toon::{encode_toonl_values, Array, ToonlRowReader, Value};
+use reddb_io_toon::{encode_toonl_values, Array, ToonlReader, Value};
 
 const USAGE: &str =
     "usage: tq [-p toon|json|toonl] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] <query> [file]";
@@ -73,7 +73,7 @@ fn run_toonl(options: &Options) -> Result<String, String> {
     let mut rows = Vec::new();
     let mut values = Vec::new();
 
-    for row in ToonlRowReader::new(reader) {
+    for row in ToonlReader::new(reader) {
         let row = row.map_err(|error| error.to_string())?;
         if options.slurp {
             rows.push(row);
