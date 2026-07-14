@@ -1,5 +1,5 @@
 person:
-  name: "Ada Lovelace"
+  name: Ada Lovelace
   quote: "line\nbreak"
   active: true
   count: -3.5

@@ -16,7 +16,8 @@ jobs:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy, rustfmt
+          components: clippy, rustfmt, llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
       - name: Check formatting
@@ -25,3 +26,5 @@ jobs:
         run: cargo clippy --workspace -- -D warnings
       - name: Test
         run: cargo test --workspace
+      - name: Coverage
+        run: cargo llvm-cov --workspace --fail-under-lines 95

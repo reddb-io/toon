@@ -14,5 +14,9 @@ path = "src/lib.rs"
 name = "spec_conformance"
 path = "../../tests/toon/spec_conformance.rs"
 
+[[test]]
+name = "api"
+path = "../../tests/toon/api.rs"
+
 [dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }
