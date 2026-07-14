@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-labelledby="tq-hero-title tq-hero-desc">
-  <title id="tq-hero-title">tq — jq for TOON &amp; TOONL</title>
-  <desc id="tq-hero-desc">tq: query, convert, and stream TOON, TOONL and JSON from the command line.</desc>
+  <title id="tq-hero-title">TOON &amp; TOONL — token-oriented data formats</title>
+  <desc id="tq-hero-desc">The TOON and TOONL formats, and the three implementations that speak them: the tq CLI, the reddb-io-toon Rust crate, and the @reddb-io/toon JS/TS package.</desc>
 
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -29,23 +29,25 @@
     <ellipse cx="120" cy="60" rx="420" ry="300" fill="url(#glow)"/>
     <ellipse cx="1120" cy="410" rx="360" ry="240" fill="url(#glow)" opacity="0.5"/>
 
-    <!-- left: wordmark + pitch -->
+    <!-- left: the formats + what ships -->
     <g font-family="ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace">
-      <text x="72" y="176" font-size="132" font-weight="700" fill="#f0f6fc" letter-spacing="-4">tq</text>
-      <rect x="216" y="120" width="26" height="58" fill="#ff2056"/>
+      <text x="72" y="150" font-size="96" font-weight="700" fill="#f0f6fc" letter-spacing="-4">TOON</text>
+      <rect x="316" y="102" width="20" height="50" fill="#ff2056"/>
 
-      <rect x="74" y="206" width="132" height="3" fill="url(#rule)"/>
+      <text x="72" y="204" font-size="40" font-weight="600" fill="#ff2056" letter-spacing="-1">&amp; TOONL</text>
 
-      <text x="72" y="258" font-size="30" font-weight="600" fill="#ff2056">jq for TOON &amp; TOONL</text>
-      <text x="72" y="300" font-size="21" fill="#8b949e">Query, convert, and stream TOON &#8596; JSON.</text>
+      <rect x="74" y="230" width="132" height="3" fill="url(#rule)"/>
+
+      <text x="72" y="272" font-size="19" fill="#8b949e">Token-oriented object notation,</text>
+      <text x="72" y="298" font-size="19" fill="#8b949e">and its append-only stream.</text>
 
       <g font-size="14" fill="#6e7681">
-        <rect x="72" y="326" width="120" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
-        <text x="88" y="345">single binary</text>
-        <rect x="202" y="326" width="104" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
-        <text x="218" y="345">zero deps</text>
-        <rect x="316" y="326" width="150" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
-        <text x="332" y="345">100% spec corpus</text>
+        <rect x="72" y="326" width="94" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ff2056" stroke-opacity="0.35"/>
+        <text x="88" y="345" fill="#c9d1d9">tq &#183; CLI</text>
+        <rect x="176" y="326" width="116" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
+        <text x="192" y="345">Rust crate</text>
+        <rect x="302" y="326" width="150" height="28" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
+        <text x="318" y="345">JS/TS package</text>
       </g>
     </g>
 
