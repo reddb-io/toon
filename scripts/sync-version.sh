@@ -5,7 +5,17 @@
 set -euo pipefail
 VERSION="${1:?usage: sync-version.sh <version>}"
 
-sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
-sed -i "s|\(reddb-io-toon = { path = \"../toon\", version = \"\)[^\"]*|\1${VERSION}|" crates/tq/Cargo.toml
+# GNU sed edits in place with a bare -i; BSD sed (macOS runners) requires an
+# explicit suffix argument. Feature-detect instead of matching on uname.
+sed_i() {
+  if sed --version >/dev/null 2>&1; then
+    sed -i "$@"
+  else
+    sed -i '' "$@"
+  fi
+}
+
+sed_i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
+sed_i "s|\(reddb-io-toon = { path = \"../toon\", version = \"\)[^\"]*|\1${VERSION}|" crates/tq/Cargo.toml
 
 bash "$(dirname "$0")/check-versions.sh"

@@ -206,11 +206,15 @@ jobs:
         shell: bash
         run: |
           asset="tq-${{ matrix.asset_name }}"
-          if ldd "$asset" 2>&1 | grep -qE "not a dynamic executable|statically linked"; then
+          # Capture ldd's verdict before grepping: piping ldd straight into
+          # grep -q dies of SIGPIPE under pipefail on the arm runners, which
+          # read as "dynamic" even for a fully static binary.
+          link_info="$(ldd "$asset" 2>&1 || true)"
+          if echo "$link_info" | grep -qE "not a dynamic executable|statically linked"; then
             echo "OK: $asset is fully static (no glibc dependency)."
           else
             echo "FAIL: $asset is dynamically linked — would not run on every Linux:"
-            ldd "$asset" || true
+            echo "$link_info"
             exit 1
           fi
 
