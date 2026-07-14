@@ -7,11 +7,18 @@
 export { ToonError, ToonlError } from './errors.js'
 export { DEFAULT_INDENT, parse, parseDocument, serialize } from './toon.js'
 export {
+  JsonlToToonl,
+  ToonlDecodeStream,
+  ToonlEncodeStream,
+  ToonlToJsonl,
   ToonlEncoder,
   closeTransform,
   decodeLines,
   encodeLines,
   encodeRecords,
+  jsonToToon,
   parseRecords,
   parseStream,
+  recordTransform,
+  toonToJson,
 } from './toonl.js'
