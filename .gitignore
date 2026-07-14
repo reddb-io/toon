@@ -1,2 +1,4 @@
 .red/tmp/
 .red/state/
+node_modules/
+target/
