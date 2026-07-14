@@ -1,4 +1,4 @@
-use reddb_io_toon::{ParseOptions, Value};
+use reddb_io_toon::{ParseOptions, ToonlEncoder, ToonlStream, Value};
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
 use std::fs;
@@ -152,7 +152,7 @@ fn toonl_v0_1_fixtures_are_executable_spec_examples() {
 
             match kind {
                 "decode" => {
-                    let actual = parse_toonl_v0_1(input)
+                    let actual = ToonlStream::parse(input)
                         .unwrap_or_else(|err| panic!("{name}: decode failed: {err}"));
                     let expected = test.get("segments").expect("decode segments");
                     assert_eq!(
@@ -173,7 +173,8 @@ fn toonl_v0_1_fixtures_are_executable_spec_examples() {
                         .get("expectedToonDocuments")
                         .and_then(Json::as_array)
                         .expect("expected TOON documents");
-                    let actual = close_transform_toonl_v0_1(input)
+                    let actual = ToonlStream::parse(input)
+                        .and_then(|stream| stream.close_transform_documents())
                         .unwrap_or_else(|err| panic!("{name}: close-transform failed: {err}"));
                     let expected_strings = expected
                         .iter()
@@ -195,8 +196,10 @@ fn toonl_v0_1_fixtures_are_executable_spec_examples() {
                         .get("expectedError")
                         .and_then(Json::as_str)
                         .expect("expected error");
-                    let actual = close_transform_toonl_v0_1(input)
+                    let actual = ToonlStream::parse(input)
+                        .and_then(|stream| stream.close_transform_documents())
                         .expect_err("error fixture must be rejected");
+                    let actual = actual.to_string();
                     assert!(
                         actual.contains(expected),
                         "{name}: expected error containing {expected:?}, got {actual:?}"
@@ -266,140 +269,16 @@ fn fixture_paths_for_category(root: &Path, category: &str) -> Vec<PathBuf> {
     paths
 }
 
-#[derive(Debug)]
-struct ToonlSegment {
-    delimiter: char,
-    fields: Vec<String>,
-    rows: Vec<Vec<String>>,
-}
-
-fn close_transform_toonl_v0_1(input: &str) -> Result<Vec<String>, String> {
-    parse_toonl_v0_1(input).map(|segments| {
-        segments
-            .iter()
-            .map(|segment| {
-                let mut output = String::new();
-                output.push('[');
-                output.push_str(&segment.rows.len().to_string());
-                if segment.delimiter != ',' {
-                    output.push(segment.delimiter);
-                }
-                output.push_str("]{");
-                output.push_str(&segment.fields.join(&segment.delimiter.to_string()));
-                output.push_str("}:\n");
-                for row in &segment.rows {
-                    output.push_str("  ");
-                    output.push_str(&row.join(&segment.delimiter.to_string()));
-                    output.push('\n');
-                }
-                output
-            })
-            .collect()
-    })
-}
-
-fn parse_toonl_v0_1(input: &str) -> Result<Vec<ToonlSegment>, String> {
-    let mut segments = Vec::new();
-    let mut current: Option<ToonlSegment> = None;
-
-    for (offset, raw_line) in input.lines().enumerate() {
-        let line_number = offset + 1;
-        if raw_line.is_empty() {
-            continue;
-        }
-        if raw_line.starts_with("- ") {
-            return Err(format!("line {line_number}: reserved line prefix"));
-        }
-        if let Some(expected) = trailer_count(raw_line)? {
-            let segment = current
-                .take()
-                .ok_or_else(|| format!("line {line_number}: trailer without header"))?;
-            if segment.rows.len() != expected {
-                return Err(format!("line {line_number}: trailer count mismatch"));
-            }
-            segments.push(segment);
-            continue;
-        }
-        if let Some((delimiter, fields)) = parse_toonl_header(raw_line)? {
-            if let Some(segment) = current.take() {
-                segments.push(segment);
-            }
-            current = Some(ToonlSegment {
-                delimiter,
-                fields,
-                rows: Vec::new(),
-            });
-            continue;
-        }
-
-        let segment = current
-            .as_mut()
-            .ok_or_else(|| format!("line {line_number}: row before header"))?;
-        let row = raw_line
-            .split(segment.delimiter)
-            .map(ToOwned::to_owned)
-            .collect::<Vec<_>>();
-        if row.len() != segment.fields.len() {
-            return Err(format!("line {line_number}: row arity mismatch"));
-        }
-        segment.rows.push(row);
-    }
-
-    if let Some(segment) = current {
-        segments.push(segment);
-    }
-
-    Ok(segments)
-}
-
-fn parse_toonl_header(line: &str) -> Result<Option<(char, Vec<String>)>, String> {
-    let Some(close_bracket) = line.find(']') else {
-        return Ok(None);
-    };
-    if !line.starts_with('[') {
-        return Ok(None);
-    }
-    let delimiter = match &line[1..close_bracket] {
-        "" => ',',
-        "|" => '|',
-        "\t" => '\t',
-        other if other.starts_with('=') => return Ok(None),
-        _ => return Err("invalid header delimiter".to_owned()),
-    };
-    let suffix = &line[close_bracket + 1..];
-    if !suffix.starts_with('{') || !suffix.ends_with("}:") {
-        return Err("invalid header".to_owned());
-    }
-    let field_text = &suffix[1..suffix.len() - 2];
-    let fields = field_text
-        .split(delimiter)
-        .map(ToOwned::to_owned)
-        .collect::<Vec<_>>();
-    if fields.is_empty() || fields.iter().any(String::is_empty) {
-        return Err("invalid header fields".to_owned());
-    }
-    Ok(Some((delimiter, fields)))
-}
-
-fn trailer_count(line: &str) -> Result<Option<usize>, String> {
-    if !(line.starts_with("[=") && line.ends_with(']')) {
-        return Ok(None);
-    }
-    line[2..line.len() - 1]
-        .parse::<usize>()
-        .map(Some)
-        .map_err(|_| "invalid trailer count".to_owned())
-}
-
-fn segments_to_json(segments: &[ToonlSegment]) -> Json {
+fn segments_to_json(segments: &ToonlStream) -> Json {
     Json::Array(
         segments
+            .segments()
             .iter()
             .map(|segment| {
                 serde_json::json!({
-                    "delimiter": segment.delimiter.to_string(),
-                    "fields": segment.fields,
-                    "rows": segment.rows,
+                    "delimiter": segment.delimiter().to_string(),
+                    "fields": segment.fields(),
+                    "rows": segment.rows(),
                 })
             })
             .collect(),
@@ -424,14 +303,7 @@ fn encode_toonl_fixture(test: &Json) -> String {
         .and_then(Json::as_array)
         .expect("encode rows");
 
-    let mut output = String::new();
-    output.push('[');
-    if delimiter != ',' {
-        output.push(delimiter);
-    }
-    output.push_str("]{");
-    output.push_str(&fields.join(&delimiter.to_string()));
-    output.push_str("}:\n");
+    let mut encoder = ToonlEncoder::new(delimiter, &fields).expect("valid TOONL encoder");
     for row in rows {
         let cells = row
             .as_array()
@@ -439,13 +311,9 @@ fn encode_toonl_fixture(test: &Json) -> String {
             .iter()
             .map(|value| value.as_str().expect("cell string"))
             .collect::<Vec<_>>();
-        output.push_str(&cells.join(&delimiter.to_string()));
-        output.push('\n');
+        encoder.push_raw_row(&cells).expect("valid TOONL row");
     }
-    output.push_str("[=");
-    output.push_str(&rows.len().to_string());
-    output.push_str("]\n");
-    output
+    encoder.finish()
 }
 
 fn read_fixture(path: &Path) -> Json {
