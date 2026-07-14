@@ -28,3 +28,22 @@ jobs:
         run: cargo test --workspace
       - name: Coverage
         run: cargo llvm-cov --workspace --fail-under-lines 95
+
+  node:
+    name: Node
+    runs-on: ubuntu-latest
+    steps:
+      # The JS conformance suite reads the official fixtures straight from the
+      # spec submodule, exactly as the Rust harness does.
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Test
+        run: pnpm -r test
