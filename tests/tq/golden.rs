@@ -14,7 +14,7 @@ struct Case {
 #[test]
 fn golden_cli_cases() {
     let root = env!("CARGO_MANIFEST_DIR");
-    let cases_dir = std::path::Path::new(root).join("tests/golden");
+    let cases_dir = std::path::Path::new(root).join("../../tests/tq/golden");
 
     for entry in fs::read_dir(cases_dir).expect("golden cases directory exists") {
         let entry = entry.expect("golden case directory entry is readable");

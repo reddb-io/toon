@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 /// Fixtures come from the `toon-format/spec` submodule, so the corpus tracks
 /// upstream instead of drifting from a vendored copy.
 const FIXTURE_ROOT: &str = "../../vendor/toon-spec/tests/fixtures";
-const EXPECTED_FAILURE_LEDGER: &str = "tests/expected-failures.txt";
+const EXPECTED_FAILURE_LEDGER: &str = "../../tests/toon/expected-failures.txt";
 
 #[test]
 fn official_toon_spec_fixtures_do_not_regress() {

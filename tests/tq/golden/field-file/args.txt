@@ -1,0 +1,1 @@
+.count ../../tests/tq/golden/field-file/stdin.toon

@@ -10,5 +10,9 @@ rust-version.workspace = true
 name = "reddb_io_toon"
 path = "src/lib.rs"
 
+[[test]]
+name = "spec_conformance"
+path = "../../tests/toon/spec_conformance.rs"
+
 [dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }
