@@ -1,7 +1,10 @@
 //! Library surface: the decoder options, the value accessors, and the corners of
 //! the encoder and the error paths that the spec corpus does not reach on its own.
 
-use reddb_io_toon::{Array, Document, ParseOptions, Value};
+use reddb_io_toon::{
+    close_transform_stream, jsonl_to_toonl, toonl_to_jsonl, Array, Document, ParseOptions,
+    ToonlReader, ToonlWriter, Value,
+};
 use serde_json::json;
 
 fn parse(input: &str) -> Value {
@@ -16,6 +19,10 @@ fn error(input: &str) -> String {
 
 fn json_of(input: &str) -> serde_json::Value {
     parse(input).to_json_value()
+}
+
+fn lines(input: &[u8]) -> std::io::Cursor<&[u8]> {
+    std::io::Cursor::new(input)
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +143,64 @@ fn path_expansion_leaves_quoted_and_non_identifier_keys_alone() {
     let value = Value::parse_with_options("\"c.d\": 1\n9a.b: 2\n", options).expect("literal keys");
 
     assert_eq!(value.to_json_value(), json!({"c.d": 1, "9a.b": 2}));
+}
+
+#[test]
+fn toonl_reader_and_writer_stream_rows_with_schema_rotation() {
+    let input = b"[]{id,name}:\n1,Ada\n[=1]\n[]{id,name,role}:\n2,Linus,dev\n[=1]\n";
+    let rows = ToonlReader::new(lines(input))
+        .collect::<Result<Vec<_>, _>>()
+        .expect("valid TOONL rows");
+
+    assert_eq!(
+        rows.iter()
+            .map(Value::to_json_value)
+            .collect::<Vec<serde_json::Value>>(),
+        vec![
+            json!({"id": 1, "name": "Ada"}),
+            json!({"id": 2, "name": "Linus", "role": "dev"}),
+        ]
+    );
+
+    let mut output = Vec::new();
+    let mut writer = ToonlWriter::new(&mut output);
+    for row in &rows {
+        writer.write_record(row).expect("write row");
+    }
+    writer.finish().expect("finish writer");
+
+    assert_eq!(
+        String::from_utf8(output).unwrap(),
+        String::from_utf8(input.to_vec()).unwrap()
+    );
+}
+
+#[test]
+fn streaming_bridges_round_trip_jsonl_toonl_jsonl_and_close_documents() {
+    let jsonl = br#"{"id":1,"name":"Ada"}
+{"id":2,"name":"Linus","role":"dev"}
+"#;
+    let mut toonl = Vec::new();
+    jsonl_to_toonl(lines(jsonl), &mut toonl).expect("jsonl to toonl");
+
+    assert_eq!(
+        String::from_utf8(toonl.clone()).unwrap(),
+        "[]{id,name}:\n1,Ada\n[=1]\n[]{id,name,role}:\n2,Linus,dev\n[=1]\n"
+    );
+
+    let mut back = Vec::new();
+    toonl_to_jsonl(lines(&toonl), &mut back).expect("toonl to jsonl");
+    assert_eq!(
+        String::from_utf8(back).unwrap(),
+        "{\"id\":1,\"name\":\"Ada\"}\n{\"id\":2,\"name\":\"Linus\",\"role\":\"dev\"}\n"
+    );
+
+    let mut documents = Vec::new();
+    close_transform_stream(lines(&toonl), &mut documents).expect("close transform");
+    assert_eq!(
+        String::from_utf8(documents).unwrap(),
+        "[1]{id,name}:\n  1,Ada\n[1]{id,name,role}:\n  2,Linus,dev\n"
+    );
 }
 
 // ---------------------------------------------------------------------------
