@@ -341,6 +341,7 @@ fn decoder_options(options: Option<&Json>) -> ParseOptions {
             .get("expandPaths")
             .and_then(Json::as_str)
             .is_some_and(|mode| mode == "safe"),
+        ..defaults
     }
 }
 
@@ -358,6 +359,7 @@ fn encoder_options(options: Option<&Json>) -> reddb_io_toon::EncodeOptions {
             .get("keyedMapCollapse")
             .and_then(Json::as_bool)
             .unwrap_or(false),
+        ..reddb_io_toon::EncodeOptions::default()
     }
 }
 
