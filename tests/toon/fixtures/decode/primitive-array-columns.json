@@ -1,0 +1,29 @@
+{
+  "category": "decode",
+  "tests": [
+    {
+      "name": "primitive array columns decode list-typed tabular cells",
+      "input": "items[3|]{id,tags[;],quantity}:\n  item_001|hazmat;oversize|60\n  item_002||0\n  item_003|\"frag;ile\";null;true|7\n",
+      "expected": {
+        "items": [
+          {
+            "id": "item_001",
+            "tags": ["hazmat", "oversize"],
+            "quantity": 60
+          },
+          {
+            "id": "item_002",
+            "tags": [],
+            "quantity": 0
+          },
+          {
+            "id": "item_003",
+            "tags": ["frag;ile", null, true],
+            "quantity": 7
+          }
+        ]
+      },
+      "failClosedV3Strict": true
+    }
+  ]
+}

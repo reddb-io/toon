@@ -4,6 +4,8 @@ use std::fs;
 use std::path::PathBuf;
 
 const WIRE_EFFICIENCY_FIXTURE: &str = "../../tests/wire-efficiency/corpora.json";
+const PRIMITIVE_ARRAY_COLUMNS_FIXTURE: &str =
+    "../../tests/wire-efficiency/primitive-array-columns.json";
 const EXPECTED_CASE_COUNT: usize = 9;
 
 #[test]
@@ -85,6 +87,50 @@ fn wire_efficiency_corpora_assert_encoded_byte_sizes_for_rust() {
     }
 }
 
+#[test]
+fn primitive_array_column_corpus_decodes_identically_for_rust() {
+    let fixture_path = fixture_path(PRIMITIVE_ARRAY_COLUMNS_FIXTURE);
+    let fixture = read_fixture(&fixture_path);
+    assert_eq!(fixture["version"], 1);
+
+    let cases = fixture["cases"]
+        .as_array()
+        .expect("primitive-array column cases");
+    for test_case in cases {
+        let name = test_case["name"].as_str().expect("case name");
+        let input = test_case["input"].as_str().expect("case input");
+        let expected = test_case.get("expected").expect("case expected");
+        let actual = Value::parse_toon(input)
+            .unwrap_or_else(|err| panic!("{name}: decode failed: {err}"))
+            .to_json_value();
+        assert_eq!(actual, *expected, "{name}: decoded value");
+        if test_case["failClosedV3Strict"].as_bool().unwrap_or(false) {
+            assert!(
+                reject_v3_strict(input).is_err(),
+                "{name}: strict v3 rejects extension form"
+            );
+        }
+    }
+
+    let errors = fixture["errors"]
+        .as_array()
+        .expect("primitive-array column errors");
+    for test_case in errors {
+        let name = test_case["name"].as_str().expect("error case name");
+        let input = test_case["input"].as_str().expect("error case input");
+        let expected_line = test_case["line"].as_u64().expect("error line") as usize;
+        let expected_reason = test_case["reason"].as_str().expect("error reason");
+        let error = Value::parse_toon(input).expect_err(name);
+        assert_eq!(error.line(), expected_line, "{name}: error line");
+        assert_eq!(error.message(), expected_reason, "{name}: error reason");
+        assert_eq!(
+            error.to_string(),
+            format!("line {expected_line}: {expected_reason}"),
+            "{name}: error display"
+        );
+    }
+}
+
 fn fixture_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative)
 }
@@ -101,4 +147,21 @@ fn ext_options() -> EncodeOptions {
         keyed_map_collapse: true,
         ..EncodeOptions::default()
     }
+}
+
+fn reject_v3_strict(input: &str) -> Result<(), String> {
+    for (index, line) in input.lines().enumerate() {
+        let trimmed = line.trim_start();
+        let Some(colon) = trimmed.find(':') else {
+            continue;
+        };
+        let key_part = &trimmed[..colon];
+        let Some(fields_start) = key_part.find('{') else {
+            continue;
+        };
+        if key_part[fields_start..].contains('[') {
+            return Err(format!("line {}: invalid array header", index + 1));
+        }
+    }
+    Ok(())
 }

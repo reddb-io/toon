@@ -455,7 +455,7 @@ function parseKeyedMapRows(header, lines, cursor, rowDepth, options) {
 
     const row = {}
     header.fields.forEach((field, index) => {
-      insertPath(row, field, parseScalar(cells[index], line.number), options, line.number)
+      insertPath(row, field.path, parseTabularCell(field, cells[index], line.number), options, line.number)
     })
     insertField(document, key, quoted, row, options, line.number)
     cursor.index += 1
@@ -537,7 +537,7 @@ function parseTabularRows(header, fields, lines, cursor, rowDepth, options) {
     }
     const row = {}
     fields.forEach((field, index) => {
-      insertPath(row, field, parseScalar(cells[index], line.number), options, line.number)
+      insertPath(row, field.path, parseTabularCell(field, cells[index], line.number), options, line.number)
     })
     rows.push(row)
     cursor.index += 1
@@ -713,7 +713,7 @@ function parseHeader(content, colon) {
     fields = undefined
   } else if (suffix.startsWith('{') && suffix.endsWith('}') && suffix.length >= 2) {
     try {
-      fields = parseHeaderFields(suffix.slice(1, -1), delimiter)
+      fields = parseArrayHeaderFields(suffix.slice(1, -1), delimiter)
     } catch (error) {
       throw toonError(0, error.reason === 'duplicate key' ? 'duplicate key' : 'invalid array header')
     }
@@ -722,6 +722,20 @@ function parseHeader(content, colon) {
   }
 
   return { key, keyQuoted, len, delimiter, fields }
+}
+
+function parseArrayHeaderFields(source, delimiter) {
+  if (delimiter !== DOCUMENT_DELIMITER && source.includes(DOCUMENT_DELIMITER) && source.includes('[')) {
+    return parseHeaderFields(source, DOCUMENT_DELIMITER, delimiter)
+  }
+  try {
+    return parseHeaderFields(source, delimiter, delimiter)
+  } catch (error) {
+    if (delimiter !== DOCUMENT_DELIMITER && error.reason !== 'duplicate key') {
+      return parseHeaderFields(source, DOCUMENT_DELIMITER, delimiter)
+    }
+    throw error
+  }
 }
 
 function parseMapHeader(content) {
@@ -749,15 +763,15 @@ function parseMapHeader(content) {
 
   let fields
   try {
-    fields = parseHeaderFields(fieldText, delimiter)
+    fields = parseHeaderFields(fieldText, delimiter, delimiter)
   } catch (error) {
     throw toonError(0, error.reason === 'duplicate key' ? 'duplicate key' : 'invalid keyed map header')
   }
   return { key, keyQuoted, delimiter, fields }
 }
 
-function parseHeaderFields(source, delimiter) {
-  const paths = []
+function parseHeaderFields(source, delimiter, activeDelimiter) {
+  const fields = []
   let index = 0
 
   function parseList(prefix, nested) {
@@ -778,7 +792,7 @@ function parseHeaderFields(source, delimiter) {
           skipQuotedHeaderKey()
           continue
         }
-        if (character === delimiter || character === '{' || character === '}') {
+        if (character === delimiter || character === '{' || character === '}' || character === '[') {
           break
         }
         index += 1
@@ -790,16 +804,31 @@ function parseHeaderFields(source, delimiter) {
       }
 
       count += 1
-      if (source[index] === '{') {
+      if (source[index] === '[') {
         index += 1
-        const before = paths.length
+        const delimiterStart = index
+        while (index < source.length && source[index] !== ']') {
+          index += 1
+        }
+        if (index >= source.length) {
+          throw toonError(0, 'invalid array header')
+        }
+        const listDelimiter = source.slice(delimiterStart, index)
+        if (!isValidListDelimiter(listDelimiter, activeDelimiter)) {
+          throw toonError(0, 'invalid array header')
+        }
+        index += 1
+        fields.push({ path: [...prefix, key], listDelimiter })
+      } else if (source[index] === '{') {
+        index += 1
+        const before = fields.length
         parseList([...prefix, key], true)
-        if (source[index] !== '}' || paths.length === before) {
+        if (source[index] !== '}' || fields.length === before) {
           throw toonError(0, 'invalid array header')
         }
         index += 1
       } else {
-        paths.push([...prefix, key])
+        fields.push({ path: [...prefix, key], listDelimiter: undefined })
       }
 
       if (source[index] === delimiter) {
@@ -839,25 +868,41 @@ function parseHeaderFields(source, delimiter) {
   }
 
   const seen = new Set()
-  for (let index = 0; index < paths.length; index += 1) {
-    for (let other = index + 1; other < paths.length; other += 1) {
+  for (let index = 0; index < fields.length; index += 1) {
+    for (let other = index + 1; other < fields.length; other += 1) {
       if (
-        samePath(paths[index], paths[other]) ||
-        pathStartsWith(paths[index], paths[other]) ||
-        pathStartsWith(paths[other], paths[index])
+        samePath(fields[index].path, fields[other].path) ||
+        pathStartsWith(fields[index].path, fields[other].path) ||
+        pathStartsWith(fields[other].path, fields[index].path)
       ) {
         throw toonError(0, 'duplicate key')
       }
     }
   }
-  for (const path of paths) {
+  for (const field of fields) {
+    const path = field.path
     const key = path.join('\u0000')
     if (seen.has(key)) {
       throw toonError(0, 'duplicate key')
     }
     seen.add(key)
   }
-  return paths
+  return fields
+}
+
+function parseTabularCell(field, cell, line) {
+  if (field.listDelimiter === undefined) {
+    return parseScalar(cell, line)
+  }
+  return splitDelimited(cell, field.listDelimiter, line).map((value) => parseScalar(value, line))
+}
+
+function isValidListDelimiter(value, activeDelimiter) {
+  return (
+    value.length === 1 &&
+    value !== activeDelimiter &&
+    !/[ \t\r\n"[\]{}:]/.test(value)
+  )
 }
 
 function samePath(left, right) {

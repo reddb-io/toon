@@ -141,7 +141,7 @@ test('official TOON spec fixtures all pass', () => {
               const value = parse(testCase.input, options)
               passed = jsonEqual(value, testCase.expected) && roundTripsTo(value)
               if (passed && testCase.failClosedV3Strict === true) {
-                assert.throws(() => rejectV3Strict(testCase.input), /invalid keyed map header/)
+                assert.throws(() => rejectV3Strict(testCase.input), /invalid .* header/)
               }
             }
           } else {
@@ -304,6 +304,9 @@ function rejectV3Strict(input) {
     const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
     if (/^[ ]*[^:[\n]+{.*}:[ ]*$/.test(line)) {
       throw new Error(`line ${lineNumber}: invalid keyed map header`)
+    }
+    if (/^[ ]*[^:[\n]+\[[0-9]+[|\t]?\]\{.*\[[^\]]+\].*\}:[ ]*$/.test(line)) {
+      throw new Error(`line ${lineNumber}: invalid array header`)
     }
   })
 }
