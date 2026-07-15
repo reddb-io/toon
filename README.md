@@ -18,7 +18,7 @@ This is the monorepo for the **TOON** format: two format specs, and three implem
 | Surface | Deliverable | Install |
 | --- | --- | --- |
 | **Format** | [TOON v3.3](#toon) — the token-oriented object notation, at 100% of the official spec corpus | — |
-| **Format** | [TOONL v0.1](#toonl--append-only-streams) — our append-only streaming extension ([normative spec](docs/toonl-v0.1.md)) | — |
+| **Format** | [TOONL v0.1](#toonl--append-only-streams) — our append-only streaming extension ([normative spec](docs/toonl-v0.1.md); [v0.2 spec](docs/toonl-v0.2.md)) | — |
 | **CLI** | [`tq`](#tq--the-cli) — jq for TOON: query, convert, stream | `curl -fsSL …/install.sh \| sh` |
 | **Rust** | [`reddb-io-toon`](#rust-library) — parser, serializer, lazy document model | `cargo install reddb-io-tq` / crates.io |
 | **JS/TS** | [`@reddb-io/toon`](#jsts-library) — the same format, dependency-free ESM | `pnpm add @reddb-io/toon` |
@@ -96,7 +96,7 @@ TOON is also *self-checking* in a way JSON is not: `[4]` declares the row count 
 
 ### TOONL — append-only streams
 
-**TOONL is to TOON what JSONL is to JSON**: one record per line, header once, append forever — a log you can `>>` into and `tail -f` out of. It is a reddb-io extension ([normative spec](docs/toonl-v0.1.md)) with a guaranteed bridge back to standard TOON: every *closed* stream converts to a valid TOON v3.3 document in one O(n) pass.
+**TOONL is to TOON what JSONL is to JSON**: one record per line, header once, append forever — a log you can `>>` into and `tail -f` out of. It is a reddb-io extension ([normative spec](docs/toonl-v0.1.md); the [v0.2 spec](docs/toonl-v0.2.md) adds resumable readers, header-preserving trim, tagged-row multiplexing, and a blessed retry pattern) with a guaranteed bridge back to standard TOON: every *closed* stream converts to a valid TOON v3.3 document in one O(n) pass.
 
 ```toonl
 []{ts,level,msg}:
