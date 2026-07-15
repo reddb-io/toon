@@ -25,8 +25,8 @@ guaranteed between the two. It absorbs and replaces the repository's former
 standalone TOON-extensions document.
 
 For an annotated, section-by-section companion to the official TOON v3.3 spec and
-how our implementations conform to it, see [`toon-spec.md`](toon-spec.md). For our
-streaming layer, see [`toonl.md`](toonl.md).
+how our implementations conform to it, see [`toon-official-spec.md`](toon-official-spec.md). For our
+streaming layer, see [`toonl-reddb-spec.md`](toonl-reddb-spec.md).
 
 The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT,
 RECOMMENDED, MAY, and OPTIONAL are to be interpreted as described in RFC 2119.
@@ -535,7 +535,7 @@ TOON has nothing to collapse. Measure your own payload before quoting a number.
 ### TOONL vs JSONL — at stream scale
 
 At **10,000 rows**, the append-only streaming layer
-([`toonl.md`](toonl.md)) measures, from the shared corpora:
+([`toonl-reddb-spec.md`](toonl-reddb-spec.md)) measures, from the shared corpora:
 
 | Payload class | JSONL tokens | TOONL tokens | Saving |
 | --- | ---: | ---: | ---: |
@@ -563,7 +563,7 @@ surface and round-trips through both implementations.
 
 ## Relationship to the streaming layer
 
-TOONL ([`toonl.md`](toonl.md)) is an independent line-oriented streaming
+TOONL ([`toonl-reddb-spec.md`](toonl-reddb-spec.md)) is an independent line-oriented streaming
 extension with its own versioning; it is unaffected by this document. The
 TOONL close-transform continues to target canonical TOON v3.3 documents and does
 **not** emit the nested-tabular-header or keyed-map-collapse forms defined here.
