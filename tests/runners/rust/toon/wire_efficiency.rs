@@ -6,7 +6,8 @@ use std::path::PathBuf;
 const WIRE_EFFICIENCY_FIXTURE: &str = "../../tests/corpus/wire-efficiency/corpora.json";
 const PRIMITIVE_ARRAY_COLUMNS_FIXTURE: &str =
     "../../tests/corpus/wire-efficiency/primitive-array-columns.json";
-const OBJECT_ARRAY_COLUMNS_FIXTURE: &str = "../../tests/corpus/wire-efficiency/object-array-columns.json";
+const OBJECT_ARRAY_COLUMNS_FIXTURE: &str =
+    "../../tests/corpus/wire-efficiency/object-array-columns.json";
 const EXPECTED_CASE_COUNT: usize = 9;
 
 #[test]
