@@ -35,6 +35,7 @@ Mapped onto the TC39 process:
 | [detectTruncation](detect-truncation.md) | 4 | Graduated | [detectTruncation](../toon-reddb-spec.md#detecttruncation--structured-completeness-reports) | — | — |
 | [Primitive-array columns](primitive-array-columns.md) | 4 | Graduated (landed via #100/#101) | [Extension 3](../toon-reddb-spec.md#extension-3--primitive-array-columns) | [spec#49](https://github.com/toon-format/spec/issues/49) | [#97](https://github.com/reddb-io/toon/issues/97), [#99](https://github.com/reddb-io/toon/issues/99), [#100](https://github.com/reddb-io/toon/pull/100), [#101](https://github.com/reddb-io/toon/pull/101) |
 | [Child tables + matrix](child-tables-and-matrix.md) | 4 | Graduated (landed via #102/#103) | [Extension 4](../toon-reddb-spec.md#extension-4--object-array-columns) | — | [#99](https://github.com/reddb-io/toon/issues/99), [#102](https://github.com/reddb-io/toon/pull/102), [#103](https://github.com/reddb-io/toon/pull/103) |
+| [Discriminated / heterogeneous arrays](discriminated-heterogeneous-arrays.md) | 1 | Measured; do not implement as-is | — | — | [#140](https://github.com/reddb-io/toon/issues/140) |
 
 ## Adding a proposal
 
