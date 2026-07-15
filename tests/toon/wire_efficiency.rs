@@ -145,6 +145,7 @@ fn ext_options() -> EncodeOptions {
     EncodeOptions {
         nested_tabular_headers: true,
         keyed_map_collapse: true,
+        primitive_array_columns: true,
         ..EncodeOptions::default()
     }
 }
