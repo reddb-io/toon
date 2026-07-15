@@ -179,6 +179,47 @@ fn object_array_column_corpus_decodes_identically_for_rust() {
         assert_eq!(error.message(), reason, "{name}: reason");
         assert_eq!(error.to_string(), format!("line {line}: {reason}"));
     }
+
+    for test_case in fixture
+        .get("encodings")
+        .and_then(Json::as_array)
+        .expect("object-array column encodings")
+    {
+        let name = test_case.get("name").and_then(Json::as_str).unwrap();
+        let value = test_case.get("value").unwrap().clone();
+        let toon_value = Value::from_json_value(value.clone());
+        let encoded = toon_value.to_toon_with_options(encode_options(
+            test_case.get("options").unwrap_or(&Json::Null),
+        ));
+        let expected = test_case.get("expected").and_then(Json::as_str).unwrap();
+        assert_eq!(encoded, expected, "{name}: encoded wire");
+        assert_eq!(
+            Value::parse_toon(&encoded)
+                .unwrap_or_else(|error| panic!("{name}: parse failed: {error}"))
+                .to_json_value(),
+            value,
+            "{name}: round trip"
+        );
+        if test_case.get("sameAsV3").and_then(Json::as_bool) == Some(true) {
+            assert_eq!(
+                encoded,
+                toon_value.to_canonical_toon(),
+                "{name}: v3.3 fallback"
+            );
+        } else {
+            assert_ne!(
+                encoded,
+                toon_value.to_canonical_toon(),
+                "{name}: extension wire"
+            );
+        }
+        if test_case.get("failClosedV3Strict").and_then(Json::as_bool) == Some(true) {
+            assert!(
+                reject_v3_strict(&encoded).is_err(),
+                "{name}: strict v3 rejects extension form"
+            );
+        }
+    }
 }
 
 #[test]
@@ -316,6 +357,33 @@ fn ext_options() -> EncodeOptions {
         keyed_map_collapse: true,
         primitive_array_columns: true,
         object_array_columns: true,
+        ..EncodeOptions::default()
+    }
+}
+
+fn encode_options(options: &Json) -> EncodeOptions {
+    EncodeOptions {
+        nested_tabular_headers: options
+            .get("nestedTabularHeaders")
+            .and_then(Json::as_bool)
+            .unwrap_or(false),
+        keyed_map_collapse: options
+            .get("keyedMapCollapse")
+            .and_then(Json::as_bool)
+            .unwrap_or(false),
+        primitive_array_columns: options
+            .get("primitiveArrayColumns")
+            .and_then(Json::as_bool)
+            .unwrap_or(false),
+        object_array_columns: options
+            .get("objectArrayColumns")
+            .and_then(Json::as_bool)
+            .unwrap_or(false),
+        delimiter: options
+            .get("delimiter")
+            .and_then(Json::as_str)
+            .and_then(|value| value.chars().next())
+            .unwrap_or(','),
         ..EncodeOptions::default()
     }
 }
