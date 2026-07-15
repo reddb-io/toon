@@ -546,21 +546,81 @@ fn trim_property_keeps_last_rows_and_updates_trailer_around_cut() {
 }
 
 #[test]
-fn trim_rejects_v0_2_only_constructs_by_name() {
-    assert_error(
-        &["trim", "--keep-last", "1"],
-        "[~]{id}:\n1\n",
-        "continuation header",
+fn supports_v0_2_toonl_query_trim_and_close_variants() {
+    let input = "[]<req>{method,path,status}:\n\
+[]<metric>{name,value}:\n\
+req:GET,/health,200\n\
+metric:cpu,0.42\n\
+[]{event}:\n\
+[~]{event}:\n\
+started\n\
+req:POST,/login,401\n\
+metric:mem,0.70\n";
+
+    let queried = run_tq(&["-p", "toonl", "-o", "json", "-c", ".method"], input);
+    assert_eq!(
+        queried.status.code(),
+        Some(0),
+        "v0.2 query exits cleanly: {}",
+        String::from_utf8_lossy(&queried.stderr)
     );
-    assert_error(
-        &["trim", "--keep-last", "1"],
-        "[]<audit>{id}:\n<audit>:1\n",
-        "named schema declaration",
+    assert_eq!(
+        String::from_utf8(queried.stdout).expect("stdout is utf-8"),
+        "\"GET\"\nnull\nnull\n\"POST\"\nnull\n"
     );
-    assert_error(
-        &["trim", "--keep-last", "1"],
-        "[]{id}:\n<audit>:1\n",
-        "tagged row",
+
+    let trimmed = run_tq(&["trim", "--keep-last", "3"], input);
+    assert_eq!(
+        trimmed.status.code(),
+        Some(0),
+        "tagged trim exits cleanly: {}",
+        String::from_utf8_lossy(&trimmed.stderr)
+    );
+    let trimmed = String::from_utf8(trimmed.stdout).expect("stdout is utf-8");
+    assert_eq!(
+        trimmed,
+        "[]<req>{method,path,status}:\n\
+[]<metric>{name,value}:\n\
+[]{event}:\n\
+started\n\
+req:POST,/login,401\n\
+metric:mem,0.70\n"
+    );
+
+    let trimmed_methods = run_tq(&["-p", "toonl", "-o", "json", "-c", ".method"], &trimmed);
+    assert_eq!(
+        trimmed_methods.status.code(),
+        Some(0),
+        "trimmed tagged output decodes: {}",
+        String::from_utf8_lossy(&trimmed_methods.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(trimmed_methods.stdout).expect("stdout is utf-8"),
+        "null\n\"POST\"\nnull\n"
+    );
+
+    let per_lane = run_tq(&["close"], input);
+    assert_eq!(
+        per_lane.status.code(),
+        Some(0),
+        "per-lane close exits cleanly: {}",
+        String::from_utf8_lossy(&per_lane.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(per_lane.stdout).expect("stdout is utf-8"),
+        "[2]{method,path,status}:\n  GET,/health,200\n  POST,/login,401\n[2]{name,value}:\n  cpu,0.42\n  mem,0.70\n[1]{event}:\n  started\n"
+    );
+
+    let interleaved = run_tq(&["close", "--interleaved"], input);
+    assert_eq!(
+        interleaved.status.code(),
+        Some(0),
+        "interleaved close exits cleanly: {}",
+        String::from_utf8_lossy(&interleaved.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(interleaved.stdout).expect("stdout is utf-8"),
+        "[1]{method,path,status}:\n  GET,/health,200\n[1]{name,value}:\n  cpu,0.42\n[1]{event}:\n  started\n[1]{method,path,status}:\n  POST,/login,401\n[1]{name,value}:\n  mem,0.70\n"
     );
 }
 
