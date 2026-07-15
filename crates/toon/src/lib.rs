@@ -101,6 +101,32 @@ pub struct ToonlError {
     message: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToonlCursor {
+    pub byte_offset: u64,
+    pub active_header_line: String,
+    pub rows_since_header: usize,
+    pub anchor: Option<ToonlCursorAnchor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToonlCursorAnchor {
+    pub byte_offset: u64,
+    pub bytes: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToonlCursorInvalidation {
+    Truncated { byte_offset: u64, file_size: u64 },
+    AnchorMismatch { byte_offset: u64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToonlResumeError {
+    Invalid(ToonlCursorInvalidation),
+    Parse(ToonlError),
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ToonlStream {
     segments: Vec<ToonlSegment>,
@@ -153,6 +179,10 @@ pub struct ToonlRowReader<R> {
     reader: R,
     line: String,
     line_number: usize,
+    byte_offset: u64,
+    active_header_line: Option<String>,
+    rows_since_header: usize,
+    anchor: Option<ToonlCursorAnchor>,
     current: Option<OpenToonlSegment>,
     finished: bool,
 }
@@ -414,6 +444,115 @@ impl fmt::Display for ToonlError {
 }
 
 impl std::error::Error for ToonlError {}
+
+impl ToonlCursor {
+    pub fn new<T: Into<String>>(
+        byte_offset: u64,
+        active_header_line: T,
+        rows_since_header: usize,
+    ) -> Self {
+        Self {
+            byte_offset,
+            active_header_line: active_header_line.into(),
+            rows_since_header,
+            anchor: None,
+        }
+    }
+
+    pub fn to_json_string(&self) -> String {
+        let mut object = serde_json::Map::new();
+        object.insert("byteOffset".to_owned(), serde_json::json!(self.byte_offset));
+        object.insert(
+            "activeHeaderLine".to_owned(),
+            serde_json::json!(self.active_header_line),
+        );
+        object.insert(
+            "rowsSinceHeader".to_owned(),
+            serde_json::json!(self.rows_since_header),
+        );
+        if let Some(anchor) = &self.anchor {
+            object.insert(
+                "anchor".to_owned(),
+                serde_json::json!({
+                    "byteOffset": anchor.byte_offset,
+                    "bytes": anchor.bytes,
+                }),
+            );
+        }
+        serde_json::Value::Object(object).to_string()
+    }
+
+    pub fn from_json_str(input: &str) -> Result<Self, ToonlError> {
+        let value: serde_json::Value = serde_json::from_str(input)
+            .map_err(|error| toonl_error(0, format!("invalid cursor JSON: {error}")))?;
+        let object = value
+            .as_object()
+            .ok_or_else(|| toonl_error(0, "invalid cursor JSON"))?;
+        let byte_offset = object
+            .get("byteOffset")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| toonl_error(0, "invalid cursor byteOffset"))?;
+        let active_header_line = object
+            .get("activeHeaderLine")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| toonl_error(0, "invalid cursor activeHeaderLine"))?
+            .to_owned();
+        let rows_since_header = object
+            .get("rowsSinceHeader")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| toonl_error(0, "invalid cursor rowsSinceHeader"))?;
+        let anchor = object
+            .get("anchor")
+            .map(|value| {
+                let object = value
+                    .as_object()
+                    .ok_or_else(|| toonl_error(0, "invalid cursor anchor"))?;
+                Ok(ToonlCursorAnchor {
+                    byte_offset: object
+                        .get("byteOffset")
+                        .and_then(serde_json::Value::as_u64)
+                        .ok_or_else(|| toonl_error(0, "invalid cursor anchor"))?,
+                    bytes: object
+                        .get("bytes")
+                        .and_then(serde_json::Value::as_str)
+                        .ok_or_else(|| toonl_error(0, "invalid cursor anchor"))?
+                        .to_owned(),
+                })
+            })
+            .transpose()?;
+        Ok(Self {
+            byte_offset,
+            active_header_line,
+            rows_since_header,
+            anchor,
+        })
+    }
+}
+
+impl fmt::Display for ToonlCursorInvalidation {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Truncated { .. } => write!(formatter, "TOONL cursor invalidated by truncation"),
+            Self::AnchorMismatch { .. } => {
+                write!(formatter, "TOONL cursor invalidated by anchor mismatch")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ToonlCursorInvalidation {}
+
+impl fmt::Display for ToonlResumeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Invalid(error) => write!(formatter, "{error}"),
+            Self::Parse(error) => write!(formatter, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for ToonlResumeError {}
 
 impl ToonlStream {
     pub fn parse(input: &str) -> Result<Self, ToonlError> {
@@ -931,9 +1070,24 @@ impl<R: BufRead> ToonlRowReader<R> {
             reader,
             line: String::new(),
             line_number: 0,
+            byte_offset: 0,
+            active_header_line: None,
+            rows_since_header: 0,
+            anchor: None,
             current: None,
             finished: false,
         }
+    }
+
+    pub fn cursor(&self) -> Option<ToonlCursor> {
+        self.active_header_line
+            .as_ref()
+            .map(|active_header_line| ToonlCursor {
+                byte_offset: self.byte_offset,
+                active_header_line: active_header_line.clone(),
+                rows_since_header: self.rows_since_header,
+                anchor: self.anchor.clone(),
+            })
     }
 }
 
@@ -947,12 +1101,19 @@ impl<R: BufRead> Iterator for ToonlRowReader<R> {
 
         loop {
             self.line.clear();
+            let line_start_offset = self.byte_offset;
             match self.reader.read_line(&mut self.line) {
                 Ok(0) => {
                     self.finished = true;
                     return None;
                 }
-                Ok(_) => {}
+                Ok(bytes_read) => {
+                    self.byte_offset += bytes_read as u64;
+                    self.anchor = Some(ToonlCursorAnchor {
+                        byte_offset: line_start_offset,
+                        bytes: self.line.clone(),
+                    });
+                }
                 Err(error) => {
                     self.finished = true;
                     return Some(Err(toonl_error(0, format!("read error: {error}"))));
@@ -999,6 +1160,12 @@ impl<R: BufRead> ToonlRowReader<R> {
                 ensure_open_continuation_matches(self.current.as_ref(), &header, self.line_number)?;
                 return Ok(());
             }
+            self.active_header_line = Some(toonl_header_text(
+                header.delimiter,
+                &header.header_fields,
+                false,
+            ));
+            self.rows_since_header = 0;
             self.current = Some(OpenToonlSegment {
                 delimiter: header.delimiter,
                 fields: header.fields,
@@ -1036,7 +1203,66 @@ impl<R: BufRead> ToonlRowReader<R> {
             Err(error) => return Some(Err(error)),
         };
         segment.row_count += 1;
+        self.rows_since_header += 1;
         Some(toonl_row_value(&segment.fields, &row, self.line_number))
+    }
+}
+
+impl ToonlRowReader<std::io::Cursor<Vec<u8>>> {
+    pub fn resume_from_bytes(input: &[u8], cursor: ToonlCursor) -> Result<Self, ToonlResumeError> {
+        if input.len() < cursor.byte_offset as usize {
+            return Err(ToonlResumeError::Invalid(
+                ToonlCursorInvalidation::Truncated {
+                    byte_offset: cursor.byte_offset,
+                    file_size: input.len() as u64,
+                },
+            ));
+        }
+        if let Some(anchor) = &cursor.anchor {
+            let start = anchor.byte_offset as usize;
+            let end = start.saturating_add(anchor.bytes.len());
+            if input.get(start..end) != Some(anchor.bytes.as_bytes()) {
+                return Err(ToonlResumeError::Invalid(
+                    ToonlCursorInvalidation::AnchorMismatch {
+                        byte_offset: anchor.byte_offset,
+                    },
+                ));
+            }
+        }
+
+        let header_line = cursor
+            .active_header_line
+            .trim_end_matches('\n')
+            .trim_end_matches('\r');
+        let header = parse_toonl_header(header_line, 0)
+            .map_err(ToonlResumeError::Parse)?
+            .ok_or_else(|| {
+                ToonlResumeError::Parse(toonl_error(0, "invalid cursor activeHeaderLine"))
+            })?;
+        if header.continuation {
+            return Err(ToonlResumeError::Parse(toonl_error(
+                0,
+                "invalid cursor activeHeaderLine",
+            )));
+        }
+
+        let suffix = input[cursor.byte_offset as usize..].to_vec();
+        Ok(Self {
+            reader: std::io::Cursor::new(suffix),
+            line: String::new(),
+            line_number: 0,
+            byte_offset: cursor.byte_offset,
+            active_header_line: Some(cursor.active_header_line),
+            rows_since_header: cursor.rows_since_header,
+            anchor: cursor.anchor,
+            current: Some(OpenToonlSegment {
+                delimiter: header.delimiter,
+                fields: header.fields,
+                header_fields: header.header_fields,
+                row_count: cursor.rows_since_header,
+            }),
+            finished: false,
+        })
     }
 }
 
