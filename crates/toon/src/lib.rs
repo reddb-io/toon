@@ -211,7 +211,7 @@ pub enum Array {
 /// materialised into [`Document`]s.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TabularArray {
-    fields: Vec<Vec<String>>,
+    fields: Vec<HeaderField>,
     rows: Vec<Vec<Value>>,
 }
 
@@ -230,7 +230,13 @@ struct Header {
     key_quoted: bool,
     len: usize,
     delimiter: char,
-    fields: Option<Vec<Vec<String>>>,
+    fields: Option<Vec<HeaderField>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct HeaderField {
+    path: Vec<String>,
+    list_delimiter: Option<char>,
 }
 
 #[derive(Debug)]
@@ -238,7 +244,7 @@ struct MapHeader {
     key: String,
     key_quoted: bool,
     delimiter: char,
-    fields: Vec<Vec<String>>,
+    fields: Vec<HeaderField>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1885,8 +1891,8 @@ impl TabularArray {
         self.rows.get(index).map(|row| {
             count_tabular_row_decode_for_tests();
             let mut document = Document::default();
-            for (path, value) in self.fields.iter().zip(row) {
-                insert_tabular_path(&mut document, path, value.clone());
+            for (field, value) in self.fields.iter().zip(row) {
+                insert_tabular_path(&mut document, &field.path, value.clone());
             }
             Value::Object(document)
         })
@@ -2205,9 +2211,9 @@ fn parse_keyed_map_rows(
         }
 
         let mut row = Document::default();
-        for (path, cell) in header.fields.iter().zip(cells.iter()) {
-            let value = parse_scalar(cell, line.number)?;
-            let segments = path.iter().map(String::as_str).collect::<Vec<_>>();
+        for (field, cell) in header.fields.iter().zip(cells.iter()) {
+            let value = parse_tabular_cell(field, cell, line.number)?;
+            let segments = field.path.iter().map(String::as_str).collect::<Vec<_>>();
             insert_path(&mut row, &segments, value, options, line.number)?;
         }
         insert_field(
@@ -2296,7 +2302,7 @@ fn parse_array_field(
 
 fn parse_tabular_rows(
     header: &Header,
-    fields: &[Vec<String>],
+    fields: &[HeaderField],
     lines: &[Line<'_>],
     index: &mut usize,
     row_depth: usize,
@@ -2340,7 +2346,8 @@ fn parse_tabular_rows(
         rows.push(
             cells
                 .iter()
-                .map(|cell| parse_scalar(cell, line.number))
+                .zip(fields.iter())
+                .map(|(cell, field)| parse_tabular_cell(field, cell, line.number))
                 .collect::<Result<Vec<_>, _>>()?,
         );
         *index += 1;
@@ -2363,6 +2370,17 @@ fn parse_tabular_rows(
         fields: fields.to_vec(),
         rows,
     })))
+}
+
+fn parse_tabular_cell(field: &HeaderField, cell: &str, line: usize) -> Result<Value, ParseError> {
+    let Some(list_delimiter) = field.list_delimiter else {
+        return parse_scalar(cell, line);
+    };
+    let values = split_delimited(cell, list_delimiter, line)?
+        .iter()
+        .map(|value| parse_scalar(value, line))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Value::Array(Array::List(values)))
 }
 
 /// Spec §9.3 row disambiguation: a same-depth line is a row unless an unquoted
@@ -2553,7 +2571,7 @@ fn parse_header(content: &str, colon: Option<usize>) -> Result<Header, HeaderErr
     let fields = if suffix.is_empty() {
         None
     } else if suffix.starts_with('{') && suffix.ends_with('}') && suffix.len() >= 2 {
-        Some(parse_header_fields(
+        Some(parse_array_header_fields(
             &suffix[1..suffix.len() - 1],
             delimiter,
         )?)
@@ -2592,7 +2610,7 @@ fn parse_map_header(content: &str) -> Result<MapHeader, HeaderError> {
     } else {
         DOCUMENT_DELIMITER
     };
-    let fields = parse_header_fields(fields_text, delimiter).map_err(|error| {
+    let fields = parse_header_fields(fields_text, delimiter, delimiter).map_err(|error| {
         if error.0 == "duplicate key" {
             HeaderError("duplicate key")
         } else {
@@ -2608,12 +2626,36 @@ fn parse_map_header(content: &str) -> Result<MapHeader, HeaderError> {
     })
 }
 
-fn parse_header_fields(source: &str, delimiter: char) -> Result<Vec<Vec<String>>, HeaderError> {
+fn parse_array_header_fields(
+    source: &str,
+    delimiter: char,
+) -> Result<Vec<HeaderField>, HeaderError> {
+    if delimiter != DOCUMENT_DELIMITER
+        && source.contains(DOCUMENT_DELIMITER)
+        && source.contains('[')
+    {
+        return parse_header_fields(source, DOCUMENT_DELIMITER, delimiter);
+    }
+    match parse_header_fields(source, delimiter, delimiter) {
+        Ok(fields) => Ok(fields),
+        Err(error) if delimiter != DOCUMENT_DELIMITER && error.0 != "duplicate key" => {
+            parse_header_fields(source, DOCUMENT_DELIMITER, delimiter)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn parse_header_fields(
+    source: &str,
+    delimiter: char,
+    active_delimiter: char,
+) -> Result<Vec<HeaderField>, HeaderError> {
     struct Parser<'a> {
         source: &'a str,
         delimiter: u8,
+        active_delimiter: char,
         index: usize,
-        paths: Vec<Vec<String>>,
+        fields: Vec<HeaderField>,
     }
 
     impl Parser<'_> {
@@ -2635,7 +2677,11 @@ fn parse_header_fields(source: &str, delimiter: char) -> Result<Vec<Vec<String>>
                         self.skip_quoted_header_key();
                         continue;
                     }
-                    if character == self.delimiter || character == b'{' || character == b'}' {
+                    if character == self.delimiter
+                        || character == b'{'
+                        || character == b'}'
+                        || character == b'['
+                    {
                         break;
                     }
                     self.index += 1;
@@ -2648,15 +2694,41 @@ fn parse_header_fields(source: &str, delimiter: char) -> Result<Vec<Vec<String>>
                 }
 
                 count += 1;
-                if self.index < self.source.len() && self.source.as_bytes()[self.index] == b'{' {
+                if self.index < self.source.len() && self.source.as_bytes()[self.index] == b'[' {
                     self.index += 1;
-                    let before = self.paths.len();
+                    let delimiter_start = self.index;
+                    while self.index < self.source.len()
+                        && self.source.as_bytes()[self.index] != b']'
+                    {
+                        self.index += 1;
+                    }
+                    if self.index >= self.source.len() {
+                        return Err(HeaderError("invalid array header"));
+                    }
+                    let list_delimiter = &self.source[delimiter_start..self.index];
+                    let Some(list_delimiter) =
+                        valid_list_delimiter(list_delimiter, self.active_delimiter)
+                    else {
+                        return Err(HeaderError("invalid array header"));
+                    };
+                    self.index += 1;
+                    let mut path = prefix.to_vec();
+                    path.push(key);
+                    self.fields.push(HeaderField {
+                        path,
+                        list_delimiter: Some(list_delimiter),
+                    });
+                } else if self.index < self.source.len()
+                    && self.source.as_bytes()[self.index] == b'{'
+                {
+                    self.index += 1;
+                    let before = self.fields.len();
                     let mut nested_prefix = prefix.to_vec();
                     nested_prefix.push(key);
                     self.parse_list(&nested_prefix, true)?;
                     if self.index >= self.source.len()
                         || self.source.as_bytes()[self.index] != b'}'
-                        || self.paths.len() == before
+                        || self.fields.len() == before
                     {
                         return Err(HeaderError("invalid array header"));
                     }
@@ -2664,7 +2736,10 @@ fn parse_header_fields(source: &str, delimiter: char) -> Result<Vec<Vec<String>>
                 } else {
                     let mut path = prefix.to_vec();
                     path.push(key);
-                    self.paths.push(path);
+                    self.fields.push(HeaderField {
+                        path,
+                        list_delimiter: None,
+                    });
                 }
 
                 if self.index < self.source.len()
@@ -2710,23 +2785,39 @@ fn parse_header_fields(source: &str, delimiter: char) -> Result<Vec<Vec<String>>
     let mut parser = Parser {
         source,
         delimiter: delimiter as u8,
+        active_delimiter,
         index: 0,
-        paths: Vec::new(),
+        fields: Vec::new(),
     };
     parser.parse_list(&[], false)?;
     if parser.index != source.len() {
         return Err(HeaderError("invalid array header"));
     }
-    for index in 0..parser.paths.len() {
-        for other in index + 1..parser.paths.len() {
-            let left = &parser.paths[index];
-            let right = &parser.paths[other];
+    for index in 0..parser.fields.len() {
+        for other in index + 1..parser.fields.len() {
+            let left = &parser.fields[index].path;
+            let right = &parser.fields[other].path;
             if left == right || left.starts_with(right) || right.starts_with(left) {
                 return Err(HeaderError("duplicate key"));
             }
         }
     }
-    Ok(parser.paths)
+    Ok(parser.fields)
+}
+
+fn valid_list_delimiter(value: &str, active_delimiter: char) -> Option<char> {
+    let mut characters = value.chars();
+    let delimiter = characters.next()?;
+    if characters.next().is_some()
+        || delimiter == active_delimiter
+        || matches!(
+            delimiter,
+            ' ' | '\t' | '\r' | '\n' | '"' | '[' | ']' | '{' | '}' | ':'
+        )
+    {
+        return None;
+    }
+    Some(delimiter)
 }
 
 fn parse_toonl_header(
