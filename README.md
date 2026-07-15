@@ -11,6 +11,14 @@
 
 ---
 
+## Attribution
+
+This is not the original TOON project. The TOON format was created by [Johann Schopplich](https://github.com/johannschopplich) — if you want to learn about or use TOON itself, follow the official repository at [github.com/toon-format/toon](https://github.com/toon-format/toon) and the official docs at [toonformat.dev](https://toonformat.dev).
+
+This repository is the toolset that [RedDB](https://reddb.io) built on top of TOON for day-to-day use: a TypeScript library (`@reddb-io/toon`), a Rust crate, the `tq` CLI, the TOONL streaming extension, and opt-in RedDB extensions. Full credit goes to Johann and the toon-format team for the original format and spec.
+
+---
+
 ## What this repo ships
 
 This is the monorepo for the **TOON** format: two format specs, and three implementations that speak them. Each surface below has its own section.
