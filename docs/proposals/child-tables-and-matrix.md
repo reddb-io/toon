@@ -100,12 +100,10 @@ column):
 | tree3-100 | child-table | 37,076 | 37,889 | 19,076 | −48.5% | 13,370 | 13,556 | 9,305 | −30.4% | JSON 11,953 / TOON 13,284 / hyp 7,484 |
 | matrix-150x8 | matrix-as-child-table | 7,616 | 8,667 | 7,629 | +0.2% | 4,803 | 5,702 | 5,108 | +6.4% | JSON 2,406 / TOON 3,305 / hyp 2,707 |
 
-Result: **child tables are a real win** — roughly −48% bytes and −30% tokens
-versus JSON on the recursive `tree3-100` corpus. The **matrix form is byte-neutral
-and token-negative** against minified JSON, which is exactly why it is documented
-as not recommended for a token win. The shipped-extension figures in the spec's
-[Extension corpus measurements](../toon-reddb-spec.md#extension-corpus-measurements)
-report the same corpora through the final implementation.
+Result: child tables remain part of the measured benchmark program, while the
+matrix form is documented as a shape/round-trip feature rather than a default
+efficiency recommendation. Keep current bytes and token figures in
+`../../benchmarks/results/` rather than in this proposal text.
 
 ## LLM-readability sanity check
 
