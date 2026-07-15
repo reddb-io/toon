@@ -1,0 +1,13 @@
+name: Ada Lovelace
+active: true
+count: 3
+tags:
+  - admin
+  - ops
+users:
+  - id: 1
+    name: Ada
+  - id: 2
+    name: Bob
+meta:
+  empty: null
