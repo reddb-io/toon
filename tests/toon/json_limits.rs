@@ -5,11 +5,12 @@ use std::fs;
 use std::path::PathBuf;
 
 const JSON_LIMITS_FIXTURE: &str = "../../tests/json-limits/corpus.json";
-const EXPECTED_CASE_COUNT: usize = 24;
-const REQUIRED_CATEGORIES: [&str; 4] = [
+const EXPECTED_CASE_COUNT: usize = 25;
+const REQUIRED_CATEGORIES: [&str; 5] = [
     "numbers",
     "strings-unicode",
     "structure",
+    "toon-decode",
     "adversarial-round-trip",
 ];
 
@@ -38,14 +39,33 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
             .expect("test category");
         categories.insert(category.to_owned());
 
-        let raw_json = test
-            .get("rawJson")
-            .and_then(Json::as_str)
-            .expect("raw JSON input");
         let expected = test
             .get("expected")
             .and_then(|value| value.get("rust"))
             .expect("Rust expectation");
+
+        if let Some(raw_toon) = test.get("rawToon").and_then(Json::as_str) {
+            let actual_round_trip = Value::parse_toon(raw_toon)
+                .unwrap_or_else(|err| panic!("{name}: TOON parse: {err}"))
+                .to_json_value();
+            let expected_round_trip: Json = serde_json::from_str(
+                expected
+                    .get("roundTripJson")
+                    .and_then(Json::as_str)
+                    .expect("expected round-trip JSON"),
+            )
+            .unwrap_or_else(|err| panic!("{name}: expected round-trip JSON parse: {err}"));
+            assert_eq!(
+                actual_round_trip, expected_round_trip,
+                "{name}: TOON decode JSON"
+            );
+            continue;
+        }
+
+        let raw_json = test
+            .get("rawJson")
+            .and_then(Json::as_str)
+            .expect("raw JSON input");
 
         if let Some(expected_error) = expected.get("error").and_then(Json::as_str) {
             let actual = Value::from_json_str(raw_json).expect_err("case must reject");
@@ -56,8 +76,8 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
             continue;
         }
 
-        let value =
-            Value::from_json_str(raw_json).unwrap_or_else(|err| panic!("{name}: JSON parse: {err}"));
+        let value = Value::from_json_str(raw_json)
+            .unwrap_or_else(|err| panic!("{name}: JSON parse: {err}"));
         let toon = value.to_canonical_toon();
         assert_eq!(
             toon,
@@ -84,7 +104,11 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
         );
     }
 
-    assert_eq!(tests.len(), EXPECTED_CASE_COUNT, "JSON limits case count changed");
+    assert_eq!(
+        tests.len(),
+        EXPECTED_CASE_COUNT,
+        "JSON limits case count changed"
+    );
     assert_eq!(
         categories,
         REQUIRED_CATEGORIES
