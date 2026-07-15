@@ -1,0 +1,73 @@
+{
+  "paths": [
+    {
+      "path": "/pet",
+      "method": "post",
+      "operation_id": "addPet",
+      "tags": ["pet"],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Pet",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Pet"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/pet/findByStatus",
+      "method": "get",
+      "operation_id": "findPetsByStatus",
+      "tags": ["pet"],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/parameters/status",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/PetList"
+        },
+        {
+          "status": "400",
+          "description": "invalid status value",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/store/order",
+      "method": "post",
+      "operation_id": "placeOrder",
+      "tags": ["store"],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Order",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Order"
+        },
+        {
+          "status": "400",
+          "description": "invalid order",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    }
+  ]
+}
