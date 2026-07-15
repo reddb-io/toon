@@ -659,23 +659,25 @@ impl ToonlStream {
                 continue;
             }
             if let Some((tag, row_text)) = toonl_tagged_row_prefix(line, line_number)? {
-                saw_tagged_syntax = true;
-                let lane = tagged_lanes
-                    .get_mut(tag)
-                    .ok_or_else(|| toonl_error(line_number, "unknown tag"))?;
-                let segment = lane
-                    .current
-                    .as_mut()
-                    .expect("declared tagged lane has a current segment");
-                let row = parse_toonl_row(
-                    row_text,
-                    segment.delimiter,
-                    segment.fields.len(),
-                    line_number,
-                )?;
-                segment.rows.push(row.clone());
-                append_interleaved_toonl_row(&mut interleaved_segments, segment, row);
-                continue;
+                if let Some(lane) = tagged_lanes.get_mut(tag) {
+                    saw_tagged_syntax = true;
+                    let segment = lane
+                        .current
+                        .as_mut()
+                        .expect("declared tagged lane has a current segment");
+                    let row = parse_toonl_row(
+                        row_text,
+                        segment.delimiter,
+                        segment.fields.len(),
+                        line_number,
+                    )?;
+                    segment.rows.push(row.clone());
+                    append_interleaved_toonl_row(&mut interleaved_segments, segment, row);
+                    continue;
+                }
+                if current.is_none() {
+                    return Err(toonl_error(line_number, "unknown tag"));
+                }
             }
 
             let segment = current
@@ -1357,20 +1359,22 @@ impl<R: BufRead> ToonlRowReader<R> {
             Ok(prefix) => prefix,
             Err(error) => return Some(Err(error)),
         } {
-            let Some(segment) = self.tagged_lanes.get_mut(tag) else {
+            if let Some(segment) = self.tagged_lanes.get_mut(tag) {
+                let row = match parse_toonl_row(
+                    row_text,
+                    segment.delimiter,
+                    segment.fields.len(),
+                    self.line_number,
+                ) {
+                    Ok(row) => row,
+                    Err(error) => return Some(Err(error)),
+                };
+                segment.row_count += 1;
+                return Some(toonl_row_value(&segment.fields, &row, self.line_number));
+            }
+            if self.current.is_none() {
                 return Some(Err(toonl_error(self.line_number, "unknown tag")));
-            };
-            let row = match parse_toonl_row(
-                row_text,
-                segment.delimiter,
-                segment.fields.len(),
-                self.line_number,
-            ) {
-                Ok(row) => row,
-                Err(error) => return Some(Err(error)),
-            };
-            segment.row_count += 1;
-            return Some(toonl_row_value(&segment.fields, &row, self.line_number));
+            }
         }
 
         let Some(segment) = self.current.as_mut() else {
