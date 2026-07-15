@@ -1,0 +1,64 @@
+{
+  "repositories": [
+    {
+      "name": "linux",
+      "owner": "torvalds",
+      "platform": "GitHub",
+      "primary_language": "C",
+      "license": "GPL-2.0-only",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "rust",
+      "owner": "rust-lang",
+      "platform": "GitHub",
+      "primary_language": "Rust",
+      "license": "Apache-2.0 OR MIT",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "vscode",
+      "owner": "microsoft",
+      "platform": "GitHub",
+      "primary_language": "TypeScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "react",
+      "owner": "facebook",
+      "platform": "GitHub",
+      "primary_language": "JavaScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "kubernetes",
+      "owner": "kubernetes",
+      "platform": "GitHub",
+      "primary_language": "Go",
+      "license": "Apache-2.0",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "cpython",
+      "owner": "python",
+      "platform": "GitHub",
+      "primary_language": "Python",
+      "license": "Python-2.0",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    }
+  ]
+}
