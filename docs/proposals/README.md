@@ -36,7 +36,7 @@ Mapped onto the TC39 process:
 | [Primitive-array columns](primitive-array-columns.md) | 4 | Graduated (landed via #100/#101) | [Extension 3](../toon-reddb-spec.md#extension-3--primitive-array-columns) | [spec#49](https://github.com/toon-format/spec/issues/49) | [#97](https://github.com/reddb-io/toon/issues/97), [#99](https://github.com/reddb-io/toon/issues/99), [#100](https://github.com/reddb-io/toon/pull/100), [#101](https://github.com/reddb-io/toon/pull/101) |
 | [Child tables + matrix](child-tables-and-matrix.md) | 4 | Graduated (landed via #102/#103) | [Extension 4](../toon-reddb-spec.md#extension-4--object-array-columns) | — | [#99](https://github.com/reddb-io/toon/issues/99), [#102](https://github.com/reddb-io/toon/pull/102), [#103](https://github.com/reddb-io/toon/pull/103) |
 | [Discriminated / heterogeneous arrays](discriminated-heterogeneous-arrays.md) | 1 | Measured; do not implement as-is | — | — | [#140](https://github.com/reddb-io/toon/issues/140) |
-| [Cyclic discriminated arrays](cyclic-discriminated-arrays.md) | 1 | Measured; implement narrow cyclic shape | — | — | [#142](https://github.com/reddb-io/toon/issues/142) |
+| [Cyclic discriminated arrays](cyclic-discriminated-arrays.md) | 4 | Graduated (landed via #150/#151) | [Extension 5](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays) | — | [#142](https://github.com/reddb-io/toon/issues/142), [#150](https://github.com/reddb-io/toon/issues/150), [#151](https://github.com/reddb-io/toon/issues/151) |
 
 ## Adding a proposal
 
