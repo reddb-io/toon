@@ -1,0 +1,964 @@
+{
+  "features": [
+    {
+      "id": "doc_001",
+      "f001_title": "install",
+      "f018_lang": "en",
+      "f044_clicks": 0,
+      "f077_has_code": false,
+      "f131_topic_api": 0,
+      "f219_region_br": null,
+      "f377_embedding_bucket": "a00"
+    },
+    {
+      "id": "doc_002",
+      "f002_title": "benchmark",
+      "f019_lang": "pt",
+      "f045_impressions": 41,
+      "f078_has_table": true,
+      "f132_topic_search": 0.17,
+      "f220_region_us": "CA",
+      "f378_embedding_bucket": "b07"
+    },
+    {
+      "id": "doc_003",
+      "f003_title": "schema",
+      "f020_lang": "de",
+      "f046_clicks": 82,
+      "f079_has_json": true,
+      "f133_topic_checkout": 0.34,
+      "f221_region_de": "BE",
+      "f379_embedding_bucket": "c14"
+    },
+    {
+      "id": "doc_004",
+      "f004_title": "release",
+      "f021_lang": "ja",
+      "f047_impressions": 123,
+      "f080_has_yaml": false,
+      "f134_topic_billing": 0.51,
+      "f222_region_jp": "13",
+      "f380_embedding_bucket": "d21"
+    },
+    {
+      "id": "doc_005",
+      "f005_title": "api",
+      "f022_lang": "es",
+      "f048_clicks": 164,
+      "f081_has_xml": true,
+      "f135_topic_dashboard": 0.68,
+      "f223_region_in": null,
+      "f381_embedding_bucket": "e28"
+    },
+    {
+      "id": "doc_006",
+      "f006_title": "search",
+      "f023_lang": "fr",
+      "f049_impressions": 205,
+      "f082_has_image": true,
+      "f136_topic_profile": 0.85,
+      "f224_region_ca": "ON",
+      "f382_embedding_bucket": "f03"
+    },
+    {
+      "id": "doc_007",
+      "f007_title": "checkout",
+      "f024_lang": "it",
+      "f050_clicks": 246,
+      "f083_has_code": false,
+      "f137_topic_audit": 0.02,
+      "f225_region_gb": "ENG",
+      "f383_embedding_bucket": "a10"
+    },
+    {
+      "id": "doc_008",
+      "f008_title": "billing",
+      "f018_lang": "en",
+      "f051_impressions": 287,
+      "f084_has_table": true,
+      "f138_topic_export": 0.19,
+      "f226_region_br": "SP",
+      "f384_embedding_bucket": "b17"
+    },
+    {
+      "id": "doc_009",
+      "f009_title": "dashboard",
+      "f019_lang": "pt",
+      "f052_clicks": 328,
+      "f085_has_json": true,
+      "f139_topic_import": 0.36,
+      "f227_region_us": null,
+      "f385_embedding_bucket": "c24"
+    },
+    {
+      "id": "doc_010",
+      "f010_title": "profile",
+      "f020_lang": "de",
+      "f053_impressions": 369,
+      "f086_has_yaml": false,
+      "f140_topic_query": 0.53,
+      "f228_region_de": "BE",
+      "f386_embedding_bucket": "d31"
+    },
+    {
+      "id": "doc_011",
+      "f011_title": "audit",
+      "f021_lang": "ja",
+      "f054_clicks": 410,
+      "f087_has_xml": true,
+      "f141_topic_cache": 0.7,
+      "f229_region_jp": "13",
+      "f387_embedding_bucket": "e06"
+    },
+    {
+      "id": "doc_012",
+      "f012_title": "export",
+      "f022_lang": "es",
+      "f055_impressions": 451,
+      "f088_has_image": true,
+      "f142_topic_stream": 0.87,
+      "f230_region_in": "KA",
+      "f388_embedding_bucket": "f13"
+    },
+    {
+      "id": "doc_013",
+      "f013_title": "import",
+      "f023_lang": "fr",
+      "f056_clicks": 492,
+      "f089_has_code": false,
+      "f143_topic_deploy": 0.04,
+      "f231_region_ca": null,
+      "f389_embedding_bucket": "a20"
+    },
+    {
+      "id": "doc_014",
+      "f014_title": "query",
+      "f024_lang": "it",
+      "f057_impressions": 533,
+      "f090_has_table": true,
+      "f144_topic_policy": 0.21,
+      "f232_region_gb": "ENG",
+      "f390_embedding_bucket": "b27"
+    },
+    {
+      "id": "doc_015",
+      "f015_title": "cache",
+      "f018_lang": "en",
+      "f058_clicks": 574,
+      "f091_has_json": true,
+      "f145_topic_token": 0.38,
+      "f233_region_br": "SP",
+      "f391_embedding_bucket": "c02"
+    },
+    {
+      "id": "doc_016",
+      "f016_title": "stream",
+      "f019_lang": "pt",
+      "f059_impressions": 615,
+      "f092_has_yaml": false,
+      "f146_topic_model": 0.55,
+      "f234_region_us": "CA",
+      "f392_embedding_bucket": "d09"
+    },
+    {
+      "id": "doc_017",
+      "f017_title": "deploy",
+      "f020_lang": "de",
+      "f060_clicks": 656,
+      "f093_has_xml": true,
+      "f147_topic_prompt": 0.72,
+      "f235_region_de": null,
+      "f393_embedding_bucket": "e16"
+    },
+    {
+      "id": "doc_018",
+      "f018_title": "policy",
+      "f021_lang": "ja",
+      "f061_impressions": 697,
+      "f094_has_image": true,
+      "f148_topic_issue": 0.89,
+      "f236_region_jp": "13",
+      "f394_embedding_bucket": "f23"
+    },
+    {
+      "id": "doc_019",
+      "f019_title": "token",
+      "f022_lang": "es",
+      "f062_clicks": 738,
+      "f095_has_code": false,
+      "f149_topic_comment": 0.06,
+      "f237_region_in": "KA",
+      "f395_embedding_bucket": "a30"
+    },
+    {
+      "id": "doc_020",
+      "f020_title": "model",
+      "f023_lang": "fr",
+      "f044_impressions": 779,
+      "f096_has_table": true,
+      "f150_topic_artifact": 0.23,
+      "f238_region_ca": "ON",
+      "f396_embedding_bucket": "b05"
+    },
+    {
+      "id": "doc_021",
+      "f021_title": "prompt",
+      "f024_lang": "it",
+      "f045_clicks": 820,
+      "f097_has_json": true,
+      "f151_topic_workflow": 0.4,
+      "f239_region_gb": null,
+      "f397_embedding_bucket": "c12"
+    },
+    {
+      "id": "doc_022",
+      "f022_title": "issue",
+      "f018_lang": "en",
+      "f046_impressions": 861,
+      "f098_has_yaml": false,
+      "f152_topic_backup": 0.57,
+      "f240_region_br": "SP",
+      "f398_embedding_bucket": "d19"
+    },
+    {
+      "id": "doc_023",
+      "f023_title": "comment",
+      "f019_lang": "pt",
+      "f047_clicks": 902,
+      "f099_has_xml": true,
+      "f153_topic_restore": 0.74,
+      "f241_region_us": "CA",
+      "f399_embedding_bucket": "e26"
+    },
+    {
+      "id": "doc_024",
+      "f024_title": "artifact",
+      "f020_lang": "de",
+      "f048_impressions": 943,
+      "f100_has_image": true,
+      "f154_topic_index": 0.91,
+      "f242_region_de": "BE",
+      "f400_embedding_bucket": "f01"
+    },
+    {
+      "id": "doc_025",
+      "f025_title": "workflow",
+      "f021_lang": "ja",
+      "f049_clicks": 984,
+      "f101_has_code": false,
+      "f155_topic_session": 0.08,
+      "f243_region_jp": null,
+      "f401_embedding_bucket": "a08"
+    },
+    {
+      "id": "doc_026",
+      "f026_title": "backup",
+      "f022_lang": "es",
+      "f050_impressions": 1025,
+      "f102_has_table": true,
+      "f156_topic_notification": 0.25,
+      "f244_region_in": "KA",
+      "f402_embedding_bucket": "b15"
+    },
+    {
+      "id": "doc_027",
+      "f027_title": "restore",
+      "f023_lang": "fr",
+      "f051_clicks": 1066,
+      "f103_has_json": true,
+      "f157_topic_quota": 0.42,
+      "f245_region_ca": "ON",
+      "f403_embedding_bucket": "c22"
+    },
+    {
+      "id": "doc_028",
+      "f028_title": "index",
+      "f024_lang": "it",
+      "f052_impressions": 1107,
+      "f104_has_yaml": false,
+      "f158_topic_invoice": 0.59,
+      "f246_region_gb": "ENG",
+      "f404_embedding_bucket": "d29"
+    },
+    {
+      "id": "doc_029",
+      "f029_title": "session",
+      "f018_lang": "en",
+      "f053_clicks": 1148,
+      "f105_has_xml": true,
+      "f159_topic_subscription": 0.76,
+      "f247_region_br": null,
+      "f405_embedding_bucket": "e04"
+    },
+    {
+      "id": "doc_030",
+      "f030_title": "notification",
+      "f019_lang": "pt",
+      "f054_impressions": 1189,
+      "f106_has_image": true,
+      "f160_topic_catalog": 0.93,
+      "f248_region_us": "CA",
+      "f406_embedding_bucket": "f11"
+    },
+    {
+      "id": "doc_031",
+      "f031_title": "quota",
+      "f020_lang": "de",
+      "f055_clicks": 1230,
+      "f107_has_code": false,
+      "f161_topic_review": 0.1,
+      "f249_region_de": "BE",
+      "f407_embedding_bucket": "a18"
+    },
+    {
+      "id": "doc_032",
+      "f032_title": "invoice",
+      "f021_lang": "ja",
+      "f056_impressions": 1271,
+      "f077_has_table": true,
+      "f162_topic_report": 0.27,
+      "f250_region_jp": "13",
+      "f408_embedding_bucket": "b25"
+    },
+    {
+      "id": "doc_033",
+      "f033_title": "subscription",
+      "f022_lang": "es",
+      "f057_clicks": 1312,
+      "f078_has_json": true,
+      "f163_topic_alert": 0.44,
+      "f251_region_in": null,
+      "f409_embedding_bucket": "c00"
+    },
+    {
+      "id": "doc_034",
+      "f034_title": "catalog",
+      "f023_lang": "fr",
+      "f058_impressions": 1353,
+      "f079_has_yaml": false,
+      "f164_topic_team": 0.61,
+      "f252_region_ca": "ON",
+      "f410_embedding_bucket": "d07"
+    },
+    {
+      "id": "doc_035",
+      "f035_title": "review",
+      "f024_lang": "it",
+      "f059_clicks": 1394,
+      "f080_has_xml": true,
+      "f165_topic_project": 0.78,
+      "f253_region_gb": "ENG",
+      "f411_embedding_bucket": "e14"
+    },
+    {
+      "id": "doc_036",
+      "f036_title": "report",
+      "f018_lang": "en",
+      "f060_impressions": 1435,
+      "f081_has_image": true,
+      "f166_topic_service": 0.95,
+      "f254_region_br": "SP",
+      "f412_embedding_bucket": "f21"
+    },
+    {
+      "id": "doc_037",
+      "f037_title": "alert",
+      "f019_lang": "pt",
+      "f061_clicks": 1476,
+      "f082_has_code": false,
+      "f167_topic_cluster": 0.12,
+      "f255_region_us": null,
+      "f413_embedding_bucket": "a28"
+    },
+    {
+      "id": "doc_038",
+      "f038_title": "team",
+      "f020_lang": "de",
+      "f062_impressions": 1517,
+      "f083_has_table": true,
+      "f168_topic_domain": 0.29,
+      "f256_region_de": "BE",
+      "f414_embedding_bucket": "b03"
+    },
+    {
+      "id": "doc_039",
+      "f039_title": "project",
+      "f021_lang": "ja",
+      "f044_clicks": 1558,
+      "f084_has_json": true,
+      "f169_topic_certificate": 0.46,
+      "f257_region_jp": "13",
+      "f415_embedding_bucket": "c10"
+    },
+    {
+      "id": "doc_040",
+      "f040_title": "service",
+      "f022_lang": "es",
+      "f045_impressions": 1599,
+      "f085_has_yaml": false,
+      "f170_topic_secret": 0.63,
+      "f258_region_in": "KA",
+      "f416_embedding_bucket": "d17"
+    },
+    {
+      "id": "doc_041",
+      "f041_title": "cluster",
+      "f023_lang": "fr",
+      "f046_clicks": 1640,
+      "f086_has_xml": true,
+      "f171_topic_role": 0.8,
+      "f259_region_ca": null,
+      "f417_embedding_bucket": "e24"
+    },
+    {
+      "id": "doc_042",
+      "f042_title": "domain",
+      "f024_lang": "it",
+      "f047_impressions": 1681,
+      "f087_has_image": true,
+      "f172_topic_permission": 0.97,
+      "f260_region_gb": "ENG",
+      "f418_embedding_bucket": "f31"
+    },
+    {
+      "id": "doc_043",
+      "f043_title": "certificate",
+      "f018_lang": "en",
+      "f048_clicks": 1722,
+      "f088_has_code": false,
+      "f173_topic_webhook": 0.14,
+      "f261_region_br": "SP",
+      "f419_embedding_bucket": "a06"
+    },
+    {
+      "id": "doc_044",
+      "f044_title": "secret",
+      "f019_lang": "pt",
+      "f049_impressions": 1763,
+      "f089_has_table": true,
+      "f174_topic_address": 0.31,
+      "f262_region_us": "CA",
+      "f420_embedding_bucket": "b13"
+    },
+    {
+      "id": "doc_045",
+      "f045_title": "role",
+      "f020_lang": "de",
+      "f050_clicks": 1804,
+      "f090_has_json": true,
+      "f175_topic_coupon": 0.48,
+      "f263_region_de": null,
+      "f421_embedding_bucket": "c20"
+    },
+    {
+      "id": "doc_046",
+      "f046_title": "permission",
+      "f021_lang": "ja",
+      "f051_impressions": 1845,
+      "f091_has_yaml": false,
+      "f176_topic_plan": 0.65,
+      "f264_region_jp": "13",
+      "f422_embedding_bucket": "d27"
+    },
+    {
+      "id": "doc_047",
+      "f047_title": "webhook",
+      "f022_lang": "es",
+      "f052_clicks": 1886,
+      "f092_has_xml": true,
+      "f177_topic_quote": 0.82,
+      "f265_region_in": "KA",
+      "f423_embedding_bucket": "e02"
+    },
+    {
+      "id": "doc_048",
+      "f048_title": "address",
+      "f023_lang": "fr",
+      "f053_impressions": 1927,
+      "f093_has_image": true,
+      "f178_topic_shipment": 0.99,
+      "f266_region_ca": "ON",
+      "f424_embedding_bucket": "f09"
+    },
+    {
+      "id": "doc_049",
+      "f049_title": "coupon",
+      "f024_lang": "it",
+      "f054_clicks": 1968,
+      "f094_has_code": false,
+      "f179_topic_payment": 0.16,
+      "f267_region_gb": null,
+      "f425_embedding_bucket": "a16"
+    },
+    {
+      "id": "doc_050",
+      "f050_title": "plan",
+      "f018_lang": "en",
+      "f055_impressions": 9,
+      "f095_has_table": true,
+      "f180_topic_inventory": 0.33,
+      "f268_region_br": "SP",
+      "f426_embedding_bucket": "b23"
+    },
+    {
+      "id": "doc_051",
+      "f051_title": "quote",
+      "f019_lang": "pt",
+      "f056_clicks": 50,
+      "f096_has_json": true,
+      "f181_topic_order": 0.5,
+      "f269_region_us": "CA",
+      "f427_embedding_bucket": "c30"
+    },
+    {
+      "id": "doc_052",
+      "f052_title": "shipment",
+      "f020_lang": "de",
+      "f057_impressions": 91,
+      "f097_has_yaml": false,
+      "f182_topic_cart": 0.67,
+      "f270_region_de": "BE",
+      "f428_embedding_bucket": "d05"
+    },
+    {
+      "id": "doc_053",
+      "f053_title": "payment",
+      "f021_lang": "ja",
+      "f058_clicks": 132,
+      "f098_has_xml": true,
+      "f183_topic_feed": 0.84,
+      "f271_region_jp": null,
+      "f429_embedding_bucket": "e12"
+    },
+    {
+      "id": "doc_054",
+      "f054_title": "inventory",
+      "f022_lang": "es",
+      "f059_impressions": 173,
+      "f099_has_image": true,
+      "f131_topic_attachment": 0.01,
+      "f272_region_in": "KA",
+      "f430_embedding_bucket": "f19"
+    },
+    {
+      "id": "doc_055",
+      "f055_title": "order",
+      "f023_lang": "fr",
+      "f060_clicks": 214,
+      "f100_has_code": false,
+      "f132_topic_repository": 0.18,
+      "f273_region_ca": "ON",
+      "f431_embedding_bucket": "a26"
+    },
+    {
+      "id": "doc_056",
+      "f056_title": "cart",
+      "f024_lang": "it",
+      "f061_impressions": 255,
+      "f101_has_table": true,
+      "f133_topic_package": 0.35,
+      "f274_region_gb": "ENG",
+      "f432_embedding_bucket": "b01"
+    },
+    {
+      "id": "doc_057",
+      "f057_title": "feed",
+      "f018_lang": "en",
+      "f062_clicks": 296,
+      "f102_has_json": true,
+      "f134_topic_install": 0.52,
+      "f275_region_br": null,
+      "f433_embedding_bucket": "c08"
+    },
+    {
+      "id": "doc_058",
+      "f058_title": "attachment",
+      "f019_lang": "pt",
+      "f044_impressions": 337,
+      "f103_has_yaml": false,
+      "f135_topic_benchmark": 0.69,
+      "f276_region_us": "CA",
+      "f434_embedding_bucket": "d15"
+    },
+    {
+      "id": "doc_059",
+      "f059_title": "repository",
+      "f020_lang": "de",
+      "f045_clicks": 378,
+      "f104_has_xml": true,
+      "f136_topic_schema": 0.86,
+      "f277_region_de": "BE",
+      "f435_embedding_bucket": "e22"
+    },
+    {
+      "id": "doc_060",
+      "f060_title": "package",
+      "f021_lang": "ja",
+      "f046_impressions": 419,
+      "f105_has_image": true,
+      "f137_topic_release": 0.03,
+      "f278_region_jp": "13",
+      "f436_embedding_bucket": "f29"
+    },
+    {
+      "id": "doc_061",
+      "f061_title": "install",
+      "f022_lang": "es",
+      "f047_clicks": 460,
+      "f106_has_code": false,
+      "f138_topic_api": 0.2,
+      "f279_region_in": null,
+      "f437_embedding_bucket": "a04"
+    },
+    {
+      "id": "doc_062",
+      "f062_title": "benchmark",
+      "f023_lang": "fr",
+      "f048_impressions": 501,
+      "f107_has_table": true,
+      "f139_topic_search": 0.37,
+      "f280_region_ca": "ON",
+      "f438_embedding_bucket": "b11"
+    },
+    {
+      "id": "doc_063",
+      "f063_title": "schema",
+      "f024_lang": "it",
+      "f049_clicks": 542,
+      "f077_has_json": true,
+      "f140_topic_checkout": 0.54,
+      "f281_region_gb": "ENG",
+      "f439_embedding_bucket": "c18"
+    },
+    {
+      "id": "doc_064",
+      "f064_title": "release",
+      "f018_lang": "en",
+      "f050_impressions": 583,
+      "f078_has_yaml": false,
+      "f141_topic_billing": 0.71,
+      "f282_region_br": "SP",
+      "f440_embedding_bucket": "d25"
+    },
+    {
+      "id": "doc_065",
+      "f065_title": "api",
+      "f019_lang": "pt",
+      "f051_clicks": 624,
+      "f079_has_xml": true,
+      "f142_topic_dashboard": 0.88,
+      "f283_region_us": null,
+      "f441_embedding_bucket": "e00"
+    },
+    {
+      "id": "doc_066",
+      "f066_title": "search",
+      "f020_lang": "de",
+      "f052_impressions": 665,
+      "f080_has_image": true,
+      "f143_topic_profile": 0.05,
+      "f284_region_de": "BE",
+      "f442_embedding_bucket": "f07"
+    },
+    {
+      "id": "doc_067",
+      "f067_title": "checkout",
+      "f021_lang": "ja",
+      "f053_clicks": 706,
+      "f081_has_code": false,
+      "f144_topic_audit": 0.22,
+      "f285_region_jp": "13",
+      "f443_embedding_bucket": "a14"
+    },
+    {
+      "id": "doc_068",
+      "f068_title": "billing",
+      "f022_lang": "es",
+      "f054_impressions": 747,
+      "f082_has_table": true,
+      "f145_topic_export": 0.39,
+      "f286_region_in": "KA",
+      "f444_embedding_bucket": "b21"
+    },
+    {
+      "id": "doc_069",
+      "f069_title": "dashboard",
+      "f023_lang": "fr",
+      "f055_clicks": 788,
+      "f083_has_json": true,
+      "f146_topic_import": 0.56,
+      "f287_region_ca": null,
+      "f445_embedding_bucket": "c28"
+    },
+    {
+      "id": "doc_070",
+      "f070_title": "profile",
+      "f024_lang": "it",
+      "f056_impressions": 829,
+      "f084_has_yaml": false,
+      "f147_topic_query": 0.73,
+      "f288_region_gb": "ENG",
+      "f446_embedding_bucket": "d03"
+    },
+    {
+      "id": "doc_071",
+      "f071_title": "audit",
+      "f018_lang": "en",
+      "f057_clicks": 870,
+      "f085_has_xml": true,
+      "f148_topic_cache": 0.9,
+      "f289_region_br": "SP",
+      "f447_embedding_bucket": "e10"
+    },
+    {
+      "id": "doc_072",
+      "f072_title": "export",
+      "f019_lang": "pt",
+      "f058_impressions": 911,
+      "f086_has_image": true,
+      "f149_topic_stream": 0.07,
+      "f290_region_us": "CA",
+      "f448_embedding_bucket": "f17"
+    },
+    {
+      "id": "doc_073",
+      "f073_title": "import",
+      "f020_lang": "de",
+      "f059_clicks": 952,
+      "f087_has_code": false,
+      "f150_topic_deploy": 0.24,
+      "f291_region_de": null,
+      "f449_embedding_bucket": "a24"
+    },
+    {
+      "id": "doc_074",
+      "f074_title": "query",
+      "f021_lang": "ja",
+      "f060_impressions": 993,
+      "f088_has_table": true,
+      "f151_topic_policy": 0.41,
+      "f292_region_jp": "13",
+      "f450_embedding_bucket": "b31"
+    },
+    {
+      "id": "doc_075",
+      "f075_title": "cache",
+      "f022_lang": "es",
+      "f061_clicks": 1034,
+      "f089_has_json": true,
+      "f152_topic_token": 0.58,
+      "f293_region_in": "KA",
+      "f451_embedding_bucket": "c06"
+    },
+    {
+      "id": "doc_076",
+      "f076_title": "stream",
+      "f023_lang": "fr",
+      "f062_impressions": 1075,
+      "f090_has_yaml": false,
+      "f153_topic_model": 0.75,
+      "f294_region_ca": "ON",
+      "f452_embedding_bucket": "d13"
+    },
+    {
+      "id": "doc_077",
+      "f077_title": "deploy",
+      "f024_lang": "it",
+      "f044_clicks": 1116,
+      "f091_has_xml": true,
+      "f154_topic_prompt": 0.92,
+      "f295_region_gb": null,
+      "f453_embedding_bucket": "e20"
+    },
+    {
+      "id": "doc_078",
+      "f078_title": "policy",
+      "f018_lang": "en",
+      "f045_impressions": 1157,
+      "f092_has_image": true,
+      "f155_topic_issue": 0.09,
+      "f296_region_br": "SP",
+      "f454_embedding_bucket": "f27"
+    },
+    {
+      "id": "doc_079",
+      "f079_title": "token",
+      "f019_lang": "pt",
+      "f046_clicks": 1198,
+      "f093_has_code": false,
+      "f156_topic_comment": 0.26,
+      "f297_region_us": "CA",
+      "f455_embedding_bucket": "a02"
+    },
+    {
+      "id": "doc_080",
+      "f080_title": "model",
+      "f020_lang": "de",
+      "f047_impressions": 1239,
+      "f094_has_table": true,
+      "f157_topic_artifact": 0.43,
+      "f298_region_de": "BE",
+      "f456_embedding_bucket": "b09"
+    },
+    {
+      "id": "doc_081",
+      "f081_title": "prompt",
+      "f021_lang": "ja",
+      "f048_clicks": 1280,
+      "f095_has_json": true,
+      "f158_topic_workflow": 0.6,
+      "f299_region_jp": null,
+      "f457_embedding_bucket": "c16"
+    },
+    {
+      "id": "doc_082",
+      "f082_title": "issue",
+      "f022_lang": "es",
+      "f049_impressions": 1321,
+      "f096_has_yaml": false,
+      "f159_topic_backup": 0.77,
+      "f300_region_in": "KA",
+      "f458_embedding_bucket": "d23"
+    },
+    {
+      "id": "doc_083",
+      "f083_title": "comment",
+      "f023_lang": "fr",
+      "f050_clicks": 1362,
+      "f097_has_xml": true,
+      "f160_topic_restore": 0.94,
+      "f301_region_ca": "ON",
+      "f459_embedding_bucket": "e30"
+    },
+    {
+      "id": "doc_084",
+      "f084_title": "artifact",
+      "f024_lang": "it",
+      "f051_impressions": 1403,
+      "f098_has_image": true,
+      "f161_topic_index": 0.11,
+      "f219_region_gb": "ENG",
+      "f460_embedding_bucket": "f05"
+    },
+    {
+      "id": "doc_085",
+      "f085_title": "workflow",
+      "f018_lang": "en",
+      "f052_clicks": 1444,
+      "f099_has_code": false,
+      "f162_topic_session": 0.28,
+      "f220_region_br": null,
+      "f461_embedding_bucket": "a12"
+    },
+    {
+      "id": "doc_086",
+      "f086_title": "backup",
+      "f019_lang": "pt",
+      "f053_impressions": 1485,
+      "f100_has_table": true,
+      "f163_topic_notification": 0.45,
+      "f221_region_us": "CA",
+      "f462_embedding_bucket": "b19"
+    },
+    {
+      "id": "doc_087",
+      "f087_title": "restore",
+      "f020_lang": "de",
+      "f054_clicks": 1526,
+      "f101_has_json": true,
+      "f164_topic_quota": 0.62,
+      "f222_region_de": "BE",
+      "f463_embedding_bucket": "c26"
+    },
+    {
+      "id": "doc_088",
+      "f088_title": "index",
+      "f021_lang": "ja",
+      "f055_impressions": 1567,
+      "f102_has_yaml": false,
+      "f165_topic_invoice": 0.79,
+      "f223_region_jp": "13",
+      "f464_embedding_bucket": "d01"
+    },
+    {
+      "id": "doc_089",
+      "f089_title": "session",
+      "f022_lang": "es",
+      "f056_clicks": 1608,
+      "f103_has_xml": true,
+      "f166_topic_subscription": 0.96,
+      "f224_region_in": null,
+      "f465_embedding_bucket": "e08"
+    },
+    {
+      "id": "doc_090",
+      "f090_title": "notification",
+      "f023_lang": "fr",
+      "f057_impressions": 1649,
+      "f104_has_image": true,
+      "f167_topic_catalog": 0.13,
+      "f225_region_ca": "ON",
+      "f466_embedding_bucket": "f15"
+    },
+    {
+      "id": "doc_091",
+      "f091_title": "quota",
+      "f024_lang": "it",
+      "f058_clicks": 1690,
+      "f105_has_code": false,
+      "f168_topic_review": 0.3,
+      "f226_region_gb": "ENG",
+      "f467_embedding_bucket": "a22"
+    },
+    {
+      "id": "doc_092",
+      "f092_title": "invoice",
+      "f018_lang": "en",
+      "f059_impressions": 1731,
+      "f106_has_table": true,
+      "f169_topic_report": 0.47,
+      "f227_region_br": "SP",
+      "f468_embedding_bucket": "b29"
+    },
+    {
+      "id": "doc_093",
+      "f093_title": "subscription",
+      "f019_lang": "pt",
+      "f060_clicks": 1772,
+      "f107_has_json": true,
+      "f170_topic_alert": 0.64,
+      "f228_region_us": null,
+      "f469_embedding_bucket": "c04"
+    },
+    {
+      "id": "doc_094",
+      "f094_title": "catalog",
+      "f020_lang": "de",
+      "f061_impressions": 1813,
+      "f077_has_yaml": false,
+      "f171_topic_team": 0.81,
+      "f229_region_de": "BE",
+      "f470_embedding_bucket": "d11"
+    },
+    {
+      "id": "doc_095",
+      "f095_title": "review",
+      "f021_lang": "ja",
+      "f062_clicks": 1854,
+      "f078_has_xml": true,
+      "f172_topic_project": 0.98,
+      "f230_region_jp": "13",
+      "f471_embedding_bucket": "e18"
+    },
+    {
+      "id": "doc_096",
+      "f096_title": "report",
+      "f022_lang": "es",
+      "f044_impressions": 1895,
+      "f079_has_image": true,
+      "f173_topic_service": 0.15,
+      "f231_region_in": "KA",
+      "f472_embedding_bucket": "f25"
+    }
+  ]
+}
