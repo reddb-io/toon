@@ -54,6 +54,37 @@ test('parses nested tabular headers', () => {
   })
 })
 
+test('serializes nested tabular headers only when opted in', () => {
+  const document = {
+    orders: [
+      { id: 1, customer: { name: 'Ada', country: 'UK' }, total: 10.5 },
+      { id: 2, customer: { name: 'Bob', country: 'US' }, total: 20 },
+    ],
+  }
+  const expanded =
+    'orders[2]:\n  - id: 1\n    customer:\n      name: Ada\n      country: UK\n    total: 10.5\n  - id: 2\n    customer:\n      name: Bob\n      country: US\n    total: 20\n'
+  const nested =
+    'orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n'
+
+  assert.equal(serialize(document), expanded)
+  assert.equal(serialize(document, { nestedTabularHeaders: true }), nested)
+  assert.deepEqual(parse(nested), document)
+})
+
+test('nested tabular serialization falls back on recursive shape mismatch', () => {
+  const document = {
+    rows: [
+      { id: 1, point: { x: 1, y: 2 } },
+      { id: 2, point: { x: 3, z: 4 } },
+    ],
+  }
+
+  assert.equal(
+    serialize(document, { nestedTabularHeaders: true }),
+    'rows[2]:\n  - id: 1\n    point:\n      x: 1\n      y: 2\n  - id: 2\n    point:\n      x: 3\n      z: 4\n',
+  )
+})
+
 test('nested tabular headers validate leaf arity and shape', () => {
   assert.throws(
     () => parse('orders[1]{id,customer{name,country}}:\n  1,Ada\n'),
