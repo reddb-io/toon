@@ -16,9 +16,15 @@ tagged-row multiplexing (R3), and a blessed retry/re-queue pattern (R4).
 The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT,
 RECOMMENDED, MAY, and OPTIONAL are to be interpreted as described in RFC 2119.
 
-This document is a **specification of requirements only**. It does not itself
-mandate that any particular encoder or decoder implement v0.2; the Rust crate and
-the JS package remain v0.1 implementations until a follow-up Spec lands v0.2. See
+This document is a **specification of requirements**. It does not itself
+mandate that any particular encoder or decoder implement v0.2.
+
+**Implementation status:** the Rust crate (`reddb-io-toon`), the JS package
+(`@reddb-io/toon`), and the `tq` CLI implement TOONL v0.2 in full — resumable
+readers (R1), `tq trim --keep-last N` (R2), tagged-row multiplexing with both
+close-transform variants (R3), and the side-journal pattern (R4) — since
+registry version **0.2.6**. The shared executable corpus under
+`tests/toonl/fixtures/` pins both implementations to identical behavior. See
 [Versioning And Compatibility](#versioning-and-compatibility).
 
 ## Terminology
@@ -728,6 +734,7 @@ to the sections that formally close them.
   syntax under v0.2.
 - v0.2 does not change the TOON v3.3 document specification. The close-transform
   continues to map closed TOONL segments to valid TOON v3.3 documents.
-- v0.2 is a specification of requirements. The Rust crate and JS package remain
-  v0.1 encoders/decoders; implementing v0.2 is a follow-up Spec. Nothing in this
-  document requires an existing v0.1 conformance fixture to change.
+- v0.2 is a specification of requirements, implemented in full by the Rust
+  crate, the JS package, and `tq` since registry version 0.2.6. Nothing in this
+  document required an existing v0.1 conformance fixture to change; v0.2
+  behavior is pinned by its own fixture corpus alongside the v0.1 one.
