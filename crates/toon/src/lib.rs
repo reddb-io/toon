@@ -110,6 +110,7 @@ pub struct ToonlStream {
 pub struct ToonlSegment {
     delimiter: char,
     fields: Vec<String>,
+    header_fields: String,
     rows: Vec<Vec<String>>,
 }
 
@@ -122,15 +123,29 @@ pub struct ToonlSegment {
 pub struct ToonlEncoder {
     delimiter: char,
     fields: Vec<String>,
+    header_fields: String,
     output: String,
     row_count: usize,
+    rows_since_continuation: usize,
+    bytes_since_continuation: usize,
+    continuation_every_rows: Option<usize>,
+    continuation_every_bytes: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OpenToonlSegment {
     delimiter: char,
     fields: Vec<String>,
+    header_fields: String,
     row_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ToonlHeaderLine {
+    delimiter: char,
+    fields: Vec<String>,
+    header_fields: String,
+    continuation: bool,
 }
 
 #[derive(Debug)]
@@ -155,8 +170,13 @@ pub struct ToonlWriter<W> {
     writer: W,
     delimiter: char,
     fields: Option<Vec<String>>,
+    header_fields: Option<String>,
     fields_by_shape: BTreeMap<Vec<String>, Vec<String>>,
     row_count: usize,
+    rows_since_continuation: usize,
+    bytes_since_continuation: usize,
+    continuation_every_rows: Option<usize>,
+    continuation_every_bytes: Option<usize>,
     finished: bool,
 }
 
@@ -419,13 +439,18 @@ impl ToonlStream {
                 segments.push(segment);
                 continue;
             }
-            if let Some((delimiter, fields)) = parse_toonl_header(line, line_number)? {
+            if let Some(header) = parse_toonl_header(line, line_number)? {
+                if header.continuation {
+                    ensure_continuation_matches(current.as_ref(), &header, line_number)?;
+                    continue;
+                }
                 if let Some(segment) = current.take() {
                     segments.push(segment);
                 }
                 current = Some(ToonlSegment {
-                    delimiter,
-                    fields,
+                    delimiter: header.delimiter,
+                    fields: header.fields,
+                    header_fields: header.header_fields,
                     rows: Vec::new(),
                 });
                 continue;
@@ -527,29 +552,41 @@ impl ToonlEncoder {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut output = String::new();
-        output.push('[');
-        if delimiter != DOCUMENT_DELIMITER {
-            output.push(delimiter);
-        }
-        output.push_str("]{");
         let encoded_fields = fields
             .iter()
             .map(|field| canonical_key(field))
             .collect::<Vec<_>>();
-        output.push_str(&encoded_fields.join(&delimiter.to_string()));
-        output.push_str("}:\n");
+        let header_fields = encoded_fields.join(&delimiter.to_string());
+        let mut output = String::new();
+        output.push_str(&toonl_header_text(delimiter, &header_fields, false));
 
         Ok(Self {
             delimiter,
             fields,
+            header_fields,
             output,
             row_count: 0,
+            rows_since_continuation: 0,
+            bytes_since_continuation: 0,
+            continuation_every_rows: None,
+            continuation_every_bytes: None,
         })
     }
 
     pub fn fields(&self) -> &[String] {
         &self.fields
+    }
+
+    pub fn set_continuation_every_rows(&mut self, rows: Option<usize>) -> Result<(), ToonlError> {
+        validate_continuation_cadence(rows)?;
+        self.continuation_every_rows = rows;
+        Ok(())
+    }
+
+    pub fn set_continuation_every_bytes(&mut self, bytes: Option<usize>) -> Result<(), ToonlError> {
+        validate_continuation_cadence(bytes)?;
+        self.continuation_every_bytes = bytes;
+        Ok(())
     }
 
     pub fn push_raw_row<T: AsRef<str>>(&mut self, cells: &[T]) -> Result<(), ToonlError> {
@@ -564,10 +601,12 @@ impl ToonlEncoder {
                 Ok(cell.to_owned())
             })
             .collect::<Result<Vec<_>, _>>()?;
-        self.output
-            .push_str(&cells.join(&self.delimiter.to_string()));
-        self.output.push('\n');
+        self.write_continuation_if_due();
+        let row = format!("{}\n", cells.join(&self.delimiter.to_string()));
+        self.output.push_str(&row);
         self.row_count += 1;
+        self.rows_since_continuation += 1;
+        self.bytes_since_continuation += row.len();
         Ok(())
     }
 
@@ -593,6 +632,24 @@ impl ToonlEncoder {
         self.output.push_str(&self.row_count.to_string());
         self.output.push_str("]\n");
         self.output
+    }
+
+    fn write_continuation_if_due(&mut self) {
+        if !continuation_due(
+            self.continuation_every_rows,
+            self.rows_since_continuation,
+            self.continuation_every_bytes,
+            self.bytes_since_continuation,
+        ) {
+            return;
+        }
+        self.output.push_str(&toonl_header_text(
+            self.delimiter,
+            &self.header_fields,
+            true,
+        ));
+        self.rows_since_continuation = 0;
+        self.bytes_since_continuation = 0;
     }
 }
 
@@ -640,10 +697,27 @@ impl<W: Write> ToonlWriter<W> {
             writer,
             delimiter,
             fields: None,
+            header_fields: None,
             fields_by_shape: BTreeMap::new(),
             row_count: 0,
+            rows_since_continuation: 0,
+            bytes_since_continuation: 0,
+            continuation_every_rows: None,
+            continuation_every_bytes: None,
             finished: false,
         }
+    }
+
+    pub fn set_continuation_every_rows(&mut self, rows: Option<usize>) -> Result<(), ToonlError> {
+        validate_continuation_cadence(rows)?;
+        self.continuation_every_rows = rows;
+        Ok(())
+    }
+
+    pub fn set_continuation_every_bytes(&mut self, bytes: Option<usize>) -> Result<(), ToonlError> {
+        validate_continuation_cadence(bytes)?;
+        self.continuation_every_bytes = bytes;
+        Ok(())
     }
 
     pub fn write_record(&mut self, record: &Record) -> Result<(), ToonlError> {
@@ -658,10 +732,15 @@ impl<W: Write> ToonlWriter<W> {
             self.write_header(&fields)?;
             self.fields = Some(fields);
             self.row_count = 0;
+            self.rows_since_continuation = 0;
+            self.bytes_since_continuation = 0;
         }
 
-        self.write_value_row(record)?;
+        self.write_continuation_if_due()?;
+        let bytes_written = self.write_value_row(record)?;
         self.row_count += 1;
+        self.rows_since_continuation += 1;
+        self.bytes_since_continuation += bytes_written;
         Ok(())
     }
 
@@ -682,25 +761,40 @@ impl<W: Write> ToonlWriter<W> {
     }
 
     fn write_header(&mut self, fields: &[String]) -> Result<(), ToonlError> {
-        write!(self.writer, "[").map_err(write_toonl_error)?;
-        if self.delimiter != DOCUMENT_DELIMITER {
-            write!(self.writer, "{}", self.delimiter).map_err(write_toonl_error)?;
-        }
-        write!(self.writer, "]{{").map_err(write_toonl_error)?;
         let encoded_fields = fields
             .iter()
             .map(|field| canonical_key(field))
             .collect::<Vec<_>>();
-        write!(
-            self.writer,
-            "{}",
-            encoded_fields.join(&self.delimiter.to_string())
-        )
-        .map_err(write_toonl_error)?;
-        writeln!(self.writer, "}}:").map_err(write_toonl_error)
+        let header_fields = encoded_fields.join(&self.delimiter.to_string());
+        self.writer
+            .write_all(toonl_header_text(self.delimiter, &header_fields, false).as_bytes())
+            .map_err(write_toonl_error)?;
+        self.header_fields = Some(header_fields);
+        Ok(())
     }
 
-    fn write_value_row(&mut self, value: &Record) -> Result<(), ToonlError> {
+    fn write_continuation_if_due(&mut self) -> Result<(), ToonlError> {
+        if !continuation_due(
+            self.continuation_every_rows,
+            self.rows_since_continuation,
+            self.continuation_every_bytes,
+            self.bytes_since_continuation,
+        ) {
+            return Ok(());
+        }
+        let header_fields = self
+            .header_fields
+            .as_ref()
+            .expect("header fields are set before rows are written");
+        self.writer
+            .write_all(toonl_header_text(self.delimiter, header_fields, true).as_bytes())
+            .map_err(write_toonl_error)?;
+        self.rows_since_continuation = 0;
+        self.bytes_since_continuation = 0;
+        Ok(())
+    }
+
+    fn write_value_row(&mut self, value: &Record) -> Result<usize, ToonlError> {
         let fields = self
             .fields
             .as_ref()
@@ -718,8 +812,11 @@ impl<W: Write> ToonlWriter<W> {
             }
             cells.push(primitive_text(value, self.delimiter));
         }
-        writeln!(self.writer, "{}", cells.join(&self.delimiter.to_string()))
-            .map_err(write_toonl_error)
+        let row = format!("{}\n", cells.join(&self.delimiter.to_string()));
+        self.writer
+            .write_all(row.as_bytes())
+            .map_err(write_toonl_error)?;
+        Ok(row.len())
     }
 }
 
@@ -794,15 +891,20 @@ pub fn close_transform_stream<R: BufRead, W: Write>(
                 .map_err(write_toonl_error)?;
             continue;
         }
-        if let Some((delimiter, fields)) = parse_toonl_header(line, line_number)? {
+        if let Some(header) = parse_toonl_header(line, line_number)? {
+            if header.continuation {
+                ensure_continuation_matches(current.as_ref(), &header, line_number)?;
+                continue;
+            }
             if let Some(segment) = current.take() {
                 writer
                     .write_all(segment.to_closed_toon_document().as_bytes())
                     .map_err(write_toonl_error)?;
             }
             current = Some(ToonlSegment {
-                delimiter,
-                fields,
+                delimiter: header.delimiter,
+                fields: header.fields,
+                header_fields: header.header_fields,
                 rows: Vec::new(),
             });
             continue;
@@ -892,10 +994,15 @@ impl<R: BufRead> ToonlRowReader<R> {
             }
             return Ok(());
         }
-        if let Some((delimiter, fields)) = parse_toonl_header(line, self.line_number)? {
+        if let Some(header) = parse_toonl_header(line, self.line_number)? {
+            if header.continuation {
+                ensure_open_continuation_matches(self.current.as_ref(), &header, self.line_number)?;
+                return Ok(());
+            }
             self.current = Some(OpenToonlSegment {
-                delimiter,
-                fields,
+                delimiter: header.delimiter,
+                fields: header.fields,
+                header_fields: header.header_fields,
                 row_count: 0,
             });
         }
@@ -1503,18 +1610,24 @@ fn parse_header(content: &str, colon: Option<usize>) -> Result<Header, HeaderErr
 fn parse_toonl_header(
     line: &str,
     line_number: usize,
-) -> Result<Option<(char, Vec<String>)>, ToonlError> {
+) -> Result<Option<ToonlHeaderLine>, ToonlError> {
     let Some(rest) = line.strip_prefix('[') else {
         return Ok(None);
     };
     let close_bracket = rest
         .find(']')
         .ok_or_else(|| toonl_error(line_number, "invalid header"))?;
-    let delimiter = match &rest[..close_bracket] {
+    let bracket = &rest[..close_bracket];
+    let (continuation, delimiter_text) = if let Some(delimiter_text) = bracket.strip_prefix('~') {
+        (true, delimiter_text)
+    } else {
+        (false, bracket)
+    };
+    let delimiter = match delimiter_text {
         "" => DOCUMENT_DELIMITER,
         "|" => '|',
         "\t" => '\t',
-        other if other.starts_with('=') => return Ok(None),
+        other if !continuation && other.starts_with('=') => return Ok(None),
         _ => return Err(toonl_error(line_number, "invalid header delimiter")),
     };
     let suffix = &rest[close_bracket + 1..];
@@ -1522,8 +1635,8 @@ fn parse_toonl_header(
         return Err(toonl_error(line_number, "invalid header"));
     }
 
-    let field_text = &suffix[1..suffix.len() - 2];
-    let fields = split_delimited(field_text, delimiter, line_number)
+    let header_fields = suffix[1..suffix.len() - 2].to_owned();
+    let fields = split_delimited(&header_fields, delimiter, line_number)
         .map_err(ToonlError::from_parse_error)?
         .into_iter()
         .map(|field| {
@@ -1539,7 +1652,81 @@ fn parse_toonl_header(
         return Err(toonl_error(line_number, "invalid header fields"));
     }
 
-    Ok(Some((delimiter, fields)))
+    Ok(Some(ToonlHeaderLine {
+        delimiter,
+        fields,
+        header_fields,
+        continuation,
+    }))
+}
+
+fn ensure_continuation_matches(
+    current: Option<&ToonlSegment>,
+    header: &ToonlHeaderLine,
+    line_number: usize,
+) -> Result<(), ToonlError> {
+    let Some(segment) = current else {
+        return Err(toonl_error(
+            line_number,
+            "continuation header before header",
+        ));
+    };
+    if segment.delimiter != header.delimiter || segment.header_fields != header.header_fields {
+        return Err(toonl_error(line_number, "continuation header mismatch"));
+    }
+    Ok(())
+}
+
+fn ensure_open_continuation_matches(
+    current: Option<&OpenToonlSegment>,
+    header: &ToonlHeaderLine,
+    line_number: usize,
+) -> Result<(), ToonlError> {
+    let Some(segment) = current else {
+        return Err(toonl_error(
+            line_number,
+            "continuation header before header",
+        ));
+    };
+    if segment.delimiter != header.delimiter || segment.header_fields != header.header_fields {
+        return Err(toonl_error(line_number, "continuation header mismatch"));
+    }
+    Ok(())
+}
+
+fn toonl_header_text(delimiter: char, header_fields: &str, continuation: bool) -> String {
+    let mut output = String::new();
+    output.push('[');
+    if continuation {
+        output.push('~');
+    }
+    if delimiter != DOCUMENT_DELIMITER {
+        output.push(delimiter);
+    }
+    output.push_str("]{");
+    output.push_str(header_fields);
+    output.push_str("}:\n");
+    output
+}
+
+fn validate_continuation_cadence(cadence: Option<usize>) -> Result<(), ToonlError> {
+    if cadence == Some(0) {
+        return Err(toonl_error(
+            0,
+            "TOONL continuation cadence must be positive",
+        ));
+    }
+    Ok(())
+}
+
+fn continuation_due(
+    every_rows: Option<usize>,
+    rows_since: usize,
+    every_bytes: Option<usize>,
+    bytes_since: usize,
+) -> bool {
+    every_rows.is_some_and(|rows| rows_since >= rows)
+        || every_bytes.is_some_and(|bytes| bytes_since >= bytes)
 }
 
 fn toonl_trailer_count(line: &str, line_number: usize) -> Result<Option<usize>, ToonlError> {
