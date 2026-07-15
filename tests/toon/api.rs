@@ -1699,3 +1699,184 @@ fn a_number_shaped_token_that_is_not_a_number_stays_a_string() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Header, keyed-map and structured-row error branches
+
+#[test]
+fn rejects_malformed_keyed_map_headers_in_strict_mode() {
+    let cases = [
+        ("m{a: 1\n", "line 1: invalid keyed map header"),
+        ("m{}:\n", "line 1: invalid keyed map header"),
+        ("m{a,a}: \n", "line 1: duplicate key"),
+        ("{a}:\n", "line 1: expected non-empty field name"),
+        ("m{a}: 1\n", "line 1: expected keyed map rows"),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(error(input), expected, "{input:?}");
+    }
+}
+
+#[test]
+fn rejects_malformed_keyed_map_rows() {
+    let cases = [
+        (
+            "m{a,b}:\n  k: 1,2\n    j: 3,4\n",
+            "line 3: invalid indentation",
+        ),
+        (
+            "m{a,b}:\n  k: 1,2\n\n  j: 3,4\n",
+            "line 4: blank line inside keyed map",
+        ),
+        (
+            "m{a,b}:\n  k: 1,2,3\n",
+            "line 2: keyed map row length mismatch",
+        ),
+        ("m{a,b}:\n  k: 1,2\n  k: 3,4\n", "line 3: duplicate key"),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(error(input), expected, "{input:?}");
+    }
+}
+
+#[test]
+fn decodes_keyed_map_edge_shapes() {
+    // No rows at all is an empty map, and a following sibling still parses.
+    assert_eq!(json_of("m{a,b}:\nnext: 1\n"), json!({"m": {}, "next": 1}));
+    // Quoted field names and non-default delimiters stay legible.
+    assert_eq!(
+        json_of("m{\"q\",b}:\n  k: 1,2\n"),
+        json!({"m": {"k": {"q": 1, "b": 2}}})
+    );
+    assert_eq!(
+        json_of("m{|a|b}:\n  k: 1|2\n"),
+        json!({"m": {"k": {"a": 1, "b": 2}}})
+    );
+    assert_eq!(
+        json_of("m{\ta\tb}:\n  k: 1\t2\n"),
+        json!({"m": {"k": {"a": 1, "b": 2}}})
+    );
+}
+
+#[test]
+fn rejects_malformed_array_column_field_lists() {
+    let cases = [
+        "items[1]{,a}:\n  1\n",
+        "items[1]{a,}:\n  1\n",
+        "items[1]{a[}:\n  1\n",
+        "items[1]{a[,]}:\n  1\n",
+        "items[1]{a{}}:\n  1\n",
+    ];
+    for input in cases {
+        assert_eq!(error(input), "line 1: invalid array header", "{input:?}");
+    }
+    assert_eq!(error("items[1]{a,a}:\n  1,2\n"), "line 1: duplicate key");
+}
+
+#[test]
+fn decodes_primitive_list_columns_with_declared_sub_delimiters() {
+    assert_eq!(
+        json_of("items[1]{a,tags[;]}:\n  1,x;y\n"),
+        json!({"items": [{"a": 1, "tags": ["x", "y"]}]})
+    );
+    // Any sub-delimiter distinct from the active delimiter is accepted on
+    // decode, even ones the encoder would never emit.
+    assert_eq!(
+        json_of("items[1]{a[x]}:\n  1\n"),
+        json!({"items": [{"a": [1]}]})
+    );
+}
+
+#[test]
+fn rejects_malformed_structured_rows() {
+    let cases = [
+        (
+            "items[1]{a,b}:\n  1,2,3\n",
+            "line 2: array row length mismatch",
+        ),
+        ("items[2]{a,b}:\n  1,2\n", "line 2: array length mismatch"),
+        (
+            "items[1]{a,b}:\n  1,2\n  3,4\n",
+            "line 3: array length mismatch",
+        ),
+        (
+            "items[2]{a,b}:\n  1,2\n\n  3,4\n",
+            "line 4: blank line inside array",
+        ),
+        (
+            "items[1]{a,kids{x}}:\n  1,2\n    r1\n",
+            "line 3: array length mismatch",
+        ),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(error(input), expected, "{input:?}");
+    }
+}
+
+#[test]
+fn a_nested_object_column_cell_disambiguates_from_a_child_table() {
+    // Without deeper rows, a `field{...}` cell is a nested-object column.
+    assert_eq!(
+        json_of("items[1]{a,kids{x}}:\n  1,zz\n"),
+        json!({"items": [{"a": 1, "kids": {"x": "zz"}}]})
+    );
+}
+
+#[test]
+fn truncation_reports_cover_invalid_indentation_and_child_tables() {
+    let report = detect_truncation_with_options("v: 1\n   bad: 2\n", ParseOptions::default());
+    assert!(!report.complete);
+    assert_eq!(report.line, Some(2));
+    assert_eq!(
+        report.message.as_deref(),
+        Some("line 2: invalid indentation")
+    );
+
+    let report = detect_truncation_with_options(
+        "items[2]{a,kids{x}}:\n  1,1\n    r1\n",
+        ParseOptions::default(),
+    );
+    assert!(!report.complete);
+    assert_eq!(report.declared, Some(2));
+    assert_eq!(report.actual, Some(1));
+}
+
+#[test]
+fn tabular_arrays_decode_rows_lazily_through_the_array_accessors() {
+    let value = parse("items[2]{a,meta{x,y}}:\n  1,ha,7\n  2,hb,9\n");
+    let document = value.as_object().expect("root object");
+    let array = document
+        .get("items")
+        .expect("items")
+        .as_array()
+        .expect("tabular array");
+
+    assert_eq!(
+        array.get(1).expect("row 1").to_json_value(),
+        json!({"a": 2, "meta": {"x": "hb", "y": 9}})
+    );
+    assert_eq!(
+        array.to_json_value(),
+        json!([
+            {"a": 1, "meta": {"x": "ha", "y": 7}},
+            {"a": 2, "meta": {"x": "hb", "y": 9}}
+        ])
+    );
+    assert_eq!(
+        array.slice(Some(1), None).to_canonical_toon(),
+        "[1]:\n  - a: 2\n    meta:\n      x: hb\n      y: 9\n"
+    );
+}
+
+#[test]
+fn encoding_rejects_a_delimiter_outside_the_declared_set() {
+    let value = parse("items[2]{a,b}:\n  1,2\n  3,4\n");
+    let options = EncodeOptions {
+        delimiter: ';',
+        ..EncodeOptions::default()
+    };
+    let error = value
+        .try_to_toon_with_options(options)
+        .expect_err("semicolon is not a valid document delimiter");
+    assert_eq!(error.to_string(), "invalid array header");
+}

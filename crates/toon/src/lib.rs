@@ -2423,6 +2423,7 @@ struct StructuredState {
     flat_width: usize,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn parse_structured_rows(
     len: usize,
     fields: &[HeaderFieldTree],
@@ -2503,6 +2504,7 @@ fn parse_structured_rows(
     Ok(rows)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn parse_structured_row_fields(
     fields: &[HeaderFieldTree],
     cells: &[String],
@@ -2532,6 +2534,7 @@ fn parse_structured_row_fields(
     Ok(row)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn parse_structured_field(
     field: &HeaderFieldTree,
     remaining_fields: &[HeaderFieldTree],
