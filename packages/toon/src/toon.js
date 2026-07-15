@@ -27,6 +27,7 @@ import {
 export const DEFAULT_INDENT = 2
 export const DEFAULT_MAX_DEPTH = 1000
 const CYCLIC_DISCRIMINATED_ARRAY_SENTINEL = '@toon-cyclic-discriminated-array/1'
+const CYCLIC_DISCRIMINATOR_KEYS = ['type', 'kind', 'event']
 
 function resolveOptions(options = {}) {
   const rawMaxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
@@ -500,6 +501,187 @@ function cyclicLengthMismatch(line) {
 
 function cyclicGroupLengthMismatch(line) {
   return toonError(line, 'cyclic array group length mismatch')
+}
+
+function cyclicDiscriminatedArrayWire(value) {
+  if (!isPlainObject(value)) {
+    return undefined
+  }
+  const entries = Object.entries(value)
+  if (entries.length === 0) {
+    return undefined
+  }
+
+  const sections = []
+  for (const [key, rows] of entries) {
+    const section = cyclicDiscriminatedArraySection(rows)
+    if (section === undefined) {
+      return undefined
+    }
+    sections.push([key, section])
+  }
+
+  const root = Object.fromEntries(sections.map(([key], index) => [key, `$C${index}`]))
+  const output = [CYCLIC_DISCRIMINATED_ARRAY_SENTINEL, `@root ${JSON.stringify(root)}`]
+  for (let index = 0; index < sections.length; index += 1) {
+    const [, section] = sections[index]
+    output.push(
+      `@array $C${index} discr=${section.discriminator} n=${section.rows.length} common=${section.common.join(',')} order=${section.order.encoded}`,
+    )
+    if (section.common.length > 0) {
+      output.push('@common')
+      for (const row of section.rows) {
+        output.push(section.common.map((key) => cyclicJsonText(row[key])).join('\t'))
+      }
+    }
+    for (const [label, payloads] of section.groups) {
+      output.push(`@group ${percentEncode(label)} n=${payloads.length}`)
+      for (const payload of payloads) {
+        output.push(cyclicJsonText(payload))
+      }
+    }
+  }
+  output.push('@end')
+  return `${output.join('\n')}\n`
+}
+
+function cyclicDiscriminatedArraySection(rows) {
+  if (!Array.isArray(rows) || rows.length === 0 || !rows.every(isPlainObject)) {
+    return undefined
+  }
+  const discriminator = cyclicDiscriminator(rows)
+  if (discriminator === undefined) {
+    return undefined
+  }
+  const labels = rows.map((row) => row[discriminator])
+  const order = cyclicOrder(labels)
+  if (order === undefined) {
+    return undefined
+  }
+  const common = cyclicCommonPrefixKeys(rows, discriminator)
+  const groups = new Map()
+  for (const row of rows) {
+    const label = row[discriminator]
+    if (!groups.has(label)) {
+      groups.set(label, [])
+    }
+    const payload = {}
+    for (const [key, nested] of Object.entries(row)) {
+      if (key !== discriminator && !common.includes(key)) {
+        setKey(payload, key, nested)
+      }
+    }
+    if (cyclicJsonText(payload) === undefined) {
+      return undefined
+    }
+    groups.get(label).push(payload)
+  }
+  return { common, discriminator, groups, order, rows }
+}
+
+function cyclicDiscriminator(rows) {
+  return CYCLIC_DISCRIMINATOR_KEYS.find((key) => rows.every((row) => typeof row[key] === 'string'))
+}
+
+function cyclicOrder(labels) {
+  if (labels.length < 12) {
+    return undefined
+  }
+  for (let size = 2; size <= Math.min(8, Math.floor(labels.length / 3)); size += 1) {
+    if (labels.length % size !== 0) {
+      continue
+    }
+    const cycle = labels.slice(0, size)
+    if (new Set(cycle).size < 2) {
+      continue
+    }
+    if (!labels.every((label, index) => label === cycle[index % size])) {
+      continue
+    }
+    const repeats = labels.length / size
+    if (repeats < 3) {
+      continue
+    }
+    const raw = labels.map(percentEncode).join(',')
+    const encoded = `cycle(${cycle.map(percentEncode).join(',')})*${repeats}`
+    if (encoded.length <= raw.length * 0.4) {
+      return { cycle, encoded, repeats }
+    }
+  }
+  return undefined
+}
+
+function cyclicCommonPrefixKeys(rows, discriminator) {
+  const prefix = []
+  for (const key of Object.keys(rows[0]).filter((candidate) => candidate !== discriminator)) {
+    if (!isCyclicHeaderKey(key)) {
+      break
+    }
+    if (!rows.every((row) => Object.prototype.hasOwnProperty.call(row, key))) {
+      break
+    }
+    if (!rows.every((row) => isPrimitive(row[key]))) {
+      break
+    }
+    if (rows.some((row) => cyclicJsonText(row[key]) === undefined)) {
+      break
+    }
+    const encodedValues = rows.map((row) => cyclicJsonText(row[key]))
+    const uniqueValues = new Set(encodedValues)
+    if (uniqueValues.size !== 1 && uniqueValues.size !== rows.length) {
+      break
+    }
+    prefix.push(key)
+  }
+  return prefix
+}
+
+function cyclicJsonText(value) {
+  if (!isCyclicJsonValue(value)) {
+    return undefined
+  }
+  try {
+    const text = JSON.stringify(value)
+    return text === undefined ? undefined : text
+  } catch {
+    return undefined
+  }
+}
+
+function percentEncode(value) {
+  return encodeURIComponent(value)
+}
+
+function isCyclicHeaderKey(value) {
+  return value !== '' && !/[\s,]/.test(value)
+}
+
+function isCyclicJsonValue(value, seen = new Set()) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    return true
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+  }
+  if (Array.isArray(value)) {
+    if (seen.has(value)) {
+      return false
+    }
+    seen.add(value)
+    const valid = value.every((item) => isCyclicJsonValue(item, seen))
+    seen.delete(value)
+    return valid
+  }
+  if (isPlainObject(value)) {
+    if (seen.has(value)) {
+      return false
+    }
+    seen.add(value)
+    const valid = Object.values(value).every((item) => isCyclicJsonValue(item, seen))
+    seen.delete(value)
+    return valid
+  }
+  return false
 }
 
 /**
@@ -1842,8 +2024,15 @@ export function serialize(value, options = {}) {
     keyedMapCollapse: options.keyedMapCollapse === true,
     primitiveArrayColumns: options.primitiveArrayColumns === true,
     objectArrayColumns: options.objectArrayColumns === true,
+    cyclicDiscriminatedArrays: options.cyclicDiscriminatedArrays === true,
     delimiter,
     maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY ? 0 : Math.max(0, Math.floor(rawMaxDepth)),
+  }
+  if (resolved.cyclicDiscriminatedArrays) {
+    const cyclic = cyclicDiscriminatedArrayWire(value)
+    if (cyclic !== undefined) {
+      return cyclic
+    }
   }
   const output = []
   if (Array.isArray(value)) {
