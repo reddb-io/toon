@@ -23,4 +23,5 @@ path = "../../tests/runners/rust/tq/behavior.rs"
 reddb-io-toon = { path = "../toon", version = "0.7.0" }
 regex = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
+# YAML input parser.
 serde_norway = "0.9.42"
