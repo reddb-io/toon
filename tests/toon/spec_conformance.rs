@@ -111,7 +111,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
 }
 
 #[test]
-fn toonl_v0_1_fixtures_are_executable_spec_examples() {
+fn toonl_fixtures_are_executable_spec_examples() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let fixture_root = manifest_dir.join(TOONL_FIXTURE_ROOT);
     assert!(
@@ -122,10 +122,15 @@ fn toonl_v0_1_fixtures_are_executable_spec_examples() {
 
     for fixture_path in fixture_paths_for_category(&fixture_root, "") {
         let fixture = read_fixture(&fixture_path);
-        assert_eq!(
-            fixture.get("version").and_then(Json::as_str),
-            Some("toonl-v0.1"),
-            "{} declares the TOONL spec version",
+        let version = fixture
+            .get("version")
+            .and_then(Json::as_str)
+            .unwrap_or_else(|| {
+                panic!("{} declares the TOONL spec version", fixture_path.display())
+            });
+        assert!(
+            matches!(version, "toonl-v0.1" | "toonl-v0.2"),
+            "{} declares a supported TOONL spec version, got {version:?}",
             fixture_path.display()
         );
         assert_eq!(
@@ -214,6 +219,17 @@ fn toonl_v0_1_fixtures_are_executable_spec_examples() {
                     assert!(
                         actual.contains(expected),
                         "{name}: expected error containing {expected:?}, got {actual:?}"
+                    );
+                }
+                "v0.1-error" => {
+                    let expected = test
+                        .get("expectedError")
+                        .and_then(Json::as_str)
+                        .expect("expected error");
+                    let actual = reject_v0_1_toonl(input).expect_err("v0.1 fixture must reject");
+                    assert!(
+                        actual.contains(expected),
+                        "{name}: expected v0.1 error containing {expected:?}, got {actual:?}"
                     );
                 }
                 other => panic!("{name}: unknown TOONL fixture kind {other}"),
@@ -315,6 +331,11 @@ fn encode_toonl_fixture(test: &Json) -> String {
         .expect("encode rows");
 
     let mut encoder = ToonlEncoder::new(delimiter, &fields).expect("valid TOONL encoder");
+    if let Some(rows) = test.get("continuationEveryRows").and_then(Json::as_u64) {
+        encoder
+            .set_continuation_every_rows(Some(rows as usize))
+            .expect("valid row continuation cadence");
+    }
     for row in rows {
         let cells = row
             .as_array()
@@ -325,6 +346,31 @@ fn encode_toonl_fixture(test: &Json) -> String {
         encoder.push_raw_row(&cells).expect("valid TOONL row");
     }
     encoder.finish()
+}
+
+fn reject_v0_1_toonl(input: &str) -> Result<(), String> {
+    for (offset, raw_line) in input.lines().enumerate() {
+        let line_number = offset + 1;
+        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+        if line.is_empty() || !line.starts_with('[') {
+            continue;
+        }
+        let Some(close_bracket) = line[1..].find(']') else {
+            return Err(format!("line {line_number}: invalid header"));
+        };
+        let bracket = &line[1..close_bracket + 1];
+        if bracket.starts_with('=') {
+            continue;
+        }
+        if !matches!(bracket, "" | "|" | "\t") {
+            return Err(format!("line {line_number}: invalid header delimiter"));
+        }
+        let suffix = &line[close_bracket + 2..];
+        if !suffix.starts_with('{') || !suffix.ends_with("}:") {
+            return Err(format!("line {line_number}: invalid header"));
+        }
+    }
+    Ok(())
 }
 
 fn encode_toonl_records_fixture(test: &Json) -> String {
