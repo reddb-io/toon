@@ -230,12 +230,34 @@ function classifyLine(line, lineNumber, open) {
  * A segment left open at EOF is still returned — TOONL is append-only, and an
  * unterminated tail is the normal shape of a stream someone is still writing.
  */
-function parseStreamInternal(input) {
+function parseStreamInternal(input, options = {}) {
   const laneOrder = []
   const lanes = new Map()
   const anonymousSegments = []
+  const interleavedSegments = []
   let anonymous = null
+  let anonymousDeclared = false
   let sawTaggedSyntax = false
+
+  function appendInterleavedRow(segment, row) {
+    const last = interleavedSegments.at(-1)
+    if (
+      last !== undefined &&
+      last.lane === segment.lane &&
+      last.delimiter === segment.delimiter &&
+      last.fieldText === segment.fieldText
+    ) {
+      last.rows.push(row)
+      return
+    }
+    interleavedSegments.push({
+      lane: segment.lane,
+      delimiter: segment.delimiter,
+      fields: segment.fields,
+      fieldText: segment.fieldText,
+      rows: [row],
+    })
+  }
 
   function pushAnonymousSegment() {
     if (anonymous === null) {
@@ -245,6 +267,7 @@ function parseStreamInternal(input) {
       delimiter: anonymous.delimiter,
       fields: anonymous.fields,
       fieldText: anonymous.fieldText,
+      lane: anonymous.lane,
       rows: anonymous.rows,
     })
   }
@@ -262,6 +285,7 @@ function parseStreamInternal(input) {
       lane.segments.push(lane.current)
     }
     lane.current = {
+      lane: tag,
       delimiter: header.delimiter,
       fields: header.fields,
       fieldText: header.fieldText,
@@ -305,7 +329,12 @@ function parseStreamInternal(input) {
     }
     if (step.kind === 'header') {
       pushAnonymousSegment()
+      if (!anonymousDeclared) {
+        laneOrder.push(null)
+        anonymousDeclared = true
+      }
       anonymous = {
+        lane: null,
         delimiter: step.header.delimiter,
         fields: step.header.fields,
         fieldText: step.header.fieldText,
@@ -315,31 +344,37 @@ function parseStreamInternal(input) {
     }
     if (step.kind === 'tagged-row') {
       sawTaggedSyntax = true
-      lanes.get(step.tag).current.rows.push(step.cells)
+      const segment = lanes.get(step.tag).current
+      segment.rows.push(step.cells)
+      appendInterleavedRow(segment, step.cells)
       return
     }
     if (anonymous === null) {
       throw toonlError(lineNumber, 'row before header')
     }
     anonymous.rows.push(step.cells)
+    appendInterleavedRow(anonymous, step.cells)
   })
 
   if (!sawTaggedSyntax) {
     pushAnonymousSegment()
-    return anonymousSegments
+    return options.preserveInterleaving === true ? anonymousSegments : anonymousSegments
   }
 
   const output = []
   pushAnonymousSegment()
-  output.push(...anonymousSegments)
-  for (const tag of laneOrder) {
-    const lane = lanes.get(tag)
+  for (const laneKey of laneOrder) {
+    if (laneKey === null) {
+      output.push(...anonymousSegments)
+      continue
+    }
+    const lane = lanes.get(laneKey)
     output.push(...lane.segments)
     if (lane.current !== null) {
       output.push(lane.current)
     }
   }
-  return output
+  return options.preserveInterleaving === true ? interleavedSegments : output
 }
 
 export function parseStream(input) {
@@ -360,6 +395,16 @@ export function parseRecords(input) {
  */
 export function closeTransform(input) {
   return parseStreamInternal(input).map((segment) => {
+    const delimiter = segment.delimiter
+    const bracket = delimiter === DOCUMENT_DELIMITER ? '' : delimiter
+    const fields = segment.fields.map(canonicalKey).join(delimiter)
+    const rows = segment.rows.map((row) => `  ${row.join(delimiter)}\n`).join('')
+    return `[${segment.rows.length}${bracket}]{${fields}}:\n${rows}`
+  })
+}
+
+export function closeTransformInterleaved(input) {
+  return parseStreamInternal(input, { preserveInterleaving: true }).map((segment) => {
     const delimiter = segment.delimiter
     const bracket = delimiter === DOCUMENT_DELIMITER ? '' : delimiter
     const fields = segment.fields.map(canonicalKey).join(delimiter)
