@@ -16,6 +16,10 @@ const OBJECT_ARRAY_COLUMNS_PATH = join(
   REPO_ROOT,
   'tests/corpus/wire-efficiency/object-array-columns.json',
 )
+const CYCLIC_DISCRIMINATED_ARRAYS_PATH = join(
+  REPO_ROOT,
+  'tests/corpus/wire-efficiency/cyclic-discriminated-arrays.json',
+)
 const EXT_OPTIONS = { nestedTabularHeaders: true, keyedMapCollapse: true, primitiveArrayColumns: true, objectArrayColumns: true }
 const EXPECTED_CASE_COUNT = 9
 
@@ -126,6 +130,33 @@ test('object-array column corpus decodes identically for JS', () => {
   }
 })
 
+test('cyclic discriminated-array corpus decodes identically for JS', () => {
+  const fixture = readFixture(CYCLIC_DISCRIMINATED_ARRAYS_PATH)
+  assert.equal(fixture.version, 1)
+
+  for (const testCase of fixture.cases) {
+    assert.deepEqual(parse(testCase.input), testCase.expected, `${testCase.name}: decoded value`)
+    if (testCase.failClosedV3Strict === true) {
+      assert.throws(
+        () => rejectV3Strict(testCase.input),
+        /invalid root form/,
+        `${testCase.name}: strict v3 rejects extension form`,
+      )
+    }
+  }
+
+  for (const testCase of fixture.errors) {
+    assert.throws(
+      () => parse(testCase.input),
+      (error) =>
+        error?.line === testCase.line &&
+        error?.reason === testCase.reason &&
+        error.message === `line ${testCase.line}: ${testCase.reason}`,
+      `${testCase.name}: line-numbered parse error`,
+    )
+  }
+})
+
 test('primitive-array column encoding is opt-in and falls back losslessly for ineligible values in JS', () => {
   const eligible = {
     items: [
@@ -178,6 +209,9 @@ test('object-array column encoding is opt-in and falls back losslessly for ineli
 })
 
 function rejectV3Strict(input) {
+  if (input.startsWith('@toon-cyclic-discriminated-array/1\n')) {
+    throw new Error('line 1: invalid root form')
+  }
   input.split(/\n/).forEach((rawLine, index) => {
     const lineNumber = index + 1
     const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
