@@ -36,6 +36,8 @@ export interface SerializeOptions {
   nestedTabularHeaders?: boolean
   /** Emit brace-header tabular rows for keyed maps with uniform object values. */
   keyedMapCollapse?: boolean
+  /** Active delimiter for array and tabular rows. Default `','`. */
+  delimiter?: ToonDelimiter
   /** Maximum nesting depth. Default `1000`; `0` disables the guard for trusted input. */
   maxDepth?: number
 }
@@ -131,7 +133,8 @@ export interface ToonlSegment {
 export type ToonlRecord = Record<string, null | boolean | number | string>
 
 /** The delimiters a TOONL header may declare. */
-export type ToonlDelimiter = ',' | '|' | '\t'
+export type ToonDelimiter = ',' | '|' | '\t'
+export type ToonlDelimiter = ToonDelimiter
 
 export interface ToonlCursorAnchor {
   byteOffset: number
