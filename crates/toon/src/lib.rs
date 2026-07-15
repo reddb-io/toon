@@ -211,12 +211,19 @@ pub struct ToonlWriter<W> {
     fields: Option<Vec<String>>,
     header_fields: Option<String>,
     fields_by_shape: BTreeMap<Vec<String>, Vec<String>>,
+    tagged_lanes: HashMap<String, TaggedToonlWriterLane>,
     row_count: usize,
     rows_since_continuation: usize,
     bytes_since_continuation: usize,
     continuation_every_rows: Option<usize>,
     continuation_every_bytes: Option<usize>,
     finished: bool,
+}
+
+#[derive(Debug, Default)]
+struct TaggedToonlWriterLane {
+    fields: Option<Vec<String>>,
+    fields_by_shape: BTreeMap<Vec<String>, Vec<String>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -752,26 +759,8 @@ impl ToonlSegment {
 impl ToonlEncoder {
     pub fn new<T: AsRef<str>>(delimiter: char, fields: &[T]) -> Result<Self, ToonlError> {
         validate_toonl_delimiter(delimiter)?;
-        if fields.is_empty() {
-            return Err(toonl_error(0, "TOONL header requires fields"));
-        }
-        let fields = fields
-            .iter()
-            .map(|field| {
-                let (field, _) =
-                    parse_key(field.as_ref(), 0).map_err(ToonlError::from_parse_error)?;
-                if field.is_empty() {
-                    return Err(toonl_error(0, "TOONL header requires fields"));
-                }
-                Ok(field)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let encoded_fields = fields
-            .iter()
-            .map(|field| canonical_key(field))
-            .collect::<Vec<_>>();
-        let header_fields = encoded_fields.join(&delimiter.to_string());
+        let fields = normalize_toonl_header_fields(fields)?;
+        let header_fields = toonl_header_fields(delimiter, &fields);
         let mut output = String::new();
         output.push_str(&toonl_header_text(delimiter, &header_fields, false));
 
@@ -914,6 +903,7 @@ impl<W: Write> ToonlWriter<W> {
             fields: None,
             header_fields: None,
             fields_by_shape: BTreeMap::new(),
+            tagged_lanes: HashMap::new(),
             row_count: 0,
             rows_since_continuation: 0,
             bytes_since_continuation: 0,
@@ -959,6 +949,80 @@ impl<W: Write> ToonlWriter<W> {
         Ok(())
     }
 
+    pub fn declare_lane<T: AsRef<str>>(
+        &mut self,
+        tag: &str,
+        fields: &[T],
+    ) -> Result<(), ToonlError> {
+        if self.finished {
+            return Err(toonl_error(0, "TOONL writer is closed"));
+        }
+        validate_toonl_tag(tag, 0)?;
+        if !self.tagged_lanes.contains_key(tag) && self.tagged_lanes.len() >= TOONL_TAGGED_LANE_LIMIT
+        {
+            return Err(toonl_error(0, "too many tagged lanes"));
+        }
+
+        let fields = normalize_toonl_header_fields(fields)?;
+        let header_fields = toonl_header_fields(DOCUMENT_DELIMITER, &fields);
+        if self
+            .tagged_lanes
+            .get(tag)
+            .and_then(|lane| lane.fields.as_ref())
+            == Some(&fields)
+        {
+            return Ok(());
+        }
+
+        self.writer
+            .write_all(tagged_toonl_header_text(tag, &header_fields).as_bytes())
+            .map_err(write_toonl_error)?;
+        self.tagged_lanes
+            .entry(tag.to_owned())
+            .or_default()
+            .fields = Some(fields);
+        Ok(())
+    }
+
+    pub fn write_tagged_record(&mut self, tag: &str, record: &Record) -> Result<(), ToonlError> {
+        if self.finished {
+            return Err(toonl_error(0, "TOONL writer is closed"));
+        }
+        validate_toonl_tag(tag, 0)?;
+        if !self.tagged_lanes.contains_key(tag) && self.tagged_lanes.len() >= TOONL_TAGGED_LANE_LIMIT
+        {
+            return Err(toonl_error(0, "too many tagged lanes"));
+        }
+
+        let fields = {
+            let lane = self.tagged_lanes.entry(tag.to_owned()).or_default();
+            canonical_toonl_fields(toonl_value_fields(record)?, &mut lane.fields_by_shape)
+        };
+        let header_fields = toonl_header_fields(DOCUMENT_DELIMITER, &fields);
+        let cells = toonl_value_cells(record, &fields, DOCUMENT_DELIMITER)?;
+        let needs_declaration = self
+            .tagged_lanes
+            .get(tag)
+            .and_then(|lane| lane.fields.as_ref())
+            != Some(&fields);
+
+        if needs_declaration {
+            self.writer
+                .write_all(tagged_toonl_header_text(tag, &header_fields).as_bytes())
+                .map_err(write_toonl_error)?;
+            self.tagged_lanes
+                .get_mut(tag)
+                .expect("tagged lane exists")
+                .fields = Some(fields);
+        }
+
+        let row = format!("{}:{}\n", tag, cells.join(&DOCUMENT_DELIMITER.to_string()));
+        self.writer
+            .write_all(row.as_bytes())
+            .map_err(write_toonl_error)?;
+        Ok(())
+    }
+
     pub fn finish(mut self) -> Result<W, ToonlError> {
         if !self.finished {
             self.close_segment()?;
@@ -976,11 +1040,7 @@ impl<W: Write> ToonlWriter<W> {
     }
 
     fn write_header(&mut self, fields: &[String]) -> Result<(), ToonlError> {
-        let encoded_fields = fields
-            .iter()
-            .map(|field| canonical_key(field))
-            .collect::<Vec<_>>();
-        let header_fields = encoded_fields.join(&self.delimiter.to_string());
+        let header_fields = toonl_header_fields(self.delimiter, fields);
         self.writer
             .write_all(toonl_header_text(self.delimiter, &header_fields, false).as_bytes())
             .map_err(write_toonl_error)?;
@@ -1014,19 +1074,7 @@ impl<W: Write> ToonlWriter<W> {
             .fields
             .as_ref()
             .expect("fields are set before rows are written");
-        let Value::Object(document) = value else {
-            return Err(toonl_error(0, "TOONL output requires object rows"));
-        };
-        let mut cells = Vec::with_capacity(fields.len());
-        for field in fields {
-            let Some(value) = document.get(field) else {
-                return Err(toonl_error(0, "TOONL output schema changed"));
-            };
-            if !value.is_primitive() {
-                return Err(toonl_error(0, "TOONL rows must be flat objects"));
-            }
-            cells.push(primitive_text(value, self.delimiter));
-        }
+        let cells = toonl_value_cells(value, fields, self.delimiter)?;
         let row = format!("{}\n", cells.join(&self.delimiter.to_string()));
         self.writer
             .write_all(row.as_bytes())
@@ -2052,6 +2100,35 @@ fn toonl_header_text(delimiter: char, header_fields: &str, continuation: bool) -
     output
 }
 
+fn tagged_toonl_header_text(tag: &str, header_fields: &str) -> String {
+    format!("[]<{tag}>{{{header_fields}}}:\n")
+}
+
+fn normalize_toonl_header_fields<T: AsRef<str>>(fields: &[T]) -> Result<Vec<String>, ToonlError> {
+    if fields.is_empty() {
+        return Err(toonl_error(0, "TOONL header requires fields"));
+    }
+    fields
+        .iter()
+        .map(|field| {
+            let (field, _) =
+                parse_key(field.as_ref(), 0).map_err(ToonlError::from_parse_error)?;
+            if field.is_empty() {
+                return Err(toonl_error(0, "TOONL header requires fields"));
+            }
+            Ok(field)
+        })
+        .collect()
+}
+
+fn toonl_header_fields(delimiter: char, fields: &[String]) -> String {
+    fields
+        .iter()
+        .map(|field| canonical_key(field))
+        .collect::<Vec<_>>()
+        .join(&delimiter.to_string())
+}
+
 fn validate_continuation_cadence(cadence: Option<usize>) -> Result<(), ToonlError> {
     if cadence == Some(0) {
         return Err(toonl_error(
@@ -2138,6 +2215,27 @@ fn toonl_value_fields(value: &Value) -> Result<Vec<String>, ToonlError> {
         .iter()
         .map(|field| field.key.clone())
         .collect())
+}
+
+fn toonl_value_cells(
+    value: &Value,
+    fields: &[String],
+    delimiter: char,
+) -> Result<Vec<String>, ToonlError> {
+    let Value::Object(document) = value else {
+        return Err(toonl_error(0, "TOONL output requires object rows"));
+    };
+    let mut cells = Vec::with_capacity(fields.len());
+    for field in fields {
+        let Some(value) = document.get(field) else {
+            return Err(toonl_error(0, "TOONL output schema changed"));
+        };
+        if !value.is_primitive() {
+            return Err(toonl_error(0, "TOONL rows must be flat objects"));
+        }
+        cells.push(primitive_text(value, delimiter));
+    }
+    Ok(cells)
 }
 
 fn toonl_shape_key(fields: &[String]) -> Vec<String> {
