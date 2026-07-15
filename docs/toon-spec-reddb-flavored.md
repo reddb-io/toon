@@ -273,9 +273,9 @@ items[2]{id,description}:
 **Example — tab-delimited (cells with commas unquoted):**
 
 ```toon
-data[2]	value	note:
-	100	"item, qty 5"
-	200	"item, qty 3"
+data[2	]{value	note}:
+  100	item, qty 5
+  200	item, qty 3
 ```
 
 ```json
@@ -285,7 +285,7 @@ data[2]	value	note:
 **Example — pipe-delimited (human-readable tables):**
 
 ```toon
-users[2]|name|status:
+users[2|]{name|status}:
   Alice|active
   Bob|inactive
 ```

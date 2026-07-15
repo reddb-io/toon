@@ -172,8 +172,8 @@ records; it does not change the row arity rule.
 
 ```toonl
 []{id,metadata}:
-1,"{""tags"":[""a"",""b""],""color"":""red""}"
-2,"{""tags"":[],""color"":""blue""}"
+1,"{\"tags\":[\"a\",\"b\"],\"color\":\"red\"}"
+2,"{\"tags\":[],\"color\":\"blue\"}"
 ```
 
 The `metadata` field contains JSON text encoded as a TOON string. Each row still has exactly 2 cells.
@@ -287,7 +287,7 @@ active delimiter applies to the field list and every row in the segment.
 [|]{a|b|c}:
 1|2|3
 
-[]	{a	b	c}:
+[	]{a	b	c}:
 1	2	3
 ```
 
@@ -359,7 +359,7 @@ The first segment has 2 rows with fields `ts` and `event`. The second header ope
 
 A trailer has the form:
 
-```toonl
+```
 [=N]
 ```
 
@@ -723,8 +723,8 @@ suffix drops the `[~]` line and yields:
 
 ```toon
 [2]{ts,seq}:
-  2026-07-14T03:00:03Z,4
-  2026-07-14T03:00:04Z,5
+  "2026-07-14T03:00:03Z",4
+  "2026-07-14T03:00:04Z",5
 ```
 
 ## R2 — Header-Preserving Trim (v0.2)
@@ -876,7 +876,7 @@ A **named schema declaration** binds a short tag to a schema:
 The `<tag>` sits in the bracket, between `[]` and `{...}`. A **tagged row**
 references a declared tag:
 
-```toonl
+```
 <tag>:cell1,cell2
 ```
 

@@ -312,9 +312,9 @@ users[2]{id,name}:
 Tab-delimited tabular array:
 
 ```toon
-data[2]	id	value:
-	1	100
-	2	200
+data[2	]{id	value}:
+  1	100
+  2	200
 ```
 
 ```json
