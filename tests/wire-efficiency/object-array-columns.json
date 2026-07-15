@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "recursive child tables decode per-row child counts",
+      "input": "orders[2|]{id,customer,items{sku,quantity,components{part,lot,ok}}}:\n  ord_001|cust_a|2\n    sku_1|3|2\n      part_a|lot_1|true\n      part_b|lot_2|false\n    sku_2|1|1\n      part_c|lot_3|true\n  ord_002|cust_b|0\n",
+      "expected": {
+        "orders": [
+          {
+            "id": "ord_001",
+            "customer": "cust_a",
+            "items": [
+              {
+                "sku": "sku_1",
+                "quantity": 3,
+                "components": [
+                  {
+                    "part": "part_a",
+                    "lot": "lot_1",
+                    "ok": true
+                  },
+                  {
+                    "part": "part_b",
+                    "lot": "lot_2",
+                    "ok": false
+                  }
+                ]
+              },
+              {
+                "sku": "sku_2",
+                "quantity": 1,
+                "components": [
+                  {
+                    "part": "part_c",
+                    "lot": "lot_3",
+                    "ok": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "ord_002",
+            "customer": "cust_b",
+            "items": []
+          }
+        ]
+      },
+      "failClosedV3Strict": true
+    },
+    {
+      "name": "matrix rows decode as uniform fixed-width lists",
+      "input": "matrix[2|]{values[3|]}:\n  1|2|3\n  4|5|6\n",
+      "expected": {
+        "matrix": [
+          [1, 2, 3],
+          [4, 5, 6]
+        ]
+      },
+      "failClosedV3Strict": true
+    }
+  ],
+  "errors": [
+    {
+      "name": "truncated recursive child rows",
+      "input": "orders[1|]{id,items{sku,components{part,ok}}}:\n  ord_001|1\n    sku_1|2\n      part_a|true\n",
+      "line": 4,
+      "reason": "array length mismatch"
+    },
+    {
+      "name": "empty child field group",
+      "input": "orders[1|]{id,items{}}:\n  ord_001|0\n",
+      "line": 1,
+      "reason": "invalid array header"
+    },
+    {
+      "name": "matrix fixed-width row mismatch",
+      "input": "matrix[1|]{values[3|]}:\n  1|2\n",
+      "line": 2,
+      "reason": "array row length mismatch"
+    }
+  ]
+}

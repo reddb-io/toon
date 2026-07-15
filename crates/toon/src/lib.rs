@@ -234,12 +234,21 @@ struct Header {
     len: usize,
     delimiter: char,
     fields: Option<Vec<HeaderField>>,
+    field_tree: Option<Vec<HeaderFieldTree>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HeaderField {
     path: Vec<String>,
     list_delimiter: Option<char>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct HeaderFieldTree {
+    key: String,
+    list_delimiter: Option<char>,
+    fixed_len: Option<usize>,
+    children: Vec<HeaderFieldTree>,
 }
 
 #[derive(Debug)]
@@ -2311,6 +2320,15 @@ fn parse_tabular_rows(
     row_depth: usize,
     options: &ParseOptions,
 ) -> Result<Value, ParseError> {
+    if header
+        .field_tree
+        .as_ref()
+        .is_some_and(|fields| has_complex_header_fields(fields))
+    {
+        let fields = header.field_tree.as_ref().expect("checked above");
+        return parse_structured_tabular_rows(header, fields, lines, index, row_depth, options);
+    }
+
     let mut rows = Vec::new();
 
     while rows.len() < header.len {
@@ -2373,6 +2391,286 @@ fn parse_tabular_rows(
         fields: fields.to_vec(),
         rows,
     })))
+}
+
+fn parse_structured_tabular_rows(
+    header: &Header,
+    fields: &[HeaderFieldTree],
+    lines: &[Line<'_>],
+    index: &mut usize,
+    row_depth: usize,
+    options: &ParseOptions,
+) -> Result<Value, ParseError> {
+    let rows = parse_structured_rows(
+        header.len,
+        fields,
+        header.delimiter,
+        lines,
+        index,
+        row_depth,
+        options,
+        true,
+    )?;
+    Ok(Value::Array(Array::List(rows)))
+}
+
+struct StructuredState {
+    cell_index: usize,
+    next_index: usize,
+    flat_width: usize,
+}
+
+fn parse_structured_rows(
+    len: usize,
+    fields: &[HeaderFieldTree],
+    delimiter: char,
+    lines: &[Line<'_>],
+    index: &mut usize,
+    row_depth: usize,
+    options: &ParseOptions,
+    root: bool,
+) -> Result<Vec<Value>, ParseError> {
+    let mut rows = Vec::new();
+
+    while rows.len() < len {
+        let Some(line) = lines.get(*index) else {
+            return Err(length_mismatch(lines, *index));
+        };
+        if line.depth < row_depth {
+            break;
+        }
+        if line.depth > row_depth {
+            return Err(ParseError {
+                line: line.number,
+                message: "invalid indentation",
+                max_depth: None,
+            });
+        }
+        if line.blank_before && options.strict {
+            return Err(ParseError {
+                line: line.number,
+                message: "blank line inside array",
+                max_depth: None,
+            });
+        }
+        if !is_tabular_row(line.content, delimiter, line.number)? {
+            break;
+        }
+
+        let cells = split_delimited(line.content, delimiter, line.number)?;
+        let mut state = StructuredState {
+            cell_index: 0,
+            next_index: *index + 1,
+            flat_width: leaf_width(fields),
+        };
+        let row = parse_structured_row_fields(
+            fields,
+            &cells,
+            line.number,
+            lines,
+            &mut state,
+            row_depth + 1,
+            delimiter,
+            options,
+        )?;
+        if state.cell_index != cells.len() {
+            return Err(ParseError {
+                line: line.number,
+                message: "array row length mismatch",
+                max_depth: None,
+            });
+        }
+        rows.push(matrix_row_value(fields, row, root));
+        *index = state.next_index;
+    }
+
+    if rows.len() != len {
+        return Err(length_mismatch(lines, *index));
+    }
+    if let Some(line) = lines.get(*index) {
+        if line.depth >= row_depth && is_tabular_row(line.content, delimiter, line.number)? {
+            return Err(ParseError {
+                line: line.number,
+                message: "array length mismatch",
+                max_depth: None,
+            });
+        }
+    }
+
+    Ok(rows)
+}
+
+fn parse_structured_row_fields(
+    fields: &[HeaderFieldTree],
+    cells: &[String],
+    line: usize,
+    lines: &[Line<'_>],
+    state: &mut StructuredState,
+    child_depth: usize,
+    delimiter: char,
+    options: &ParseOptions,
+) -> Result<Document, ParseError> {
+    let mut row = Document::default();
+    for (field_index, field) in fields.iter().enumerate() {
+        let remaining_fields = &fields[field_index + 1..];
+        let value = parse_structured_field(
+            field,
+            remaining_fields,
+            cells,
+            line,
+            lines,
+            state,
+            child_depth,
+            delimiter,
+            options,
+        )?;
+        insert_path(&mut row, &[field.key.as_str()], value, options, line)?;
+    }
+    Ok(row)
+}
+
+fn parse_structured_field(
+    field: &HeaderFieldTree,
+    remaining_fields: &[HeaderFieldTree],
+    cells: &[String],
+    line: usize,
+    lines: &[Line<'_>],
+    state: &mut StructuredState,
+    child_depth: usize,
+    delimiter: char,
+    options: &ParseOptions,
+) -> Result<Value, ParseError> {
+    if let Some(fixed_len) = field.fixed_len {
+        if state.cell_index + fixed_len > cells.len() {
+            return Err(ParseError {
+                line,
+                message: "array row length mismatch",
+                max_depth: None,
+            });
+        }
+        let values = cells[state.cell_index..state.cell_index + fixed_len]
+            .iter()
+            .map(|cell| parse_scalar(cell, line))
+            .collect::<Result<Vec<_>, _>>()?;
+        state.cell_index += fixed_len;
+        return Ok(Value::Array(Array::List(values)));
+    }
+
+    if !field.children.is_empty() {
+        let flat_width = leaf_width(&field.children);
+        let count = cells
+            .get(state.cell_index)
+            .and_then(|cell| parse_child_count(cell));
+        let cells_after_child_count = cells.len().saturating_sub(state.cell_index + 1);
+        let has_child_rows = lines
+            .get(state.next_index)
+            .is_some_and(|line| line.depth == child_depth);
+        let must_be_child_table = count.is_some()
+            && (has_child_rows
+                || (cells.len() != state.flat_width
+                    && cells_after_child_count < flat_width + minimum_row_width(remaining_fields)));
+
+        if let Some(count) = count.filter(|_| must_be_child_table) {
+            state.cell_index += 1;
+            let mut child_index = state.next_index;
+            let rows = parse_structured_rows(
+                count,
+                &field.children,
+                delimiter,
+                lines,
+                &mut child_index,
+                child_depth,
+                options,
+                false,
+            )?;
+            state.next_index = child_index;
+            return Ok(Value::Array(Array::List(rows)));
+        }
+
+        let nested = parse_structured_row_fields(
+            &field.children,
+            cells,
+            line,
+            lines,
+            state,
+            child_depth,
+            delimiter,
+            options,
+        )?;
+        return Ok(Value::Object(nested));
+    }
+
+    let Some(cell) = cells.get(state.cell_index) else {
+        return Err(ParseError {
+            line,
+            message: "array row length mismatch",
+            max_depth: None,
+        });
+    };
+    state.cell_index += 1;
+    parse_tabular_cell(
+        &HeaderField {
+            path: vec![field.key.clone()],
+            list_delimiter: field.list_delimiter,
+        },
+        cell,
+        line,
+    )
+}
+
+fn matrix_row_value(fields: &[HeaderFieldTree], row: Document, root: bool) -> Value {
+    if root && fields.len() == 1 && fields[0].fixed_len.is_some() {
+        return row
+            .get(&fields[0].key)
+            .cloned()
+            .expect("structured row inserted fixed-width field");
+    }
+    Value::Object(row)
+}
+
+fn parse_child_count(value: &str) -> Option<usize> {
+    if value.is_empty()
+        || (value.len() > 1 && value.starts_with('0'))
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    value.parse().ok()
+}
+
+fn has_complex_header_fields(fields: &[HeaderFieldTree]) -> bool {
+    fields.iter().any(|field| {
+        field.fixed_len.is_some()
+            || !field.children.is_empty()
+            || has_complex_header_fields(&field.children)
+    })
+}
+
+fn leaf_width(fields: &[HeaderFieldTree]) -> usize {
+    fields.iter().map(field_width).sum()
+}
+
+fn field_width(field: &HeaderFieldTree) -> usize {
+    if let Some(fixed_len) = field.fixed_len {
+        return fixed_len;
+    }
+    if !field.children.is_empty() {
+        return leaf_width(&field.children);
+    }
+    1
+}
+
+fn minimum_row_width(fields: &[HeaderFieldTree]) -> usize {
+    fields
+        .iter()
+        .map(|field| {
+            if !field.children.is_empty() {
+                1
+            } else {
+                field_width(field)
+            }
+        })
+        .sum()
 }
 
 fn parse_tabular_cell(field: &HeaderField, cell: &str, line: usize) -> Result<Value, ParseError> {
@@ -2571,13 +2869,12 @@ fn parse_header(content: &str, colon: Option<usize>) -> Result<Header, HeaderErr
     };
 
     let suffix = &rest[close + 1..];
-    let fields = if suffix.is_empty() {
-        None
+    let (fields, field_tree) = if suffix.is_empty() {
+        (None, None)
     } else if suffix.starts_with('{') && suffix.ends_with('}') && suffix.len() >= 2 {
-        Some(parse_array_header_fields(
-            &suffix[1..suffix.len() - 1],
-            delimiter,
-        )?)
+        let field_tree = parse_array_header_field_tree(&suffix[1..suffix.len() - 1], delimiter)?;
+        let fields = flatten_header_field_tree(&field_tree)?;
+        (Some(fields), Some(field_tree))
     } else {
         return Err(HeaderError("invalid array header"));
     };
@@ -2588,6 +2885,7 @@ fn parse_header(content: &str, colon: Option<usize>) -> Result<Header, HeaderErr
         len,
         delimiter,
         fields,
+        field_tree,
     })
 }
 
@@ -2627,25 +2925,6 @@ fn parse_map_header(content: &str) -> Result<MapHeader, HeaderError> {
         delimiter,
         fields,
     })
-}
-
-fn parse_array_header_fields(
-    source: &str,
-    delimiter: char,
-) -> Result<Vec<HeaderField>, HeaderError> {
-    if delimiter != DOCUMENT_DELIMITER
-        && source.contains(DOCUMENT_DELIMITER)
-        && source.contains('[')
-    {
-        return parse_header_fields(source, DOCUMENT_DELIMITER, delimiter);
-    }
-    match parse_header_fields(source, delimiter, delimiter) {
-        Ok(fields) => Ok(fields),
-        Err(error) if delimiter != DOCUMENT_DELIMITER && error.0 != "duplicate key" => {
-            parse_header_fields(source, DOCUMENT_DELIMITER, delimiter)
-        }
-        Err(error) => Err(error),
-    }
 }
 
 fn parse_header_fields(
@@ -2806,6 +3085,226 @@ fn parse_header_fields(
         }
     }
     Ok(parser.fields)
+}
+
+fn parse_array_header_field_tree(
+    source: &str,
+    delimiter: char,
+) -> Result<Vec<HeaderFieldTree>, HeaderError> {
+    if delimiter != DOCUMENT_DELIMITER
+        && source.contains(DOCUMENT_DELIMITER)
+        && (source.contains('[') || source.contains('{'))
+    {
+        return parse_header_field_tree(source, DOCUMENT_DELIMITER, delimiter);
+    }
+    match parse_header_field_tree(source, delimiter, delimiter) {
+        Ok(fields) => Ok(fields),
+        Err(error) if delimiter != DOCUMENT_DELIMITER && error.0 != "duplicate key" => {
+            parse_header_field_tree(source, DOCUMENT_DELIMITER, delimiter)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn parse_header_field_tree(
+    source: &str,
+    delimiter: char,
+    active_delimiter: char,
+) -> Result<Vec<HeaderFieldTree>, HeaderError> {
+    struct Parser<'a> {
+        source: &'a str,
+        delimiter: u8,
+        active_delimiter: char,
+        index: usize,
+    }
+
+    impl Parser<'_> {
+        fn parse_list(&mut self, nested: bool) -> Result<Vec<HeaderFieldTree>, HeaderError> {
+            let mut fields = Vec::new();
+            while self.index < self.source.len() {
+                let current = self.source.as_bytes()[self.index];
+                if nested && current == b'}' {
+                    break;
+                }
+                if current == self.delimiter || current == b'}' {
+                    return Err(HeaderError("invalid array header"));
+                }
+
+                let start = self.index;
+                while self.index < self.source.len() {
+                    let character = self.source.as_bytes()[self.index];
+                    if character == b'"' {
+                        self.skip_quoted_header_key();
+                        continue;
+                    }
+                    if character == self.delimiter
+                        || character == b'{'
+                        || character == b'}'
+                        || character == b'['
+                    {
+                        break;
+                    }
+                    self.index += 1;
+                }
+
+                let (key, _) = parse_key(&self.source[start..self.index], 0)
+                    .map_err(|_| HeaderError("invalid array header"))?;
+                if key.is_empty() {
+                    return Err(HeaderError("invalid array header"));
+                }
+
+                let mut field = HeaderFieldTree {
+                    key,
+                    list_delimiter: None,
+                    fixed_len: None,
+                    children: Vec::new(),
+                };
+
+                if self.index < self.source.len() && self.source.as_bytes()[self.index] == b'[' {
+                    self.index += 1;
+                    let bracket_start = self.index;
+                    while self.index < self.source.len()
+                        && self.source.as_bytes()[self.index] != b']'
+                    {
+                        self.index += 1;
+                    }
+                    if self.index >= self.source.len() {
+                        return Err(HeaderError("invalid array header"));
+                    }
+                    let bracket = &self.source[bracket_start..self.index];
+                    self.index += 1;
+
+                    if let Some((fixed_len, fixed_delimiter)) = parse_fixed_width_list(bracket) {
+                        if fixed_delimiter != self.active_delimiter {
+                            return Err(HeaderError("invalid array header"));
+                        }
+                        field.fixed_len = Some(fixed_len);
+                    } else if let Some(list_delimiter) =
+                        valid_list_delimiter(bracket, self.active_delimiter)
+                    {
+                        field.list_delimiter = Some(list_delimiter);
+                    } else {
+                        return Err(HeaderError("invalid array header"));
+                    }
+                } else if self.index < self.source.len()
+                    && self.source.as_bytes()[self.index] == b'{'
+                {
+                    self.index += 1;
+                    field.children = self.parse_list(true)?;
+                    if self.index >= self.source.len()
+                        || self.source.as_bytes()[self.index] != b'}'
+                        || field.children.is_empty()
+                    {
+                        return Err(HeaderError("invalid array header"));
+                    }
+                    self.index += 1;
+                }
+
+                fields.push(field);
+
+                if self.index < self.source.len()
+                    && self.source.as_bytes()[self.index] == self.delimiter
+                {
+                    self.index += 1;
+                    if self.index >= self.source.len() || self.source.as_bytes()[self.index] == b'}'
+                    {
+                        return Err(HeaderError("invalid array header"));
+                    }
+                    continue;
+                }
+                if (nested
+                    && self.index < self.source.len()
+                    && self.source.as_bytes()[self.index] == b'}')
+                    || (!nested && self.index == self.source.len())
+                {
+                    break;
+                }
+                return Err(HeaderError("invalid array header"));
+            }
+
+            if fields.is_empty() {
+                return Err(HeaderError("invalid array header"));
+            }
+            Ok(fields)
+        }
+
+        fn skip_quoted_header_key(&mut self) {
+            self.index += 1;
+            while self.index < self.source.len() {
+                let character = self.source.as_bytes()[self.index];
+                self.index += 1;
+                if character == b'\\' {
+                    self.index += 1;
+                } else if character == b'"' {
+                    return;
+                }
+            }
+        }
+    }
+
+    let mut parser = Parser {
+        source,
+        delimiter: delimiter as u8,
+        active_delimiter,
+        index: 0,
+    };
+    let fields = parser.parse_list(false)?;
+    if parser.index != source.len() {
+        return Err(HeaderError("invalid array header"));
+    }
+    flatten_header_field_tree(&fields)?;
+    Ok(fields)
+}
+
+fn parse_fixed_width_list(value: &str) -> Option<(usize, char)> {
+    let digits = value
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect::<String>();
+    if digits.is_empty() || (digits.len() > 1 && digits.starts_with('0')) {
+        return None;
+    }
+    let delimiter = match &value[digits.len()..] {
+        "" => DOCUMENT_DELIMITER,
+        "\t" => '\t',
+        "|" => '|',
+        _ => return None,
+    };
+    Some((digits.parse().ok()?, delimiter))
+}
+
+fn flatten_header_field_tree(fields: &[HeaderFieldTree]) -> Result<Vec<HeaderField>, HeaderError> {
+    fn visit(
+        fields: &[HeaderFieldTree],
+        prefix: &mut Vec<String>,
+        output: &mut Vec<HeaderField>,
+    ) {
+        for field in fields {
+            prefix.push(field.key.clone());
+            if field.children.is_empty() {
+                output.push(HeaderField {
+                    path: prefix.clone(),
+                    list_delimiter: field.list_delimiter,
+                });
+            } else {
+                visit(&field.children, prefix, output);
+            }
+            prefix.pop();
+        }
+    }
+
+    let mut output = Vec::new();
+    visit(fields, &mut Vec::new(), &mut output);
+    for index in 0..output.len() {
+        for other in index + 1..output.len() {
+            let left = &output[index].path;
+            let right = &output[other].path;
+            if left == right || left.starts_with(right) || right.starts_with(left) {
+                return Err(HeaderError("duplicate key"));
+            }
+        }
+    }
+    Ok(output)
 }
 
 fn valid_list_delimiter(value: &str, active_delimiter: char) -> Option<char> {

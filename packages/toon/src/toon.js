@@ -513,6 +513,10 @@ function parseArrayField(header, valuePart, lines, cursor, headerDepth, options)
 }
 
 function parseTabularRows(header, fields, lines, cursor, rowDepth, options) {
+  if (header.fieldTree !== undefined && hasComplexHeaderFields(header.fieldTree)) {
+    return parseStructuredTabularRows(header, lines, cursor, rowDepth, options)
+  }
+
   const rows = []
 
   while (rows.length < header.len) {
@@ -558,6 +562,157 @@ function parseTabularRows(header, fields, lines, cursor, rowDepth, options) {
   }
 
   return rows
+}
+
+function parseStructuredTabularRows(header, lines, cursor, rowDepth, options) {
+  return parseStructuredRows(header.len, header.fieldTree, header.delimiter, lines, cursor, rowDepth, options, true)
+}
+
+function parseStructuredRows(len, fields, delimiter, lines, cursor, rowDepth, options, root) {
+  const rows = []
+
+  while (rows.length < len) {
+    const line = lines[cursor.index]
+    if (line === undefined) {
+      throw lengthMismatch(lines, cursor.index)
+    }
+    if (line.depth < rowDepth) {
+      break
+    }
+    if (line.depth > rowDepth) {
+      throw toonError(line.number, 'invalid indentation')
+    }
+    if (line.blankBefore && options.strict) {
+      throw toonError(line.number, 'blank line inside array')
+    }
+    if (!isTabularRow(line.content, delimiter, line.number)) {
+      break
+    }
+
+    const cells = splitDelimited(line.content, delimiter, line.number)
+    const state = { cellIndex: 0, nextIndex: cursor.index + 1, flatWidth: leafWidth(fields) }
+    const row = parseStructuredRowFields(fields, cells, line.number, lines, state, rowDepth + 1, delimiter, options)
+    if (state.cellIndex !== cells.length) {
+      throw toonError(line.number, 'array row length mismatch')
+    }
+    rows.push(matrixRowValue(fields, row, root))
+    cursor.index = state.nextIndex
+  }
+
+  if (rows.length !== len) {
+    throw lengthMismatch(lines, cursor.index)
+  }
+  const next = lines[cursor.index]
+  if (
+    next !== undefined &&
+    next.depth >= rowDepth &&
+    isTabularRow(next.content, delimiter, next.number)
+  ) {
+    throw toonError(next.number, 'array length mismatch')
+  }
+
+  return rows
+}
+
+function parseStructuredRowFields(fields, cells, line, lines, state, childDepth, delimiter, options) {
+  const row = {}
+  fields.forEach((field, index) => {
+    const remainingFields = fields.slice(index + 1)
+    const value = parseStructuredField(field, remainingFields, cells, line, lines, state, childDepth, delimiter, options)
+    insertPath(row, [field.key], value, options, line)
+  })
+  return row
+}
+
+function parseStructuredField(field, remainingFields, cells, line, lines, state, childDepth, delimiter, options) {
+  if (field.fixedLength !== undefined) {
+    if (state.cellIndex + field.fixedLength > cells.length) {
+      throw toonError(line, 'array row length mismatch')
+    }
+    const values = cells
+      .slice(state.cellIndex, state.cellIndex + field.fixedLength)
+      .map((cell) => parseScalar(cell, line))
+    state.cellIndex += field.fixedLength
+    return values
+  }
+
+  if (field.children !== undefined) {
+    const flatWidth = leafWidth(field.children)
+    const countCell = cells[state.cellIndex]
+    const count = parseChildCount(countCell)
+    const cellsAfterChildCount = cells.length - state.cellIndex - 1
+    const childLine = lines[state.nextIndex]
+    const hasChildRows = childLine !== undefined && childLine.depth === childDepth
+    const mustBeChildTable =
+      count !== undefined &&
+      (hasChildRows ||
+        (cells.length !== state.flatWidth &&
+          cellsAfterChildCount < flatWidth + minimumRowWidth(remainingFields)))
+
+    if (mustBeChildTable) {
+      state.cellIndex += 1
+      return parseStructuredRows(
+        count,
+        field.children,
+        delimiter,
+        lines,
+        { get index() { return state.nextIndex }, set index(value) { state.nextIndex = value } },
+        childDepth,
+        options,
+        false,
+      )
+    }
+
+    return parseStructuredRowFields(field.children, cells, line, lines, state, childDepth, delimiter, options)
+  }
+
+  const cell = cells[state.cellIndex]
+  if (cell === undefined) {
+    throw toonError(line, 'array row length mismatch')
+  }
+  state.cellIndex += 1
+  return parseTabularCell(field, cell, line)
+}
+
+function matrixRowValue(fields, row, root) {
+  if (root && fields.length === 1 && fields[0].fixedLength !== undefined) {
+    return row[fields[0].key]
+  }
+  return row
+}
+
+function parseChildCount(value) {
+  if (value === undefined || !/^(0|[1-9][0-9]*)$/.test(value)) {
+    return undefined
+  }
+  return Number.parseInt(value, 10)
+}
+
+function hasComplexHeaderFields(fields) {
+  return fields.some((field) => field.fixedLength !== undefined || field.children !== undefined)
+}
+
+function leafWidth(fields) {
+  return fields.reduce((total, field) => total + fieldWidth(field), 0)
+}
+
+function fieldWidth(field) {
+  if (field.fixedLength !== undefined) {
+    return field.fixedLength
+  }
+  if (field.children !== undefined) {
+    return leafWidth(field.children)
+  }
+  return 1
+}
+
+function minimumRowWidth(fields) {
+  return fields.reduce((total, field) => {
+    if (field.children !== undefined) {
+      return total + 1
+    }
+    return total + fieldWidth(field)
+  }, 0)
 }
 
 /**
@@ -711,11 +866,14 @@ function parseHeader(content, colon) {
 
   const suffix = rest.slice(close + 1)
   let fields
+  let fieldTree
   if (suffix === '') {
     fields = undefined
+    fieldTree = undefined
   } else if (suffix.startsWith('{') && suffix.endsWith('}') && suffix.length >= 2) {
     try {
-      fields = parseArrayHeaderFields(suffix.slice(1, -1), delimiter)
+      fieldTree = parseArrayHeaderFieldTree(suffix.slice(1, -1), delimiter)
+      fields = flattenHeaderFieldTree(fieldTree)
     } catch (error) {
       throw toonError(0, error.reason === 'duplicate key' ? 'duplicate key' : 'invalid array header')
     }
@@ -723,7 +881,7 @@ function parseHeader(content, colon) {
     throw toonError(0, 'invalid array header')
   }
 
-  return { key, keyQuoted, len, delimiter, fields }
+  return { key, keyQuoted, len, delimiter, fields, fieldTree }
 }
 
 function parseArrayHeaderFields(source, delimiter) {
@@ -890,6 +1048,177 @@ function parseHeaderFields(source, delimiter, activeDelimiter) {
     seen.add(key)
   }
   return fields
+}
+
+function parseArrayHeaderFieldTree(source, delimiter) {
+  if (
+    delimiter !== DOCUMENT_DELIMITER &&
+    source.includes(DOCUMENT_DELIMITER) &&
+    (source.includes('[') || source.includes('{'))
+  ) {
+    return parseHeaderFieldTree(source, DOCUMENT_DELIMITER, delimiter)
+  }
+  try {
+    return parseHeaderFieldTree(source, delimiter, delimiter)
+  } catch (error) {
+    if (delimiter !== DOCUMENT_DELIMITER && error.reason !== 'duplicate key') {
+      return parseHeaderFieldTree(source, DOCUMENT_DELIMITER, delimiter)
+    }
+    throw error
+  }
+}
+
+function parseHeaderFieldTree(source, delimiter, activeDelimiter) {
+  let index = 0
+
+  function parseList(nested) {
+    const fields = []
+
+    while (index < source.length) {
+      if (nested && source[index] === '}') {
+        break
+      }
+      if (source[index] === delimiter || source[index] === '}') {
+        throw toonError(0, 'invalid array header')
+      }
+
+      const start = index
+      while (index < source.length) {
+        const character = source[index]
+        if (character === '"') {
+          skipQuotedHeaderKey()
+          continue
+        }
+        if (character === delimiter || character === '{' || character === '}' || character === '[') {
+          break
+        }
+        index += 1
+      }
+
+      const [key] = parseKey(source.slice(start, index), 0)
+      if (key === '') {
+        throw toonError(0, 'invalid array header')
+      }
+
+      const field = { key }
+      if (source[index] === '[') {
+        index += 1
+        const bracketStart = index
+        while (index < source.length && source[index] !== ']') {
+          index += 1
+        }
+        if (index >= source.length) {
+          throw toonError(0, 'invalid array header')
+        }
+        const bracket = source.slice(bracketStart, index)
+        index += 1
+
+        const fixed = parseFixedWidthList(bracket)
+        if (fixed !== undefined) {
+          if (fixed.delimiter !== activeDelimiter) {
+            throw toonError(0, 'invalid array header')
+          }
+          field.fixedLength = fixed.len
+          field.fixedDelimiter = fixed.delimiter
+        } else if (isValidListDelimiter(bracket, activeDelimiter)) {
+          field.listDelimiter = bracket
+        } else {
+          throw toonError(0, 'invalid array header')
+        }
+      } else if (source[index] === '{') {
+        index += 1
+        field.children = parseList(true)
+        if (source[index] !== '}' || field.children.length === 0) {
+          throw toonError(0, 'invalid array header')
+        }
+        index += 1
+      }
+
+      fields.push(field)
+
+      if (source[index] === delimiter) {
+        index += 1
+        if (index >= source.length || source[index] === '}') {
+          throw toonError(0, 'invalid array header')
+        }
+        continue
+      }
+      if (nested ? source[index] === '}' : index === source.length) {
+        break
+      }
+      throw toonError(0, 'invalid array header')
+    }
+
+    if (fields.length === 0) {
+      throw toonError(0, 'invalid array header')
+    }
+    return fields
+  }
+
+  function skipQuotedHeaderKey() {
+    index += 1
+    while (index < source.length) {
+      const character = source[index]
+      index += 1
+      if (character === '\\') {
+        index += 1
+      } else if (character === '"') {
+        return
+      }
+    }
+  }
+
+  const fields = parseList(false)
+  if (index !== source.length) {
+    throw toonError(0, 'invalid array header')
+  }
+
+  const paths = flattenHeaderFieldTree(fields)
+  for (let index = 0; index < paths.length; index += 1) {
+    for (let other = index + 1; other < paths.length; other += 1) {
+      if (
+        samePath(paths[index].path, paths[other].path) ||
+        pathStartsWith(paths[index].path, paths[other].path) ||
+        pathStartsWith(paths[other].path, paths[index].path)
+      ) {
+        throw toonError(0, 'duplicate key')
+      }
+    }
+  }
+  return fields
+}
+
+function parseFixedWidthList(value) {
+  const digits = /^[0-9]+/.exec(value)?.[0]
+  if (digits === undefined || (digits.length > 1 && digits.startsWith('0'))) {
+    return undefined
+  }
+  const suffix = value.slice(digits.length)
+  let delimiter
+  switch (suffix) {
+    case '':
+      delimiter = DOCUMENT_DELIMITER
+      break
+    case '\t':
+      delimiter = '\t'
+      break
+    case '|':
+      delimiter = '|'
+      break
+    default:
+      return undefined
+  }
+  return { len: Number.parseInt(digits, 10), delimiter }
+}
+
+function flattenHeaderFieldTree(fields, prefix = []) {
+  return fields.flatMap((field) => {
+    const path = [...prefix, field.key]
+    if (field.children !== undefined) {
+      return flattenHeaderFieldTree(field.children, path)
+    }
+    return [{ path, listDelimiter: field.listDelimiter }]
+  })
 }
 
 function parseTabularCell(field, cell, line) {

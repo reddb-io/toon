@@ -12,6 +12,10 @@ const PRIMITIVE_ARRAY_COLUMNS_PATH = join(
   REPO_ROOT,
   'tests/wire-efficiency/primitive-array-columns.json',
 )
+const OBJECT_ARRAY_COLUMNS_PATH = join(
+  REPO_ROOT,
+  'tests/wire-efficiency/object-array-columns.json',
+)
 const EXT_OPTIONS = { nestedTabularHeaders: true, keyedMapCollapse: true, primitiveArrayColumns: true }
 const EXPECTED_CASE_COUNT = 9
 
@@ -76,6 +80,33 @@ test('primitive-array column corpus decodes identically for JS', () => {
   }
 })
 
+test('object-array column corpus decodes identically for JS', () => {
+  const fixture = readFixture(OBJECT_ARRAY_COLUMNS_PATH)
+  assert.equal(fixture.version, 1)
+
+  for (const testCase of fixture.cases) {
+    assert.deepEqual(parse(testCase.input), testCase.expected, `${testCase.name}: decoded value`)
+    if (testCase.failClosedV3Strict === true) {
+      assert.throws(
+        () => rejectV3Strict(testCase.input),
+        /invalid array header/,
+        `${testCase.name}: strict v3 rejects extension form`,
+      )
+    }
+  }
+
+  for (const testCase of fixture.errors) {
+    assert.throws(
+      () => parse(testCase.input),
+      (error) =>
+        error?.line === testCase.line &&
+        error?.reason === testCase.reason &&
+        error.message === `line ${testCase.line}: ${testCase.reason}`,
+      `${testCase.name}: line-numbered parse error`,
+    )
+  }
+})
+
 test('primitive-array column encoding is opt-in and falls back losslessly for ineligible values in JS', () => {
   const eligible = {
     items: [
@@ -99,7 +130,7 @@ function rejectV3Strict(input) {
   input.split(/\n/).forEach((rawLine, index) => {
     const lineNumber = index + 1
     const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
-    if (/^[ ]*[^:[\n]+\[[0-9]+[|\t]?\]\{.*\[[^\]]+\].*\}:[ ]*$/.test(line)) {
+    if (/^[ ]*[^:[\n]+\[[0-9]+[|\t]?\]\{.*(?:\[[^\]]+\]|\{[^}]*\}).*\}:[ ]*$/.test(line)) {
       throw new Error(`line ${lineNumber}: invalid array header`)
     }
   })
