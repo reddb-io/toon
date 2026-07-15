@@ -4,11 +4,15 @@ use std::io::{self, BufRead, BufReader, Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, ExitCode};
 
-use reddb_io_toon::{encode_toonl_values, Array, ToonlReader, Value};
+use reddb_io_toon::{
+    close_transform_stream, close_transform_stream_interleaved, encode_toonl_values, Array,
+    ToonlReader, Value,
+};
 
 const USAGE: &str =
     "usage: tq [-p toon|json|toonl] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] <query> [file]";
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
+const CLOSE_USAGE: &str = "usage: tq close [--per-lane|--interleaved] [FILE]";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Format {
@@ -36,6 +40,12 @@ struct TrimOptions {
 }
 
 #[derive(Debug)]
+struct CloseOptions {
+    interleaved: bool,
+    input_path: Option<String>,
+}
+
+#[derive(Debug)]
 struct TrimPlan {
     output: String,
     changed: bool,
@@ -43,14 +53,15 @@ struct TrimPlan {
 
 #[derive(Debug)]
 struct TrimSegment {
-    header_line: String,
+    header_start: usize,
     trailer: Option<(usize, usize)>,
 }
 
 #[derive(Debug)]
 struct TrimRow {
     start: usize,
-    segment: usize,
+    live_headers: Vec<String>,
+    anonymous_segment: Option<usize>,
 }
 
 fn main() -> ExitCode {
@@ -76,6 +87,9 @@ fn run() -> Result<String, String> {
     }
     if args.first().is_some_and(|arg| arg == "trim") {
         return run_trim(parse_trim_args(args.into_iter().skip(1))?);
+    }
+    if args.first().is_some_and(|arg| arg == "close") {
+        return run_close(parse_close_args(args.into_iter().skip(1))?);
     }
 
     let options = parse_args(args.into_iter())?;
@@ -118,6 +132,21 @@ fn run_trim(options: TrimOptions) -> Result<String, String> {
     } else {
         Ok(plan.output)
     }
+}
+
+fn run_close(options: CloseOptions) -> Result<String, String> {
+    let input = match &options.input_path {
+        Some(path) => fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?,
+        None => read_stdin()?,
+    };
+    let mut output = Vec::new();
+    if options.interleaved {
+        close_transform_stream_interleaved(Cursor::new(input.as_bytes()), &mut output)
+    } else {
+        close_transform_stream(Cursor::new(input.as_bytes()), &mut output)
+    }
+    .map_err(|error| error.to_string())?;
+    String::from_utf8(output).map_err(|error| error.to_string())
 }
 
 fn run_toonl(options: &Options) -> Result<String, String> {
@@ -230,6 +259,34 @@ fn parse_trim_args(args: impl Iterator<Item = String>) -> Result<TrimOptions, St
     })
 }
 
+fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseOptions, String> {
+    let mut interleaved = false;
+    let mut positional = Vec::new();
+    let mut args = args.peekable();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--per-lane" => interleaved = false,
+            "--interleaved" => interleaved = true,
+            "--" => {
+                positional.extend(args);
+                break;
+            }
+            value if value.starts_with('-') => return Err(CLOSE_USAGE.to_owned()),
+            value => positional.push(value.to_owned()),
+        }
+    }
+
+    if positional.len() > 1 {
+        return Err(CLOSE_USAGE.to_owned());
+    }
+
+    Ok(CloseOptions {
+        interleaved,
+        input_path: positional.pop(),
+    })
+}
+
 fn parse_format(value: &str) -> Result<Format, String> {
     match value {
         "json" => Ok(Format::Json),
@@ -272,45 +329,39 @@ fn input_reader(options: &Options) -> Result<Box<dyn BufRead>, String> {
 }
 
 fn trim_toonl_keep_last(input: &str, keep_last: usize) -> Result<TrimPlan, String> {
-    reject_v0_2_only_constructs(input)?;
     validate_toonl(input)?;
-    let (segments, rows, last_segment) = scan_toonl_trim_units(input)?;
+    let scan = scan_toonl_trim_units(input)?;
 
-    if rows.len() <= keep_last {
+    if scan.rows.len() <= keep_last {
         return Ok(TrimPlan {
             output: input.to_owned(),
             changed: false,
         });
     }
 
-    let (first_segment, suffix_start, retained_first_rows) = if keep_last == 0 {
-        let segment = last_segment.ok_or_else(|| "cannot trim an empty TOONL stream".to_owned())?;
-        (segment, input.len(), 0)
+    let (headers, suffix_start) = if keep_last == 0 {
+        (scan.live_headers_at_end.clone(), input.len())
     } else {
-        let cut_index = rows.len() - keep_last;
-        let cut = &rows[cut_index];
-        let retained_first_rows = rows[cut_index..]
-            .iter()
-            .take_while(|row| row.segment == cut.segment)
-            .count();
-        (cut.segment, cut.start, retained_first_rows)
+        let cut_index = scan.rows.len() - keep_last;
+        let cut = &scan.rows[cut_index];
+        (cut.live_headers.clone(), cut.start)
     };
-    let segment = &segments[first_segment];
 
     let mut output = String::new();
-    output.push_str(&line_with_lf(&segment.header_line));
-    if let Some((trailer_start, trailer_end)) = segment.trailer {
-        if trailer_start >= suffix_start {
-            output.push_str(&input[suffix_start..trailer_start]);
-            output.push_str(&format!("[={retained_first_rows}]\n"));
-            output.push_str(&input[trailer_end..]);
-        } else if keep_last == 0 {
+    for header in &headers {
+        output.push_str(&line_with_lf(header));
+    }
+    if keep_last == 0 {
+        if scan
+            .last_anonymous_segment
+            .and_then(|segment| scan.segments.get(segment))
+            .and_then(|segment| segment.trailer)
+            .is_some()
+        {
             output.push_str("[=0]\n");
-        } else {
-            output.push_str(&input[suffix_start..]);
         }
     } else {
-        output.push_str(&input[suffix_start..]);
+        append_trimmed_suffix(input, suffix_start, &scan, &mut output);
     }
     validate_toonl(&output)?;
 
@@ -320,29 +371,12 @@ fn trim_toonl_keep_last(input: &str, keep_last: usize) -> Result<TrimPlan, Strin
     })
 }
 
-fn reject_v0_2_only_constructs(input: &str) -> Result<(), String> {
-    for (line_number, raw_line) in input.lines().enumerate() {
-        let line = raw_line.trim_end_matches('\r');
-        if line.is_empty() {
-            continue;
-        }
-        let construct = if line.starts_with("[~]") && line.ends_with("}:") {
-            Some("continuation header")
-        } else if line.starts_with("[]<") && line.contains(">{") && line.ends_with("}:") {
-            Some("named schema declaration")
-        } else if line.starts_with('<') && line.contains(">:") {
-            Some("tagged row")
-        } else {
-            None
-        };
-        if let Some(construct) = construct {
-            return Err(format!(
-                "line {}: v0.2-only construct `{construct}` is not supported by trim",
-                line_number + 1
-            ));
-        }
-    }
-    Ok(())
+#[derive(Debug)]
+struct TrimScan {
+    segments: Vec<TrimSegment>,
+    rows: Vec<TrimRow>,
+    live_headers_at_end: Vec<String>,
+    last_anonymous_segment: Option<usize>,
 }
 
 fn validate_toonl(input: &str) -> Result<(), String> {
@@ -352,13 +386,12 @@ fn validate_toonl(input: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn scan_toonl_trim_units(
-    input: &str,
-) -> Result<(Vec<TrimSegment>, Vec<TrimRow>, Option<usize>), String> {
+fn scan_toonl_trim_units(input: &str) -> Result<TrimScan, String> {
     let mut segments: Vec<TrimSegment> = Vec::new();
     let mut rows: Vec<TrimRow> = Vec::new();
     let mut current: Option<usize> = None;
     let mut last_segment: Option<usize> = None;
+    let mut live_headers = LiveHeaders::default();
     let mut offset = 0;
     let mut line_number = 0;
 
@@ -383,43 +416,183 @@ fn scan_toonl_trim_units(
             segments[segment].trailer = Some((line_start, line_end));
             continue;
         }
-        if is_toonl_header(line) {
-            let segment = segments.len();
-            segments.push(TrimSegment {
-                header_line: raw_line.to_owned(),
-                trailer: None,
-            });
-            current = Some(segment);
-            last_segment = Some(segment);
+        if let Some(header) = parse_toonl_trim_header(line) {
+            match header {
+                TrimHeader::Continuation => {}
+                TrimHeader::Anonymous => {
+                    let segment = segments.len();
+                    segments.push(TrimSegment {
+                        header_start: line_start,
+                        trailer: None,
+                    });
+                    current = Some(segment);
+                    last_segment = Some(segment);
+                    live_headers.set_anonymous(raw_line.to_owned());
+                }
+                TrimHeader::Tagged(tag) => {
+                    live_headers.set_tagged(tag, raw_line.to_owned());
+                }
+            }
             continue;
         }
 
-        let segment = current.ok_or_else(|| format!("line {line_number}: row before header"))?;
+        let anonymous_segment = if is_toonl_tagged_row(line, &live_headers) {
+            None
+        } else {
+            Some(current.ok_or_else(|| format!("line {line_number}: row before header"))?)
+        };
         rows.push(TrimRow {
             start: line_start,
-            segment,
+            live_headers: live_headers.lines(),
+            anonymous_segment,
         });
     }
 
-    Ok((segments, rows, last_segment))
+    Ok(TrimScan {
+        segments,
+        rows,
+        live_headers_at_end: live_headers.lines(),
+        last_anonymous_segment: last_segment,
+    })
 }
 
 fn is_toonl_trailer(line: &str) -> bool {
     line.starts_with("[=") && line.ends_with(']')
 }
 
-fn is_toonl_header(line: &str) -> bool {
+fn parse_toonl_trim_header(line: &str) -> Option<TrimHeader> {
     let Some(rest) = line.strip_prefix('[') else {
-        return false;
+        return None;
     };
     let Some(close_bracket) = rest.find(']') else {
+        return None;
+    };
+    let bracket = &rest[..close_bracket];
+    let continuation = bracket.starts_with('~');
+    let delimiter = if continuation { &bracket[1..] } else { bracket };
+    if !matches!(delimiter, "" | "|" | "\t") {
+        return None;
+    }
+    let mut suffix = &rest[close_bracket + 1..];
+    if continuation {
+        return if suffix.starts_with('{') && suffix.ends_with("}:") {
+            Some(TrimHeader::Continuation)
+        } else {
+            None
+        };
+    }
+    if let Some(after_open) = suffix.strip_prefix('<') {
+        let tag_end = after_open.find('>')?;
+        let tag = &after_open[..tag_end];
+        suffix = &after_open[tag_end + 1..];
+        return if suffix.starts_with('{') && suffix.ends_with("}:") {
+            Some(TrimHeader::Tagged(tag.to_owned()))
+        } else {
+            None
+        };
+    }
+    if suffix.starts_with('{') && suffix.ends_with("}:") {
+        Some(TrimHeader::Anonymous)
+    } else {
+        None
+    }
+}
+
+fn is_toonl_tagged_row(line: &str, live_headers: &LiveHeaders) -> bool {
+    let Some(colon) = line.find(':') else {
         return false;
     };
-    if !matches!(&rest[..close_bracket], "" | "|" | "\t") {
+    if colon == 0 {
         return false;
     }
-    let suffix = &rest[close_bracket + 1..];
-    suffix.starts_with('{') && suffix.ends_with("}:")
+    let tag = &line[..colon];
+    live_headers.has_tag(tag)
+        && tag
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+}
+
+fn append_trimmed_suffix(input: &str, suffix_start: usize, scan: &TrimScan, output: &mut String) {
+    let mut cursor = suffix_start;
+    for (segment_index, segment) in scan.segments.iter().enumerate() {
+        let Some((trailer_start, trailer_end)) = segment.trailer else {
+            continue;
+        };
+        if trailer_start < suffix_start || segment.header_start >= suffix_start {
+            continue;
+        }
+        output.push_str(&input[cursor..trailer_start]);
+        let retained = scan
+            .rows
+            .iter()
+            .filter(|row| row.start >= suffix_start && row.anonymous_segment == Some(segment_index))
+            .count();
+        output.push_str(&format!("[={retained}]\n"));
+        cursor = trailer_end;
+    }
+    output.push_str(&input[cursor..]);
+}
+
+#[derive(Debug)]
+enum TrimHeader {
+    Anonymous,
+    Continuation,
+    Tagged(String),
+}
+
+#[derive(Debug, Default)]
+struct LiveHeaders {
+    order: Vec<LiveHeaderKey>,
+    anonymous: Option<String>,
+    tagged: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LiveHeaderKey {
+    Anonymous,
+    Tagged(String),
+}
+
+impl LiveHeaders {
+    fn set_anonymous(&mut self, header: String) {
+        if self.anonymous.is_none() {
+            self.order.push(LiveHeaderKey::Anonymous);
+        }
+        self.anonymous = Some(header);
+    }
+
+    fn set_tagged(&mut self, tag: String, header: String) {
+        if let Some((_, existing)) = self
+            .tagged
+            .iter_mut()
+            .find(|(existing_tag, _)| existing_tag == &tag)
+        {
+            *existing = header;
+            return;
+        }
+        self.order.push(LiveHeaderKey::Tagged(tag.clone()));
+        self.tagged.push((tag, header));
+    }
+
+    fn has_tag(&self, tag: &str) -> bool {
+        self.tagged
+            .iter()
+            .any(|(existing_tag, _)| existing_tag == tag)
+    }
+
+    fn lines(&self) -> Vec<String> {
+        self.order
+            .iter()
+            .filter_map(|key| match key {
+                LiveHeaderKey::Anonymous => self.anonymous.clone(),
+                LiveHeaderKey::Tagged(tag) => self
+                    .tagged
+                    .iter()
+                    .find(|(existing_tag, _)| existing_tag == tag)
+                    .map(|(_, header)| header.clone()),
+            })
+            .collect()
+    }
 }
 
 fn line_with_lf(line: &str) -> String {
