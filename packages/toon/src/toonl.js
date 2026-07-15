@@ -828,8 +828,34 @@ function headerText(delimiter, fieldText, continuation = false) {
   return `[${bracket}]{${fieldText}}:\n`
 }
 
+function taggedHeaderText(tag, fieldText) {
+  return `[]<${tag}>{${fieldText}}:\n`
+}
+
 function headerFieldText(delimiter, fields) {
   return fields.map(canonicalKey).join(delimiter)
+}
+
+function normalizeHeaderFields(fields) {
+  if (!Array.isArray(fields) || fields.length === 0) {
+    throw toonlError(0, 'TOONL header requires fields')
+  }
+  return fields.map((field) => {
+    let name
+    try {
+      ;[name] = parseKey(String(field), 0)
+    } catch (error) {
+      throw asToonlError(error)
+    }
+    if (name === '') {
+      throw toonlError(0, 'TOONL header requires fields')
+    }
+    return name
+  })
+}
+
+function sameFields(left, right) {
+  return left !== null && left.length === right.length && left.every((field, index) => field === right[index])
 }
 
 function validateCadence(cadence) {
@@ -891,21 +917,7 @@ export class ToonlEncoder {
     validateDelimiter(delimiter)
     validateCadence(options.continuationEveryRows)
     validateCadence(options.continuationEveryBytes)
-    if (!Array.isArray(fields) || fields.length === 0) {
-      throw toonlError(0, 'TOONL header requires fields')
-    }
-    const names = fields.map((field) => {
-      let name
-      try {
-        ;[name] = parseKey(String(field), 0)
-      } catch (error) {
-        throw asToonlError(error)
-      }
-      if (name === '') {
-        throw toonlError(0, 'TOONL header requires fields')
-      }
-      return name
-    })
+    const names = normalizeHeaderFields(fields)
 
     this.#delimiter = delimiter
     this.#fields = names
@@ -1011,6 +1023,7 @@ export function encodeLines({
   let rowCount = 0
   let rowsSinceContinuation = 0
   let bytesSinceContinuation = 0
+  const taggedLanes = new Map()
   let ended = false
   const continuationOptions = { continuationEveryRows, continuationEveryBytes }
 
@@ -1028,6 +1041,19 @@ export function encodeLines({
     rowsSinceContinuation = 0
     bytesSinceContinuation = 0
     return headerText(delimiter, fieldText, true)
+  }
+
+  const ensureTaggedLane = (tag) => {
+    validateTag(tag, 0)
+    let lane = taggedLanes.get(tag)
+    if (lane === undefined) {
+      if (taggedLanes.size >= TAGGED_LANE_LIMIT) {
+        throw toonlError(0, 'too many tagged lanes')
+      }
+      lane = { fields: null, fieldsByShape: new Map() }
+      taggedLanes.set(tag, lane)
+    }
+    return lane
   }
 
   return {
@@ -1056,6 +1082,38 @@ export function encodeLines({
       rowsSinceContinuation += 1
       bytesSinceContinuation += row.length
       return output
+    },
+
+    declareLane(tag, declaredFields) {
+      if (ended) {
+        throw toonlError(0, 'TOONL encoder is closed')
+      }
+      const names = normalizeHeaderFields(declaredFields)
+      const fieldText = headerFieldText(DOCUMENT_DELIMITER, names)
+      const lane = ensureTaggedLane(tag)
+      if (sameFields(lane.fields, names)) {
+        return ''
+      }
+      lane.fields = names
+      return taggedHeaderText(tag, fieldText)
+    },
+
+    pushTagged(tag, record) {
+      if (ended) {
+        throw toonlError(0, 'TOONL encoder is closed')
+      }
+      const lane = ensureTaggedLane(tag)
+      const next = canonicalFieldsForShape(recordFields(record), lane.fieldsByShape)
+      const fieldText = headerFieldText(DOCUMENT_DELIMITER, next)
+      const cells = next.map((field) => primitiveText(record[field], DOCUMENT_DELIMITER))
+      let output = ''
+
+      if (!sameFields(lane.fields, next)) {
+        lane.fields = next
+        output += taggedHeaderText(tag, fieldText)
+      }
+
+      return `${output}${tag}:${cells.join(DOCUMENT_DELIMITER)}\n`
     },
 
     end() {
