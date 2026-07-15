@@ -1,5 +1,49 @@
 # TOONL — Token-Oriented Object Notation, Lines
 
+**TL;DR:** TOONL is a line-oriented streaming format for appending flat records to logs, one per line, with a header that defines the schema. Segments can be closed deterministically into TOON v3.3 documents, and v0.2 adds resumable readers, header-preserving trimming, multi-schema multiplexing, and append-safe patterns. TOONL is to TOON what JSONL is to JSON.
+
+## Table of Contents
+
+- [Acknowledgment](#acknowledgment)
+- [Introduction](#introduction)
+- [Identity](#identity)
+- [Terminology](#terminology)
+- [Data Model](#data-model)
+- [Encoding](#encoding)
+- [Grammar](#grammar)
+- [Headers And Rotation](#headers-and-rotation)
+- [Trailers](#trailers)
+- [Close-Transform](#close-transform)
+- [Closure Properties (v0.2)](#closure-properties-v02)
+  - [Suffix-closure](#suffix-closure)
+  - [Concatenation closure](#concatenation-closure)
+  - [Header-on-open discipline](#header-on-open-discipline)
+- [R1 — Resumable Readers (v0.2)](#r1--resumable-readers-v02)
+  - [Cursor convention](#cursor-convention)
+  - [Resume guarantee](#resume-guarantee)
+  - [Invalidation conditions](#invalidation-conditions)
+  - [OPTIONAL continuation header](#optional-continuation-header)
+- [R2 — Header-Preserving Trim (v0.2)](#r2--header-preserving-trim-v02)
+  - [keep-last-N algorithm](#keep-last-n-algorithm)
+  - [Trailers under trimming](#trailers-under-trimming)
+  - [Atomic write](#atomic-write)
+  - [`tq trim --keep-last N` verb contract](#tq-trim---keep-last-n-verb-contract)
+- [R3 — Tagged-Row Multiplexing (v0.2)](#r3--tagged-row-multiplexing-v02)
+  - [Named schema declarations and tagged rows](#named-schema-declarations-and-tagged-rows)
+  - [Bounded live-schema table](#bounded-live-schema-table)
+  - [Redefinition is the rotation](#redefinition-is-the-rotation)
+  - [Untagged rows keep v0.1 semantics](#untagged-rows-keep-v01-semantics)
+  - [Canonical per-shape field order](#canonical-per-shape-field-order)
+  - [Close-transform for tagged streams](#close-transform-for-tagged-streams)
+  - [Interaction with the reserved `- ` prefix](#interaction-with-the-reserved----prefix)
+- [R4 — In-Place Splice Non-Goal And The Side-Journal Pattern (v0.2)](#r4--in-place-splice-non-goal-and-the-side-journal-pattern-v02)
+  - [Splice non-goal](#splice-non-goal)
+  - [The side-journal pattern (blessed retry / re-queue)](#the-side-journal-pattern-blessed-retry--re-queue)
+- [Versioning And Compatibility](#versioning-and-compatibility)
+  - [Structural version signaling](#structural-version-signaling)
+- [Relationship To TOON v3.3](#relationship-to-toon-v33)
+- [Conformance](#conformance)
+
 ## Acknowledgment
 
 TOONL stands on the shoulders of **TOON**, the Token-Oriented Object Notation
@@ -93,12 +137,46 @@ Each row in a segment represents one object. The segment header defines the
 object fields. Row cells are positional: cell 1 maps to field 1, cell 2 maps to
 field 2, and so on. A row MUST contain exactly one cell per field.
 
+**Concrete example:**
+
+```toonl
+[]{id,name,age}:
+1,alice,30
+2,bob,null
+3,"charlie smith",25
+```
+
+Here the header declares three fields: `id`, `name`, `age`. Each row has exactly 3 cells:
+- Row 1: `id=1`, `name=alice`, `age=30`
+- Row 2: `id=2`, `name=bob`, `age=null` (explicit `null`)
+- Row 3: `id=3`, `name="charlie smith"` (quoted field), `age=25`
+
 Null is explicit. Encoders MUST write `null` for a null field value. Encoders
 MUST NOT omit a cell to imply null.
+
+**Invalid example (MUST be rejected):**
+
+```toonl
+[]{id,name,age}:
+1,alice
+3,"charlie smith",25
+```
+
+> Row 1 has 2 cells but the header declares 3 fields. This is a malformed row and MUST be rejected. Cell omission cannot imply `null`.
 
 Nested values MAY be carried in one cell by encoding that cell as a TOON string
 containing JSON text. This is an escape hatch for values that are not flat
 records; it does not change the row arity rule.
+
+**Example with nested JSON:**
+
+```toonl
+[]{id,metadata}:
+1,"{\"tags\":[\"a\",\"b\"],\"color\":\"red\"}"
+2,"{\"tags\":[],\"color\":\"blue\"}"
+```
+
+The `metadata` field contains JSON text encoded as a TOON string. Each row still has exactly 2 cells.
 
 ## Encoding
 
@@ -109,14 +187,64 @@ tabular indentation while the stream is open. (Indentation is applied by the
 [close-transform](#close-transform) when a segment is materialized into a TOON
 document.)
 
+**Valid TOONL encoding (flush-left rows):**
+
+```toonl
+[]{id,msg}:
+1,hello
+2,world
+```
+
+**Invalid TOONL encoding (indented rows in open stream):**
+
+```toonl
+[]{id,msg}:
+  1,hello
+  2,world
+```
+
+> Rows MUST NOT be indented while the stream is open. Indentation is only applied by the close-transform.
+
 Blank lines MAY appear between segment constructs. Decoders MUST ignore blank
 lines. Encoders MUST NOT emit blank lines.
+
+**Valid TOONL with blank lines (decoders ignore them):**
+
+```toonl
+[]{id,msg}:
+1,hello
+
+2,world
+
+[=2]
+```
+
+The blank lines are ignored; the segment contains 2 rows.
 
 Comments do not exist in TOONL. A `#` character has no comment meaning and is
 cell data unless TOON cell quoting gives it another meaning.
 
+**Example where `#` is cell data:**
+
+```toonl
+[]{id,tag}:
+1,"#important"
+2,normal
+```
+
+The `#important` cell is quoted TOON string data, not a comment.
+
 Lines beginning with `- ` are **reserved** for a future nested-frame syntax. A
 decoder MUST reject any non-blank line whose first two bytes are `- `.
+
+**Invalid example (reserved prefix):**
+
+```toonl
+[]{id,msg}:
+- reserved for future use
+```
+
+> Any line starting with `- ` MUST be rejected as reserved.
 
 ## Grammar
 
@@ -150,9 +278,32 @@ tag         = 1*( ALPHA / DIGIT / "_" / "-" )
 An absent `delim-sym` selects comma. `|` selects pipe. HTAB selects tab. The
 active delimiter applies to the field list and every row in the segment.
 
+**Delimiter examples:**
+
+```toonl
+[]{a,b,c}:
+1,2,3
+
+[|]{a|b|c}:
+1|2|3
+
+[	]{a	b	c}:
+1	2	3
+```
+
 Field names and cell tokens MUST follow TOON v3.3 key, scalar, and cell quoting
 rules for the active delimiter. A cell containing the active delimiter MUST be
 quoted as TOON requires.
+
+**Example where cell requires quoting (contains the active delimiter):**
+
+```toonl
+[]{id,value}:
+1,"contains,comma"
+2,"normal"
+```
+
+The first row has a cell `"contains,comma"` which must be quoted because it contains the comma delimiter.
 
 Note that `delim-sym` deliberately does **not** include `~`; the `[~]`
 continuation header is a distinct production, and that exclusion is what makes a
@@ -170,15 +321,45 @@ The empty `[]` is intentional. Decoders MUST NOT accept `{field1,field2}:` as a
 TOONL header, because that shape can be silently misparsed by TOON decoders as an
 ordinary object key.
 
+**Valid header examples:**
+
+```toonl
+[]{ts,level,msg}:
+[|]{name|value}:
+[]	{a	b	c}:
+```
+
+**Invalid header examples (MUST be rejected):**
+
+```toonl
+{ts,level,msg}:
+[~]{ts,level,msg}:
+[]{ts level msg}:
+```
+
+> The first lacks the `[]` bracket syntax. The second uses `~` which is only valid as v0.2 continuation header syntax. The third lacks proper field delimiters.
+
 A new header starts a new segment (**schema rotation**). If a new header appears
 while a previous segment is open, the previous segment is closed without trailer
 verification, and the new header defines the next segment's schema.
+
+**Example of schema rotation:**
+
+```toonl
+[]{ts,event}:
+2026-07-14T03:00:00Z,start
+2026-07-14T03:00:01Z,ready
+[]{ts,event,duration_ms}:
+2026-07-14T03:00:02Z,complete,2000
+```
+
+The first segment has 2 rows with fields `ts` and `event`. The second header opens a new segment with 3 fields, rotating the schema. This is valid TOONL.
 
 ## Trailers
 
 A trailer has the form:
 
-```toonl
+```
 [=N]
 ```
 
@@ -186,9 +367,41 @@ A trailer has the form:
 present, a decoder MUST verify that `N` equals the segment row count and MUST
 reject the stream if it does not.
 
+**Valid trailer examples:**
+
+```toonl
+[]{ts,event}:
+2026-07-14T03:00:00Z,start
+2026-07-14T03:00:01Z,ready
+[=2]
+```
+
+The trailer `[=2]` verifies that exactly 2 rows follow the header.
+
+**Invalid trailer example (MUST be rejected):**
+
+```toonl
+[]{ts,event}:
+2026-07-14T03:00:00Z,start
+2026-07-14T03:00:01Z,ready
+[=3]
+```
+
+> The trailer claims 3 rows but only 2 follow the header. A compliant decoder rejects this.
+
 Clean-EOF emitters SHOULD write a trailer for the final segment. Interrupted,
 still-open append streams MAY end without a final trailer; consumers MUST treat
 that final segment as unverified.
+
+**Example of unverified open stream:**
+
+```toonl
+[]{ts,event}:
+2026-07-14T03:00:00Z,start
+2026-07-14T03:00:01Z,ready
+```
+
+This stream has no trailer. It is valid TOONL but unverified; a reader knows the segment may still receive more rows.
 
 ## Close-Transform
 
@@ -253,6 +466,26 @@ Informally: **any row-boundary suffix, re-prefixed with the header that was
 active there, is a valid stream equivalent to the tail it was cut from.** This is
 what makes trimming (R2) and resuming (R1) safe.
 
+**Example of suffix-closure:**
+
+Given this stream:
+
+```toonl
+[]{ts,level}:
+2026-07-14T03:00:00Z,info
+2026-07-14T03:00:01Z,error
+2026-07-14T03:00:02Z,info
+```
+
+If we cut at the row boundary before `2026-07-14T03:00:02Z,info` and re-prefix with the active header `[]{ts,level}:\n`, we get:
+
+```toonl
+[]{ts,level}:
+2026-07-14T03:00:02Z,info
+```
+
+This is a valid TOONL stream that decodes to exactly what the original stream produces from that boundary onward.
+
 Two constraints make suffix-closure well-defined:
 
 1. The cut MUST be at a row boundary. A suffix that begins in the middle of a
@@ -277,6 +510,35 @@ Concatenation closure is what makes `>>` append safe, makes multi-file
 concatenation (`cat a.toonl b.toonl`) a valid stream, and underpins the
 side-journal pattern (R4). Because every valid stream ends on a row boundary,
 concatenation is always byte-valid.
+
+**Example of concatenation closure:**
+
+Stream A:
+
+```toonl
+[]{id,name}:
+1,alice
+2,bob
+```
+
+Stream B:
+
+```toonl
+[]{id,name}:
+3,charlie
+```
+
+Concatenation `A || B` produces:
+
+```toonl
+[]{id,name}:
+1,alice
+2,bob
+[]{id,name}:
+3,charlie
+```
+
+This is a valid 2-segment TOONL stream with a schema rotation at the seam. The rows decode in order: `1,alice`, `2,bob`, `3,charlie`.
 
 ### Header-on-open discipline
 
@@ -349,6 +611,18 @@ A **resume cursor** is the triple:
   active, up to `byteOffset`. Used for diagnostics and to re-derive a trailer
   count if the reader also needs to close the resumed suffix.
 
+**Example cursor:**
+
+```json
+{
+  "byteOffset": 47,
+  "activeHeaderLine": "[]{ts,level}:\n",
+  "rowsSinceHeader": 2
+}
+```
+
+This cursor records that at byte offset 47 (a row boundary), the active header is `[]{ts,level}:\n`, and 2 rows have been consumed since that header became active.
+
 A reader MAY persist this cursor by any means (a sidecar file, a database column,
 a message-queue offset). The convention is the *shape* of the cursor and its
 guarantee, not a storage format.
@@ -378,11 +652,19 @@ the reader attempts to resume:
    re-read those bytes and compare; if they differ, the underlying stream was
    rewritten rather than only appended, and the cursor is invalid.
 
+**Examples of invalidation:**
+
+Cursor points to byte 47, but the file is now 30 bytes → **Truncation**, cursor invalid.
+
+Cursor records `activeHeaderLine = "[]{ts,level}:\n"` at offset 0, but re-reading the file shows `[]{ts,level,request_id}:\n` → **Anchor mismatch**, cursor invalid.
+
 A reader SHOULD store at least one anchor sufficient to detect rewrite-in-place
 (the two conditions catch shrink and mutate respectively). A cursor is valid only
 for a stream that has been **append-only** since the cursor was taken; any
 in-place rewrite invalidates it. This is consistent with R4 declaring in-place
 splice a non-goal.
+
+> **Caveat:** Appending rows to a file is always safe. Modifying or deleting existing rows invalidates all cursors into that stream.
 
 ### OPTIONAL continuation header
 
@@ -441,8 +723,8 @@ suffix drops the `[~]` line and yields:
 
 ```toon
 [2]{ts,seq}:
-  2026-07-14T03:00:03Z,4
-  2026-07-14T03:00:04Z,5
+  "2026-07-14T03:00:03Z",4
+  "2026-07-14T03:00:04Z",5
 ```
 
 ## R2 — Header-Preserving Trim (v0.2)
@@ -468,6 +750,32 @@ Given a valid TOONL stream `S` and a cap `N` (rows), produce a trimmed stream
    the retained byte suffix from the cut boundary to EOF. Per suffix-closure this
    is a valid stream carrying exactly the last `N` rows.
 6. **Apply the trailer rule** (below) to the retained suffix.
+
+**Example of keep-last-N:**
+
+Original stream with 5 rows, trim to keep-last-3:
+
+```toonl
+[]{ts,event}:
+1,a
+2,b
+3,c
+4,d
+5,e
+```
+
+Step 2: M=5, N=3, so cut before the 3rd row (before `3,c`). The cut is at the row boundary after `2,b`.
+
+Step 4: The active header at that boundary is `[]{ts,event}:\n`.
+
+Step 5: Emit `[]{ts,event}:\n` + suffix from after `2,b`:
+
+```toonl
+[]{ts,event}:
+3,c
+4,d
+5,e
+```
 
 The synthesized header is a **verbatim** copy of the active header line — the
 same bytes, same delimiter symbol — not a re-serialization. This preserves the
@@ -561,7 +869,7 @@ paying any cost when the stream has a single shape.
 
 A **named schema declaration** binds a short tag to a schema:
 
-```
+```toonl
 []<tag>{field1,field2}:
 ```
 
@@ -575,6 +883,18 @@ references a declared tag:
 A tagged row's cells bind positionally to the fields of the schema declared for
 `<tag>`, exactly as untagged rows bind to the anonymous schema.
 
+**Example of named schemas and tagged rows:**
+
+```toonl
+[]<user>{id,name}:
+[]<product>{sku,price}:
+user:1,alice
+product:ABC,50
+user:2,bob
+```
+
+The stream declares two named schemas: `user` and `product`. Rows prefixed with `user:` bind to the `user` schema (2 fields); rows prefixed with `product:` bind to the `product` schema (2 fields). This is valid TOONL with two interleaved record shapes.
+
 A tag MUST match the same character class (see [Grammar](#grammar)) in a
 declaration and in the rows that reference it. A `<tag>:` prefix on a row is
 distinguished from an anonymous row by the presence of a bare tag token followed
@@ -582,6 +902,15 @@ by `:` before the first cell; because anonymous rows are TOON cells and a leadin
 `tag:` would be TOON-quoted if it were data, an unquoted `tag:` prefix is
 unambiguous. A decoder MUST reject a tagged row whose tag has not been declared by
 an in-scope `[]<tag>{...}:` declaration.
+
+**Invalid example (tag used before declaration):**
+
+```toonl
+[]<user>{id,name}:
+product:ABC,50
+```
+
+> The row `product:ABC,50` references tag `product` which was never declared. This MUST be rejected.
 
 ### Bounded live-schema table
 
@@ -592,9 +921,29 @@ MUST reject a stream that declares a 9th distinct live tag beyond the supported
 bound rather than growing without limit. The anonymous schema does not count
 against the tagged-lane bound.
 
+**Example of hitting the bound:**
+
+A stream declares 9 distinct tags:
+
+```toonl
+[]<t1>{a}:
+[]<t2>{b}:
+[]<t3>{c}:
+[]<t4>{d}:
+[]<t5>{e}:
+[]<t6>{f}:
+[]<t7>{g}:
+[]<t8>{h}:
+[]<t9>{i}:
+```
+
+An implementation supporting the minimum bound of 8 live lanes MUST reject the 9th declaration `[]<t9>{i}:` as exceeding the limit.
+
 The bound is a robustness limit (a multiplexed stream with hundreds of live lanes
 is almost certainly a producer bug or an attack), not a target; producers SHOULD
 keep the number of live lanes small.
+
+> **Caveat:** Do not design systems that rely on redefining a lane to evict an old tag. Keep the number of distinct tags small.
 
 ### Redefinition is the rotation
 
@@ -604,6 +953,18 @@ schema. This is the tagged analogue of anonymous schema rotation. Redefinition
 does not free a lane; it replaces the schema in the existing lane slot, so it does
 not push the table over the bound.
 
+**Example of schema rotation in a lane:**
+
+```toonl
+[]<log>{ts,level}:
+log:2026-07-14T03:00:00Z,info
+log:2026-07-14T03:00:01Z,error
+[]<log>{ts,level,request_id}:
+log:2026-07-14T03:00:02Z,info,null
+```
+
+The tag `log` is redeclared with 3 fields instead of 2. Rows after the redeclaration bind to the new schema. This lane rotates its schema but remains a single lane in the table.
+
 ### Untagged rows keep v0.1 semantics
 
 An **untagged row** binds to the sole **anonymous** schema — the schema most
@@ -612,6 +973,28 @@ stream that never uses a tagged declaration or a tagged row is a v0.1 stream and
 behaves identically. **Single-shape streams pay nothing**: no tag byte, no lane,
 no table growth. The anonymous schema and tagged lanes coexist: a stream MAY
 interleave untagged rows with tagged rows.
+
+**Example: v0.1 stream (no tags, backward compatible):**
+
+```toonl
+[]{id,name}:
+1,alice
+2,bob
+```
+
+This is a valid v0.1 stream. v0.2 readers accept it identically.
+
+**Example: mixed untagged and tagged rows:**
+
+```toonl
+[]{event}:
+[]<error>{code,message}:
+started
+error:500,"server error"
+finished
+```
+
+The stream has an anonymous schema `[]{event}:` and a named schema `error`. Untagged rows `started` and `finished` bind to the anonymous schema. The tagged row `error:500,"server error"` binds to the `error` schema.
 
 ### Canonical per-shape field order
 
@@ -624,9 +1007,32 @@ reorder a shape's fields arbitrarily between declarations of the same shape.
 Decoders do not require canonical order to parse (fields bind positionally), but
 the requirement makes encoder output stable.
 
+**Valid example (consistent sorted order):**
+
+```toonl
+[]<user>{age,id,name}:
+[]<product>{price,sku}:
+user:30,1,alice
+product:50,ABC
+user:25,2,bob
+[]<user>{age,id,name}:
+user:29,3,charlie
+```
+
+Each time `user` is redeclared, the fields are in alphabetical order: `age,id,name`. Each time `product` is redeclared, the fields are in sorted order: `price,sku`.
+
+**Invalid example (inconsistent order):**
+
+```toonl
+[]<user>{id,name}:
+[]<user>{name,id}:
+```
+
+> The `user` shape is redeclared with fields reordered. This violates the canonical order requirement and MUST be rejected or treated as a redefinition (schema rotation) per the implementation.
+
 ### Close-transform for tagged streams
 
-The close-transform for a multiplexed stream has two defined forms.
+The close-transform for a multiplexed stream has two defined forms. A tool MUST document which form it emits; the per-lane form is the default when unspecified.
 
 **Per-lane form (default).** Produce **one TOON document per lane**, in the order
 each lane's schema was first declared in the stream. The anonymous schema, if any
@@ -635,13 +1041,65 @@ Each lane closes exactly as a v0.1 segment closes. A lane that rotated schema
 mid-stream closes to multiple TOON documents for that lane, one per schema epoch,
 in stream order.
 
+**Example — per-lane close:**
+
+Given this stream:
+
+```toonl
+[]<req>{method,path}:
+[]<metric>{name}:
+req:GET,/health
+metric:cpu
+req:POST,/login
+metric:mem
+```
+
+Per-lane close produces two TOON documents (one per lane, in declaration order):
+
+```toon
+[2]{method,path}:
+  GET,/health
+  POST,/login
+```
+
+```toon
+[2]{name}:
+  cpu
+  mem
+```
+
 **Interleave-preserving form (variant).** Produce a single sequence that
 preserves the original interleaving of rows across lanes, for consumers that need
 to reconstruct the exact temporal order. It is defined as: for each maximal run of
 consecutive rows that share a lane, emit one TOON document for that run (header
 from the run's schema, count = run length, rows indented). Runs appear in stream
-order. A tool MUST document which form it emits; the per-lane form is the default
-when unspecified.
+order.
+
+**Example — interleave-preserving close:**
+
+Using the same stream, interleave-preserving close produces four TOON documents (one per maximal run):
+
+```toon
+[1]{method,path}:
+  GET,/health
+```
+
+```toon
+[1]{name}:
+  cpu
+```
+
+```toon
+[1]{method,path}:
+  POST,/login
+```
+
+```toon
+[1]{name}:
+  mem
+```
+
+> **Caveat:** Document which close-form your tool uses. Consumers expect one of the two forms; an undocumented mix will cause data misinterpretation.
 
 #### Worked example — tagged multiplexing
 
@@ -716,6 +1174,28 @@ bytes are `- `. Tags MUST NOT begin with `- `, and the tag character class
 excludes the space that would make a `- ` prefix, so tagged rows never collide
 with the reservation.
 
+**Example of reserved prefix collision (MUST be rejected):**
+
+```toonl
+[]{id,msg}:
+1,hello
+- nested frame (reserved, not allowed)
+2,world
+```
+
+> The line `- nested frame (reserved, not allowed)` starts with `- ` and MUST be rejected.
+
+**Valid tagged row examples (no collision with reservation):**
+
+```toonl
+[]<req>{method}:
+req:GET
+req-pending:POST
+req_retry:DELETE
+```
+
+Tags like `req`, `req-pending`, and `req_retry` do not start with `- ` and are valid.
+
 ## R4 — In-Place Splice Non-Goal And The Side-Journal Pattern (v0.2)
 
 ### Splice non-goal
@@ -738,9 +1218,32 @@ Rationale:
   property JSONL-style logs deliberately give up in exchange for cheap append,
   tail, and concatenation.
 
+**Example of what NOT to do (in-place mutation):**
+
+```toonl
+[]{id,status}:
+1,pending
+2,pending
+3,completed
+```
+
+Do NOT modify the file to change the second row to `2,completed`. This breaks cursors and trailers. Instead, append a correction record.
+
 Consumers that need to "change" a row MUST express it as a new appended row (a
 correction record) plus application-level last-writer-wins semantics, or MUST
 rebuild the stream from a source of truth — not by editing bytes in place.
+
+**Correct approach: append a correction record:**
+
+```toonl
+[]{id,status}:
+1,pending
+2,pending
+3,completed
+2,completed
+```
+
+A consumer with last-writer-wins semantics will treat the second `2,completed` as the authoritative state for id `2`.
 
 ### The side-journal pattern (blessed retry / re-queue)
 
@@ -762,8 +1265,43 @@ that carries the retries, drained ahead of the main stream.
   to from a reopened producer, safe to concatenate, and safe to trim (R2) and
   resume (R1) exactly like a main stream.
 
+**Step-by-step example of the side-journal pattern:**
+
+1. Main stream `jobs.toonl` starts:
+
+```toonl
+[]{id,task}:
+1,encode
+2,upload
+```
+
+2. Consumer processes job 1 (success), then job 2 (fails). It re-queues job 2 to `jobs.toonl.retry`:
+
+```toonl
+[]{id,task}:
+2,upload
+```
+
+3. Consumer's effective input is the logical concatenation `jobs.toonl.retry || jobs.toonl`:
+
+```toonl
+[]{id,task}:
+2,upload
+[]{id,task}:
+1,encode
+2,upload
+```
+
+4. This closes to the row sequence: `2,upload` (from retry), then `1,encode`, `2,upload` (from main).
+
+5. Consumer applies last-writer-wins deduplication: job `2` appears twice; the final state is `upload`. Job `1` succeeds once.
+
+6. To clear the retry journal after all retries succeed, truncate or delete `jobs.toonl.retry`.
+
 This pattern rests entirely on **concatenation closure + header-on-open**: no new
 wire syntax is required, and no interior mutation ever occurs.
+
+> **Caveat:** The side-journal pattern requires application-level deduplication (e.g. idempotency keys or last-writer-wins). TOONL does not provide automatic dedup; it is the consumer's responsibility.
 
 #### Worked example — side journal
 
@@ -804,6 +1342,16 @@ text for both. The compatibility contract is:
 1. **v0.2 readers MUST accept v0.1 streams unchanged.** A stream that uses only
    v0.1 constructs decodes identically under a v0.2 reader; v0.2 changes no v0.1
    semantics.
+
+**Example of v0.1 stream (accepted by v0.2 unchanged):**
+
+```toonl
+[]{id,name}:
+1,alice
+2,bob
+[=2]
+```
+
 2. **v0.1 decoders MUST cleanly reject v0.2-only constructs.** The v0.2-only
    constructs are the continuation header `[~]{...}:`, named schema declarations
    `[]<tag>{...}:`, and tagged rows `<tag>:...`. A v0.1 decoder MUST reject each
@@ -818,6 +1366,24 @@ text for both. The compatibility contract is:
      as a malformed row. Producers MUST NOT rely on a v0.1 reader interpreting a
      tagged row as anything meaningful; v0.2-only streams are for v0.2 readers.
 
+**Examples of v0.2-only constructs (MUST be rejected by v0.1 decoders):**
+
+Continuation header (v0.2 R1):
+
+```toonl
+[]{ts,event}:
+2026-07-14T03:00:00Z,start
+[~]{ts,event}:
+2026-07-14T03:00:01Z,ready
+```
+
+Named schema and tagged row (v0.2 R3):
+
+```toonl
+[]<user>{id,name}:
+user:1,alice
+```
+
 ### Structural version signaling
 
 A TOONL stream signals that it requires a v0.2 reader **structurally, by using a
@@ -825,6 +1391,27 @@ v0.2-only construct** — a continuation header, a named schema declaration, or 
 tagged row. There is no version banner line and none is required: a stream that
 uses no v0.2-only construct is, by definition, a v0.1 stream and is readable by
 v0.1 and v0.2 readers alike.
+
+**Example of structural v0.2 signal:**
+
+This stream requires a v0.2 reader because it uses a named schema declaration:
+
+```toonl
+[]<error>{code,message}:
+error:500,"internal error"
+```
+
+A v0.1 decoder will reject `[]<error>{code,message}:` as malformed header.
+
+This stream is v0.1-compatible (no v0.2-only constructs):
+
+```toonl
+[]{id,name}:
+1,alice
+[=1]
+```
+
+Both v0.1 and v0.2 decoders accept it identically.
 
 Producers that want an explicit, human-visible signal MAY document the v0.2
 requirement out of band (file naming convention, catalog metadata, or the media

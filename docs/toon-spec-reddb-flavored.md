@@ -1,5 +1,7 @@
 # TOON — reddb-io Flavored Specification
 
+**tl;dr.** This document specifies three opt-in extensions (nested tabular headers, keyed-map collapse, delimiter choice) and robustness features (depth guard, `detectTruncation` API) that reddb-io layers over TOON v3.3. All extensions decode always-on and fail closed, so output remains canonical TOON v3.3 by default. We thank the [toon-format](https://github.com/toon-format/spec) team and author Johann Schopplich for a standard clean enough to extend safely.
+
 ## Acknowledgment
 
 This document records the decisions and proposed evolutions that reddb-io layers
@@ -28,6 +30,23 @@ streaming layer, see [`toonl.md`](toonl.md).
 
 The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT,
 RECOMMENDED, MAY, and OPTIONAL are to be interpreted as described in RFC 2119.
+
+## Table of Contents
+
+- [Baseline: the official TOON specification](#baseline-the-official-toon-specification)
+- [The extension model](#the-extension-model)
+  - [Enabling emission, per surface](#enabling-emission-per-surface)
+- [Extension 1 — Nested tabular headers](#extension-1--nested-tabular-headers)
+- [Extension 2 — Keyed-map collapse](#extension-2--keyed-map-collapse)
+  - [The entry-count guardrail and its trade-off](#the-entry-count-guardrail-and-its-trade-off)
+- [Delimiter choice](#delimiter-choice)
+- [Depth guard](#depth-guard)
+- [detectTruncation — structured completeness reports](#detecttruncation--structured-completeness-reports)
+- [The wire-efficiency program](#the-wire-efficiency-program)
+  - [TOON vs JSON — a uniform table](#toon-vs-json--a-uniform-table)
+  - [TOONL vs JSONL — at stream scale](#toonl-vs-jsonl--at-stream-scale)
+- [Relationship to the streaming layer](#relationship-to-the-streaming-layer)
+- [Conformance](#conformance)
 
 ## Baseline: the official TOON specification
 
@@ -88,6 +107,8 @@ This extension lets a column itself be a uniform nested object, declared
 recursively in the header as `field{sub1,sub2}`. Rows stay flat
 delimiter-separated lines; the header alone encodes the nested shape.
 
+**Example — nested tabular headers (v3.3-equivalent expanded form below):**
+
 ```toon
 orders[2]{id,customer{name,country},total}:
   1,Ada,UK,10.5
@@ -101,6 +122,22 @@ decodes exactly as the v3.3 expanded form of:
   {"id": 1, "customer": {"name": "Ada", "country": "UK"}, "total": 10.5},
   {"id": 2, "customer": {"name": "Bob", "country": "US"}, "total": 20}
 ]}
+```
+
+**V3.3-compatible expanded form (no extension):**
+
+```toon
+orders[2]:
+  - id: 1
+    customer:
+      name: Ada
+      country: UK
+    total: 10.5
+  - id: 2
+    customer:
+      name: Bob
+      country: US
+    total: 20
 ```
 
 Rules:
@@ -125,6 +162,8 @@ uniform values do not, so every field name repeats once per entry. This extensio
 gives uniform maps the same treatment, reusing the recursive-brace header grammar
 — no new sigil family:
 
+**Example — keyed-map collapse:**
+
 ```toon
 people{first,last}:
   joe: Joe,Schmoe
@@ -139,6 +178,32 @@ decodes to an object map (not an array):
   "mary": {"first": "Mary", "last": "Jane"}
 }}
 ```
+
+**V3.3-compatible expanded form (no extension):**
+
+```toon
+people:
+  joe:
+    first: Joe
+    last: Schmoe
+  mary:
+    first: Mary
+    last: Jane
+```
+
+**Example — single-entry map (not collapsed, below guardrail):**
+
+```toon
+config:
+  timeout: 30
+  retries: 3
+```
+
+```json
+{"config": {"timeout": 30, "retries": 3}}
+```
+
+> **Note:** A single-entry map stays in ordinary v3.3 form even with the extension enabled, because the entry-count guardrail requires ≥2 entries for collapse eligibility.
 
 Rules:
 
@@ -193,6 +258,55 @@ and *when to reach for a non-default*:
 - **Pipe** is offered for human-facing tables and for payloads whose cells contain
   neither pipes nor commas uniformly.
 
+**Example — comma-delimited (default):**
+
+```toon
+items[2]{id,description}:
+  1,pen
+  2,"eraser, pink"
+```
+
+```json
+{"items": [{"id": 1, "description": "pen"}, {"id": 2, "description": "eraser, pink"}]}
+```
+
+**Example — tab-delimited (cells with commas unquoted):**
+
+```toon
+data[2	]{value	note}:
+  100	item, qty 5
+  200	item, qty 3
+```
+
+```json
+{"data": [{"value": 100, "note": "item, qty 5"}, {"value": 200, "note": "item, qty 3"}]}
+```
+
+**Example — pipe-delimited (human-readable tables):**
+
+```toon
+users[2|]{name|status}:
+  Alice|active
+  Bob|inactive
+```
+
+```json
+{"users": [{"name": "Alice", "status": "active"}, {"name": "Bob", "status": "inactive"}]}
+```
+
+**Example — nested headers with different delimiters:**
+
+Nested comma-delimited:
+
+```toon
+items[1]{id,config}:
+  1,"a,b"
+```
+
+```json
+{"items": [{"id": 1, "config": "a,b"}]}
+```
+
 The flavor keeps the spec's rule that **absence of a delimiter symbol always means
 comma**, with no inheritance from a parent header, so a nested header's delimiter
 is always locally legible. Delimiter selection never changes the decoded value;
@@ -216,6 +330,27 @@ guard** as a robustness measure that does not change any decoded value.
   (`try_to_canonical_toon()` / `try_to_toon_with_options(...)` in Rust) when
   encoding untrusted or user-supplied values, so a depth failure returns an
   `EncodeError` instead of overflowing.
+
+**Example — deeply nested structure (within default limit of 1000):**
+
+```toon
+a:
+  b:
+    c:
+      value: 42
+```
+
+```json
+{"a": {"b": {"c": {"value": 42}}}}
+```
+
+**Example — depth violation (default max_depth=1000 exceeded):**
+
+A pathologically deep document nesting 1001+ levels is rejected:
+
+```
+error: maximum nesting depth (1000) exceeded
+```
 
 The guard is a defense-in-depth default, not a format change: a document within
 the limit decodes identically whether or not the guard is present, and the limit
