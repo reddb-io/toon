@@ -31,6 +31,7 @@ serialize(document)
 - `serialize(value, { delimiter: '|' | '\t' })` — select pipe or tab as the active delimiter for array and tabular headers; comma remains the default.
 - `serialize(value, { keyedMapCollapse: true })` — opt into keyed-map collapse for uniform object maps. The encoder emits `map{fields}:` only for deterministic uniform maps: at least two entries, every value is a non-empty object, all entries share the first entry's key set, and all header leaves are primitive unless `nestedTabularHeaders` is also enabled. Non-uniform maps fall back to ordinary object form.
 - `serialize(value, { primitiveArrayColumns: true })` — opt into primitive-list table fields such as `tags[;]`; ineligible values fall back to ordinary TOON v3.3.
+- `serialize(value, { cyclicDiscriminatedArrays: true })` — opt into the cyclic discriminated-array wire for top-level arrays whose `type`, `kind`, or `event` labels repeat in a stable cycle. Ineligible values fall back to ordinary TOON v3.3.
 
 Failures throw a `ToonError` carrying the 1-based source `line`.
 
