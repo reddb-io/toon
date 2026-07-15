@@ -6,11 +6,11 @@ use std::process::{self, ExitCode};
 
 use reddb_io_toon::{
     close_transform_stream, close_transform_stream_interleaved, encode_toonl_values, Array,
-    ToonlReader, Value,
+    EncodeOptions, ToonlReader, Value,
 };
 
 const USAGE: &str =
-    "usage: tq [-p toon|json|toonl] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] <query> [file]";
+    "usage: tq [-p toon|json|toonl] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--nested-tabular-headers] <query> [file]";
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
 const CLOSE_USAGE: &str = "usage: tq close [--per-lane|--interleaved] [FILE]";
 
@@ -30,6 +30,7 @@ struct Options {
     raw_output: bool,
     compact: bool,
     slurp: bool,
+    nested_tabular_headers: bool,
 }
 
 #[derive(Debug)]
@@ -176,6 +177,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut raw_output = false;
     let mut compact = false;
     let mut slurp = false;
+    let mut nested_tabular_headers = false;
     let mut positional = Vec::new();
     let mut args = args.peekable();
 
@@ -192,6 +194,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
             "-r" => raw_output = true,
             "-c" => compact = true,
             "-s" | "--slurp" => slurp = true,
+            "--nested-tabular-headers" => nested_tabular_headers = true,
             "--" => {
                 positional.extend(args);
                 break;
@@ -217,6 +220,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         raw_output,
         compact,
         slurp,
+        nested_tabular_headers,
     })
 }
 
@@ -1845,7 +1849,9 @@ fn format_values(values: &[Value], options: &Options) -> Result<String, String> 
                 output.push('\n');
             }
             Format::Toon => {
-                output.push_str(&value.to_canonical_toon());
+                output.push_str(&value.to_toon_with_options(EncodeOptions {
+                    nested_tabular_headers: options.nested_tabular_headers,
+                }));
                 if !output.ends_with('\n') {
                     output.push('\n');
                 }
