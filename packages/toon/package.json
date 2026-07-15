@@ -23,7 +23,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test test/toon.test.mjs test/toonl.test.mjs test/conformance.test.mjs test/json-limits.test.mjs test/readme-examples.test.mjs test/helpers.test.mjs"
+    "test": "node --test test/toon.test.mjs test/toonl.test.mjs test/conformance.test.mjs test/json-limits.test.mjs test/wire-efficiency.test.mjs test/readme-examples.test.mjs test/helpers.test.mjs"
   },
   "engines": {
     "node": ">=18"

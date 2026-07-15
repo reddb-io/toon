@@ -8,6 +8,8 @@
     "node": ">=18"
   },
   "scripts": {
+    "wire:corpora": "node scripts/generate_wire_efficiency_corpora.mjs",
+    "wire:tokens": "node scripts/wire_efficiency_token_report.mjs",
     "test": "pnpm -r test",
     "lint": "pnpm -r --if-present lint"
   },

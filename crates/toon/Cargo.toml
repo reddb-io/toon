@@ -20,6 +20,10 @@ name = "json_limits"
 path = "../../tests/toon/json_limits.rs"
 
 [[test]]
+name = "wire_efficiency"
+path = "../../tests/toon/wire_efficiency.rs"
+
+[[test]]
 name = "api"
 path = "../../tests/toon/api.rs"
 
