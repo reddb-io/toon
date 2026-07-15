@@ -41,6 +41,34 @@ test('parses tabular arrays and serializes canonical TOON', () => {
   )
 })
 
+test('parses nested tabular headers', () => {
+  const document = parse(
+    'orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n',
+  )
+
+  assert.deepEqual(document, {
+    orders: [
+      { id: 1, customer: { name: 'Ada', country: 'UK' }, total: 10.5 },
+      { id: 2, customer: { name: 'Bob', country: 'US' }, total: 20 },
+    ],
+  })
+})
+
+test('nested tabular headers validate leaf arity and shape', () => {
+  assert.throws(
+    () => parse('orders[1]{id,customer{name,country}}:\n  1,Ada\n'),
+    (error) => error.line === 2 && /array row length mismatch/.test(error.message),
+  )
+  assert.throws(() => parse('orders[1]{id,customer{}}:\n  1\n'), /invalid array header/)
+  assert.throws(
+    () => parse('orders[1]{customer{name},customer{name}}:\n  Ada,Bob\n'),
+    /duplicate key/,
+  )
+  assert.throws(() => parse('orders[1]{id,customer{name,country}:\n  1,Ada,UK\n'), {
+    message: /invalid array header/,
+  })
+})
+
 test('parses inline list arrays', () => {
   assert.deepEqual(parse('tags[3]: admin,ops,dev\n'), { tags: ['admin', 'ops', 'dev'] })
   assert.equal(serialize({ tags: ['admin', 'ops', 'dev'] }), 'tags[3]: admin,ops,dev\n')
