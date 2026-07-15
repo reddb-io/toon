@@ -38,6 +38,8 @@ export interface SerializeOptions {
   keyedMapCollapse?: boolean
   /** Emit primitive-array columns inside otherwise tabular object arrays. */
   primitiveArrayColumns?: boolean
+  /** Emit child tables for array-valued columns inside tabular object arrays. */
+  objectArrayColumns?: boolean
   /** Active delimiter for array and tabular rows. Default `','`. */
   delimiter?: ToonDelimiter
   /** Maximum nesting depth. Default `1000`; `0` disables the guard for trusted input. */
