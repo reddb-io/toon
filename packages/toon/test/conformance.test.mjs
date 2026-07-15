@@ -96,6 +96,7 @@ function encoderOptions(options) {
   return {
     nestedTabularHeaders: options.nestedTabularHeaders === true,
     keyedMapCollapse: options.keyedMapCollapse === true,
+    delimiter: options.delimiter,
   }
 }
 
