@@ -2,6 +2,7 @@
 //! handling, diagnostics, and output modes jq has no opinion about.
 
 use std::io::{self, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -60,6 +61,9 @@ fn jq_oracle_builtins_arithmetic_and_ordering() {
         ".meta|to_entries|from_entries",
         // paths, slices, iteration
         ".users[0:1]|map(.name)",
+        // A slice with an omitted bound reaches all the way to that edge.
+        ".tags[:2]",
+        ".tags[2:]",
         ".users[]|.name",
         "[.users[]|.score]|add",
         ".users|map(select(.score > 10))|length",
@@ -108,6 +112,11 @@ fn jq_oracle_orders_mixed_types_and_containers() {
             r#"[{"n":1,"k":[2]},{"n":2,"k":[1]}]"#,
         ),
         ("group_by(.k)|map(length)", r#"[{"k":1},{"k":1},{"k":2}]"#),
+        // Two booleans of the same rank compare by value, not just by rank.
+        (
+            "sort_by(.k)|map(.k)",
+            r#"[{"k":true},{"k":false},{"k":true}]"#,
+        ),
     ];
 
     for (filter, input) in cases {
@@ -255,6 +264,180 @@ fn reports_argument_and_input_errors() {
     // Malformed input in either format.
     assert_error(&["-p", "json", "."], "{not json", "key must be a string");
     assert_error(&["."], "a: 1\n  b: 2\n", "invalid indentation");
+}
+
+#[test]
+fn reports_trim_and_close_argument_errors() {
+    let trim_usage = "usage: tq trim --keep-last N";
+    let close_usage = "usage: tq close";
+
+    // Too many positionals, and `--in-place` with no file to write back to.
+    assert_error(&["trim", "--keep-last", "1", "a", "b"], "", trim_usage);
+    assert_error(
+        &["trim", "--keep-last", "1", "--in-place"],
+        "[]{a}:\n1\n[=1]\n",
+        "--in-place requires FILE",
+    );
+    // An unknown flag is rejected the same way as for the query subcommand.
+    assert_error(&["close", "--bogus"], "", close_usage);
+    assert_error(&["close", "a", "b"], "", close_usage);
+    // A close target that cannot be read.
+    assert_error(
+        &["close", "/nonexistent/tq-close-input.toonl"],
+        "",
+        "No such file or directory",
+    );
+}
+
+#[test]
+fn trim_and_close_read_the_query_after_a_double_dash() {
+    let path = temp_file("tq-trim-close-dashdash.toonl");
+    std::fs::write(&path, "[]{id,name}:\n1,Ada\n[=1]\n").expect("write toonl input");
+
+    // `--` still ends flag parsing for the trim and close subcommands, the
+    // same way it does for the default query mode.
+    let trimmed = run_tq(
+        &["trim", "--keep-last", "1", "--", path.to_str().unwrap()],
+        "",
+    );
+    assert_eq!(
+        trimmed.status.code(),
+        Some(0),
+        "trim after -- exits cleanly"
+    );
+    assert_eq!(
+        String::from_utf8(trimmed.stdout).expect("stdout is utf-8"),
+        "[]{id,name}:\n1,Ada\n[=1]\n"
+    );
+
+    let closed = run_tq(&["close", "--", path.to_str().unwrap()], "");
+    assert_eq!(
+        closed.status.code(),
+        Some(0),
+        "close after -- exits cleanly"
+    );
+    assert_eq!(
+        String::from_utf8(closed.stdout).expect("stdout is utf-8"),
+        "[1]{id,name}:\n  1,Ada\n"
+    );
+
+    std::fs::remove_file(&path).expect("remove toonl input");
+}
+
+#[test]
+fn trims_toonl_across_blank_lines_colon_led_rows_and_tagged_schema_rotation() {
+    // A blank line between rows is ignored while scanning trim units, the
+    // same way the TOONL reader ignores it.
+    let blank = run_tq(&["trim", "--keep-last", "1"], "[]{a}:\n1\n\n2\n[=2]\n");
+    assert_eq!(
+        blank.status.code(),
+        Some(0),
+        "blank-line trim exits cleanly"
+    );
+    assert_eq!(
+        String::from_utf8(blank.stdout).expect("stdout is utf-8"),
+        "[]{a}:\n2\n[=1]\n"
+    );
+
+    // A row whose cell text happens to start with `:` is not mistaken for a
+    // tagged-row prefix while scanning.
+    let colon_led = run_tq(&["trim", "--keep-last", "1"], "[]{a}:\n:x\n2\n[=2]\n");
+    assert_eq!(
+        colon_led.status.code(),
+        Some(0),
+        "colon-led row trim exits cleanly"
+    );
+    assert_eq!(
+        String::from_utf8(colon_led.stdout).expect("stdout is utf-8"),
+        "[]{a}:\n2\n[=1]\n"
+    );
+
+    // A tagged lane re-declared with a new schema mid-stream updates the
+    // live header tq tracks for that tag, rather than appending a second one.
+    let rotated = run_tq(
+        &["trim", "--keep-last", "1"],
+        "[]<req>{a}:\nreq:1\n[]<req>{a,b}:\nreq:2,x\n",
+    );
+    assert_eq!(
+        rotated.status.code(),
+        Some(0),
+        "tagged schema rotation trim exits cleanly: {}",
+        String::from_utf8_lossy(&rotated.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(rotated.stdout).expect("stdout is utf-8"),
+        "[]<req>{a,b}:\nreq:2,x\n"
+    );
+}
+
+#[test]
+fn trims_toonl_regenerates_a_missing_trailing_newline_on_retained_headers() {
+    // The last header in the file has no trailing newline (a malformed but
+    // tolerated input); `--keep-last 0` retains only the live headers, and
+    // writing one back out has to add the newline `line_with_lf` owns.
+    let path = temp_file("tq-trim-no-trailing-newline.toonl");
+    std::fs::write(&path, "[]{a}:\n1\n2\n[]{a,b}:").expect("write toonl input");
+
+    let output = run_tq(&["trim", "--keep-last", "0", path.to_str().unwrap()], "");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "trim exits cleanly: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout is utf-8"),
+        "[]{a,b}:\n"
+    );
+
+    std::fs::remove_file(&path).expect("remove toonl input");
+}
+
+#[test]
+fn trims_toonl_in_place_reports_the_underlying_filesystem_error() {
+    // When the temp-then-rename write itself fails for a reason other than a
+    // name collision (here, a read-only parent directory), the atomic writer
+    // surfaces the OS error instead of retrying.
+    let dir = std::env::temp_dir().join(format!("tq-trim-readonly-dir.{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("create scratch dir");
+    let path = dir.join("data.toonl");
+    std::fs::write(&path, "[]{id,name}:\n1,Ada\n2,Bob\n[=2]\n").expect("write toonl input");
+
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555))
+        .expect("make directory read-only");
+
+    // Root ignores directory write permissions, so this guard keeps the test
+    // meaningful when it runs as root instead of failing for the wrong reason.
+    let probe = dir.join(".tq-trim-write-probe");
+    let root_bypasses_permissions = std::fs::write(&probe, b"x").is_ok();
+    let _ = std::fs::remove_file(&probe);
+
+    if !root_bypasses_permissions {
+        let output = run_tq(
+            &[
+                "trim",
+                "--keep-last",
+                "1",
+                "--in-place",
+                path.to_str().unwrap(),
+            ],
+            "",
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "in-place trim into a read-only directory fails"
+        );
+        let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+        assert!(
+            stderr.contains("Permission denied") || stderr.contains("permission denied"),
+            "reports the filesystem error: {stderr}"
+        );
+    }
+
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755))
+        .expect("restore directory permissions");
+    std::fs::remove_dir_all(&dir).expect("remove scratch dir");
 }
 
 #[test]
@@ -774,6 +957,9 @@ fn reports_the_remaining_evaluator_and_parser_errors() {
         ("{1:2}", "{}", "expected object key"),
         ("map(.", "{}", "expected `RParen`"),
         (". as $x", "{}", "unsupported character `$`"),
+        // A lone `=` or `!` that is not doubled up is an unfinished operator.
+        (".a=1", "{}", "expected `=`"),
+        (".a!1", "{}", "expected `=`"),
     ];
 
     for (filter, input, message) in cases {

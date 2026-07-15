@@ -461,12 +461,8 @@ fn is_toonl_trailer(line: &str) -> bool {
 }
 
 fn parse_toonl_trim_header(line: &str) -> Option<TrimHeader> {
-    let Some(rest) = line.strip_prefix('[') else {
-        return None;
-    };
-    let Some(close_bracket) = rest.find(']') else {
-        return None;
-    };
+    let rest = line.strip_prefix('[')?;
+    let close_bracket = rest.find(']')?;
     let bracket = &rest[..close_bracket];
     let continuation = bracket.starts_with('~');
     let delimiter = if continuation { &bracket[1..] } else { bracket };

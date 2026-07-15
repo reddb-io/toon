@@ -1,10 +1,13 @@
 //! Library surface: the decoder options, the value accessors, and the corners of
 //! the encoder and the error paths that the spec corpus does not reach on its own.
 
+use std::io::{self, Read, Write};
+
 use reddb_io_toon::{
     close_transform_stream, close_transform_stream_interleaved, encode_toonl_values,
     jsonl_to_toonl, toonl_to_jsonl, Array, Document, ParseOptions, ToonlCursor,
-    ToonlCursorInvalidation, ToonlEncoder, ToonlReader, ToonlResumeError, ToonlWriter, Value,
+    ToonlCursorInvalidation, ToonlEncoder, ToonlReader, ToonlResumeError, ToonlStream, ToonlWriter,
+    Value,
 };
 use serde_json::json;
 
@@ -24,6 +27,38 @@ fn json_of(input: &str) -> serde_json::Value {
 
 fn lines(input: &[u8]) -> std::io::Cursor<&[u8]> {
     std::io::Cursor::new(input)
+}
+
+/// A reader that always fails, so read-error propagation paths can be
+/// exercised without depending on real I/O failures.
+struct FailingReader;
+
+impl Read for FailingReader {
+    fn read(&mut self, _buffer: &mut [u8]) -> io::Result<usize> {
+        Err(io::Error::other("simulated read failure"))
+    }
+}
+
+impl std::io::BufRead for FailingReader {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        Err(io::Error::other("simulated read failure"))
+    }
+
+    fn consume(&mut self, _amount: usize) {}
+}
+
+/// A writer that always fails, so write-error propagation paths can be
+/// exercised without depending on real I/O failures.
+struct FailingWriter;
+
+impl Write for FailingWriter {
+    fn write(&mut self, _buffer: &[u8]) -> io::Result<usize> {
+        Err(io::Error::other("simulated write failure"))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Err(io::Error::other("simulated write failure"))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -508,6 +543,512 @@ fn close_transform_interleaved_keeps_anonymous_streams_byte_identical() {
     assert_eq!(interleaved, documents);
 }
 
+#[test]
+fn toonl_error_exposes_the_line_and_message_it_was_built_from() {
+    // A cell that fails scalar validation routes through
+    // `ToonlError::from_parse_error`, so the accessors surface the wrapped
+    // `ParseError`'s line and message rather than a generic one.
+    let input = b"[]{a}:\n\"open\n";
+    let failure = ToonlReader::new(lines(input))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("an unterminated quote is rejected");
+
+    assert_eq!(failure.line(), 2);
+    assert_eq!(failure.message(), "invalid quoted string");
+    assert_eq!(failure.to_string(), "line 2: invalid quoted string");
+}
+
+#[test]
+fn cursor_invalidation_and_resume_error_render_distinct_messages() {
+    assert_eq!(
+        ToonlCursorInvalidation::Truncated {
+            byte_offset: 5,
+            file_size: 2
+        }
+        .to_string(),
+        "TOONL cursor invalidated by truncation"
+    );
+    assert_eq!(
+        ToonlCursorInvalidation::AnchorMismatch { byte_offset: 5 }.to_string(),
+        "TOONL cursor invalidated by anchor mismatch"
+    );
+
+    let input = b"[]{id,name}:\n1,Ada\n[=1]\n";
+
+    // A cursor whose active header line is itself malformed is a `Parse`
+    // resume error, not an `Invalid` one, and both variants render through
+    // the inner error's own `Display`.
+    let malformed = ToonlCursor::new(0u64, "[bad\n", 0usize);
+    let malformed_error = ToonlReader::resume_from_bytes(input, malformed)
+        .expect_err("an unterminated header bracket is rejected");
+    assert_eq!(malformed_error.to_string(), "invalid header");
+    assert!(matches!(malformed_error, ToonlResumeError::Parse(_)));
+
+    // An `Invalid` resume error's `Display` also just forwards to the wrapped
+    // `ToonlCursorInvalidation`.
+    let truncated_cursor = ToonlCursor::new(999, "[]{id,name}:\n", 0);
+    let truncated_error = ToonlReader::resume_from_bytes(input, truncated_cursor)
+        .expect_err("a cursor past the end of the file is rejected");
+    assert_eq!(
+        truncated_error.to_string(),
+        "TOONL cursor invalidated by truncation"
+    );
+    assert!(matches!(truncated_error, ToonlResumeError::Invalid(_)));
+
+    // A cursor whose active header line is a continuation or a tagged header
+    // is never a legal resume point, since resuming replays it as the
+    // anonymous primary header.
+    let continuation = ToonlCursor::new(0u64, "[~]{id,name}:\n", 0usize);
+    let continuation_error = ToonlReader::resume_from_bytes(input, continuation)
+        .expect_err("a continuation header cannot anchor a resume");
+    assert_eq!(
+        continuation_error.to_string(),
+        "invalid cursor activeHeaderLine"
+    );
+
+    let tagged = ToonlCursor::new(0u64, "[]<req>{a}:\n", 0usize);
+    let tagged_error = ToonlReader::resume_from_bytes(input, tagged)
+        .expect_err("a tagged header cannot anchor a resume");
+    assert_eq!(tagged_error.to_string(), "invalid cursor activeHeaderLine");
+
+    // A line that is not a header at all (not even a malformed one, since it
+    // never opens a bracket) is rejected the same way.
+    let non_header = ToonlCursor::new(0u64, "not a header\n", 0usize);
+    let non_header_error = ToonlReader::resume_from_bytes(input, non_header)
+        .expect_err("a non-header active line is rejected");
+    assert_eq!(
+        non_header_error.to_string(),
+        "invalid cursor activeHeaderLine"
+    );
+
+    // A trailer-shaped bracket (`[=…]`) is deliberately not read as a header,
+    // so it takes the same "not a header" branch as `non_header` above.
+    let trailer_shaped = ToonlCursor::new(0u64, "[=5]{a}:\n", 0usize);
+    let trailer_shaped_error = ToonlReader::resume_from_bytes(input, trailer_shaped)
+        .expect_err("a trailer-shaped active line is rejected");
+    assert_eq!(
+        trailer_shaped_error.to_string(),
+        "invalid cursor activeHeaderLine"
+    );
+}
+
+#[test]
+fn toonl_reader_finishes_once_and_further_polls_stay_exhausted() {
+    let mut reader = ToonlReader::new(lines(b"[]{a}:\n1\n[=1]\n"));
+    assert_eq!(
+        reader
+            .next()
+            .expect("row")
+            .expect("valid row")
+            .to_json_value(),
+        json!({"a": 1})
+    );
+    assert!(reader.next().is_none(), "the stream ends after one row");
+    // Polling again after exhaustion takes the reader's fast `finished` path
+    // rather than re-reading past EOF.
+    assert!(reader.next().is_none(), "a finished reader stays finished");
+}
+
+#[test]
+fn toonl_reader_skips_blank_lines_and_reads_a_colon_led_cell_as_data() {
+    assert_eq!(
+        ToonlReader::new(lines(b"[]{a}:\n1\n\n2\n[=2]\n"))
+            .collect::<Result<Vec<_>, _>>()
+            .expect("blank lines between rows are ignored")
+            .iter()
+            .map(Value::to_json_value)
+            .collect::<Vec<_>>(),
+        vec![json!({"a": 1}), json!({"a": 2})]
+    );
+
+    // A cell that happens to start with `:` is not mistaken for a tag prefix,
+    // because a leading colon can never open a valid tag.
+    assert_eq!(
+        ToonlReader::new(lines(b"[]{a}:\n:x\n[=1]\n"))
+            .collect::<Result<Vec<_>, _>>()
+            .expect("a colon-led cell decodes as data")
+            .iter()
+            .map(Value::to_json_value)
+            .collect::<Vec<_>>(),
+        vec![json!({"a": ":x"})]
+    );
+}
+
+#[test]
+fn toonl_reader_rejects_reserved_prefixes_bad_trailers_and_rows_out_of_place() {
+    let reserved = ToonlReader::new(lines(b"[]{a}:\n- x\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("the `- ` prefix is reserved")
+        .to_string();
+    assert_eq!(reserved, "line 2: reserved line prefix");
+
+    let trailer_mismatch = ToonlReader::new(lines(b"[]{id}:\n1\n[=5]\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("the trailer count does not match")
+        .to_string();
+    assert_eq!(trailer_mismatch, "line 3: trailer count mismatch");
+
+    let row_before_header = ToonlReader::new(lines(b"1,Ada\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("a row with no header is rejected")
+        .to_string();
+    assert_eq!(row_before_header, "line 1: row before header");
+
+    let continuation_first = ToonlReader::new(lines(b"[~]{a}:\n1\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("a continuation header cannot open a stream")
+        .to_string();
+    assert_eq!(
+        continuation_first,
+        "line 1: continuation header before header"
+    );
+
+    // A tag-shaped prefix that is not valid TOONL tag syntax (here a `.`,
+    // which is neither alphanumeric nor `_`/`-`) is rejected explicitly
+    // rather than silently read as an anonymous row.
+    let invalid_tag = ToonlReader::new(lines(b"[]<req>{a}:\na.b:1\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("a malformed tag prefix is rejected")
+        .to_string();
+    assert_eq!(invalid_tag, "line 2: invalid tag");
+
+    let tagged_arity = ToonlReader::new(lines(b"[]<req>{a,b}:\nreq:1\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("a tagged row with the wrong arity is rejected")
+        .to_string();
+    assert_eq!(tagged_arity, "line 2: row arity mismatch");
+}
+
+#[test]
+fn toonl_stream_parse_rejects_arity_mismatches_and_unknown_tags_in_tagged_rows() {
+    let arity_mismatch = ToonlStream::parse("[]<req>{a,b}:\nreq:1\n")
+        .expect_err("a tagged row with too few cells is rejected")
+        .to_string();
+    assert_eq!(arity_mismatch, "line 2: row arity mismatch");
+
+    let unknown_tag = ToonlStream::parse("metric:1\n")
+        .expect_err("a tag prefix with no declared lane and no anonymous header is rejected")
+        .to_string();
+    assert_eq!(unknown_tag, "line 1: unknown tag");
+}
+
+#[test]
+fn toonl_stream_row_values_flattens_every_segment_in_declaration_order() {
+    let stream =
+        ToonlStream::parse("[]{id,name}:\n1,Ada\n[=1]\n[]{id,name,role}:\n2,Linus,dev\n[=1]\n")
+            .expect("valid TOONL stream");
+
+    assert_eq!(
+        stream
+            .row_values()
+            .expect("row values decode")
+            .iter()
+            .map(Value::to_json_value)
+            .collect::<Vec<_>>(),
+        vec![
+            json!({"id": 1, "name": "Ada"}),
+            json!({"id": 2, "name": "Linus", "role": "dev"}),
+        ]
+    );
+}
+
+#[test]
+fn toonl_writer_declares_tagged_lanes_explicitly_and_rejects_overflow() {
+    let mut output = Vec::new();
+    {
+        let mut writer = ToonlWriter::new(&mut output);
+        writer
+            .declare_lane("req", &["a", "b"])
+            .expect("declare a lane before any row arrives");
+        // Re-declaring the same fields is a no-op: no duplicate header line.
+        writer
+            .declare_lane("req", &["a", "b"])
+            .expect("idempotent re-declaration");
+        // Declaring the same tag with a different field order rewrites the
+        // header, since it is a different canonical shape.
+        writer
+            .declare_lane("req", &["b", "a"])
+            .expect("re-declaration with new fields rewrites the header");
+        writer.finish().expect("finish writer");
+    }
+    assert_eq!(
+        String::from_utf8(output).unwrap(),
+        "[]<req>{a,b}:\n[]<req>{b,a}:\n"
+    );
+
+    let mut writer = ToonlWriter::new(Vec::new());
+    for tag in ["a", "b", "c", "d", "e", "f", "g", "h"] {
+        writer
+            .declare_lane(tag, &["v"])
+            .expect("declare up to the lane limit");
+    }
+    let error = writer
+        .declare_lane("i", &["v"])
+        .expect_err("the 9th declared lane is rejected");
+    assert!(error.to_string().contains("too many tagged lanes"));
+}
+
+#[test]
+fn toonl_encoders_support_byte_cadence_and_non_default_delimiters() {
+    let mut encoder = ToonlEncoder::new(',', &["id", "name"]).expect("encoder");
+    encoder
+        .set_continuation_every_bytes(Some(6))
+        .expect("byte cadence");
+    for row in [["1", "Ada"], ["2", "Linus"], ["3", "Grace"]] {
+        encoder.push_raw_row(&row).expect("row");
+    }
+    assert_eq!(
+        encoder.finish(),
+        "[]{id,name}:\n1,Ada\n[~]{id,name}:\n2,Linus\n[~]{id,name}:\n3,Grace\n[=3]\n"
+    );
+
+    let mut output = Vec::new();
+    {
+        let mut writer = ToonlWriter::with_delimiter(&mut output, '|');
+        writer
+            .set_continuation_every_rows(Some(1))
+            .expect("row cadence");
+        writer
+            .write_record(&Value::from_json_str(r#"{"id":1,"name":"Ada"}"#).expect("row"))
+            .expect("write row");
+        writer
+            .write_record(&Value::from_json_str(r#"{"id":2,"name":"Bo"}"#).expect("row"))
+            .expect("write row");
+        writer.finish().expect("finish writer");
+    }
+    assert_eq!(
+        String::from_utf8(output).unwrap(),
+        "[|]{id|name}:\n1|Ada\n[~|]{id|name}:\n2|Bo\n[=2]\n"
+    );
+
+    // The writer's own byte cadence, not just the standalone encoder's.
+    let mut byte_cadence_output = Vec::new();
+    {
+        let mut writer = ToonlWriter::new(&mut byte_cadence_output);
+        writer
+            .set_continuation_every_bytes(Some(6))
+            .expect("byte cadence");
+        for row in [
+            r#"{"id":1,"name":"Ada"}"#,
+            r#"{"id":2,"name":"Linus"}"#,
+            r#"{"id":3,"name":"Grace"}"#,
+        ] {
+            writer
+                .write_record(&Value::from_json_str(row).expect("row"))
+                .expect("write row");
+        }
+        writer.finish().expect("finish writer");
+    }
+    assert_eq!(
+        String::from_utf8(byte_cadence_output).unwrap(),
+        "[]{id,name}:\n1,Ada\n[~]{id,name}:\n2,Linus\n[~]{id,name}:\n3,Grace\n[=3]\n"
+    );
+}
+
+#[test]
+fn toonl_encoder_rejects_malformed_rows_and_configuration() {
+    let mut arity = ToonlEncoder::new(',', &["id", "name"]).expect("encoder");
+    assert_eq!(
+        arity.push_raw_row(&["1"]).unwrap_err().to_string(),
+        "row arity mismatch"
+    );
+
+    let mut non_object = ToonlEncoder::new(',', &["id"]).expect("encoder");
+    assert_eq!(
+        non_object
+            .push_value_row(&Value::Number("1".to_owned()))
+            .unwrap_err()
+            .to_string(),
+        "TOONL output requires object rows"
+    );
+
+    let mut missing_field = ToonlEncoder::new(',', &["id", "name"]).expect("encoder");
+    assert_eq!(
+        missing_field
+            .push_value_row(&Value::from_json_str(r#"{"id":1}"#).expect("row"))
+            .unwrap_err()
+            .to_string(),
+        "TOONL output schema changed"
+    );
+
+    let mut non_primitive = ToonlEncoder::new(',', &["id"]).expect("encoder");
+    assert_eq!(
+        non_primitive
+            .push_value_row(&Value::from_json_str(r#"{"id":[1,2]}"#).expect("row"))
+            .unwrap_err()
+            .to_string(),
+        "TOONL rows must be flat objects"
+    );
+
+    let mut cadence = ToonlEncoder::new(',', &["id"]).expect("encoder");
+    assert_eq!(
+        cadence
+            .set_continuation_every_rows(Some(0))
+            .unwrap_err()
+            .to_string(),
+        "TOONL continuation cadence must be positive"
+    );
+    assert_eq!(
+        cadence
+            .set_continuation_every_bytes(Some(0))
+            .unwrap_err()
+            .to_string(),
+        "TOONL continuation cadence must be positive"
+    );
+
+    assert_eq!(
+        ToonlEncoder::new('#', &["id"]).unwrap_err().to_string(),
+        "invalid header delimiter"
+    );
+    assert_eq!(
+        ToonlEncoder::new(',', &[] as &[&str])
+            .unwrap_err()
+            .to_string(),
+        "TOONL header requires fields"
+    );
+    assert_eq!(
+        ToonlEncoder::new(',', &["\"\""]).unwrap_err().to_string(),
+        "TOONL header requires fields"
+    );
+}
+
+#[test]
+fn encode_toonl_values_rejects_non_object_empty_and_nested_rows() {
+    assert_eq!(
+        encode_toonl_values(&[Value::Number("1".to_owned())])
+            .unwrap_err()
+            .to_string(),
+        "TOONL output requires object rows"
+    );
+    assert_eq!(
+        encode_toonl_values(&[Value::Object(Document::default())])
+            .unwrap_err()
+            .to_string(),
+        "TOONL output requires object rows"
+    );
+    assert_eq!(
+        encode_toonl_values(&[Value::from_json_str(r#"{"a":[1]}"#).expect("row")])
+            .unwrap_err()
+            .to_string(),
+        "TOONL rows must be flat objects"
+    );
+}
+
+#[test]
+fn jsonl_to_toonl_skips_blank_lines() {
+    let mut output = Vec::new();
+    jsonl_to_toonl(lines(b"{\"a\":1}\n\n{\"a\":2}\n"), &mut output)
+        .expect("blank lines between JSONL records are ignored");
+    assert_eq!(String::from_utf8(output).unwrap(), "[]{a}:\n1\n2\n[=2]\n");
+}
+
+#[test]
+fn toonl_bridges_propagate_read_and_write_failures() {
+    let mut sink = Vec::new();
+    let read_error = jsonl_to_toonl(FailingReader, &mut sink)
+        .expect_err("a failing reader surfaces as a read error");
+    assert_eq!(read_error.to_string(), "read error: simulated read failure");
+
+    let mut reader = ToonlReader::new(FailingReader);
+    let reader_error = reader
+        .next()
+        .expect("a failing reader still yields one item")
+        .expect_err("the item is the propagated read error");
+    assert_eq!(
+        reader_error.to_string(),
+        "read error: simulated read failure"
+    );
+
+    let record = Value::from_json_str(r#"{"a":1}"#).expect("row");
+
+    let mut writer = ToonlWriter::new(FailingWriter);
+    let write_error = writer
+        .write_record(&record)
+        .expect_err("a failing writer surfaces as a write error");
+    assert_eq!(
+        write_error.to_string(),
+        "write error: simulated write failure"
+    );
+
+    let mut lane_writer = ToonlWriter::new(FailingWriter);
+    let declare_error = lane_writer
+        .declare_lane("req", &["a"])
+        .expect_err("declaring a lane on a failing writer fails to write");
+    assert_eq!(
+        declare_error.to_string(),
+        "write error: simulated write failure"
+    );
+
+    let mut tagged_writer = ToonlWriter::new(FailingWriter);
+    let tagged_error = tagged_writer
+        .write_tagged_record("req", &record)
+        .expect_err("writing a tagged record on a failing writer fails to write");
+    assert_eq!(
+        tagged_error.to_string(),
+        "write error: simulated write failure"
+    );
+
+    let write_side_error = jsonl_to_toonl(lines(b"{\"a\":1}\n"), FailingWriter)
+        .expect_err("a failing writer surfaces as a write error during jsonl_to_toonl");
+    assert_eq!(
+        write_side_error.to_string(),
+        "write error: simulated write failure"
+    );
+
+    let toonl = b"[]{a}:\n1\n[=1]\n";
+    let to_jsonl_error = toonl_to_jsonl(lines(toonl), FailingWriter)
+        .expect_err("a failing writer surfaces as a write error during toonl_to_jsonl");
+    assert_eq!(
+        to_jsonl_error.to_string(),
+        "write error: simulated write failure"
+    );
+
+    let close_error = close_transform_stream(lines(toonl), FailingWriter)
+        .expect_err("a failing writer surfaces as a write error during close_transform_stream");
+    assert_eq!(
+        close_error.to_string(),
+        "write error: simulated write failure"
+    );
+}
+
+#[test]
+fn toonl_header_syntax_errors_name_the_offending_shape() {
+    // A bracket that is not empty, `~`, `|`, `\t`, or an `=`-led trailer shape
+    // is not a delimiter TOONL defines.
+    let unknown_delimiter = ToonlReader::new(lines(b"[x]{a}:\na\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("an undefined delimiter symbol is rejected")
+        .to_string();
+    assert_eq!(unknown_delimiter, "line 1: invalid header delimiter");
+
+    let combined_tag_and_delimiter = ToonlReader::new(lines(b"[|]<req>{a}:\nreq:1\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("a tag cannot be combined with an explicit delimiter")
+        .to_string();
+    assert_eq!(
+        combined_tag_and_delimiter,
+        "line 1: invalid header delimiter"
+    );
+
+    let missing_braces = ToonlReader::new(lines(b"[]notabrace:\na\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("a header without a `{fields}:` body is rejected")
+        .to_string();
+    assert_eq!(missing_braces, "line 1: invalid header");
+
+    let empty_field_name = ToonlReader::new(lines(b"[]{a,,b}:\na,x,b\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("a blank field name between delimiters is rejected")
+        .to_string();
+    assert_eq!(empty_field_name, "line 1: invalid header fields");
+
+    let no_fields = ToonlReader::new(lines(b"[]{}:\n"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect_err("an empty field list is rejected")
+        .to_string();
+    assert_eq!(no_fields, "line 1: invalid header fields");
+}
+
 // ---------------------------------------------------------------------------
 // Decoding
 // ---------------------------------------------------------------------------
@@ -739,6 +1280,16 @@ fn quotes_only_the_strings_the_spec_requires() {
             "{value:?} is quoted"
         );
     }
+}
+
+#[test]
+fn a_trailing_decimal_point_is_not_numeric_like_and_needs_no_quotes() {
+    // "1." fails the digits-after-the-dot check the numeric-like scan uses to
+    // decide quoting, so unlike "1e-6" or "05" it is written bare. It still
+    // round-trips as a string, since the decoder's own number grammar (§4)
+    // requires digits after the dot too.
+    assert_eq!(Value::String("1.".to_owned()).to_canonical_toon(), "1.");
+    assert_eq!(json_of("v: 1.\n"), json!({"v": "1."}));
 }
 
 #[test]
@@ -989,6 +1540,32 @@ fn a_row_is_still_a_row_when_a_cell_holds_a_colon() {
         json_of("r[1]{a,b}:\n  1,x:y\n"),
         json!({"r": [{"a": 1, "b": "x:y"}]})
     );
+}
+
+#[test]
+fn a_single_column_tabular_row_that_looks_like_a_field_ends_the_rows_early() {
+    // With no delimiter in the row content at all, §9.3 has nothing to compare
+    // the colon's position against, so it reads the line as a sibling field
+    // rather than a row — one short of the declared length.
+    assert_eq!(
+        error("items[2]{a}:\n  1\n  x: 2\n"),
+        "line 3: array length mismatch"
+    );
+}
+
+#[test]
+fn non_strict_mode_reads_a_malformed_nested_array_header_as_a_literal_key() {
+    // `- [x] : 1` looks like a nested-array list item (§9.4), but `[x]` is not
+    // a valid header (no length digits), so it falls through. In non-strict
+    // mode the whole bracketed prefix becomes a literal object key instead of
+    // an error.
+    let options = ParseOptions {
+        strict: false,
+        ..ParseOptions::default()
+    };
+    let value =
+        Value::parse_with_options("items[1]:\n  - [x] : 1\n", options).expect("literal key item");
+    assert_eq!(value.to_json_value(), json!({"items": [{"[x]": 1}]}));
 }
 
 #[test]

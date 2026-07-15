@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **TOONL v0.2 support** is now implemented across the Rust crate, JS package,
+  and `tq` CLI: resumable readers, continuation headers, header-preserving
+  trim, tagged-row multiplexing, and per-lane/interleaved close transforms are
+  covered by the shared v0.2 conformance corpus.
+
 ### Added
 
 - **TOONL v0.2 specification** (`docs/toonl-v0.2.md`): a normative, requirements-only
