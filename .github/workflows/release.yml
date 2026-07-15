@@ -433,14 +433,19 @@ jobs:
           publish_one() {
             local crate="$1"
             echo "==> publish ${crate}@${VERSION}"
-            local out
-            out=$(cargo publish --locked --allow-dirty -p "$crate" 2>&1) && { echo "$out"; return 0; }
-            if echo "$out" | grep -qE "already uploaded|already exists"; then
-              echo "  ${crate}@${VERSION} already on crates.io — skipping"
+            # tee instead of capture: output streams live, and stays on disk
+            # for the idempotent-case grep below.
+            if cargo publish --locked --allow-dirty -p "$crate" 2>&1 | tee "publish-${crate}.log"; then
+              :
+            elif grep -qE "already uploaded|already exists" "publish-${crate}.log"; then
+              echo "  ${crate}@${VERSION} already on crates.io — skipping publish"
             else
-              echo "$out" >&2
               return 1
             fi
+            # Success is what the registry serves, not what the client printed
+            # (issue #59). `cargo publish` already waits for index visibility,
+            # so this normally confirms on the first attempt.
+            bash scripts/verify-published.sh crates "$crate" "$VERSION"
           }
 
           # Lockstep order (ADR 0003): the library first, then the crate
@@ -481,6 +486,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           CHANNEL: ${{ needs.plan.outputs.release_channel }}
+          VERSION: ${{ needs.plan.outputs.package_version }}
         run: |
           set -euo pipefail
           if [[ -z "${NPM_TOKEN}" ]]; then
@@ -493,11 +499,23 @@ jobs:
           TAG=latest
           [[ "${CHANNEL}" == "next" ]] && TAG=next
 
-          out=$(pnpm publish --filter @reddb-io/toon --access public --tag "${TAG}" --no-git-checks 2>&1) \
-            && { echo "$out"; exit 0; }
-          if echo "$out" | grep -qE "cannot publish over|previously published|already exists"; then
-            echo "  @reddb-io/toon@${{ needs.plan.outputs.package_version }} already on npm — skipping"
+          # GITHUB_ACTIONS is masked for the publish command only: pnpm ≥11
+          # sees that variable, auto-attempts OIDC trusted publishing, and this
+          # job has no `id-token: write`, so every stable run logged a
+          # "Skipped OIDC" warning — and pnpm has no opt-out setting. Token
+          # auth is the configured path; drop the mask once @reddb-io/toon has
+          # a trusted publisher on npmjs.com and this job gets `id-token: write`.
+          # tee instead of capture: output streams live, and stays on disk for
+          # the idempotent-case grep below.
+          if GITHUB_ACTIONS='' pnpm publish --filter @reddb-io/toon --access public --tag "${TAG}" --no-git-checks 2>&1 | tee publish.log; then
+            :
+          elif grep -qE "cannot publish over|previously published|already exists" publish.log; then
+            echo "  @reddb-io/toon@${VERSION} already on npm — skipping publish"
           else
-            echo "$out" >&2
             exit 1
           fi
+
+          # Success is what the registry serves, not what the client printed —
+          # the v0.1.0 cut 404'd for minutes after a genuine publish (issue #59).
+          bash scripts/verify-published.sh npm "@reddb-io/toon" "${VERSION}"
+          echo "@reddb-io/toon@${VERSION} published and verified on npm (dist-tag ${TAG})"
