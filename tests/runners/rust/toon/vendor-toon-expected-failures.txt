@@ -1,0 +1,15 @@
+# Divergences between this implementation and vendor/toon (toon-format/toon).
+#
+# Source: vendor/toon pinned at a19a1179193451fad40f11ef88de5f363ea3684a (v2.3.0).
+#
+# The toon-format/toon reference library has no standalone machine-readable
+# fixture vectors (its test data is embedded in TypeScript test files).
+# Conformance evidence is drawn from vendor/toon-spec instead.
+#
+# This ledger records any known behavioral divergences between our Rust/JS
+# implementation and the reference TypeScript implementation. Format:
+#   <module>/<scenario-name>  — description
+#
+# When this file is empty, no tracked divergences exist.
+#
+# This ledger is a ratchet, not a target: entries may only be removed.

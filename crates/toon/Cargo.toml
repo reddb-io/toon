@@ -13,19 +13,19 @@ path = "src/lib.rs"
 
 [[test]]
 name = "spec_conformance"
-path = "../../tests/toon/spec_conformance.rs"
+path = "../../tests/runners/rust/toon/spec_conformance.rs"
 
 [[test]]
 name = "json_limits"
-path = "../../tests/toon/json_limits.rs"
+path = "../../tests/runners/rust/toon/json_limits.rs"
 
 [[test]]
 name = "wire_efficiency"
-path = "../../tests/toon/wire_efficiency.rs"
+path = "../../tests/runners/rust/toon/wire_efficiency.rs"
 
 [[test]]
 name = "api"
-path = "../../tests/toon/api.rs"
+path = "../../tests/runners/rust/toon/api.rs"
 
 [dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }

@@ -13,11 +13,11 @@ path = "src/main.rs"
 
 [[test]]
 name = "golden"
-path = "../../tests/tq/golden.rs"
+path = "../../tests/runners/rust/tq/golden.rs"
 
 [[test]]
 name = "behavior"
-path = "../../tests/tq/behavior.rs"
+path = "../../tests/runners/rust/tq/behavior.rs"
 
 [dependencies]
 reddb-io-toon = { path = "../toon", version = "0.6.3" }

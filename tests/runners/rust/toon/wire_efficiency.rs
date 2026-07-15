@@ -3,10 +3,10 @@ use serde_json::Value as Json;
 use std::fs;
 use std::path::PathBuf;
 
-const WIRE_EFFICIENCY_FIXTURE: &str = "../../tests/wire-efficiency/corpora.json";
+const WIRE_EFFICIENCY_FIXTURE: &str = "../../tests/corpus/wire-efficiency/corpora.json";
 const PRIMITIVE_ARRAY_COLUMNS_FIXTURE: &str =
-    "../../tests/wire-efficiency/primitive-array-columns.json";
-const OBJECT_ARRAY_COLUMNS_FIXTURE: &str = "../../tests/wire-efficiency/object-array-columns.json";
+    "../../tests/corpus/wire-efficiency/primitive-array-columns.json";
+const OBJECT_ARRAY_COLUMNS_FIXTURE: &str = "../../tests/corpus/wire-efficiency/object-array-columns.json";
 const EXPECTED_CASE_COUNT: usize = 9;
 
 #[test]

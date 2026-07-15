@@ -120,7 +120,7 @@ fn an_indent_of_zero_is_clamped_rather_than_dividing_by_zero() {
 #[test]
 fn detects_truncation_with_the_shared_structured_report_corpus() {
     let corpus: serde_json::Value =
-        serde_json::from_str(include_str!("../truncation/corpus.json")).expect("corpus json");
+        serde_json::from_str(include_str!("../../../corpus/truncation.json")).expect("corpus json");
     for fixture in corpus.as_array().expect("corpus is an array") {
         let input = fixture["input"].as_str().expect("fixture input");
         let report = match fixture["format"].as_str().expect("fixture format") {

@@ -1,11 +1,11 @@
 /**
  * The parity contract: the JS implementation runs the *same* corpus as the Rust
- * crate, under the *same* criteria as `tests/toon/spec_conformance.rs`, and must
+ * crate, under the *same* criteria as `tests/runners/rust/toon/spec_conformance.rs`, and must
  * pass all of it. There is no expected-failure ledger here — a JS-only exception
  * would be exactly the drift this test exists to prevent.
  *
  * Official TOON fixtures come from the `vendor/toon-spec` submodule; the TOONL
- * ones from `tests/toonl/fixtures`, shared with the Rust harness.
+ * ones from `tests/corpus/toonl`, shared with the Rust harness.
  */
 
 import assert from 'node:assert/strict'
@@ -27,8 +27,8 @@ import {
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const FIXTURE_ROOT = join(REPO_ROOT, 'vendor/toon-spec/tests/fixtures')
-const LOCAL_FIXTURE_ROOT = join(REPO_ROOT, 'tests/toon/fixtures')
-const TOONL_FIXTURE_ROOT = join(REPO_ROOT, 'tests/toonl/fixtures')
+const LOCAL_FIXTURE_ROOT = join(REPO_ROOT, 'tests/corpus/toon')
+const TOONL_FIXTURE_ROOT = join(REPO_ROOT, 'tests/corpus/toonl')
 
 function readFixtures(directory) {
   let entries

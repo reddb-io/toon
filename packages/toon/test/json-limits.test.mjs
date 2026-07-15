@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { parse, serialize } from '../src/index.js'
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
-const FIXTURE_PATH = join(REPO_ROOT, 'tests/json-limits/corpus.json')
+const FIXTURE_PATH = join(REPO_ROOT, 'tests/corpus/json-limits.json')
 const EXPECTED_CASE_COUNT = 28
 const REQUIRED_CATEGORIES = new Set([
   'numbers',

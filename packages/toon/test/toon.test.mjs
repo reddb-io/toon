@@ -29,7 +29,7 @@ function deeplyNestedObject(depth) {
 }
 
 const truncationCorpus = JSON.parse(
-  readFileSync(fileURLToPath(new URL('../../../tests/truncation/corpus.json', import.meta.url)), 'utf8'),
+  readFileSync(fileURLToPath(new URL('../../../tests/corpus/truncation.json', import.meta.url)), 'utf8'),
 )
 
 test('parses flat fields and serializes canonical TOON', () => {

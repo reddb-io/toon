@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
-const JSON_LIMITS_FIXTURE: &str = "../../tests/json-limits/corpus.json";
+const JSON_LIMITS_FIXTURE: &str = "../../tests/corpus/json-limits.json";
 const EXPECTED_CASE_COUNT: usize = 28;
 const REQUIRED_CATEGORIES: [&str; 6] = [
     "numbers",

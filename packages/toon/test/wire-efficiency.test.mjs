@@ -7,14 +7,14 @@ import { fileURLToPath } from 'node:url'
 import { parse, serialize } from '../src/index.js'
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..')
-const FIXTURE_PATH = join(REPO_ROOT, 'tests/wire-efficiency/corpora.json')
+const FIXTURE_PATH = join(REPO_ROOT, 'tests/corpus/wire-efficiency/corpora.json')
 const PRIMITIVE_ARRAY_COLUMNS_PATH = join(
   REPO_ROOT,
-  'tests/wire-efficiency/primitive-array-columns.json',
+  'tests/corpus/wire-efficiency/primitive-array-columns.json',
 )
 const OBJECT_ARRAY_COLUMNS_PATH = join(
   REPO_ROOT,
-  'tests/wire-efficiency/object-array-columns.json',
+  'tests/corpus/wire-efficiency/object-array-columns.json',
 )
 const EXT_OPTIONS = { nestedTabularHeaders: true, keyedMapCollapse: true, primitiveArrayColumns: true, objectArrayColumns: true }
 const EXPECTED_CASE_COUNT = 9
