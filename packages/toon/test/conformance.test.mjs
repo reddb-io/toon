@@ -17,6 +17,7 @@ import test from 'node:test'
 import {
   ToonlEncoder,
   closeTransform,
+  encodeLines,
   encodeRecords,
   parse,
   parseStream,
@@ -179,6 +180,16 @@ test('TOONL fixtures are executable spec examples', () => {
 
       if (testCase.kind === 'encode-records') {
         assert.equal(encodeRecords(testCase.records), testCase.expected, `${name}: encoded`)
+        continue
+      }
+
+      if (testCase.kind === 'encode-tagged-records') {
+        const emitter = encodeLines()
+        let output = ''
+        for (const operation of testCase.operations) {
+          output += emitter.pushTagged(operation.tag, operation.record)
+        }
+        assert.equal(output + emitter.end(), testCase.expected, `${name}: encoded`)
         continue
       }
 
