@@ -71,11 +71,11 @@ form errors loudly instead of quietly reading a different shape.
 
 ### Enabling emission, per surface
 
-| Surface | Active delimiter | Nested tabular headers | Keyed-map collapse |
-| --- | --- | --- | --- |
-| JS — `serialize(value, opts)` | `{ delimiter: ',' \| '\t' \| '\|' }` | `{ nestedTabularHeaders: true }` | `{ keyedMapCollapse: true }` |
-| Rust — `to_toon_with_options(EncodeOptions)` | `delimiter: ',' \| '\t' \| '\|'` | `nested_tabular_headers: true` | `keyed_map_collapse: true` |
-| `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | `--nested-tabular-headers` | `--keyed-map-collapse` |
+| Surface | Active delimiter | Nested tabular headers | Keyed-map collapse | Primitive-array columns |
+| --- | --- | --- | --- | --- |
+| JS — `serialize(value, opts)` | `{ delimiter: ',' \| '\t' \| '\|' }` | `{ nestedTabularHeaders: true }` | `{ keyedMapCollapse: true }` | `{ primitiveArrayColumns: true }` |
+| Rust — `to_toon_with_options(EncodeOptions)` | `delimiter: ',' \| '\t' \| '\|'` | `nested_tabular_headers: true` | `keyed_map_collapse: true` | `primitive_array_columns: true` |
+| `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | `--nested-tabular-headers` | `--keyed-map-collapse` | `--primitive-array-columns` |
 
 Delimiter choice is pure TOON v3.3 for arrays and tabular rows: encoders emit the active-delimiter declaration in the header (`[N|]`, `[N\t]`, and matching field lists) and quote cells that contain the active delimiter. The keyed-map collapse extension mirrors that declaration at the start of its field list, for example `map{|id|name}:`, so extension rows remain self-describing.
 
@@ -174,6 +174,50 @@ emitting maps of size one never sees the collapsed form even with the option on;
 this is intentional and keeps the encoder's output stable and predictable rather
 than flipping shape at a size-one boundary. Round-trip is lossless either way,
 because a non-collapsed map is just standard v3.3.
+
+## Extension 3 — Primitive-array columns
+
+Object-array tables often include fields such as tags, flags, or aliases whose
+value is itself a short array of primitive values. Standard v3.3 cannot keep the
+outer table in tabular form when a column is an array, so the whole array falls
+back to expanded list items. This extension lets one table cell carry a
+primitive-list payload:
+
+```toon
+items[3|]{id|tags[;]|quantity}:
+  item_001|hazmat;oversize|60
+  item_002||0
+  item_003|"frag;ile";null;true|7
+```
+
+decodes to:
+
+```json
+{"items": [
+  {"id": "item_001", "tags": ["hazmat", "oversize"], "quantity": 60},
+  {"id": "item_002", "tags": [], "quantity": 0},
+  {"id": "item_003", "tags": ["frag;ile", null, true], "quantity": 7}
+]}
+```
+
+Grammar:
+
+- A tabular header field may be `key[subDelimiter]`, where `subDelimiter` is a
+  single character used only inside that field's cells.
+- The sub-delimiter MUST be non-empty, MUST differ from the active row
+  delimiter, and MUST NOT be a space, tab, newline, carriage return, quote,
+  bracket, brace, or colon.
+- An empty cell in a primitive-array column decodes as an empty array.
+- Non-empty cells split on unquoted sub-delimiters, then each subcell decodes as
+  an ordinary scalar. Strings are quoted when they contain either the active row
+  delimiter or the sub-delimiter.
+
+Encoder eligibility is deterministic. With the option enabled, an encoder emits
+this form only when the containing value is otherwise eligible for tabular object
+array encoding and every value in the selected column is an array whose items are
+strings, numbers, booleans, or null. Empty arrays are eligible. Mixed scalar/list
+columns, nested arrays, object items, non-uniform rows, and list-item position all
+fall back to ordinary v3.3 output losslessly.
 
 ## Delimiter choice
 
@@ -305,7 +349,8 @@ structure saves the least.
 TOONL ([`toonl.md`](toonl.md)) is an independent line-oriented streaming
 extension with its own versioning; it is unaffected by this document. The
 TOONL close-transform continues to target canonical TOON v3.3 documents and does
-**not** emit the nested-tabular-header or keyed-map-collapse forms defined here.
+**not** emit the nested-tabular-header, keyed-map-collapse, or
+primitive-array-column forms defined here.
 The two concerns compose cleanly but are specified separately.
 
 ## Conformance
@@ -315,12 +360,13 @@ The shared corpora under `tests/` pin both implementations to identical behavior
 - `tests/toon/fixtures/` (live from the `vendor/toon-spec` submodule) — the v3.3
   baseline, run by both the Rust crate and the JS package.
 - The extension corpora — encode bytes and decode values for nested tabular
-  headers and keyed-map collapse, including the eligibility and fail-closed cases.
+  headers, keyed-map collapse, and primitive-array columns, including the
+  eligibility and fail-closed cases.
 - `tests/json-limits/corpus.json` — the shared JSON edge corpus (numbers at the
   boundaries of the safe-integer range, precision, and other parser limits) run
   identically by the JS package and the Rust crate.
-- The `tq` golden tests cover the `--nested-tabular-headers` and
-  `--keyed-map-collapse` flags end-to-end.
+- The `tq` golden tests cover the `--nested-tabular-headers`,
+  `--keyed-map-collapse`, and `--primitive-array-columns` flags end-to-end.
 
 CI enforces the whole set on every change, so the two implementations cannot
 disagree about the flavor.
