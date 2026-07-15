@@ -94,6 +94,24 @@ That is **54% fewer tokens than pretty-printed JSON** and **20% fewer than minif
 
 TOON is also *self-checking* in a way JSON is not: `[4]` declares the row count and `{id,version,…}` declares the fields, so a truncated or hallucinated table is a parse error rather than silently short data.
 
+Keyed object maps can use the same recursive-brace header grammar when encoder
+support is explicitly enabled:
+
+```toon
+people{first,last}:
+  joe: Joe,Schmoe
+  mary: Mary,Jane
+```
+
+This decodes to an object map, not an array. The header is object-typed because
+there is no `[N]` segment, so strict v3 decoders reject it instead of silently
+reading a different shape. Encoders only emit this form for deterministic
+uniform maps: the object has at least two entries, every entry value is a
+non-empty object, every entry has the same key set as the first entry, and each
+header leaf is primitive. Recursive object leaves are eligible only when nested
+tabular headers are also enabled. Non-uniform maps stay in ordinary object form,
+so round-trip is lossless.
+
 ### TOONL — append-only streams
 
 **TOONL is to TOON what JSONL is to JSON**: one record per line, header once, append forever — a log you can `>>` into and `tail -f` out of. It is a reddb-io extension ([normative spec](docs/toonl-v0.1.md); the [v0.2 spec](docs/toonl-v0.2.md) adds resumable readers, header-preserving trim, tagged-row multiplexing, and a blessed retry pattern) with a guaranteed bridge back to standard TOON: every *closed* stream converts to a valid TOON v3.3 document in one O(n) pass.
