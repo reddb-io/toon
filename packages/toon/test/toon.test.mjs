@@ -103,6 +103,26 @@ test('serialize quotes exactly what the spec requires', () => {
   assert.deepEqual(parse(serialize({ numeric: '05' })), { numeric: '05' })
 })
 
+test('treats leading-plus numeric-looking tokens as strings', () => {
+  // The spec is silent on leading-plus tokens (upstream spec PR #52); the
+  // reference implementation keeps them as strings while exponent plus signs
+  // stay numeric.
+  assert.deepEqual(parse('values[3]: +1,+1.5,+1e2\nexponent: 1e+2\n'), {
+    values: ['+1', '+1.5', '+1e2'],
+    exponent: 100,
+  })
+})
+
+test('nested empty-object list items round-trip as a bare hyphen', () => {
+  // The bare `-` marker for an empty object list item applies recursively
+  // inside nested expanded arrays, with no trailing space (upstream spec
+  // PR #53).
+  const input = 'items[2]:\n  - [1]:\n    -\n  - [2]:\n    - x\n    -\n'
+
+  assert.deepEqual(parse(input), { items: [[{}], ['x', {}]] })
+  assert.equal(serialize({ items: [[{}], ['x', {}]] }), input)
+})
+
 test('a __proto__ key becomes an own property, not a prototype write', () => {
   const document = parse('"__proto__": 1\n')
 

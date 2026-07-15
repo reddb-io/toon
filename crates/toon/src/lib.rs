@@ -2308,6 +2308,34 @@ mod tests {
     }
 
     #[test]
+    fn treats_leading_plus_tokens_as_strings() {
+        // The spec is silent on leading-plus tokens (upstream spec PR #52);
+        // the reference implementation keeps them as strings while exponent
+        // plus signs stay numeric.
+        let document = Document::parse("values[3]: +1,+1.5,+1e2\nexponent: 1e+2\n").unwrap();
+
+        assert_eq!(
+            document.to_json_value(),
+            serde_json::json!({"values": ["+1", "+1.5", "+1e2"], "exponent": 100})
+        );
+    }
+
+    #[test]
+    fn nested_empty_object_list_items_round_trip_as_bare_hyphen() {
+        // The bare `-` marker for an empty object list item applies
+        // recursively inside nested expanded arrays, with no trailing space
+        // (upstream spec PR #53).
+        let input = "items[2]:\n  - [1]:\n    -\n  - [2]:\n    - x\n    -\n";
+        let document = Document::parse(input).unwrap();
+
+        assert_eq!(
+            document.to_json_value(),
+            serde_json::json!({"items": [[{}], ["x", {}]]})
+        );
+        assert_eq!(document.to_canonical_toon(), input);
+    }
+
+    #[test]
     fn rejects_array_length_mismatches() {
         let error = Document::parse("tags[2]: admin,ops,dev\n").unwrap_err();
 
