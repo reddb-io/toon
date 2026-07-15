@@ -105,6 +105,25 @@ test('object-array column corpus decodes identically for JS', () => {
       `${testCase.name}: line-numbered parse error`,
     )
   }
+
+  for (const testCase of fixture.encodings ?? []) {
+    const options = jsOptions(testCase.options ?? {})
+    const encoded = serialize(testCase.value, options)
+    assert.equal(encoded, testCase.expected, `${testCase.name}: encoded wire`)
+    assert.deepEqual(parse(encoded), testCase.value, `${testCase.name}: round trip`)
+    if (testCase.sameAsV3 === true) {
+      assert.equal(encoded, serialize(testCase.value), `${testCase.name}: v3.3 fallback`)
+    } else {
+      assert.notEqual(encoded, serialize(testCase.value), `${testCase.name}: extension wire`)
+    }
+    if (testCase.failClosedV3Strict === true) {
+      assert.throws(
+        () => rejectV3Strict(encoded),
+        /invalid array header/,
+        `${testCase.name}: strict v3 rejects extension form`,
+      )
+    }
+  }
 })
 
 test('primitive-array column encoding is opt-in and falls back losslessly for ineligible values in JS', () => {
@@ -166,4 +185,24 @@ function rejectV3Strict(input) {
       throw new Error(`line ${lineNumber}: invalid array header`)
     }
   })
+}
+
+function jsOptions(options) {
+  const output = {}
+  if (options.objectArrayColumns === true) {
+    output.objectArrayColumns = true
+  }
+  if (options.primitiveArrayColumns === true) {
+    output.primitiveArrayColumns = true
+  }
+  if (options.nestedTabularHeaders === true) {
+    output.nestedTabularHeaders = true
+  }
+  if (options.keyedMapCollapse === true) {
+    output.keyedMapCollapse = true
+  }
+  if (typeof options.delimiter === 'string') {
+    output.delimiter = options.delimiter
+  }
+  return output
 }
