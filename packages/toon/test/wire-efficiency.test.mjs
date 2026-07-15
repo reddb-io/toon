@@ -157,6 +157,32 @@ test('cyclic discriminated-array corpus decodes identically for JS', () => {
   }
 })
 
+test('cyclic discriminated-array encoding is opt-in and falls back losslessly for ineligible values in JS', () => {
+  const fixture = readFixture(CYCLIC_DISCRIMINATED_ARRAYS_PATH)
+  assert.equal(fixture.version, 1)
+
+  for (const testCase of fixture.cases) {
+    const encoded = serialize(testCase.expected, { cyclicDiscriminatedArrays: true })
+    assert.equal(encoded, testCase.input, `${testCase.name}: encoded wire`)
+    assert.deepEqual(parse(encoded), testCase.expected, `${testCase.name}: round trip`)
+    assert.notEqual(serialize(testCase.expected), testCase.input, `${testCase.name}: default canonical v3.3`)
+  }
+
+  const ineligible = {
+    events: [
+      { type: 'login', id: 'evt_1', actor: 'u1' },
+      { type: 'login', id: 'evt_2', actor: 'u2' },
+      { type: 'logout', id: 'evt_3', actor: 'u3' },
+    ],
+  }
+  assert.equal(
+    serialize(ineligible, { cyclicDiscriminatedArrays: true }),
+    serialize(ineligible),
+    'ineligible cyclic array falls back to canonical v3.3',
+  )
+  assert.deepEqual(parse(serialize(ineligible, { cyclicDiscriminatedArrays: true })), ineligible)
+})
+
 test('primitive-array column encoding is opt-in and falls back losslessly for ineligible values in JS', () => {
   const eligible = {
     items: [
@@ -225,6 +251,9 @@ function jsOptions(options) {
   const output = {}
   if (options.objectArrayColumns === true) {
     output.objectArrayColumns = true
+  }
+  if (options.cyclicDiscriminatedArrays === true) {
+    output.cyclicDiscriminatedArrays = true
   }
   if (options.primitiveArrayColumns === true) {
     output.primitiveArrayColumns = true

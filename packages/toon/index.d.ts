@@ -40,6 +40,8 @@ export interface SerializeOptions {
   primitiveArrayColumns?: boolean
   /** Emit child tables for array-valued columns inside tabular object arrays. */
   objectArrayColumns?: boolean
+  /** Emit the cyclic discriminated-array wire for strongly cyclic top-level arrays. */
+  cyclicDiscriminatedArrays?: boolean
   /** Active delimiter for array and tabular rows. Default `','`. */
   delimiter?: ToonDelimiter
   /** Maximum nesting depth. Default `1000`; `0` disables the guard for trusted input. */
