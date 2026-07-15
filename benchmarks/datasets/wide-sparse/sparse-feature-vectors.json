@@ -1,9 +1,0 @@
-{
-  "features": [
-    { "id": "doc_001", "f001_title": "install", "f018_lang": "en", "f044_clicks": 12, "f077_has_code": true, "f131_topic_cli": 0.92, "f219_region_br": null, "f377_embedding_bucket": "a17" },
-    { "id": "doc_002", "f002_title": "benchmark", "f018_lang": "en", "f052_impressions": 800, "f088_has_table": true, "f132_topic_tokens": 0.87, "f241_region_us": null, "f378_embedding_bucket": "b04" },
-    { "id": "doc_003", "f003_title": "schema", "f019_lang": "pt", "f044_clicks": 3, "f079_has_json": true, "f133_topic_validation": 0.71, "f219_region_br": "SP", "f379_embedding_bucket": "c22" },
-    { "id": "doc_004", "f004_title": "release", "f020_lang": "de", "f053_impressions": 144, "f090_has_yaml": false, "f134_topic_ci": 0.64, "f260_region_de": "BE", "f380_embedding_bucket": "d19" },
-    { "id": "doc_005", "f005_title": "api", "f021_lang": "ja", "f045_clicks": 9, "f091_has_xml": true, "f135_topic_docs": 0.58, "f281_region_jp": "13", "f381_embedding_bucket": "e08" }
-  ]
-}
