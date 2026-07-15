@@ -71,11 +71,13 @@ form errors loudly instead of quietly reading a different shape.
 
 ### Enabling emission, per surface
 
-| Surface | Nested tabular headers | Keyed-map collapse |
-| --- | --- | --- |
-| JS — `serialize(value, opts)` | `{ nestedTabularHeaders: true }` | `{ keyedMapCollapse: true }` |
-| Rust — `to_toon_with_options(EncodeOptions)` | `nested_tabular_headers: true` | `keyed_map_collapse: true` |
-| `tq` (TOON output) | `--nested-tabular-headers` | `--keyed-map-collapse` |
+| Surface | Active delimiter | Nested tabular headers | Keyed-map collapse |
+| --- | --- | --- | --- |
+| JS — `serialize(value, opts)` | `{ delimiter: ',' \| '\t' \| '\|' }` | `{ nestedTabularHeaders: true }` | `{ keyedMapCollapse: true }` |
+| Rust — `to_toon_with_options(EncodeOptions)` | `delimiter: ',' \| '\t' \| '\|'` | `nested_tabular_headers: true` | `keyed_map_collapse: true` |
+| `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | `--nested-tabular-headers` | `--keyed-map-collapse` |
+
+Delimiter choice is pure TOON v3.3 for arrays and tabular rows: encoders emit the active-delimiter declaration in the header (`[N|]`, `[N\t]`, and matching field lists) and quote cells that contain the active delimiter. The keyed-map collapse extension mirrors that declaration at the start of its field list, for example `map{|id|name}:`, so extension rows remain self-describing.
 
 ## Extension 1 — Nested tabular headers
 
