@@ -2421,6 +2421,12 @@ struct StructuredState {
     cell_index: usize,
     next_index: usize,
     flat_width: usize,
+    child_table_fields: Option<Vec<bool>>,
+}
+
+struct ValidationResult {
+    next_index: usize,
+    consumed_child_rows: usize,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2435,6 +2441,8 @@ fn parse_structured_rows(
     root: bool,
 ) -> Result<Vec<Value>, ParseError> {
     let mut rows = Vec::new();
+    let child_table_fields =
+        infer_child_table_fields(len, fields, delimiter, lines, *index, row_depth, options);
 
     while rows.len() < len {
         let Some(line) = lines.get(*index) else {
@@ -2466,6 +2474,7 @@ fn parse_structured_rows(
             cell_index: 0,
             next_index: *index + 1,
             flat_width: leaf_width(fields),
+            child_table_fields: child_table_fields.clone(),
         };
         let row = parse_structured_row_fields(
             fields,
@@ -2518,9 +2527,15 @@ fn parse_structured_row_fields(
     let mut row = Document::default();
     for (field_index, field) in fields.iter().enumerate() {
         let remaining_fields = &fields[field_index + 1..];
+        let known_child_table = state
+            .child_table_fields
+            .as_ref()
+            .and_then(|fields| fields.get(field_index))
+            .copied();
         let value = parse_structured_field(
             field,
             remaining_fields,
+            known_child_table,
             cells,
             line,
             lines,
@@ -2538,6 +2553,7 @@ fn parse_structured_row_fields(
 fn parse_structured_field(
     field: &HeaderFieldTree,
     remaining_fields: &[HeaderFieldTree],
+    known_child_table: Option<bool>,
     cells: &[String],
     line: usize,
     lines: &[Line<'_>],
@@ -2571,12 +2587,22 @@ fn parse_structured_field(
         let has_child_rows = lines
             .get(state.next_index)
             .is_some_and(|line| line.depth == child_depth);
-        let must_be_child_table = count.is_some()
-            && (has_child_rows
-                || (cells.len() != state.flat_width
-                    && cells_after_child_count < flat_width + minimum_row_width(remaining_fields)));
+        let must_be_child_table = known_child_table.unwrap_or_else(|| {
+            count.is_some()
+                && (has_child_rows
+                    || (cells.len() != state.flat_width
+                        && cells_after_child_count
+                            < flat_width + minimum_row_width(remaining_fields)))
+        });
 
-        if let Some(count) = count.filter(|_| must_be_child_table) {
+        if must_be_child_table {
+            let Some(count) = count else {
+                return Err(ParseError {
+                    line,
+                    message: "array row length mismatch",
+                    max_depth: None,
+                });
+            };
             state.cell_index += 1;
             let mut child_index = state.next_index;
             let rows = parse_structured_rows(
@@ -2622,6 +2648,190 @@ fn parse_structured_field(
         cell,
         line,
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn infer_child_table_fields(
+    len: usize,
+    fields: &[HeaderFieldTree],
+    delimiter: char,
+    lines: &[Line<'_>],
+    start_index: usize,
+    row_depth: usize,
+    options: &ParseOptions,
+) -> Option<Vec<bool>> {
+    let candidates = fields
+        .iter()
+        .enumerate()
+        .filter_map(|(index, field)| (!field.children.is_empty()).then_some(index))
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return Some(vec![false; fields.len()]);
+    }
+    if candidates.len() > 12 {
+        return None;
+    }
+
+    let mut best: Option<(Vec<bool>, usize, usize)> = None;
+    for mask in 0..(1usize << candidates.len()) {
+        let mut child_table_fields = vec![false; fields.len()];
+        for (candidate_offset, field_index) in candidates.iter().enumerate() {
+            if mask & (1usize << candidate_offset) != 0 {
+                child_table_fields[*field_index] = true;
+            }
+        }
+        let Some(result) = validate_structured_rows_with_kind(
+            len,
+            fields,
+            &child_table_fields,
+            delimiter,
+            lines,
+            start_index,
+            row_depth,
+            options,
+        ) else {
+            continue;
+        };
+        let enabled = child_table_fields
+            .iter()
+            .filter(|enabled| **enabled)
+            .count();
+        if best.as_ref().is_none_or(|(_, consumed, best_enabled)| {
+            result.consumed_child_rows > *consumed
+                || (result.consumed_child_rows == *consumed && enabled < *best_enabled)
+        }) {
+            best = Some((child_table_fields, result.consumed_child_rows, enabled));
+        }
+    }
+
+    best.map(|(child_table_fields, _, _)| child_table_fields)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_structured_rows_with_kind(
+    len: usize,
+    fields: &[HeaderFieldTree],
+    child_table_fields: &[bool],
+    delimiter: char,
+    lines: &[Line<'_>],
+    start_index: usize,
+    row_depth: usize,
+    options: &ParseOptions,
+) -> Option<ValidationResult> {
+    let mut index = start_index;
+    let mut consumed_child_rows = 0;
+
+    for _ in 0..len {
+        let line = lines.get(index)?;
+        if line.depth != row_depth
+            || (line.blank_before && options.strict)
+            || !is_tabular_row(line.content, delimiter, line.number).ok()?
+        {
+            return None;
+        }
+
+        let cells = split_delimited(line.content, delimiter, line.number).ok()?;
+        let result = validate_structured_row_with_kind(
+            fields,
+            child_table_fields,
+            &cells,
+            delimiter,
+            lines,
+            index + 1,
+            row_depth + 1,
+            options,
+        )?;
+        if lines
+            .get(result.next_index)
+            .is_some_and(|line| line.depth > row_depth)
+        {
+            return None;
+        }
+        consumed_child_rows += result.consumed_child_rows;
+        index = result.next_index;
+    }
+
+    if let Some(line) = lines.get(index) {
+        if line.depth >= row_depth && is_tabular_row(line.content, delimiter, line.number).ok()? {
+            return None;
+        }
+    }
+
+    Some(ValidationResult {
+        next_index: index,
+        consumed_child_rows,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_structured_row_with_kind(
+    fields: &[HeaderFieldTree],
+    child_table_fields: &[bool],
+    cells: &[String],
+    delimiter: char,
+    lines: &[Line<'_>],
+    start_index: usize,
+    child_depth: usize,
+    options: &ParseOptions,
+) -> Option<ValidationResult> {
+    let mut cell_index = 0;
+    let mut next_index = start_index;
+    let mut consumed_child_rows = 0;
+
+    for (field_index, field) in fields.iter().enumerate() {
+        if let Some(fixed_len) = field.fixed_len {
+            cell_index += fixed_len;
+        } else if !field.children.is_empty() {
+            if child_table_fields
+                .get(field_index)
+                .copied()
+                .unwrap_or(false)
+            {
+                let count = cells
+                    .get(cell_index)
+                    .and_then(|cell| parse_child_count(cell))?;
+                cell_index += 1;
+                let nested_child_table_fields = infer_child_table_fields(
+                    count,
+                    &field.children,
+                    delimiter,
+                    lines,
+                    next_index,
+                    child_depth,
+                    options,
+                )?;
+                let result = validate_structured_rows_with_kind(
+                    count,
+                    &field.children,
+                    &nested_child_table_fields,
+                    delimiter,
+                    lines,
+                    next_index,
+                    child_depth,
+                    options,
+                )?;
+                next_index = result.next_index;
+                consumed_child_rows += count + result.consumed_child_rows;
+            } else {
+                cell_index += leaf_width(&field.children);
+            }
+        } else {
+            cell_index += 1;
+        }
+
+        if cell_index > cells.len() {
+            return None;
+        }
+    }
+
+    if cell_index != cells.len() {
+        return None;
+    }
+
+    Some(ValidationResult {
+        next_index,
+        consumed_child_rows,
+    })
 }
 
 fn matrix_row_value(fields: &[HeaderFieldTree], row: Document, root: bool) -> Value {
