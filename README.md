@@ -519,6 +519,8 @@ for trusted input to disable the nesting guard. Prefer
 untrusted or user-supplied values so depth failures return an `EncodeError`.
 `EncodeOptions::delimiter` selects the active TOON delimiter for array and
 tabular headers: `','` by default, or `'|'` / `'\t'` for pipe and tab output.
+`EncodeOptions::primitive_array_columns` opts into primitive-list cells inside
+otherwise tabular object arrays; ineligible values fall back to ordinary TOON.
 
 ```console
 3 users
@@ -567,7 +569,7 @@ users[3]{id,name,role}:
 {"users":[{"id":1,"name":"Ada","role":"admin"},{"id":2,"name":"Linus","role":"dev"},{"id":3,"name":"Grace","role":"ops"}]}
 ```
 
-`parse(input, options)` takes the spec's decoder options (`indent`, `strict`, `expandPaths`), `parseDocument` insists on an object root, and `serialize` writes the canonical default profile unless `serialize(value, { delimiter: '|' | '\t' })` selects pipe or tab for array and tabular headers. `detectTruncation(input, { format: 'toon' | 'toonl' })` returns the same structured report as the Rust crate and `tq check`.
+`parse(input, options)` takes the spec's decoder options (`indent`, `strict`, `expandPaths`), `parseDocument` insists on an object root, and `serialize` writes the canonical default profile unless options such as `delimiter: '|' | '\t'` or `primitiveArrayColumns: true` opt into extension forms. `detectTruncation(input, { format: 'toon' | 'toonl' })` returns the same structured report as the Rust crate and `tq check`.
 
 TOONL is the streaming half: `encodeLines` emits an append-only stream, `decodeLines` reads it back a record at a time, `closeTransform` turns each lane into length-bearing TOON documents, and `closeTransformInterleaved` preserves multiplexed row-run order for post-mortem rendering. The Web Streams API surface (`ToonlDecodeStream`, `ToonlEncodeStream`, `JsonlToToonl`, `ToonlToJsonl`, and `recordTransform`) is universal across Node, Bun, Deno and browsers; in Node, use `Readable.toWeb()` / `Readable.fromWeb()` when crossing between Node streams and Web streams. The optional `@reddb-io/toon/node` subpath adds `readToonlFile(path)` and `writeToonlFile(path, records)` using only `node:fs` and `node:stream`.
 
