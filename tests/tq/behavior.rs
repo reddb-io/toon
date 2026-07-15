@@ -3,6 +3,7 @@
 
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 const SAMPLE: &str = r#"{"users":[{"name":"Ada","score":41,"team":"research"},{"name":"Bob","score":7,"team":"ops"}],"tags":["ops","core","ops"],"meta":{"team":"core","level":2},"phrase":"Ada-Lovelace","n":-3.5,"z":null,"flag":true}"#;
 
@@ -379,6 +380,190 @@ fn supports_toonl_row_streams_slurp_output_and_file_detection() {
     std::fs::remove_file(&path).expect("remove toonl temp input");
 }
 
+#[test]
+fn trims_toonl_keep_last_to_stdout_and_preserves_noop_bytes() {
+    let input = "[]{ts,level,msg}:\n\
+2026-07-14T03:00:00Z,info,boot\n\
+2026-07-14T03:00:01Z,info,ready\n\
+2026-07-14T03:00:02Z,error,\"disk full\"\n\
+2026-07-14T03:00:03Z,info,recovered\n\
+[=4]\n";
+    let path = temp_file("tq-trim-stdout.toonl");
+    std::fs::write(&path, input).expect("write toonl input");
+
+    let trimmed = run_tq(&["trim", "--keep-last", "2", path.to_str().unwrap()], "");
+    assert_eq!(
+        trimmed.status.code(),
+        Some(0),
+        "trim exits cleanly: {}",
+        String::from_utf8_lossy(&trimmed.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(trimmed.stdout).expect("stdout is utf-8"),
+        "[]{ts,level,msg}:\n\
+2026-07-14T03:00:02Z,error,\"disk full\"\n\
+2026-07-14T03:00:03Z,info,recovered\n\
+[=2]\n"
+    );
+
+    let noop = run_tq(&["trim", "--keep-last", "99", path.to_str().unwrap()], "");
+    assert_eq!(noop.status.code(), Some(0), "noop trim exits cleanly");
+    assert_eq!(
+        String::from_utf8(noop.stdout).expect("stdout is utf-8"),
+        input
+    );
+    std::fs::remove_file(&path).expect("remove toonl input");
+}
+
+#[test]
+fn trims_toonl_in_place_with_same_result_on_repeat() {
+    let input = "[]{id,name}:\n1,Ada\n2,Bob\n3,Cy\n[=3]\n";
+    let expected = "[]{id,name}:\n2,Bob\n3,Cy\n[=2]\n";
+    let path = temp_file("tq-trim-in-place.toonl");
+    std::fs::write(&path, input).expect("write toonl input");
+
+    let first = run_tq(
+        &[
+            "trim",
+            "--keep-last",
+            "2",
+            "--in-place",
+            path.to_str().unwrap(),
+        ],
+        "",
+    );
+    assert_eq!(
+        first.status.code(),
+        Some(0),
+        "in-place trim exits cleanly: {}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    assert!(first.stdout.is_empty(), "in-place trim writes no stdout");
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read trimmed"),
+        expected
+    );
+
+    let second = run_tq(
+        &[
+            "trim",
+            "--keep-last",
+            "2",
+            "--in-place",
+            path.to_str().unwrap(),
+        ],
+        "",
+    );
+    assert_eq!(
+        second.status.code(),
+        Some(0),
+        "repeat in-place trim exits cleanly"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read repeated trim"),
+        expected
+    );
+    std::fs::remove_file(&path).expect("remove toonl input");
+}
+
+#[test]
+fn trims_toonl_across_schema_rotation_and_zero_rows() {
+    let input = "[]{id,name}:\n1,Ada\n2,Bob\n[]{id,name,role}:\n3,Cy,dev\n4,Di,ops\n[=2]\n";
+
+    let spanning = run_tq(&["trim", "--keep-last", "3"], input);
+    assert_eq!(
+        spanning.status.code(),
+        Some(0),
+        "rotation trim exits cleanly: {}",
+        String::from_utf8_lossy(&spanning.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(spanning.stdout).expect("stdout is utf-8"),
+        "[]{id,name}:\n2,Bob\n[]{id,name,role}:\n3,Cy,dev\n4,Di,ops\n[=2]\n"
+    );
+
+    let empty = run_tq(&["trim", "--keep-last", "0"], input);
+    assert_eq!(
+        empty.status.code(),
+        Some(0),
+        "zero-row trim exits cleanly: {}",
+        String::from_utf8_lossy(&empty.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(empty.stdout).expect("stdout is utf-8"),
+        "[]{id,name,role}:\n[=0]\n"
+    );
+}
+
+#[test]
+fn trim_property_keeps_last_rows_and_updates_trailer_around_cut() {
+    for total in 1..=6 {
+        for keep in 0..=total + 2 {
+            for trailer in [false, true] {
+                let input = numbered_toonl(total, trailer);
+                let trim = run_tq(&["trim", "--keep-last", &keep.to_string()], &input);
+                assert_eq!(
+                    trim.status.code(),
+                    Some(0),
+                    "trim total={total} keep={keep} trailer={trailer}: {}",
+                    String::from_utf8_lossy(&trim.stderr)
+                );
+                let output = String::from_utf8(trim.stdout).expect("stdout is utf-8");
+                if keep >= total {
+                    assert_eq!(output, input, "oversized keep is byte-for-byte noop");
+                }
+
+                let ids = run_tq(&["-p", "toonl", "-o", "json", "-c", ".id"], &output);
+                assert_eq!(
+                    ids.status.code(),
+                    Some(0),
+                    "trimmed output decodes: {}",
+                    String::from_utf8_lossy(&ids.stderr)
+                );
+                let expected_ids = (total.saturating_sub(keep)..total)
+                    .map(|index| format!("{}\n", index + 1))
+                    .collect::<String>();
+                assert_eq!(
+                    String::from_utf8(ids.stdout).expect("ids stdout is utf-8"),
+                    expected_ids
+                );
+                if keep < total {
+                    if trailer {
+                        assert!(
+                            output.ends_with(&format!("[={keep}]\n")),
+                            "trim recounts the first retained trailer"
+                        );
+                    } else {
+                        assert!(
+                            !output.contains("[="),
+                            "trim does not invent a trailer for an open segment"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn trim_rejects_v0_2_only_constructs_by_name() {
+    assert_error(
+        &["trim", "--keep-last", "1"],
+        "[~]{id}:\n1\n",
+        "continuation header",
+    );
+    assert_error(
+        &["trim", "--keep-last", "1"],
+        "[]<audit>{id}:\n<audit>:1\n",
+        "named schema declaration",
+    );
+    assert_error(
+        &["trim", "--keep-last", "1"],
+        "[]{id}:\n<audit>:1\n",
+        "tagged row",
+    );
+}
+
 fn assert_error(args: &[&str], stdin: &str, message: &str) {
     let output = run_tq(args, stdin);
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
@@ -392,6 +577,26 @@ fn assert_error(args: &[&str], stdin: &str, message: &str) {
         stderr.contains(message),
         "{args:?} reports `{message}`, got: {stderr}"
     );
+}
+
+fn numbered_toonl(total: usize, trailer: bool) -> String {
+    let mut input = "[]{id,name}:\n".to_owned();
+    for index in 1..=total {
+        input.push_str(&format!("{index},name{index}\n"));
+    }
+    if trailer {
+        input.push_str(&format!("[={total}]\n"));
+    }
+    input
+}
+
+fn temp_file(name: &str) -> std::path::PathBuf {
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    std::env::temp_dir().join(format!(
+        "{name}.{}.{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ))
 }
 
 fn run_tq(args: &[&str], stdin: &str) -> std::process::Output {
