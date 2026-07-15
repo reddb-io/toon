@@ -10,7 +10,7 @@
   "notes": [
     "jsonMin is JSON.stringify(value).",
     "toonV3 is canonical TOON v3 output with no extensions enabled.",
-    "toonExt enables the currently shipped nestedTabularHeaders, keyedMapCollapse, and primitiveArrayColumns options.",
+    "toonExt enables the currently shipped nestedTabularHeaders, keyedMapCollapse, primitiveArrayColumns, and objectArrayColumns options.",
     "honestyZeroDelta cases must keep toonV3 and toonExt byte-identical when ineligible for all shipped extensions.",
     "specTokens records the Spec #93 Further Notes o200k_base baselines where available; token counting is local-only and not part of CI."
   ],
@@ -11883,6 +11883,7 @@
     {
       "name": "tagged-300",
       "description": "Primitive-array column benchmark; opt-in primitive-array columns should beat minified JSON.",
+      "honestyZeroDelta": false,
       "specTokens": {
         "jsonMin": 6506,
         "toonV3": 8698,
@@ -14770,8 +14771,8 @@
     },
     {
       "name": "matrix-150x8",
-      "description": "List-of-lists honesty control; matrix-only hypothetical remains worse than JSON in the Spec.",
-      "honestyZeroDelta": true,
+      "description": "Fixed-width primitive matrix benchmark emitted through object-array columns.",
+      "honestyZeroDelta": false,
       "specTokens": {
         "jsonMin": 2406,
         "toonV3": 3305,
@@ -14782,7 +14783,7 @@
         "jsonMin": 7616,
         "toonV3": 8667,
         "toonTab": 8818,
-        "toonExt": 8667
+        "toonExt": 7628
       },
       "value": {
         "matrix": [
@@ -16291,8 +16292,8 @@
     },
     {
       "name": "tree3-100",
-      "description": "Three-level record tree honesty control for future child-table work.",
-      "honestyZeroDelta": true,
+      "description": "Three-level record tree benchmark for recursive child tables.",
+      "honestyZeroDelta": false,
       "specTokens": {
         "jsonMin": 11953,
         "toonV3": 13284,
@@ -16303,7 +16304,7 @@
         "jsonMin": 37076,
         "toonV3": 37889,
         "toonTab": 38216,
-        "toonExt": 37889
+        "toonExt": 19076
       },
       "value": {
         "orders": [
