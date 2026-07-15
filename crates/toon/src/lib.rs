@@ -53,6 +53,8 @@ pub struct EncodeOptions {
     pub nested_tabular_headers: bool,
     /// Emit brace-header tabular rows for keyed maps with uniform object values.
     pub keyed_map_collapse: bool,
+    /// Emit primitive-array columns inside otherwise tabular object arrays.
+    pub primitive_array_columns: bool,
     /// Active delimiter for encoded array and tabular rows: comma, pipe, or tab.
     pub delimiter: char,
     /// Maximum nesting depth for fallible encoding. `0` disables the guard.
@@ -161,6 +163,7 @@ impl Default for EncodeOptions {
         Self {
             nested_tabular_headers: false,
             keyed_map_collapse: false,
+            primitive_array_columns: false,
             delimiter: DOCUMENT_DELIMITER,
             max_depth: DEFAULT_MAX_DEPTH,
         }
@@ -3645,7 +3648,7 @@ fn write_array(
                 .iter()
                 .map(|path| {
                     let cell = value_at_path(value, path).expect("tabular_shape checked the path");
-                    primitive_text(cell, options.delimiter)
+                    tabular_cell_text(cell, path, &shape, options)
                 })
                 .collect::<Vec<_>>();
             output.push_str(&cells.join(&options.delimiter.to_string()));
@@ -3759,7 +3762,7 @@ fn write_keyed_map(
             .map(|path| {
                 let cell =
                     value_at_path(&row_value, path).expect("keyed_map_shape checked row paths");
-                primitive_text(cell, options.delimiter)
+                tabular_cell_text(cell, path, shape, options)
             })
             .collect::<Vec<_>>();
         output.push_str(&cells.join(&options.delimiter.to_string()));
@@ -3769,6 +3772,9 @@ fn write_keyed_map(
 }
 
 fn header_field_text(field: &HeaderFieldShape, delimiter: char) -> String {
+    if let Some(list_delimiter) = field.list_delimiter {
+        return format!("{}[{list_delimiter}]", canonical_key(&field.key));
+    }
     if field.children.is_empty() {
         return canonical_key(&field.key);
     }
@@ -3790,6 +3796,7 @@ struct TabularShape {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HeaderFieldShape {
     key: String,
+    list_delimiter: Option<char>,
     children: Vec<HeaderFieldShape>,
 }
 
@@ -3839,6 +3846,7 @@ fn object_shape(
         .iter()
         .map(|field| HeaderFieldShape {
             key: field.key.clone(),
+            list_delimiter: None,
             children: Vec::new(),
         })
         .collect::<Vec<_>>();
@@ -3872,6 +3880,10 @@ fn object_shape(
             })
             .collect::<Vec<_>>();
         if cells.iter().all(Value::is_primitive) {
+            continue;
+        }
+        if options.primitive_array_columns && cells.iter().all(primitive_array_cell) {
+            field.list_delimiter = Some(primitive_array_column_delimiter(options.delimiter));
             continue;
         }
         if !options.nested_tabular_headers {
@@ -3911,6 +3923,72 @@ fn value_at_path<'a>(value: &'a Value, path: &[String]) -> Option<&'a Value> {
         cursor = document.get(segment)?;
     }
     Some(cursor)
+}
+
+fn primitive_array_cell(value: &Value) -> bool {
+    let Value::Array(array) = value else {
+        return false;
+    };
+    array.values().iter().all(Value::is_primitive)
+}
+
+fn primitive_array_column_delimiter(active_delimiter: char) -> char {
+    if active_delimiter == ';' {
+        '~'
+    } else {
+        ';'
+    }
+}
+
+fn tabular_cell_text(
+    value: &Value,
+    path: &[String],
+    shape: &TabularShape,
+    options: EncodeOptions,
+) -> String {
+    let Some(field) = field_at_path(&shape.fields, path) else {
+        return primitive_text(value, options.delimiter);
+    };
+    let Some(list_delimiter) = field.list_delimiter else {
+        return primitive_text(value, options.delimiter);
+    };
+    let Value::Array(array) = value else {
+        unreachable!("primitive-array column shape checked array cells");
+    };
+    array
+        .values()
+        .iter()
+        .map(|item| primitive_text_for_list_item(item, options.delimiter, list_delimiter))
+        .collect::<Vec<_>>()
+        .join(&list_delimiter.to_string())
+}
+
+fn field_at_path<'a>(
+    fields: &'a [HeaderFieldShape],
+    path: &[String],
+) -> Option<&'a HeaderFieldShape> {
+    let mut cursor = fields;
+    let mut field = None;
+    for segment in path {
+        let next = cursor.iter().find(|candidate| candidate.key == *segment)?;
+        field = Some(next);
+        cursor = &next.children;
+    }
+    field
+}
+
+fn primitive_text_for_list_item(
+    value: &Value,
+    active_delimiter: char,
+    list_delimiter: char,
+) -> String {
+    if let Value::String(value) = value {
+        if needs_quotes(value, active_delimiter) || needs_quotes(value, list_delimiter) {
+            return quote_string(value);
+        }
+        return canonical_string(value, list_delimiter);
+    }
+    primitive_text(value, list_delimiter)
 }
 
 fn primitive_text(value: &Value, delimiter: char) -> String {
