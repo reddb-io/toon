@@ -1,0 +1,1 @@
+--nested-tabular-headers -o toon [.orders[]|{id:.id,customer:.customer}]
