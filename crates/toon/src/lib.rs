@@ -5,6 +5,7 @@
 //! the encoder emits the canonical default profile: comma document delimiter,
 //! two-space indentation, no key folding.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{BufRead, Write};
 
@@ -112,6 +113,11 @@ pub struct ToonlSegment {
     rows: Vec<Vec<String>>,
 }
 
+/// A single TOONL segment with a fixed schema.
+///
+/// For multi-segment record streams, prefer [`encode_toonl_values`] or
+/// [`ToonlWriter`]; those APIs canonicalize each record shape to the first field
+/// order seen for that shape, as required by TOONL v0.2 R3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToonlEncoder {
     delimiter: char,
@@ -139,11 +145,17 @@ pub struct ToonlRowReader<R> {
 pub type Record = Value;
 pub type ToonlReader<R> = ToonlRowReader<R>;
 
+/// Streaming TOONL writer for record values.
+///
+/// Field order is canonicalized per record shape using the first order seen for
+/// that shape. Later records with the same field set but a different call-site
+/// order reuse the original order and stay in the same segment when possible.
 #[derive(Debug)]
 pub struct ToonlWriter<W> {
     writer: W,
     delimiter: char,
     fields: Option<Vec<String>>,
+    fields_by_shape: BTreeMap<Vec<String>, Vec<String>>,
     row_count: usize,
     finished: bool,
 }
@@ -584,12 +596,18 @@ impl ToonlEncoder {
     }
 }
 
+/// Encodes record values as TOONL.
+///
+/// Field order is canonicalized per record shape using the first order seen for
+/// that shape. Later records with the same field set but a different call-site
+/// order reuse the original order and do not force a header rotation.
 pub fn encode_toonl_values(values: &[Value]) -> Result<String, ToonlError> {
     let mut output = String::new();
     let mut encoder: Option<ToonlEncoder> = None;
+    let mut fields_by_shape = BTreeMap::new();
 
     for value in values {
-        let fields = toonl_value_fields(value)?;
+        let fields = canonical_toonl_fields(toonl_value_fields(value)?, &mut fields_by_shape);
         if encoder
             .as_ref()
             .map_or(true, |encoder| encoder.fields() != fields.as_slice())
@@ -622,6 +640,7 @@ impl<W: Write> ToonlWriter<W> {
             writer,
             delimiter,
             fields: None,
+            fields_by_shape: BTreeMap::new(),
             row_count: 0,
             finished: false,
         }
@@ -632,7 +651,7 @@ impl<W: Write> ToonlWriter<W> {
             return Err(toonl_error(0, "TOONL writer is closed"));
         }
         validate_toonl_delimiter(self.delimiter)?;
-        let fields = toonl_value_fields(record)?;
+        let fields = canonical_toonl_fields(toonl_value_fields(record)?, &mut self.fields_by_shape);
 
         if self.fields.as_ref() != Some(&fields) {
             self.close_segment()?;
@@ -1589,6 +1608,24 @@ fn toonl_value_fields(value: &Value) -> Result<Vec<String>, ToonlError> {
         .iter()
         .map(|field| field.key.clone())
         .collect())
+}
+
+fn toonl_shape_key(fields: &[String]) -> Vec<String> {
+    let mut key = fields.to_vec();
+    key.sort();
+    key
+}
+
+fn canonical_toonl_fields(
+    fields: Vec<String>,
+    fields_by_shape: &mut BTreeMap<Vec<String>, Vec<String>>,
+) -> Vec<String> {
+    let key = toonl_shape_key(&fields);
+    if let Some(canonical) = fields_by_shape.get(&key) {
+        return canonical.clone();
+    }
+    fields_by_shape.insert(key, fields.clone());
+    fields
 }
 
 fn toonl_error(line: usize, message: impl Into<String>) -> ToonlError {

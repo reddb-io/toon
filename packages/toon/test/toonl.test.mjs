@@ -113,6 +113,16 @@ test('encodeLines writes the header lazily and rotates on a schema change', () =
   assert.equal(emitter.end(), '')
 })
 
+test('encodeLines canonicalizes shuffled field order per record shape', () => {
+  assert.equal(
+    encodeRecords([
+      { id: 1, name: 'Ada' },
+      { name: 'Linus', id: 2 },
+    ]),
+    '[]{id,name}:\n1,Ada\n2,Linus\n[=2]\n',
+  )
+})
+
 test('encodeLines can leave the stream trailer-free', () => {
   assert.equal(
     encodeRecords([{ id: 1 }, { id: 2 }], { trailer: false }),

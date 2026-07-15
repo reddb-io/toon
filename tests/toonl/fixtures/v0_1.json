@@ -84,6 +84,17 @@
       "expected": "[]{id,payload}:\n1,\"{\\\"ok\\\":true}\"\n[=1]\n"
     },
     {
+      "name": "encode-records/shuffled-field-order-reuses-first-shape-order",
+      "kind": "encode-records",
+      "records": [
+        { "id": 1, "name": "Ada" },
+        { "name": "Linus", "id": 2 },
+        { "role": "ops", "name": "Grace", "id": 3 },
+        { "name": "Bob", "id": 4 }
+      ],
+      "expected": "[]{id,name}:\n1,Ada\n2,Linus\n[=2]\n[]{role,name,id}:\nops,Grace,3\n[=1]\n[]{id,name}:\n4,Bob\n[=1]\n"
+    },
+    {
       "name": "close-transform/single-segment-to-one-toon-document",
       "kind": "close-transform",
       "input": "[]{ts,level,msg}:\n\"2026-07-14T03:00:00Z\",info,boot\n\"2026-07-14T03:00:02Z\",error,\"disk full\"\n[=2]\n",

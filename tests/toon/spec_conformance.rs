@@ -1,4 +1,4 @@
-use reddb_io_toon::{ParseOptions, ToonlEncoder, ToonlStream, Value};
+use reddb_io_toon::{encode_toonl_values, ParseOptions, ToonlEncoder, ToonlStream, Value};
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
 use std::fs;
@@ -168,6 +168,17 @@ fn toonl_v0_1_fixtures_are_executable_spec_examples() {
                         .expect("encode expected");
                     assert_eq!(encode_toonl_fixture(test), expected, "{name}: encoded");
                 }
+                "encode-records" => {
+                    let expected = test
+                        .get("expected")
+                        .and_then(Json::as_str)
+                        .expect("encode expected");
+                    assert_eq!(
+                        encode_toonl_records_fixture(test),
+                        expected,
+                        "{name}: encoded"
+                    );
+                }
                 "close-transform" => {
                     let expected = test
                         .get("expectedToonDocuments")
@@ -314,6 +325,19 @@ fn encode_toonl_fixture(test: &Json) -> String {
         encoder.push_raw_row(&cells).expect("valid TOONL row");
     }
     encoder.finish()
+}
+
+fn encode_toonl_records_fixture(test: &Json) -> String {
+    let records = test
+        .get("records")
+        .and_then(Json::as_array)
+        .expect("encode records")
+        .iter()
+        .cloned()
+        .map(Value::from_json_value)
+        .collect::<Vec<_>>();
+
+    encode_toonl_values(&records).expect("valid TOONL records")
 }
 
 fn read_fixture(path: &Path) -> Json {

@@ -17,6 +17,7 @@ import test from 'node:test'
 import {
   ToonlEncoder,
   closeTransform,
+  encodeRecords,
   parse,
   parseStream,
   serialize,
@@ -167,6 +168,11 @@ test('TOONL v0.1 fixtures are executable spec examples', () => {
           encoder.pushRawRow(row)
         }
         assert.equal(encoder.finish(), testCase.expected, `${name}: encoded`)
+        continue
+      }
+
+      if (testCase.kind === 'encode-records') {
+        assert.equal(encodeRecords(testCase.records), testCase.expected, `${name}: encoded`)
         continue
       }
 

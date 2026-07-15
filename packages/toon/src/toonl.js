@@ -503,6 +503,20 @@ function recordFields(record) {
   return fields
 }
 
+function shapeKey(fields) {
+  return JSON.stringify([...fields].sort())
+}
+
+function canonicalFieldsForShape(fields, fieldsByShape) {
+  const key = shapeKey(fields)
+  const canonical = fieldsByShape.get(key)
+  if (canonical !== undefined) {
+    return canonical
+  }
+  fieldsByShape.set(key, fields)
+  return fields
+}
+
 /** A single TOONL segment: fixed schema, rows appended, closed by a trailer. */
 export class ToonlEncoder {
   #delimiter
@@ -586,12 +600,16 @@ export class ToonlEncoder {
  * Incremental TOONL emitter. The header is written lazily with the first record,
  * a schema change rotates the segment automatically, and `end()` closes the last
  * one. Each call returns the text to append — nothing is buffered across calls.
+ * Field order is canonicalized per record shape using the first order seen for
+ * that shape, so later records with the same field set do not rotate solely
+ * because their object keys arrived in a different order.
  *
  * `trailer` (default `true`) writes the `[=N]` trailer when a segment closes.
  */
 export function encodeLines({ delimiter = DOCUMENT_DELIMITER, trailer = true } = {}) {
   validateDelimiter(delimiter)
   let fields = null
+  const fieldsByShape = new Map()
   let rowCount = 0
   let ended = false
 
@@ -607,7 +625,7 @@ export function encodeLines({ delimiter = DOCUMENT_DELIMITER, trailer = true } =
       if (ended) {
         throw toonlError(0, 'TOONL encoder is closed')
       }
-      const next = recordFields(record)
+      const next = canonicalFieldsForShape(recordFields(record), fieldsByShape)
       let output = ''
 
       if (fields === null || fields.length !== next.length || fields.some((f, i) => f !== next[i])) {
@@ -633,7 +651,10 @@ export function encodeLines({ delimiter = DOCUMENT_DELIMITER, trailer = true } =
   }
 }
 
-/** Convenience: encodes records to one TOONL string, rotating on schema change. */
+/**
+ * Convenience: encodes records to one TOONL string, rotating on schema change.
+ * Uses the same first-seen per-shape field order as `encodeLines`.
+ */
 export function encodeRecords(records, options) {
   const emitter = encodeLines(options)
   let output = ''
