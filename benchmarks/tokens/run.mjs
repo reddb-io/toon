@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 import { countTokens } from 'gpt-tokenizer'
@@ -45,10 +46,14 @@ function representativeDatasets() {
     const parts = relative(DATASETS_DIR, file).split('/')
     const shapeClass = parts[0]
     const name = parts.join('/').replace(/\.json$/, '')
+    const variant = variantName(name)
     return {
       name,
       section: 'representative',
       shapeClass,
+      variant,
+      recordCount: recordCount(value),
+      file,
       value,
       records: firstRecordArray(value),
     }
@@ -101,6 +106,39 @@ function firstRecordArray(value) {
     }
   }
   return null
+}
+
+function variantName(name) {
+  const match = name.match(/-(small|large)$/)
+  return match ? match[1] : 'base'
+}
+
+function recordCount(value) {
+  const array = firstArray(value)
+  if (array) return array.length
+  if (value && typeof value === 'object' && value.entity) return treeNodeCount(value.entity)
+  return 1
+}
+
+function firstArray(value) {
+  if (Array.isArray(value)) return value
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) {
+      if (Array.isArray(item)) return item
+    }
+  }
+  return null
+}
+
+function treeNodeCount(value) {
+  if (!value || typeof value !== 'object') return 0
+  let count = value.id && value.label ? 1 : 0
+  if (Array.isArray(value.statements)) {
+    for (const statement of value.statements) {
+      count += treeNodeCount(statement.value)
+    }
+  }
+  return count
 }
 
 function isFlatRecord(value) {
@@ -166,6 +204,7 @@ function formatsFor(dataset) {
     ['xml', xml(dataset.value)],
     ['toon-v3.3-canonical', serialize(dataset.value)],
   ])
+  if (dataset.file) formats.set('toon-rust-crate-canonical', rustCanonicalToon(dataset.file))
   for (const [name, options] of Object.entries(EXTENSIONS)) {
     formats.set(name, serialize(dataset.value, options))
   }
@@ -177,11 +216,24 @@ function formatsFor(dataset) {
   return formats
 }
 
+function rustCanonicalToon(file) {
+  const result = spawnSync('cargo', ['run', '--quiet', '-p', 'reddb-io-tq', '--', '-p', 'json', '-o', 'toon', '.', file], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    maxBuffer: 50 * 1024 * 1024,
+  })
+  if (result.status !== 0) {
+    throw new Error(`Rust crate encoder failed for ${relative(REPO_ROOT, file)}:\n${result.stderr || result.stdout}`)
+  }
+  return result.stdout
+}
+
 function renderReport(rows) {
   const command = 'pnpm benchmark:tokens'
   const representativeRows = rows.filter((row) => row.section === 'representative')
   const showcaseRows = rows.filter((row) => row.section !== 'representative')
   const byShape = summarizeByShape(representativeRows)
+  const amortization = amortizationByShape(representativeRows)
   const losses = representativeRows.filter((row) => row.format.startsWith('toon') && row.deltaTokens > 0)
   const lines = [
     '# Token Efficiency Benchmark',
@@ -190,7 +242,7 @@ function renderReport(rows) {
     '',
     'Tokenizer: `o200k_base` via `gpt-tokenizer`.',
     '',
-    'Representative datasets are vendored under `benchmarks/datasets/` and are read offline. Wire fixtures are retained as an extension-eligibility showcase, not as representative payload evidence.',
+    'Representative datasets are vendored under `benchmarks/datasets/` and are read offline. Canonical TOON is measured through both `@reddb-io/toon` and the Rust crate via the shipped `tq` CLI; extension formats are measured through the JS package implementation. Wire fixtures are retained as an extension-eligibility showcase, not as representative payload evidence.',
     '',
     '## Representative Corpus by Shape',
     '',
@@ -199,6 +251,18 @@ function renderReport(rows) {
   ]
   for (const summary of byShape) {
     lines.push(`| ${summary.shapeClass} | ${summary.datasets} | ${summary.bestToon} | ${summary.bestOther} |`)
+  }
+  lines.push(
+    '',
+    '## Amortization Curve by Shape and Size',
+    '',
+    'The crossover point is the first measured record count where the best TOON-family format uses no more tokens than minified JSON. `not observed` means both measured sizes still lose to JSON for that shape.',
+    '',
+    '| Shape | Variant | Record count | JSON minified tokens | Best TOON-family format | Best TOON-family tokens | Tokens vs JSON | Crossover record count |',
+    '| --- | --- | ---: | ---: | --- | ---: | ---: | ---: |',
+  )
+  for (const row of amortization) {
+    lines.push(`| ${row.shapeClass} | ${row.variant} | ${row.recordCount} | ${row.jsonTokens} | ${row.bestToonFormat} | ${row.bestToonTokens} | ${row.vsJson} | ${row.crossover} |`)
   }
   lines.push(
     '',
@@ -218,11 +282,11 @@ function renderReport(rows) {
     '',
     '## Representative Dataset Measurements',
     '',
-    '| Shape | Dataset | Format | Bytes | Tokens | Tokens vs minified JSON |',
-    '| --- | --- | --- | ---: | ---: | ---: |',
+    '| Shape | Dataset | Variant | Record count | Format | Bytes | Tokens | Tokens vs minified JSON |',
+    '| --- | --- | --- | ---: | --- | ---: | ---: | ---: |',
   )
   for (const row of representativeRows) {
-    lines.push(`| ${row.shapeClass} | ${row.dataset} | ${row.format} | ${row.bytes} | ${row.tokens} | ${row.vsJson} |`)
+    lines.push(`| ${row.shapeClass} | ${row.dataset} | ${row.variant} | ${row.recordCount} | ${row.format} | ${row.bytes} | ${row.tokens} | ${row.vsJson} |`)
   }
   lines.push(
     '',
@@ -256,6 +320,39 @@ function summarizeByShape(rows) {
   })
 }
 
+function amortizationByShape(rows) {
+  const shapeClasses = [...new Set(rows.map((row) => row.shapeClass))].sort()
+  const output = []
+  for (const shapeClass of shapeClasses) {
+    const shapeRows = rows.filter((row) => row.shapeClass === shapeClass)
+    const variants = [...new Set(shapeRows.map((row) => row.dataset))]
+      .map((dataset) => {
+        const datasetRows = shapeRows.filter((row) => row.dataset === dataset)
+        const json = datasetRows.find((row) => row.format === 'json-minified')
+        const toon = datasetRows
+          .filter((row) => row.format.startsWith('toon'))
+          .sort((left, right) => left.tokens - right.tokens)[0]
+        return { dataset, json, toon }
+      })
+      .filter((item) => item.json && item.toon)
+      .sort((left, right) => left.json.recordCount - right.json.recordCount)
+    const crossover = variants.find((item) => item.toon.tokens <= item.json.tokens)?.json.recordCount
+    for (const item of variants) {
+      output.push({
+        shapeClass,
+        variant: item.json.variant,
+        recordCount: item.json.recordCount,
+        jsonTokens: item.json.tokens,
+        bestToonFormat: item.toon.format,
+        bestToonTokens: item.toon.tokens,
+        vsJson: pct(item.toon.tokens, item.json.tokens),
+        crossover: crossover ?? 'not observed',
+      })
+    }
+  }
+  return output
+}
+
 function bestMedian(rows) {
   const formats = [...new Set(rows.map((row) => row.format))].sort()
   let best = null
@@ -281,6 +378,8 @@ for (const dataset of datasets) {
       dataset: dataset.name,
       section: dataset.section,
       shapeClass: dataset.shapeClass,
+      variant: dataset.variant ?? 'n/a',
+      recordCount: dataset.recordCount ?? 'n/a',
       format,
       bytes: counts.bytes,
       tokens: counts.tokens,

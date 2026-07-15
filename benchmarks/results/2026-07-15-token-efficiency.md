@@ -4,135 +4,286 @@ Command: `pnpm benchmark:tokens`
 
 Tokenizer: `o200k_base` via `gpt-tokenizer`.
 
-Representative datasets are vendored under `benchmarks/datasets/` and are read offline. Wire fixtures are retained as an extension-eligibility showcase, not as representative payload evidence.
+Representative datasets are vendored under `benchmarks/datasets/` and are read offline. Canonical TOON is measured through both `@reddb-io/toon` and the Rust crate via the shipped `tq` CLI; extension formats are measured through the JS package implementation. Wire fixtures are retained as an extension-eligibility showcase, not as representative payload evidence.
 
 ## Representative Corpus by Shape
 
 | Shape | Datasets | Best TOON-family median vs JSON | Best non-TOON median vs JSON |
 | --- | ---: | ---: | ---: |
-| deep-tree | 1 | toon-ext-all (-22.7%) | yaml (35.6%) |
-| flat-tabular | 1 | toonl (-43.6%) | csv (-44.8%) |
-| nested-heterogeneous | 1 | toon-ext-all (13.9%) | yaml (47.9%) |
-| nested-uniform | 1 | toon-ext-all (-25.7%) | yaml (39.9%) |
-| streaming-append | 1 | toonl (-29.7%) | csv (-31.8%) |
-| tagged-records | 1 | toon-ext-all (19.4%) | yaml (38.0%) |
-| wide-sparse | 1 | toonl (-8.4%) | csv (-14.0%) |
+| deep-tree | 2 | toon-ext-all (-35.1%) | yaml (37.9%) |
+| flat-tabular | 2 | toonl (-48.1%) | csv (-47.7%) |
+| nested-heterogeneous | 2 | toon-ext-all (12.5%) | yaml (44.2%) |
+| nested-uniform | 2 | toon-ext-all (-32.3%) | yaml (40.5%) |
+| streaming-append | 2 | toonl (-32.8%) | csv (-33.9%) |
+| tagged-records | 2 | toon-ext-all (19.5%) | yaml (38.8%) |
+| wide-sparse | 2 | toonl (-7.4%) | jsonl (0.8%) |
+
+## Amortization Curve by Shape and Size
+
+The crossover point is the first measured record count where the best TOON-family format uses no more tokens than minified JSON. `not observed` means both measured sizes still lose to JSON for that shape.
+
+| Shape | Variant | Record count | JSON minified tokens | Best TOON-family format | Best TOON-family tokens | Tokens vs JSON | Crossover record count |
+| --- | --- | ---: | ---: | --- | ---: | ---: | ---: |
+| deep-tree | small | 7 | 163 | toon-ext-all | 126 | -22.7% | 7 |
+| deep-tree | large | 109 | 2505 | toon-ext-all | 1313 | -47.6% | 7 |
+| flat-tabular | small | 6 | 250 | toonl | 141 | -43.6% | 6 |
+| flat-tabular | large | 48 | 1941 | toonl | 919 | -52.7% | 6 |
+| nested-heterogeneous | small | 2 | 447 | toon-v3.3-canonical | 509 | 13.9% | not observed |
+| nested-heterogeneous | large | 80 | 8459 | toon-v3.3-canonical | 9405 | 11.2% | not observed |
+| nested-uniform | small | 3 | 268 | toon-ext-child-tables | 199 | -25.7% | 3 |
+| nested-uniform | large | 96 | 8345 | toon-ext-child-tables | 5106 | -38.8% | 3 |
+| streaming-append | small | 6 | 286 | toonl | 201 | -29.7% | 6 |
+| streaming-append | large | 160 | 7542 | toonl | 4829 | -36.0% | 6 |
+| tagged-records | small | 4 | 216 | toon-v3.3-canonical | 258 | 19.4% | not observed |
+| tagged-records | large | 120 | 6386 | toon-v3.3-canonical | 7632 | 19.5% | not observed |
+| wide-sparse | small | 5 | 286 | toonl | 262 | -8.4% | 5 |
+| wide-sparse | large | 96 | 5468 | toonl | 5118 | -6.4% | 5 |
 
 ## Explicit TOON/TOONL Losses
 
 | Shape | Dataset | Format | Tokens vs minified JSON |
 | --- | --- | --- | ---: |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-v3.3-canonical | 12.3% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-ext-primitive-array-columns | 12.3% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-ext-child-tables | 12.3% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-ext-delimiter-pipe | 15.3% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-ext-keyed-map-collapse | 12.3% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-v3.3-canonical | 13.9% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-primitive-array-columns | 13.9% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-child-tables | 13.9% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-delimiter-pipe | 16.8% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-keyed-map-collapse | 13.9% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-all | 13.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-v3.3-canonical | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-ext-primitive-array-columns | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-ext-delimiter-pipe | 12.7% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-ext-keyed-map-collapse | 10.1% |
-| tagged-records | tagged-records/activity-events | toon-v3.3-canonical | 19.4% |
-| tagged-records | tagged-records/activity-events | toon-ext-primitive-array-columns | 19.4% |
-| tagged-records | tagged-records/activity-events | toon-ext-child-tables | 19.4% |
-| tagged-records | tagged-records/activity-events | toon-ext-delimiter-pipe | 21.3% |
-| tagged-records | tagged-records/activity-events | toon-ext-keyed-map-collapse | 19.4% |
-| tagged-records | tagged-records/activity-events | toon-ext-all | 19.4% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-v3.3-canonical | 19.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-primitive-array-columns | 19.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-child-tables | 19.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-delimiter-pipe | 19.6% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-keyed-map-collapse | 19.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-all | 19.2% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-v3.3-canonical | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-rust-crate-canonical | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-ext-primitive-array-columns | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-ext-child-tables | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-ext-delimiter-pipe | 18.1% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-ext-keyed-map-collapse | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-v3.3-canonical | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-rust-crate-canonical | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-ext-primitive-array-columns | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-ext-child-tables | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-ext-delimiter-pipe | 15.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-ext-keyed-map-collapse | 12.3% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-v3.3-canonical | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-rust-crate-canonical | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-primitive-array-columns | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-child-tables | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-delimiter-pipe | 13.0% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-keyed-map-collapse | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-all | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-v3.3-canonical | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-rust-crate-canonical | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-primitive-array-columns | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-child-tables | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-delimiter-pipe | 16.8% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-keyed-map-collapse | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-all | 13.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-v3.3-canonical | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-rust-crate-canonical | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-ext-primitive-array-columns | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-ext-delimiter-pipe | 12.2% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-ext-keyed-map-collapse | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-v3.3-canonical | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-rust-crate-canonical | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-ext-primitive-array-columns | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-ext-delimiter-pipe | 12.7% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-ext-keyed-map-collapse | 10.1% |
+| tagged-records | tagged-records/activity-events-large | toon-v3.3-canonical | 19.5% |
+| tagged-records | tagged-records/activity-events-large | toon-rust-crate-canonical | 19.5% |
+| tagged-records | tagged-records/activity-events-large | toon-ext-primitive-array-columns | 19.5% |
+| tagged-records | tagged-records/activity-events-large | toon-ext-child-tables | 19.5% |
+| tagged-records | tagged-records/activity-events-large | toon-ext-delimiter-pipe | 20.6% |
+| tagged-records | tagged-records/activity-events-large | toon-ext-keyed-map-collapse | 19.5% |
+| tagged-records | tagged-records/activity-events-large | toon-ext-all | 19.5% |
+| tagged-records | tagged-records/activity-events-small | toon-v3.3-canonical | 19.4% |
+| tagged-records | tagged-records/activity-events-small | toon-rust-crate-canonical | 19.4% |
+| tagged-records | tagged-records/activity-events-small | toon-ext-primitive-array-columns | 19.4% |
+| tagged-records | tagged-records/activity-events-small | toon-ext-child-tables | 19.4% |
+| tagged-records | tagged-records/activity-events-small | toon-ext-delimiter-pipe | 21.3% |
+| tagged-records | tagged-records/activity-events-small | toon-ext-keyed-map-collapse | 19.4% |
+| tagged-records | tagged-records/activity-events-small | toon-ext-all | 19.4% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-v3.3-canonical | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-rust-crate-canonical | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-primitive-array-columns | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-child-tables | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-delimiter-pipe | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-keyed-map-collapse | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-all | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-v3.3-canonical | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-rust-crate-canonical | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-primitive-array-columns | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-child-tables | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-delimiter-pipe | 19.6% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-keyed-map-collapse | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-all | 19.2% |
 
 ## Representative Dataset Measurements
 
-| Shape | Dataset | Format | Bytes | Tokens | Tokens vs minified JSON |
-| --- | --- | --- | ---: | ---: | ---: |
-| deep-tree | deep-tree/wikidata-knowledge-tree | json-minified | 557 | 163 | 0.0% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | json-pretty | 1460 | 297 | 82.2% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | yaml | 1008 | 221 | 35.6% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | xml | 816 | 249 | 52.8% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-v3.3-canonical | 893 | 183 | 12.3% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-ext-primitive-array-columns | 893 | 183 | 12.3% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-ext-child-tables | 893 | 183 | 12.3% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-ext-delimiter-pipe | 898 | 188 | 15.3% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-ext-keyed-map-collapse | 893 | 183 | 12.3% |
-| deep-tree | deep-tree/wikidata-knowledge-tree | toon-ext-all | 409 | 126 | -22.7% |
-| flat-tabular | flat-tabular/public-repositories | json-minified | 1009 | 250 | 0.0% |
-| flat-tabular | flat-tabular/public-repositories | json-pretty | 1461 | 410 | 64.0% |
-| flat-tabular | flat-tabular/public-repositories | yaml | 1168 | 344 | 37.6% |
-| flat-tabular | flat-tabular/public-repositories | xml | 1489 | 379 | 51.6% |
-| flat-tabular | flat-tabular/public-repositories | toon-v3.3-canonical | 456 | 146 | -41.6% |
-| flat-tabular | flat-tabular/public-repositories | toon-ext-primitive-array-columns | 456 | 146 | -41.6% |
-| flat-tabular | flat-tabular/public-repositories | toon-ext-child-tables | 456 | 146 | -41.6% |
-| flat-tabular | flat-tabular/public-repositories | toon-ext-delimiter-pipe | 457 | 162 | -35.2% |
-| flat-tabular | flat-tabular/public-repositories | toon-ext-keyed-map-collapse | 456 | 146 | -41.6% |
-| flat-tabular | flat-tabular/public-repositories | toon-ext-all | 456 | 146 | -41.6% |
-| flat-tabular | flat-tabular/public-repositories | jsonl | 991 | 251 | 0.4% |
-| flat-tabular | flat-tabular/public-repositories | csv | 426 | 138 | -44.8% |
-| flat-tabular | flat-tabular/public-repositories | toonl | 436 | 141 | -43.6% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | json-minified | 1621 | 447 | 0.0% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | json-pretty | 3404 | 827 | 85.0% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | yaml | 2417 | 661 | 47.9% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | xml | 2374 | 711 | 59.1% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-v3.3-canonical | 1966 | 509 | 13.9% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-primitive-array-columns | 1966 | 509 | 13.9% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-child-tables | 1966 | 509 | 13.9% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-delimiter-pipe | 1975 | 522 | 16.8% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-keyed-map-collapse | 1966 | 509 | 13.9% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event | toon-ext-all | 1966 | 509 | 13.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | json-minified | 1185 | 268 | 0.0% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | json-pretty | 1871 | 450 | 67.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | yaml | 1473 | 375 | 39.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | xml | 1679 | 408 | 52.2% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-v3.3-canonical | 1118 | 295 | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-ext-primitive-array-columns | 1118 | 295 | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-ext-child-tables | 728 | 199 | -25.7% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-ext-delimiter-pipe | 1125 | 302 | 12.7% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-ext-keyed-map-collapse | 1118 | 295 | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths | toon-ext-all | 728 | 199 | -25.7% |
-| streaming-append | streaming-append/append-only-logs | json-minified | 852 | 286 | 0.0% |
-| streaming-append | streaming-append/append-only-logs | json-pretty | 1256 | 440 | 53.8% |
-| streaming-append | streaming-append/append-only-logs | yaml | 993 | 380 | 32.9% |
-| streaming-append | streaming-append/append-only-logs | xml | 1183 | 416 | 45.5% |
-| streaming-append | streaming-append/append-only-logs | toon-v3.3-canonical | 465 | 212 | -25.9% |
-| streaming-append | streaming-append/append-only-logs | toon-ext-primitive-array-columns | 465 | 212 | -25.9% |
-| streaming-append | streaming-append/append-only-logs | toon-ext-child-tables | 465 | 212 | -25.9% |
-| streaming-append | streaming-append/append-only-logs | toon-ext-delimiter-pipe | 466 | 214 | -25.2% |
-| streaming-append | streaming-append/append-only-logs | toon-ext-keyed-map-collapse | 465 | 212 | -25.9% |
-| streaming-append | streaming-append/append-only-logs | toon-ext-all | 465 | 212 | -25.9% |
-| streaming-append | streaming-append/append-only-logs | jsonl | 839 | 287 | 0.3% |
-| streaming-append | streaming-append/append-only-logs | csv | 428 | 195 | -31.8% |
-| streaming-append | streaming-append/append-only-logs | toonl | 450 | 201 | -29.7% |
-| tagged-records | tagged-records/activity-events | json-minified | 697 | 216 | 0.0% |
-| tagged-records | tagged-records/activity-events | json-pretty | 1135 | 350 | 62.0% |
-| tagged-records | tagged-records/activity-events | yaml | 869 | 298 | 38.0% |
-| tagged-records | tagged-records/activity-events | xml | 990 | 321 | 48.6% |
-| tagged-records | tagged-records/activity-events | toon-v3.3-canonical | 759 | 258 | 19.4% |
-| tagged-records | tagged-records/activity-events | toon-ext-primitive-array-columns | 759 | 258 | 19.4% |
-| tagged-records | tagged-records/activity-events | toon-ext-child-tables | 759 | 258 | 19.4% |
-| tagged-records | tagged-records/activity-events | toon-ext-delimiter-pipe | 763 | 262 | 21.3% |
-| tagged-records | tagged-records/activity-events | toon-ext-keyed-map-collapse | 759 | 258 | 19.4% |
-| tagged-records | tagged-records/activity-events | toon-ext-all | 759 | 258 | 19.4% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | json-minified | 877 | 286 | 0.0% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | json-pretty | 1255 | 423 | 47.9% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | yaml | 1009 | 372 | 30.1% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | xml | 1436 | 476 | 66.4% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-v3.3-canonical | 942 | 341 | 19.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-primitive-array-columns | 942 | 341 | 19.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-child-tables | 942 | 341 | 19.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-delimiter-pipe | 943 | 342 | 19.6% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-keyed-map-collapse | 942 | 341 | 19.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toon-ext-all | 942 | 341 | 19.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | jsonl | 863 | 286 | 0.0% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | csv | 803 | 246 | -14.0% |
-| wide-sparse | wide-sparse/sparse-feature-vectors | toonl | 779 | 262 | -8.4% |
+| Shape | Dataset | Variant | Record count | Format | Bytes | Tokens | Tokens vs minified JSON |
+| --- | --- | --- | ---: | --- | ---: | ---: | ---: |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | json-minified | 9182 | 2505 | 0.0% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | json-pretty | 40756 | 4658 | 85.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | yaml | 28799 | 3513 | 40.2% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | xml | 13264 | 3900 | 55.7% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-v3.3-canonical | 24879 | 2904 | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-rust-crate-canonical | 24879 | 2904 | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-ext-primitive-array-columns | 24879 | 2904 | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-ext-child-tables | 24879 | 2904 | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-ext-delimiter-pipe | 24933 | 2958 | 18.1% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-ext-keyed-map-collapse | 24879 | 2904 | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-ext-all | 4804 | 1313 | -47.6% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | json-minified | 557 | 163 | 0.0% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | json-pretty | 1460 | 297 | 82.2% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | yaml | 1008 | 221 | 35.6% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | xml | 816 | 249 | 52.8% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-v3.3-canonical | 893 | 183 | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-rust-crate-canonical | 893 | 183 | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-ext-primitive-array-columns | 893 | 183 | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-ext-child-tables | 893 | 183 | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-ext-delimiter-pipe | 898 | 188 | 15.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-ext-keyed-map-collapse | 893 | 183 | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-ext-all | 409 | 126 | -22.7% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | json-minified | 7835 | 1941 | 0.0% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | json-pretty | 11395 | 3193 | 64.5% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | yaml | 9128 | 2707 | 39.5% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | xml | 11507 | 2934 | 51.2% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-v3.3-canonical | 2873 | 963 | -50.4% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-rust-crate-canonical | 2873 | 963 | -50.4% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-ext-primitive-array-columns | 2873 | 963 | -50.4% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-ext-child-tables | 2873 | 963 | -50.4% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-ext-delimiter-pipe | 2874 | 1094 | -43.6% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-ext-keyed-map-collapse | 2873 | 963 | -50.4% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-ext-all | 2873 | 963 | -50.4% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | jsonl | 7817 | 1984 | 2.2% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | csv | 2758 | 959 | -50.6% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toonl | 2769 | 919 | -52.7% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | json-minified | 1009 | 250 | 0.0% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | json-pretty | 1461 | 410 | 64.0% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | yaml | 1168 | 344 | 37.6% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | xml | 1489 | 379 | 51.6% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-v3.3-canonical | 456 | 146 | -41.6% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-rust-crate-canonical | 456 | 146 | -41.6% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-ext-primitive-array-columns | 456 | 146 | -41.6% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-ext-child-tables | 456 | 146 | -41.6% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-ext-delimiter-pipe | 457 | 162 | -35.2% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-ext-keyed-map-collapse | 456 | 146 | -41.6% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-ext-all | 456 | 146 | -41.6% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | jsonl | 991 | 251 | 0.4% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | csv | 426 | 138 | -44.8% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toonl | 436 | 141 | -43.6% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | json-minified | 28378 | 8459 | 0.0% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | json-pretty | 50931 | 14349 | 69.6% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | yaml | 37969 | 11884 | 40.5% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | xml | 38887 | 12506 | 47.8% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-v3.3-canonical | 29963 | 9405 | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-rust-crate-canonical | 29963 | 9405 | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-ext-primitive-array-columns | 29963 | 9405 | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-ext-child-tables | 29963 | 9405 | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-ext-delimiter-pipe | 30057 | 9556 | 13.0% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-ext-keyed-map-collapse | 29963 | 9405 | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-ext-all | 29963 | 9405 | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | json-minified | 1621 | 447 | 0.0% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | json-pretty | 3404 | 827 | 85.0% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | yaml | 2417 | 661 | 47.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | xml | 2374 | 711 | 59.1% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-v3.3-canonical | 1966 | 509 | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-rust-crate-canonical | 1966 | 509 | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-ext-primitive-array-columns | 1966 | 509 | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-ext-child-tables | 1966 | 509 | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-ext-delimiter-pipe | 1975 | 522 | 16.8% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-ext-keyed-map-collapse | 1966 | 509 | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-ext-all | 1966 | 509 | 13.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | json-minified | 38013 | 8345 | 0.0% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | json-pretty | 59717 | 13982 | 67.5% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | yaml | 47322 | 11768 | 41.0% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | xml | 53294 | 12638 | 51.4% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-v3.3-canonical | 35965 | 9174 | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-rust-crate-canonical | 35965 | 9174 | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-primitive-array-columns | 35965 | 9174 | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-child-tables | 19858 | 5106 | -38.8% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-delimiter-pipe | 36158 | 9367 | 12.2% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-keyed-map-collapse | 35965 | 9174 | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-all | 19858 | 5106 | -38.8% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | json-minified | 1185 | 268 | 0.0% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | json-pretty | 1871 | 450 | 67.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | yaml | 1473 | 375 | 39.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | xml | 1679 | 408 | 52.2% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-v3.3-canonical | 1118 | 295 | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-rust-crate-canonical | 1118 | 295 | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-primitive-array-columns | 1118 | 295 | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-child-tables | 728 | 199 | -25.7% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-delimiter-pipe | 1125 | 302 | 12.7% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-keyed-map-collapse | 1118 | 295 | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-all | 728 | 199 | -25.7% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | json-minified | 22874 | 7542 | 0.0% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | json-pretty | 33442 | 11546 | 53.1% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | yaml | 26711 | 10100 | 33.9% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | xml | 31213 | 10906 | 44.6% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-v3.3-canonical | 11247 | 5148 | -31.7% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-rust-crate-canonical | 11247 | 5148 | -31.7% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-ext-primitive-array-columns | 11247 | 5148 | -31.7% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-ext-child-tables | 11247 | 5148 | -31.7% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-ext-delimiter-pipe | 11248 | 5160 | -31.6% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-ext-keyed-map-collapse | 11247 | 5148 | -31.7% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-ext-all | 11247 | 5148 | -31.7% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | jsonl | 22861 | 7697 | 2.1% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | csv | 10592 | 4823 | -36.1% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | toonl | 10924 | 4829 | -36.0% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | json-minified | 852 | 286 | 0.0% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | json-pretty | 1256 | 440 | 53.8% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | yaml | 993 | 380 | 32.9% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | xml | 1183 | 416 | 45.5% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-v3.3-canonical | 465 | 212 | -25.9% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-rust-crate-canonical | 465 | 212 | -25.9% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-ext-primitive-array-columns | 465 | 212 | -25.9% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-ext-child-tables | 465 | 212 | -25.9% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-ext-delimiter-pipe | 466 | 214 | -25.2% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-ext-keyed-map-collapse | 465 | 212 | -25.9% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-ext-all | 465 | 212 | -25.9% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | jsonl | 839 | 287 | 0.3% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | csv | 428 | 195 | -31.8% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | toonl | 450 | 201 | -29.7% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | json-minified | 20360 | 6386 | 0.0% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | json-pretty | 33308 | 10261 | 60.7% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | yaml | 25767 | 8915 | 39.6% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | xml | 28808 | 9471 | 48.3% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | toon-v3.3-canonical | 22191 | 7632 | 19.5% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | toon-rust-crate-canonical | 22191 | 7632 | 19.5% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | toon-ext-primitive-array-columns | 22191 | 7632 | 19.5% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | toon-ext-child-tables | 22191 | 7632 | 19.5% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | toon-ext-delimiter-pipe | 22262 | 7703 | 20.6% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | toon-ext-keyed-map-collapse | 22191 | 7632 | 19.5% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | toon-ext-all | 22191 | 7632 | 19.5% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | json-minified | 697 | 216 | 0.0% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | json-pretty | 1135 | 350 | 62.0% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | yaml | 869 | 298 | 38.0% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | xml | 990 | 321 | 48.6% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | toon-v3.3-canonical | 759 | 258 | 19.4% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | toon-rust-crate-canonical | 759 | 258 | 19.4% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | toon-ext-primitive-array-columns | 759 | 258 | 19.4% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | toon-ext-child-tables | 759 | 258 | 19.4% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | toon-ext-delimiter-pipe | 763 | 262 | 21.3% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | toon-ext-keyed-map-collapse | 759 | 258 | 19.4% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | toon-ext-all | 759 | 258 | 19.4% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | json-minified | 16964 | 5468 | 0.0% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | json-pretty | 24076 | 8040 | 47.0% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | yaml | 19553 | 7170 | 31.1% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | xml | 27518 | 9089 | 66.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-v3.3-canonical | 18186 | 6533 | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-rust-crate-canonical | 18186 | 6533 | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-ext-primitive-array-columns | 18186 | 6533 | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-ext-child-tables | 18186 | 6533 | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-ext-delimiter-pipe | 18187 | 6534 | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-ext-keyed-map-collapse | 18186 | 6533 | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-ext-all | 18186 | 6533 | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | jsonl | 16950 | 5559 | 1.7% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | csv | 62022 | 16327 | 198.6% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toonl | 15292 | 5118 | -6.4% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | json-minified | 877 | 286 | 0.0% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | json-pretty | 1255 | 423 | 47.9% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | yaml | 1009 | 372 | 30.1% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | xml | 1436 | 476 | 66.4% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-v3.3-canonical | 942 | 341 | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-rust-crate-canonical | 942 | 341 | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-ext-primitive-array-columns | 942 | 341 | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-ext-child-tables | 942 | 341 | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-ext-delimiter-pipe | 943 | 342 | 19.6% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-ext-keyed-map-collapse | 942 | 341 | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-ext-all | 942 | 341 | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | jsonl | 863 | 286 | 0.0% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | csv | 803 | 246 | -14.0% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toonl | 779 | 262 | -8.4% |
 
 ## Wire Extension-Eligibility Showcase
 

@@ -1,0 +1,925 @@
+{
+  "entity": {
+    "id": "Q146",
+    "label": "cat",
+    "statements": [
+      {
+        "property": "subclass of",
+        "value": {
+          "id": "Q25265",
+          "label": "carnivoran",
+          "statements": [
+            {
+              "property": "subclass of",
+              "value": {
+                "id": "Q7377",
+                "label": "mammal",
+                "statements": [
+                  {
+                    "property": "subclass of",
+                    "value": {
+                      "id": "Q729",
+                      "label": "animal",
+                      "statements": [
+                        {
+                          "property": "subclass of",
+                          "value": {
+                            "id": "Q35120",
+                            "label": "entity",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q5",
+                                  "label": "human",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q43229",
+                                        "label": "organization",
+                                        "statements": [
+                                          {
+                                            "property": "subclass of",
+                                            "value": {
+                                              "id": "Q11862829",
+                                              "label": "academic discipline",
+                                              "statements": [
+                                                {
+                                                  "property": "subclass of",
+                                                  "value": {
+                                                    "id": "Q7397",
+                                                    "label": "software",
+                                                    "statements": []
+                                                  }
+                                                },
+                                                {
+                                                  "property": "instance of",
+                                                  "value": {
+                                                    "id": "Q11424",
+                                                    "label": "film",
+                                                    "statements": []
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "property": "has part",
+                                            "value": {
+                                              "id": "Q3914",
+                                              "label": "school",
+                                              "statements": []
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "property": "part of",
+                                      "value": {
+                                        "id": "Q4830453",
+                                        "label": "business",
+                                        "statements": [
+                                          {
+                                            "property": "subclass of",
+                                            "value": {
+                                              "id": "Q3914",
+                                              "label": "school",
+                                              "statements": []
+                                            }
+                                          },
+                                          {
+                                            "property": "instance of",
+                                            "value": {
+                                              "id": "Q11028",
+                                              "label": "information",
+                                              "statements": []
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "instance of",
+                                "value": {
+                                  "id": "Q41176",
+                                  "label": "building",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q4830453",
+                                        "label": "business",
+                                        "statements": [
+                                          {
+                                            "property": "subclass of",
+                                            "value": {
+                                              "id": "Q3914",
+                                              "label": "school",
+                                              "statements": []
+                                            }
+                                          },
+                                          {
+                                            "property": "instance of",
+                                            "value": {
+                                              "id": "Q11028",
+                                              "label": "information",
+                                              "statements": []
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "property": "has part",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "property": "has part",
+                          "value": {
+                            "id": "Q395",
+                            "label": "mathematics",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q41176",
+                                  "label": "building",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q4830453",
+                                        "label": "business",
+                                        "statements": [
+                                          {
+                                            "property": "subclass of",
+                                            "value": {
+                                              "id": "Q3914",
+                                              "label": "school",
+                                              "statements": []
+                                            }
+                                          },
+                                          {
+                                            "property": "instance of",
+                                            "value": {
+                                              "id": "Q11028",
+                                              "label": "information",
+                                              "statements": []
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "property": "has part",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "part of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "property": "part of",
+                    "value": {
+                      "id": "Q9135",
+                      "label": "operating system",
+                      "statements": [
+                        {
+                          "property": "subclass of",
+                          "value": {
+                            "id": "Q395",
+                            "label": "mathematics",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q41176",
+                                  "label": "building",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q4830453",
+                                        "label": "business",
+                                        "statements": [
+                                          {
+                                            "property": "subclass of",
+                                            "value": {
+                                              "id": "Q3914",
+                                              "label": "school",
+                                              "statements": []
+                                            }
+                                          },
+                                          {
+                                            "property": "instance of",
+                                            "value": {
+                                              "id": "Q11028",
+                                              "label": "information",
+                                              "statements": []
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "property": "has part",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "part of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "property": "instance of",
+                          "value": {
+                            "id": "Q482994",
+                            "label": "album",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "has part",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "property": "instance of",
+              "value": {
+                "id": "Q7397",
+                "label": "software",
+                "statements": [
+                  {
+                    "property": "subclass of",
+                    "value": {
+                      "id": "Q9135",
+                      "label": "operating system",
+                      "statements": [
+                        {
+                          "property": "subclass of",
+                          "value": {
+                            "id": "Q395",
+                            "label": "mathematics",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q41176",
+                                  "label": "building",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q4830453",
+                                        "label": "business",
+                                        "statements": [
+                                          {
+                                            "property": "subclass of",
+                                            "value": {
+                                              "id": "Q3914",
+                                              "label": "school",
+                                              "statements": []
+                                            }
+                                          },
+                                          {
+                                            "property": "instance of",
+                                            "value": {
+                                              "id": "Q11028",
+                                              "label": "information",
+                                              "statements": []
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "property": "has part",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "part of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "property": "instance of",
+                          "value": {
+                            "id": "Q482994",
+                            "label": "album",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "has part",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "property": "has part",
+                    "value": {
+                      "id": "Q571",
+                      "label": "book",
+                      "statements": [
+                        {
+                          "property": "subclass of",
+                          "value": {
+                            "id": "Q482994",
+                            "label": "album",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "has part",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "property": "part of",
+                          "value": {
+                            "id": "Q386724",
+                            "label": "work",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              },
+                              {
+                                "property": "instance of",
+                                "value": {
+                                  "id": "Q515",
+                                  "label": "city",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "property": "has part",
+        "value": {
+          "id": "Q11862829",
+          "label": "academic discipline",
+          "statements": [
+            {
+              "property": "subclass of",
+              "value": {
+                "id": "Q7397",
+                "label": "software",
+                "statements": [
+                  {
+                    "property": "subclass of",
+                    "value": {
+                      "id": "Q9135",
+                      "label": "operating system",
+                      "statements": [
+                        {
+                          "property": "subclass of",
+                          "value": {
+                            "id": "Q395",
+                            "label": "mathematics",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q41176",
+                                  "label": "building",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q4830453",
+                                        "label": "business",
+                                        "statements": [
+                                          {
+                                            "property": "subclass of",
+                                            "value": {
+                                              "id": "Q3914",
+                                              "label": "school",
+                                              "statements": []
+                                            }
+                                          },
+                                          {
+                                            "property": "instance of",
+                                            "value": {
+                                              "id": "Q11028",
+                                              "label": "information",
+                                              "statements": []
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "property": "has part",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "part of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "property": "instance of",
+                          "value": {
+                            "id": "Q482994",
+                            "label": "album",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "has part",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "property": "has part",
+                    "value": {
+                      "id": "Q571",
+                      "label": "book",
+                      "statements": [
+                        {
+                          "property": "subclass of",
+                          "value": {
+                            "id": "Q482994",
+                            "label": "album",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "has part",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "property": "part of",
+                          "value": {
+                            "id": "Q386724",
+                            "label": "work",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              },
+                              {
+                                "property": "instance of",
+                                "value": {
+                                  "id": "Q515",
+                                  "label": "city",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "property": "part of",
+              "value": {
+                "id": "Q11424",
+                "label": "film",
+                "statements": [
+                  {
+                    "property": "subclass of",
+                    "value": {
+                      "id": "Q571",
+                      "label": "book",
+                      "statements": [
+                        {
+                          "property": "subclass of",
+                          "value": {
+                            "id": "Q482994",
+                            "label": "album",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q16521",
+                                  "label": "taxonomic rank",
+                                  "statements": [
+                                    {
+                                      "property": "subclass of",
+                                      "value": {
+                                        "id": "Q34770",
+                                        "label": "language",
+                                        "statements": []
+                                      }
+                                    },
+                                    {
+                                      "property": "instance of",
+                                      "value": {
+                                        "id": "Q7187",
+                                        "label": "gene",
+                                        "statements": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "property": "has part",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "property": "part of",
+                          "value": {
+                            "id": "Q386724",
+                            "label": "work",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              },
+                              {
+                                "property": "instance of",
+                                "value": {
+                                  "id": "Q515",
+                                  "label": "city",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "property": "instance of",
+                    "value": {
+                      "id": "Q2424752",
+                      "label": "product",
+                      "statements": [
+                        {
+                          "property": "subclass of",
+                          "value": {
+                            "id": "Q386724",
+                            "label": "work",
+                            "statements": [
+                              {
+                                "property": "subclass of",
+                                "value": {
+                                  "id": "Q488383",
+                                  "label": "object",
+                                  "statements": []
+                                }
+                              },
+                              {
+                                "property": "instance of",
+                                "value": {
+                                  "id": "Q515",
+                                  "label": "city",
+                                  "statements": []
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "property": "has part",
+                          "value": {
+                            "id": "Q486972",
+                            "label": "human settlement",
+                            "statements": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

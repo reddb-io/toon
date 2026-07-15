@@ -1,0 +1,2404 @@
+{
+  "paths": [
+    {
+      "path": "/pet",
+      "method": "get",
+      "operation_id": "getPet",
+      "tags": [
+        "pet"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Pet",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Pet"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/pet",
+      "method": "post",
+      "operation_id": "postPet",
+      "tags": [
+        "pet"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Pet",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Pet"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/pet/{id}",
+      "method": "patch",
+      "operation_id": "patchPet",
+      "tags": [
+        "pet"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Pet",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Pet"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/store",
+      "method": "get",
+      "operation_id": "getStore",
+      "tags": [
+        "store"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Store",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/StoreList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/store",
+      "method": "post",
+      "operation_id": "postStore",
+      "tags": [
+        "store"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Store",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/StoreList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/store/{id}",
+      "method": "patch",
+      "operation_id": "patchStore",
+      "tags": [
+        "store"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Store",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/StoreList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/user",
+      "method": "get",
+      "operation_id": "getUser",
+      "tags": [
+        "user"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/User",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/User"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/user",
+      "method": "post",
+      "operation_id": "postUser",
+      "tags": [
+        "user"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/User",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/User"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/user/{id}",
+      "method": "patch",
+      "operation_id": "patchUser",
+      "tags": [
+        "user"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/User",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/User"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/inventory",
+      "method": "get",
+      "operation_id": "getInventory",
+      "tags": [
+        "inventory"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Inventory",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Inventory"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/inventory",
+      "method": "post",
+      "operation_id": "postInventory",
+      "tags": [
+        "inventory"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Inventory",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Inventory"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/inventory/{id}",
+      "method": "patch",
+      "operation_id": "patchInventory",
+      "tags": [
+        "inventory"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Inventory",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Inventory"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/shipment",
+      "method": "get",
+      "operation_id": "getShipment",
+      "tags": [
+        "shipment"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Shipment",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ShipmentList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/shipment",
+      "method": "post",
+      "operation_id": "postShipment",
+      "tags": [
+        "shipment"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Shipment",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ShipmentList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/shipment/{id}",
+      "method": "patch",
+      "operation_id": "patchShipment",
+      "tags": [
+        "shipment"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Shipment",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ShipmentList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/invoice",
+      "method": "get",
+      "operation_id": "getInvoice",
+      "tags": [
+        "invoice"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Invoice",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Invoice"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/invoice",
+      "method": "post",
+      "operation_id": "postInvoice",
+      "tags": [
+        "invoice"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Invoice",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Invoice"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/invoice/{id}",
+      "method": "patch",
+      "operation_id": "patchInvoice",
+      "tags": [
+        "invoice"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Invoice",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Invoice"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/payment",
+      "method": "get",
+      "operation_id": "getPayment",
+      "tags": [
+        "payment"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Payment",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Payment"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/payment",
+      "method": "post",
+      "operation_id": "postPayment",
+      "tags": [
+        "payment"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Payment",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Payment"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/payment/{id}",
+      "method": "patch",
+      "operation_id": "patchPayment",
+      "tags": [
+        "payment"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Payment",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Payment"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/review",
+      "method": "get",
+      "operation_id": "getReview",
+      "tags": [
+        "review"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Review",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ReviewList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/review",
+      "method": "post",
+      "operation_id": "postReview",
+      "tags": [
+        "review"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Review",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ReviewList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/review/{id}",
+      "method": "patch",
+      "operation_id": "patchReview",
+      "tags": [
+        "review"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Review",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ReviewList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/catalog",
+      "method": "get",
+      "operation_id": "getCatalog",
+      "tags": [
+        "catalog"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Catalog",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Catalog"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/catalog",
+      "method": "post",
+      "operation_id": "postCatalog",
+      "tags": [
+        "catalog"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Catalog",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Catalog"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/catalog/{id}",
+      "method": "patch",
+      "operation_id": "patchCatalog",
+      "tags": [
+        "catalog"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Catalog",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Catalog"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/session",
+      "method": "get",
+      "operation_id": "getSession",
+      "tags": [
+        "session"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Session",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Session"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/session",
+      "method": "post",
+      "operation_id": "postSession",
+      "tags": [
+        "session"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Session",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Session"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/session/{id}",
+      "method": "patch",
+      "operation_id": "patchSession",
+      "tags": [
+        "session"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Session",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Session"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/notification",
+      "method": "get",
+      "operation_id": "getNotification",
+      "tags": [
+        "notification"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Notification",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/NotificationList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/notification",
+      "method": "post",
+      "operation_id": "postNotification",
+      "tags": [
+        "notification"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Notification",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/NotificationList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/notification/{id}",
+      "method": "patch",
+      "operation_id": "patchNotification",
+      "tags": [
+        "notification"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Notification",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/NotificationList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/webhook",
+      "method": "get",
+      "operation_id": "getWebhook",
+      "tags": [
+        "webhook"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Webhook",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Webhook"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/webhook",
+      "method": "post",
+      "operation_id": "postWebhook",
+      "tags": [
+        "webhook"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Webhook",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Webhook"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/webhook/{id}",
+      "method": "patch",
+      "operation_id": "patchWebhook",
+      "tags": [
+        "webhook"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Webhook",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Webhook"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/report",
+      "method": "get",
+      "operation_id": "getReport",
+      "tags": [
+        "report"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Report",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Report"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/report",
+      "method": "post",
+      "operation_id": "postReport",
+      "tags": [
+        "report"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Report",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Report"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/report/{id}",
+      "method": "patch",
+      "operation_id": "patchReport",
+      "tags": [
+        "report"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Report",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Report"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/profile",
+      "method": "get",
+      "operation_id": "getProfile",
+      "tags": [
+        "profile"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Profile",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ProfileList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/profile",
+      "method": "post",
+      "operation_id": "postProfile",
+      "tags": [
+        "profile"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Profile",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ProfileList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/profile/{id}",
+      "method": "patch",
+      "operation_id": "patchProfile",
+      "tags": [
+        "profile"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Profile",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ProfileList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/team",
+      "method": "get",
+      "operation_id": "getTeam",
+      "tags": [
+        "team"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Team",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Team"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/team",
+      "method": "post",
+      "operation_id": "postTeam",
+      "tags": [
+        "team"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Team",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Team"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/team/{id}",
+      "method": "patch",
+      "operation_id": "patchTeam",
+      "tags": [
+        "team"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Team",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Team"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/project",
+      "method": "get",
+      "operation_id": "getProject",
+      "tags": [
+        "project"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Project",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Project"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/project",
+      "method": "post",
+      "operation_id": "postProject",
+      "tags": [
+        "project"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Project",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Project"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/project/{id}",
+      "method": "patch",
+      "operation_id": "patchProject",
+      "tags": [
+        "project"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Project",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Project"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/artifact",
+      "method": "get",
+      "operation_id": "getArtifact",
+      "tags": [
+        "artifact"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Artifact",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ArtifactList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/artifact",
+      "method": "post",
+      "operation_id": "postArtifact",
+      "tags": [
+        "artifact"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Artifact",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ArtifactList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/artifact/{id}",
+      "method": "patch",
+      "operation_id": "patchArtifact",
+      "tags": [
+        "artifact"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Artifact",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ArtifactList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/release",
+      "method": "get",
+      "operation_id": "getRelease",
+      "tags": [
+        "release"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Release",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Release"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/release",
+      "method": "post",
+      "operation_id": "postRelease",
+      "tags": [
+        "release"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Release",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Release"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/release/{id}",
+      "method": "patch",
+      "operation_id": "patchRelease",
+      "tags": [
+        "release"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Release",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Release"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/policy",
+      "method": "get",
+      "operation_id": "getPolicy",
+      "tags": [
+        "policy"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Policy",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Policy"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/policy",
+      "method": "post",
+      "operation_id": "postPolicy",
+      "tags": [
+        "policy"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Policy",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Policy"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/policy/{id}",
+      "method": "patch",
+      "operation_id": "patchPolicy",
+      "tags": [
+        "policy"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Policy",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Policy"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/token",
+      "method": "get",
+      "operation_id": "getToken",
+      "tags": [
+        "token"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Token",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/TokenList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/token",
+      "method": "post",
+      "operation_id": "postToken",
+      "tags": [
+        "token"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Token",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/TokenList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/token/{id}",
+      "method": "patch",
+      "operation_id": "patchToken",
+      "tags": [
+        "token"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Token",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/TokenList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/search",
+      "method": "get",
+      "operation_id": "getSearch",
+      "tags": [
+        "search"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Search",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Search"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/search",
+      "method": "post",
+      "operation_id": "postSearch",
+      "tags": [
+        "search"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Search",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Search"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/search/{id}",
+      "method": "patch",
+      "operation_id": "patchSearch",
+      "tags": [
+        "search"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Search",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Search"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/feed",
+      "method": "get",
+      "operation_id": "getFeed",
+      "tags": [
+        "feed"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Feed",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Feed"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/feed",
+      "method": "post",
+      "operation_id": "postFeed",
+      "tags": [
+        "feed"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Feed",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Feed"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/feed/{id}",
+      "method": "patch",
+      "operation_id": "patchFeed",
+      "tags": [
+        "feed"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Feed",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Feed"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/comment",
+      "method": "get",
+      "operation_id": "getComment",
+      "tags": [
+        "comment"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Comment",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/CommentList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/comment",
+      "method": "post",
+      "operation_id": "postComment",
+      "tags": [
+        "comment"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Comment",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/CommentList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/comment/{id}",
+      "method": "patch",
+      "operation_id": "patchComment",
+      "tags": [
+        "comment"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Comment",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/CommentList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/attachment",
+      "method": "get",
+      "operation_id": "getAttachment",
+      "tags": [
+        "attachment"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Attachment",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Attachment"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/attachment",
+      "method": "post",
+      "operation_id": "postAttachment",
+      "tags": [
+        "attachment"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Attachment",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Attachment"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/attachment/{id}",
+      "method": "patch",
+      "operation_id": "patchAttachment",
+      "tags": [
+        "attachment"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Attachment",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Attachment"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/subscription",
+      "method": "get",
+      "operation_id": "getSubscription",
+      "tags": [
+        "subscription"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Subscription",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Subscription"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/subscription",
+      "method": "post",
+      "operation_id": "postSubscription",
+      "tags": [
+        "subscription"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Subscription",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Subscription"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/subscription/{id}",
+      "method": "patch",
+      "operation_id": "patchSubscription",
+      "tags": [
+        "subscription"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Subscription",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Subscription"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/plan",
+      "method": "get",
+      "operation_id": "getPlan",
+      "tags": [
+        "plan"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Plan",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/PlanList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/plan",
+      "method": "post",
+      "operation_id": "postPlan",
+      "tags": [
+        "plan"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Plan",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/PlanList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/plan/{id}",
+      "method": "patch",
+      "operation_id": "patchPlan",
+      "tags": [
+        "plan"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Plan",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/PlanList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/coupon",
+      "method": "get",
+      "operation_id": "getCoupon",
+      "tags": [
+        "coupon"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Coupon",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Coupon"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/coupon",
+      "method": "post",
+      "operation_id": "postCoupon",
+      "tags": [
+        "coupon"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Coupon",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Coupon"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/coupon/{id}",
+      "method": "patch",
+      "operation_id": "patchCoupon",
+      "tags": [
+        "coupon"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Coupon",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Coupon"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/quote",
+      "method": "get",
+      "operation_id": "getQuote",
+      "tags": [
+        "quote"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Quote",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Quote"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/quote",
+      "method": "post",
+      "operation_id": "postQuote",
+      "tags": [
+        "quote"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Quote",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Quote"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/quote/{id}",
+      "method": "patch",
+      "operation_id": "patchQuote",
+      "tags": [
+        "quote"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Quote",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Quote"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/address",
+      "method": "get",
+      "operation_id": "getAddress",
+      "tags": [
+        "address"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Address",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/AddressList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/address",
+      "method": "post",
+      "operation_id": "postAddress",
+      "tags": [
+        "address"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Address",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/AddressList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/address/{id}",
+      "method": "patch",
+      "operation_id": "patchAddress",
+      "tags": [
+        "address"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Address",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/AddressList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/audit",
+      "method": "get",
+      "operation_id": "getAudit",
+      "tags": [
+        "audit"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Audit",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Audit"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/audit",
+      "method": "post",
+      "operation_id": "postAudit",
+      "tags": [
+        "audit"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Audit",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Audit"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/audit/{id}",
+      "method": "patch",
+      "operation_id": "patchAudit",
+      "tags": [
+        "audit"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Audit",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Audit"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/export",
+      "method": "get",
+      "operation_id": "getExport",
+      "tags": [
+        "export"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Export",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Export"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/export",
+      "method": "post",
+      "operation_id": "postExport",
+      "tags": [
+        "export"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Export",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Export"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/export/{id}",
+      "method": "patch",
+      "operation_id": "patchExport",
+      "tags": [
+        "export"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Export",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/Export"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/import",
+      "method": "get",
+      "operation_id": "getImport",
+      "tags": [
+        "import"
+      ],
+      "request": {
+        "content_type": "query",
+        "schema_ref": "#/components/schemas/Import",
+        "required": false
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ImportList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/import",
+      "method": "post",
+      "operation_id": "postImport",
+      "tags": [
+        "import"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Import",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ImportList"
+        },
+        {
+          "status": "405",
+          "description": "invalid input",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    },
+    {
+      "path": "/import/{id}",
+      "method": "patch",
+      "operation_id": "patchImport",
+      "tags": [
+        "import"
+      ],
+      "request": {
+        "content_type": "application/json",
+        "schema_ref": "#/components/schemas/Import",
+        "required": true
+      },
+      "responses": [
+        {
+          "status": "200",
+          "description": "successful operation",
+          "schema_ref": "#/components/schemas/ImportList"
+        },
+        {
+          "status": "400",
+          "description": "invalid request",
+          "schema_ref": "#/components/schemas/ApiResponse"
+        }
+      ]
+    }
+  ]
+}

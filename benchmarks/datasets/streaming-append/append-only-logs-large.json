@@ -1,0 +1,1444 @@
+{
+  "records": [
+    {
+      "seq": 1,
+      "ts": "2026-07-15T10:00:00Z",
+      "service": "api",
+      "level": "error",
+      "message": "request accepted",
+      "request_id": "req_000001",
+      "latency_ms": 500
+    },
+    {
+      "seq": 2,
+      "ts": "2026-07-15T10:00:13Z",
+      "service": "worker",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000001",
+      "latency_ms": 38
+    },
+    {
+      "seq": 3,
+      "ts": "2026-07-15T10:00:26Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000002",
+      "latency_ms": 75
+    },
+    {
+      "seq": 4,
+      "ts": "2026-07-15T10:01:39Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000002",
+      "latency_ms": 112
+    },
+    {
+      "seq": 5,
+      "ts": "2026-07-15T10:01:52Z",
+      "service": "search",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000003",
+      "latency_ms": 149
+    },
+    {
+      "seq": 6,
+      "ts": "2026-07-15T10:01:05Z",
+      "service": "api",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000003",
+      "latency_ms": 186
+    },
+    {
+      "seq": 7,
+      "ts": "2026-07-15T10:02:18Z",
+      "service": "worker",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000004",
+      "latency_ms": 223
+    },
+    {
+      "seq": 8,
+      "ts": "2026-07-15T10:02:31Z",
+      "service": "scheduler",
+      "level": "warn",
+      "message": "batch flushed",
+      "request_id": "req_000004",
+      "latency_ms": 260
+    },
+    {
+      "seq": 9,
+      "ts": "2026-07-15T10:02:44Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000005",
+      "latency_ms": 297
+    },
+    {
+      "seq": 10,
+      "ts": "2026-07-15T10:03:57Z",
+      "service": "search",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000005",
+      "latency_ms": 334
+    },
+    {
+      "seq": 11,
+      "ts": "2026-07-15T10:03:10Z",
+      "service": "api",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000006",
+      "latency_ms": 371
+    },
+    {
+      "seq": 12,
+      "ts": "2026-07-15T10:03:23Z",
+      "service": "worker",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000006",
+      "latency_ms": 408
+    },
+    {
+      "seq": 13,
+      "ts": "2026-07-15T10:04:36Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000007",
+      "latency_ms": 445
+    },
+    {
+      "seq": 14,
+      "ts": "2026-07-15T10:04:49Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000007",
+      "latency_ms": 482
+    },
+    {
+      "seq": 15,
+      "ts": "2026-07-15T10:04:02Z",
+      "service": "search",
+      "level": "warn",
+      "message": "cache refreshed",
+      "request_id": "req_000008",
+      "latency_ms": 519
+    },
+    {
+      "seq": 16,
+      "ts": "2026-07-15T10:05:15Z",
+      "service": "api",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000008",
+      "latency_ms": 556
+    },
+    {
+      "seq": 17,
+      "ts": "2026-07-15T10:05:28Z",
+      "service": "worker",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000009",
+      "latency_ms": 593
+    },
+    {
+      "seq": 18,
+      "ts": "2026-07-15T10:05:41Z",
+      "service": "scheduler",
+      "level": "error",
+      "message": "request completed",
+      "request_id": "req_000009",
+      "latency_ms": 1129
+    },
+    {
+      "seq": 19,
+      "ts": "2026-07-15T10:06:54Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000010",
+      "latency_ms": 667
+    },
+    {
+      "seq": 20,
+      "ts": "2026-07-15T10:06:07Z",
+      "service": "search",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000010",
+      "latency_ms": 704
+    },
+    {
+      "seq": 21,
+      "ts": "2026-07-15T10:06:20Z",
+      "service": "api",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000011",
+      "latency_ms": 741
+    },
+    {
+      "seq": 22,
+      "ts": "2026-07-15T10:07:33Z",
+      "service": "worker",
+      "level": "warn",
+      "message": "heartbeat",
+      "request_id": "req_000011",
+      "latency_ms": 778
+    },
+    {
+      "seq": 23,
+      "ts": "2026-07-15T10:07:46Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000012",
+      "latency_ms": 815
+    },
+    {
+      "seq": 24,
+      "ts": "2026-07-15T10:07:59Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000012",
+      "latency_ms": 2
+    },
+    {
+      "seq": 25,
+      "ts": "2026-07-15T10:08:12Z",
+      "service": "search",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000013",
+      "latency_ms": 39
+    },
+    {
+      "seq": 26,
+      "ts": "2026-07-15T10:08:25Z",
+      "service": "api",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000013",
+      "latency_ms": 76
+    },
+    {
+      "seq": 27,
+      "ts": "2026-07-15T10:08:38Z",
+      "service": "worker",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000014",
+      "latency_ms": 113
+    },
+    {
+      "seq": 28,
+      "ts": "2026-07-15T10:09:51Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000014",
+      "latency_ms": 150
+    },
+    {
+      "seq": 29,
+      "ts": "2026-07-15T10:09:04Z",
+      "service": "ingest",
+      "level": "warn",
+      "message": "job completed",
+      "request_id": "req_000015",
+      "latency_ms": 187
+    },
+    {
+      "seq": 30,
+      "ts": "2026-07-15T10:09:17Z",
+      "service": "search",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000015",
+      "latency_ms": 224
+    },
+    {
+      "seq": 31,
+      "ts": "2026-07-15T10:10:30Z",
+      "service": "api",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000016",
+      "latency_ms": 261
+    },
+    {
+      "seq": 32,
+      "ts": "2026-07-15T10:10:43Z",
+      "service": "worker",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000016",
+      "latency_ms": 298
+    },
+    {
+      "seq": 33,
+      "ts": "2026-07-15T10:10:56Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000017",
+      "latency_ms": 335
+    },
+    {
+      "seq": 34,
+      "ts": "2026-07-15T10:11:09Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000017",
+      "latency_ms": 372
+    },
+    {
+      "seq": 35,
+      "ts": "2026-07-15T10:11:22Z",
+      "service": "search",
+      "level": "error",
+      "message": "job claimed",
+      "request_id": "req_000018",
+      "latency_ms": 908
+    },
+    {
+      "seq": 36,
+      "ts": "2026-07-15T10:11:35Z",
+      "service": "api",
+      "level": "warn",
+      "message": "retry scheduled",
+      "request_id": "req_000018",
+      "latency_ms": 446
+    },
+    {
+      "seq": 37,
+      "ts": "2026-07-15T10:12:48Z",
+      "service": "worker",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000019",
+      "latency_ms": 483
+    },
+    {
+      "seq": 38,
+      "ts": "2026-07-15T10:12:01Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000019",
+      "latency_ms": 520
+    },
+    {
+      "seq": 39,
+      "ts": "2026-07-15T10:12:14Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000020",
+      "latency_ms": 557
+    },
+    {
+      "seq": 40,
+      "ts": "2026-07-15T10:13:27Z",
+      "service": "search",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000020",
+      "latency_ms": 594
+    },
+    {
+      "seq": 41,
+      "ts": "2026-07-15T10:13:40Z",
+      "service": "api",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000021",
+      "latency_ms": 631
+    },
+    {
+      "seq": 42,
+      "ts": "2026-07-15T10:13:53Z",
+      "service": "worker",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000021",
+      "latency_ms": 668
+    },
+    {
+      "seq": 43,
+      "ts": "2026-07-15T10:14:06Z",
+      "service": "scheduler",
+      "level": "warn",
+      "message": "job claimed",
+      "request_id": "req_000022",
+      "latency_ms": 705
+    },
+    {
+      "seq": 44,
+      "ts": "2026-07-15T10:14:19Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000022",
+      "latency_ms": 742
+    },
+    {
+      "seq": 45,
+      "ts": "2026-07-15T10:14:32Z",
+      "service": "search",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000023",
+      "latency_ms": 779
+    },
+    {
+      "seq": 46,
+      "ts": "2026-07-15T10:15:45Z",
+      "service": "api",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000023",
+      "latency_ms": 816
+    },
+    {
+      "seq": 47,
+      "ts": "2026-07-15T10:15:58Z",
+      "service": "worker",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000024",
+      "latency_ms": 3
+    },
+    {
+      "seq": 48,
+      "ts": "2026-07-15T10:15:11Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000024",
+      "latency_ms": 40
+    },
+    {
+      "seq": 49,
+      "ts": "2026-07-15T10:16:24Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000025",
+      "latency_ms": 77
+    },
+    {
+      "seq": 50,
+      "ts": "2026-07-15T10:16:37Z",
+      "service": "search",
+      "level": "warn",
+      "message": "request completed",
+      "request_id": "req_000025",
+      "latency_ms": 114
+    },
+    {
+      "seq": 51,
+      "ts": "2026-07-15T10:16:50Z",
+      "service": "api",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000026",
+      "latency_ms": 151
+    },
+    {
+      "seq": 52,
+      "ts": "2026-07-15T10:17:03Z",
+      "service": "worker",
+      "level": "error",
+      "message": "retry scheduled",
+      "request_id": "req_000026",
+      "latency_ms": 687
+    },
+    {
+      "seq": 53,
+      "ts": "2026-07-15T10:17:16Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000027",
+      "latency_ms": 225
+    },
+    {
+      "seq": 54,
+      "ts": "2026-07-15T10:17:29Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000027",
+      "latency_ms": 262
+    },
+    {
+      "seq": 55,
+      "ts": "2026-07-15T10:18:42Z",
+      "service": "search",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000028",
+      "latency_ms": 299
+    },
+    {
+      "seq": 56,
+      "ts": "2026-07-15T10:18:55Z",
+      "service": "api",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000028",
+      "latency_ms": 336
+    },
+    {
+      "seq": 57,
+      "ts": "2026-07-15T10:18:08Z",
+      "service": "worker",
+      "level": "warn",
+      "message": "request accepted",
+      "request_id": "req_000029",
+      "latency_ms": 373
+    },
+    {
+      "seq": 58,
+      "ts": "2026-07-15T10:19:21Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000029",
+      "latency_ms": 410
+    },
+    {
+      "seq": 59,
+      "ts": "2026-07-15T10:19:34Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000030",
+      "latency_ms": 447
+    },
+    {
+      "seq": 60,
+      "ts": "2026-07-15T10:19:47Z",
+      "service": "search",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000030",
+      "latency_ms": 484
+    },
+    {
+      "seq": 61,
+      "ts": "2026-07-15T10:20:00Z",
+      "service": "api",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000031",
+      "latency_ms": 521
+    },
+    {
+      "seq": 62,
+      "ts": "2026-07-15T10:20:13Z",
+      "service": "worker",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000031",
+      "latency_ms": 558
+    },
+    {
+      "seq": 63,
+      "ts": "2026-07-15T10:20:26Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000032",
+      "latency_ms": 595
+    },
+    {
+      "seq": 64,
+      "ts": "2026-07-15T10:21:39Z",
+      "service": "ingest",
+      "level": "warn",
+      "message": "batch flushed",
+      "request_id": "req_000032",
+      "latency_ms": 632
+    },
+    {
+      "seq": 65,
+      "ts": "2026-07-15T10:21:52Z",
+      "service": "search",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000033",
+      "latency_ms": 669
+    },
+    {
+      "seq": 66,
+      "ts": "2026-07-15T10:21:05Z",
+      "service": "api",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000033",
+      "latency_ms": 706
+    },
+    {
+      "seq": 67,
+      "ts": "2026-07-15T10:22:18Z",
+      "service": "worker",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000034",
+      "latency_ms": 743
+    },
+    {
+      "seq": 68,
+      "ts": "2026-07-15T10:22:31Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000034",
+      "latency_ms": 780
+    },
+    {
+      "seq": 69,
+      "ts": "2026-07-15T10:22:44Z",
+      "service": "ingest",
+      "level": "error",
+      "message": "job completed",
+      "request_id": "req_000035",
+      "latency_ms": 1316
+    },
+    {
+      "seq": 70,
+      "ts": "2026-07-15T10:23:57Z",
+      "service": "search",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000035",
+      "latency_ms": 4
+    },
+    {
+      "seq": 71,
+      "ts": "2026-07-15T10:23:10Z",
+      "service": "api",
+      "level": "warn",
+      "message": "cache refreshed",
+      "request_id": "req_000036",
+      "latency_ms": 41
+    },
+    {
+      "seq": 72,
+      "ts": "2026-07-15T10:23:23Z",
+      "service": "worker",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000036",
+      "latency_ms": 78
+    },
+    {
+      "seq": 73,
+      "ts": "2026-07-15T10:24:36Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000037",
+      "latency_ms": 115
+    },
+    {
+      "seq": 74,
+      "ts": "2026-07-15T10:24:49Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000037",
+      "latency_ms": 152
+    },
+    {
+      "seq": 75,
+      "ts": "2026-07-15T10:24:02Z",
+      "service": "search",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000038",
+      "latency_ms": 189
+    },
+    {
+      "seq": 76,
+      "ts": "2026-07-15T10:25:15Z",
+      "service": "api",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000038",
+      "latency_ms": 226
+    },
+    {
+      "seq": 77,
+      "ts": "2026-07-15T10:25:28Z",
+      "service": "worker",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000039",
+      "latency_ms": 263
+    },
+    {
+      "seq": 78,
+      "ts": "2026-07-15T10:25:41Z",
+      "service": "scheduler",
+      "level": "warn",
+      "message": "heartbeat",
+      "request_id": "req_000039",
+      "latency_ms": 300
+    },
+    {
+      "seq": 79,
+      "ts": "2026-07-15T10:26:54Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000040",
+      "latency_ms": 337
+    },
+    {
+      "seq": 80,
+      "ts": "2026-07-15T10:26:07Z",
+      "service": "search",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000040",
+      "latency_ms": 374
+    },
+    {
+      "seq": 81,
+      "ts": "2026-07-15T10:26:20Z",
+      "service": "api",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000041",
+      "latency_ms": 411
+    },
+    {
+      "seq": 82,
+      "ts": "2026-07-15T10:27:33Z",
+      "service": "worker",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000041",
+      "latency_ms": 448
+    },
+    {
+      "seq": 83,
+      "ts": "2026-07-15T10:27:46Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000042",
+      "latency_ms": 485
+    },
+    {
+      "seq": 84,
+      "ts": "2026-07-15T10:27:59Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000042",
+      "latency_ms": 522
+    },
+    {
+      "seq": 85,
+      "ts": "2026-07-15T10:28:12Z",
+      "service": "search",
+      "level": "warn",
+      "message": "job completed",
+      "request_id": "req_000043",
+      "latency_ms": 559
+    },
+    {
+      "seq": 86,
+      "ts": "2026-07-15T10:28:25Z",
+      "service": "api",
+      "level": "error",
+      "message": "heartbeat",
+      "request_id": "req_000043",
+      "latency_ms": 1095
+    },
+    {
+      "seq": 87,
+      "ts": "2026-07-15T10:28:38Z",
+      "service": "worker",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000044",
+      "latency_ms": 633
+    },
+    {
+      "seq": 88,
+      "ts": "2026-07-15T10:29:51Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000044",
+      "latency_ms": 670
+    },
+    {
+      "seq": 89,
+      "ts": "2026-07-15T10:29:04Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000045",
+      "latency_ms": 707
+    },
+    {
+      "seq": 90,
+      "ts": "2026-07-15T10:29:17Z",
+      "service": "search",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000045",
+      "latency_ms": 744
+    },
+    {
+      "seq": 91,
+      "ts": "2026-07-15T10:30:30Z",
+      "service": "api",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000046",
+      "latency_ms": 781
+    },
+    {
+      "seq": 92,
+      "ts": "2026-07-15T10:30:43Z",
+      "service": "worker",
+      "level": "warn",
+      "message": "retry scheduled",
+      "request_id": "req_000046",
+      "latency_ms": 818
+    },
+    {
+      "seq": 93,
+      "ts": "2026-07-15T10:30:56Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000047",
+      "latency_ms": 5
+    },
+    {
+      "seq": 94,
+      "ts": "2026-07-15T10:31:09Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000047",
+      "latency_ms": 42
+    },
+    {
+      "seq": 95,
+      "ts": "2026-07-15T10:31:22Z",
+      "service": "search",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000048",
+      "latency_ms": 79
+    },
+    {
+      "seq": 96,
+      "ts": "2026-07-15T10:31:35Z",
+      "service": "api",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000048",
+      "latency_ms": 116
+    },
+    {
+      "seq": 97,
+      "ts": "2026-07-15T10:32:48Z",
+      "service": "worker",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000049",
+      "latency_ms": 153
+    },
+    {
+      "seq": 98,
+      "ts": "2026-07-15T10:32:01Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000049",
+      "latency_ms": 190
+    },
+    {
+      "seq": 99,
+      "ts": "2026-07-15T10:32:14Z",
+      "service": "ingest",
+      "level": "warn",
+      "message": "job claimed",
+      "request_id": "req_000050",
+      "latency_ms": 227
+    },
+    {
+      "seq": 100,
+      "ts": "2026-07-15T10:33:27Z",
+      "service": "search",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000050",
+      "latency_ms": 264
+    },
+    {
+      "seq": 101,
+      "ts": "2026-07-15T10:33:40Z",
+      "service": "api",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000051",
+      "latency_ms": 301
+    },
+    {
+      "seq": 102,
+      "ts": "2026-07-15T10:33:53Z",
+      "service": "worker",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000051",
+      "latency_ms": 338
+    },
+    {
+      "seq": 103,
+      "ts": "2026-07-15T10:34:06Z",
+      "service": "scheduler",
+      "level": "error",
+      "message": "cache refreshed",
+      "request_id": "req_000052",
+      "latency_ms": 874
+    },
+    {
+      "seq": 104,
+      "ts": "2026-07-15T10:34:19Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000052",
+      "latency_ms": 412
+    },
+    {
+      "seq": 105,
+      "ts": "2026-07-15T10:34:32Z",
+      "service": "search",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000053",
+      "latency_ms": 449
+    },
+    {
+      "seq": 106,
+      "ts": "2026-07-15T10:35:45Z",
+      "service": "api",
+      "level": "warn",
+      "message": "request completed",
+      "request_id": "req_000053",
+      "latency_ms": 486
+    },
+    {
+      "seq": 107,
+      "ts": "2026-07-15T10:35:58Z",
+      "service": "worker",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000054",
+      "latency_ms": 523
+    },
+    {
+      "seq": 108,
+      "ts": "2026-07-15T10:35:11Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000054",
+      "latency_ms": 560
+    },
+    {
+      "seq": 109,
+      "ts": "2026-07-15T10:36:24Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000055",
+      "latency_ms": 597
+    },
+    {
+      "seq": 110,
+      "ts": "2026-07-15T10:36:37Z",
+      "service": "search",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000055",
+      "latency_ms": 634
+    },
+    {
+      "seq": 111,
+      "ts": "2026-07-15T10:36:50Z",
+      "service": "api",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000056",
+      "latency_ms": 671
+    },
+    {
+      "seq": 112,
+      "ts": "2026-07-15T10:37:03Z",
+      "service": "worker",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000056",
+      "latency_ms": 708
+    },
+    {
+      "seq": 113,
+      "ts": "2026-07-15T10:37:16Z",
+      "service": "scheduler",
+      "level": "warn",
+      "message": "request accepted",
+      "request_id": "req_000057",
+      "latency_ms": 745
+    },
+    {
+      "seq": 114,
+      "ts": "2026-07-15T10:37:29Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000057",
+      "latency_ms": 782
+    },
+    {
+      "seq": 115,
+      "ts": "2026-07-15T10:38:42Z",
+      "service": "search",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000058",
+      "latency_ms": 819
+    },
+    {
+      "seq": 116,
+      "ts": "2026-07-15T10:38:55Z",
+      "service": "api",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000058",
+      "latency_ms": 6
+    },
+    {
+      "seq": 117,
+      "ts": "2026-07-15T10:38:08Z",
+      "service": "worker",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000059",
+      "latency_ms": 43
+    },
+    {
+      "seq": 118,
+      "ts": "2026-07-15T10:39:21Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000059",
+      "latency_ms": 80
+    },
+    {
+      "seq": 119,
+      "ts": "2026-07-15T10:39:34Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000060",
+      "latency_ms": 117
+    },
+    {
+      "seq": 120,
+      "ts": "2026-07-15T10:39:47Z",
+      "service": "search",
+      "level": "error",
+      "message": "batch flushed",
+      "request_id": "req_000060",
+      "latency_ms": 653
+    },
+    {
+      "seq": 121,
+      "ts": "2026-07-15T10:40:00Z",
+      "service": "api",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000061",
+      "latency_ms": 191
+    },
+    {
+      "seq": 122,
+      "ts": "2026-07-15T10:40:13Z",
+      "service": "worker",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000061",
+      "latency_ms": 228
+    },
+    {
+      "seq": 123,
+      "ts": "2026-07-15T10:40:26Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000062",
+      "latency_ms": 265
+    },
+    {
+      "seq": 124,
+      "ts": "2026-07-15T10:41:39Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000062",
+      "latency_ms": 302
+    },
+    {
+      "seq": 125,
+      "ts": "2026-07-15T10:41:52Z",
+      "service": "search",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000063",
+      "latency_ms": 339
+    },
+    {
+      "seq": 126,
+      "ts": "2026-07-15T10:41:05Z",
+      "service": "api",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000063",
+      "latency_ms": 376
+    },
+    {
+      "seq": 127,
+      "ts": "2026-07-15T10:42:18Z",
+      "service": "worker",
+      "level": "warn",
+      "message": "cache refreshed",
+      "request_id": "req_000064",
+      "latency_ms": 413
+    },
+    {
+      "seq": 128,
+      "ts": "2026-07-15T10:42:31Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000064",
+      "latency_ms": 450
+    },
+    {
+      "seq": 129,
+      "ts": "2026-07-15T10:42:44Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000065",
+      "latency_ms": 487
+    },
+    {
+      "seq": 130,
+      "ts": "2026-07-15T10:43:57Z",
+      "service": "search",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000065",
+      "latency_ms": 524
+    },
+    {
+      "seq": 131,
+      "ts": "2026-07-15T10:43:10Z",
+      "service": "api",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000066",
+      "latency_ms": 561
+    },
+    {
+      "seq": 132,
+      "ts": "2026-07-15T10:43:23Z",
+      "service": "worker",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000066",
+      "latency_ms": 598
+    },
+    {
+      "seq": 133,
+      "ts": "2026-07-15T10:44:36Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000067",
+      "latency_ms": 635
+    },
+    {
+      "seq": 134,
+      "ts": "2026-07-15T10:44:49Z",
+      "service": "ingest",
+      "level": "warn",
+      "message": "heartbeat",
+      "request_id": "req_000067",
+      "latency_ms": 672
+    },
+    {
+      "seq": 135,
+      "ts": "2026-07-15T10:44:02Z",
+      "service": "search",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000068",
+      "latency_ms": 709
+    },
+    {
+      "seq": 136,
+      "ts": "2026-07-15T10:45:15Z",
+      "service": "api",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000068",
+      "latency_ms": 746
+    },
+    {
+      "seq": 137,
+      "ts": "2026-07-15T10:45:28Z",
+      "service": "worker",
+      "level": "error",
+      "message": "request accepted",
+      "request_id": "req_000069",
+      "latency_ms": 1282
+    },
+    {
+      "seq": 138,
+      "ts": "2026-07-15T10:45:41Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000069",
+      "latency_ms": 820
+    },
+    {
+      "seq": 139,
+      "ts": "2026-07-15T10:46:54Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000070",
+      "latency_ms": 7
+    },
+    {
+      "seq": 140,
+      "ts": "2026-07-15T10:46:07Z",
+      "service": "search",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000070",
+      "latency_ms": 44
+    },
+    {
+      "seq": 141,
+      "ts": "2026-07-15T10:46:20Z",
+      "service": "api",
+      "level": "warn",
+      "message": "job completed",
+      "request_id": "req_000071",
+      "latency_ms": 81
+    },
+    {
+      "seq": 142,
+      "ts": "2026-07-15T10:47:33Z",
+      "service": "worker",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000071",
+      "latency_ms": 118
+    },
+    {
+      "seq": 143,
+      "ts": "2026-07-15T10:47:46Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000072",
+      "latency_ms": 155
+    },
+    {
+      "seq": 144,
+      "ts": "2026-07-15T10:47:59Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000072",
+      "latency_ms": 192
+    },
+    {
+      "seq": 145,
+      "ts": "2026-07-15T10:48:12Z",
+      "service": "search",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000073",
+      "latency_ms": 229
+    },
+    {
+      "seq": 146,
+      "ts": "2026-07-15T10:48:25Z",
+      "service": "api",
+      "level": "info",
+      "message": "request completed",
+      "request_id": "req_000073",
+      "latency_ms": 266
+    },
+    {
+      "seq": 147,
+      "ts": "2026-07-15T10:48:38Z",
+      "service": "worker",
+      "level": "info",
+      "message": "job claimed",
+      "request_id": "req_000074",
+      "latency_ms": 303
+    },
+    {
+      "seq": 148,
+      "ts": "2026-07-15T10:49:51Z",
+      "service": "scheduler",
+      "level": "warn",
+      "message": "retry scheduled",
+      "request_id": "req_000074",
+      "latency_ms": 340
+    },
+    {
+      "seq": 149,
+      "ts": "2026-07-15T10:49:04Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000075",
+      "latency_ms": 377
+    },
+    {
+      "seq": 150,
+      "ts": "2026-07-15T10:49:17Z",
+      "service": "search",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000075",
+      "latency_ms": 414
+    },
+    {
+      "seq": 151,
+      "ts": "2026-07-15T10:50:30Z",
+      "service": "api",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000076",
+      "latency_ms": 451
+    },
+    {
+      "seq": 152,
+      "ts": "2026-07-15T10:50:43Z",
+      "service": "worker",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000076",
+      "latency_ms": 488
+    },
+    {
+      "seq": 153,
+      "ts": "2026-07-15T10:50:56Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "request accepted",
+      "request_id": "req_000077",
+      "latency_ms": 525
+    },
+    {
+      "seq": 154,
+      "ts": "2026-07-15T10:51:09Z",
+      "service": "ingest",
+      "level": "error",
+      "message": "request completed",
+      "request_id": "req_000077",
+      "latency_ms": 1061
+    },
+    {
+      "seq": 155,
+      "ts": "2026-07-15T10:51:22Z",
+      "service": "search",
+      "level": "warn",
+      "message": "job claimed",
+      "request_id": "req_000078",
+      "latency_ms": 599
+    },
+    {
+      "seq": 156,
+      "ts": "2026-07-15T10:51:35Z",
+      "service": "api",
+      "level": "info",
+      "message": "retry scheduled",
+      "request_id": "req_000078",
+      "latency_ms": 636
+    },
+    {
+      "seq": 157,
+      "ts": "2026-07-15T10:52:48Z",
+      "service": "worker",
+      "level": "info",
+      "message": "job completed",
+      "request_id": "req_000079",
+      "latency_ms": 673
+    },
+    {
+      "seq": 158,
+      "ts": "2026-07-15T10:52:01Z",
+      "service": "scheduler",
+      "level": "info",
+      "message": "heartbeat",
+      "request_id": "req_000079",
+      "latency_ms": 710
+    },
+    {
+      "seq": 159,
+      "ts": "2026-07-15T10:52:14Z",
+      "service": "ingest",
+      "level": "info",
+      "message": "cache refreshed",
+      "request_id": "req_000080",
+      "latency_ms": 747
+    },
+    {
+      "seq": 160,
+      "ts": "2026-07-15T10:53:27Z",
+      "service": "search",
+      "level": "info",
+      "message": "batch flushed",
+      "request_id": "req_000080",
+      "latency_ms": 784
+    }
+  ]
+}

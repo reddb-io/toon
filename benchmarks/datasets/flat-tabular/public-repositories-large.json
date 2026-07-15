@@ -1,0 +1,484 @@
+{
+  "repositories": [
+    {
+      "name": "linux",
+      "owner": "torvalds",
+      "platform": "GitHub",
+      "primary_language": "C",
+      "license": "GPL-2.0-only",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "rust",
+      "owner": "rust-lang",
+      "platform": "GitHub",
+      "primary_language": "Rust",
+      "license": "Apache-2.0 OR MIT",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "vscode",
+      "owner": "microsoft",
+      "platform": "GitHub",
+      "primary_language": "TypeScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "react",
+      "owner": "facebook",
+      "platform": "GitHub",
+      "primary_language": "JavaScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "kubernetes",
+      "owner": "kubernetes",
+      "platform": "GitHub",
+      "primary_language": "Go",
+      "license": "Apache-2.0",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "cpython",
+      "owner": "python",
+      "platform": "GitHub",
+      "primary_language": "Python",
+      "license": "Python-2.0",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "node",
+      "owner": "nodejs",
+      "platform": "GitHub",
+      "primary_language": "JavaScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "go",
+      "owner": "golang",
+      "platform": "GitHub",
+      "primary_language": "Go",
+      "license": "BSD-3-Clause",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "tensorflow",
+      "owner": "tensorflow",
+      "platform": "GitHub",
+      "primary_language": "C++",
+      "license": "Apache-2.0",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "pytorch",
+      "owner": "pytorch",
+      "platform": "GitHub",
+      "primary_language": "Python",
+      "license": "BSD-3-Clause",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "django",
+      "owner": "django",
+      "platform": "GitHub",
+      "primary_language": "Python",
+      "license": "BSD-3-Clause",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "rails",
+      "owner": "rails",
+      "platform": "GitHub",
+      "primary_language": "Ruby",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "ansible",
+      "owner": "ansible",
+      "platform": "GitHub",
+      "primary_language": "Python",
+      "license": "GPL-3.0-only",
+      "default_branch": "devel",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "redis",
+      "owner": "redis",
+      "platform": "GitHub",
+      "primary_language": "C",
+      "license": "BSD-3-Clause",
+      "default_branch": "unstable",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "postgres",
+      "owner": "postgres",
+      "platform": "GitHub",
+      "primary_language": "C",
+      "license": "PostgreSQL",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "elasticsearch",
+      "owner": "elastic",
+      "platform": "GitHub",
+      "primary_language": "Java",
+      "license": "Elastic-2.0",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "llvm-project",
+      "owner": "llvm",
+      "platform": "GitHub",
+      "primary_language": "C++",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "deno",
+      "owner": "denoland",
+      "platform": "GitHub",
+      "primary_language": "Rust",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "svelte",
+      "owner": "sveltejs",
+      "platform": "GitHub",
+      "primary_language": "JavaScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "vue",
+      "owner": "vuejs",
+      "platform": "GitHub",
+      "primary_language": "TypeScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "angular",
+      "owner": "angular",
+      "platform": "GitHub",
+      "primary_language": "TypeScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "next.js",
+      "owner": "vercel",
+      "platform": "GitHub",
+      "primary_language": "JavaScript",
+      "license": "MIT",
+      "default_branch": "canary",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "vite",
+      "owner": "vitejs",
+      "platform": "GitHub",
+      "primary_language": "TypeScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "webpack",
+      "owner": "webpack",
+      "platform": "GitHub",
+      "primary_language": "JavaScript",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "curl",
+      "owner": "curl",
+      "platform": "GitHub",
+      "primary_language": "C",
+      "license": "curl",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "openssl",
+      "owner": "openssl",
+      "platform": "GitHub",
+      "primary_language": "C",
+      "license": "Apache-2.0",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "nginx",
+      "owner": "nginx",
+      "platform": "GitHub",
+      "primary_language": "C",
+      "license": "BSD-2-Clause",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "prometheus",
+      "owner": "prometheus",
+      "platform": "GitHub",
+      "primary_language": "Go",
+      "license": "Apache-2.0",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "grafana",
+      "owner": "grafana",
+      "platform": "GitHub",
+      "primary_language": "TypeScript",
+      "license": "AGPL-3.0-only",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "homebrew-core",
+      "owner": "Homebrew",
+      "platform": "GitHub",
+      "primary_language": "Ruby",
+      "license": "BSD-2-Clause",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "electron",
+      "owner": "electron",
+      "platform": "GitHub",
+      "primary_language": "C++",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "julia",
+      "owner": "JuliaLang",
+      "platform": "GitHub",
+      "primary_language": "Julia",
+      "license": "MIT",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "zig",
+      "owner": "ziglang",
+      "platform": "GitHub",
+      "primary_language": "Zig",
+      "license": "MIT",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "nixpkgs",
+      "owner": "NixOS",
+      "platform": "GitHub",
+      "primary_language": "Nix",
+      "license": "MIT",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "storybook",
+      "owner": "storybookjs",
+      "platform": "GitHub",
+      "primary_language": "TypeScript",
+      "license": "MIT",
+      "default_branch": "next",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "supabase",
+      "owner": "supabase",
+      "platform": "GitHub",
+      "primary_language": "TypeScript",
+      "license": "Apache-2.0",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "duckdb",
+      "owner": "duckdb",
+      "platform": "GitHub",
+      "primary_language": "C++",
+      "license": "MIT",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "clickhouse",
+      "owner": "ClickHouse",
+      "platform": "GitHub",
+      "primary_language": "C++",
+      "license": "Apache-2.0",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "airflow",
+      "owner": "apache",
+      "platform": "GitHub",
+      "primary_language": "Python",
+      "license": "Apache-2.0",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "spark",
+      "owner": "apache",
+      "platform": "GitHub",
+      "primary_language": "Scala",
+      "license": "Apache-2.0",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "kafka",
+      "owner": "apache",
+      "platform": "GitHub",
+      "primary_language": "Java",
+      "license": "Apache-2.0",
+      "default_branch": "trunk",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "arrow",
+      "owner": "apache",
+      "platform": "GitHub",
+      "primary_language": "C++",
+      "license": "Apache-2.0",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "grpc",
+      "owner": "grpc",
+      "platform": "GitHub",
+      "primary_language": "C++",
+      "license": "Apache-2.0",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "protobuf",
+      "owner": "protocolbuffers",
+      "platform": "GitHub",
+      "primary_language": "C++",
+      "license": "BSD-3-Clause",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "terraform",
+      "owner": "hashicorp",
+      "platform": "GitHub",
+      "primary_language": "Go",
+      "license": "BUSL-1.1",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "consul",
+      "owner": "hashicorp",
+      "platform": "GitHub",
+      "primary_language": "Go",
+      "license": "BUSL-1.1",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "vault",
+      "owner": "hashicorp",
+      "platform": "GitHub",
+      "primary_language": "Go",
+      "license": "BUSL-1.1",
+      "default_branch": "main",
+      "archived": false,
+      "private": false
+    },
+    {
+      "name": "moby",
+      "owner": "moby",
+      "platform": "GitHub",
+      "primary_language": "Go",
+      "license": "Apache-2.0",
+      "default_branch": "master",
+      "archived": false,
+      "private": false
+    }
+  ]
+}

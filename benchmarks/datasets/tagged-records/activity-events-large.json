@@ -1,0 +1,1564 @@
+{
+  "events": [
+    {
+      "type": "issue_opened",
+      "id": "evt_001",
+      "created_at": "2026-07-15T09:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 131,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_002",
+      "created_at": "2026-07-15T09:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 132,
+        "body_chars": 123,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_003",
+      "created_at": "2026-07-15T09:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "success",
+        "duration_ms": 3074
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_004",
+      "created_at": "2026-07-15T09:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0ad",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_005",
+      "created_at": "2026-07-15T09:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 135,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_006",
+      "created_at": "2026-07-15T09:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 136,
+        "body_chars": 135,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_007",
+      "created_at": "2026-07-15T09:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "success",
+        "duration_ms": 3222
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_008",
+      "created_at": "2026-07-15T09:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0b1",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_009",
+      "created_at": "2026-07-15T09:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 139,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_010",
+      "created_at": "2026-07-15T09:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 140,
+        "body_chars": 147,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_011",
+      "created_at": "2026-07-15T09:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "success",
+        "duration_ms": 3370
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_012",
+      "created_at": "2026-07-15T09:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0b5",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_013",
+      "created_at": "2026-07-15T10:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 143,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_014",
+      "created_at": "2026-07-15T10:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 144,
+        "body_chars": 159,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_015",
+      "created_at": "2026-07-15T10:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "success",
+        "duration_ms": 3518
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_016",
+      "created_at": "2026-07-15T10:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "production",
+        "sha": "8c2f0b9",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_017",
+      "created_at": "2026-07-15T10:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 147,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_018",
+      "created_at": "2026-07-15T10:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 148,
+        "body_chars": 171,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_019",
+      "created_at": "2026-07-15T10:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "success",
+        "duration_ms": 3666
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_020",
+      "created_at": "2026-07-15T10:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0bd",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_021",
+      "created_at": "2026-07-15T10:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 151,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_022",
+      "created_at": "2026-07-15T10:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 132,
+        "body_chars": 183,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_023",
+      "created_at": "2026-07-15T10:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "failure",
+        "duration_ms": 3814
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_024",
+      "created_at": "2026-07-15T10:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0c1",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_025",
+      "created_at": "2026-07-15T11:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 155,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_026",
+      "created_at": "2026-07-15T11:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 136,
+        "body_chars": 195,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_027",
+      "created_at": "2026-07-15T11:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "success",
+        "duration_ms": 3962
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_028",
+      "created_at": "2026-07-15T11:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0c5",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_029",
+      "created_at": "2026-07-15T11:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 159,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_030",
+      "created_at": "2026-07-15T11:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 140,
+        "body_chars": 207,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_031",
+      "created_at": "2026-07-15T11:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "success",
+        "duration_ms": 4110
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_032",
+      "created_at": "2026-07-15T11:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0c9",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_033",
+      "created_at": "2026-07-15T11:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 163,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_034",
+      "created_at": "2026-07-15T11:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 144,
+        "body_chars": 219,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_035",
+      "created_at": "2026-07-15T11:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "success",
+        "duration_ms": 4258
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_036",
+      "created_at": "2026-07-15T11:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "production",
+        "sha": "8c2f0cd",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_037",
+      "created_at": "2026-07-15T12:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 167,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_038",
+      "created_at": "2026-07-15T12:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 148,
+        "body_chars": 231,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_039",
+      "created_at": "2026-07-15T12:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "success",
+        "duration_ms": 4406
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_040",
+      "created_at": "2026-07-15T12:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0d1",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_041",
+      "created_at": "2026-07-15T12:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 171,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_042",
+      "created_at": "2026-07-15T12:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 132,
+        "body_chars": 243,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_043",
+      "created_at": "2026-07-15T12:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "success",
+        "duration_ms": 4554
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_044",
+      "created_at": "2026-07-15T12:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0d5",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_045",
+      "created_at": "2026-07-15T12:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 175,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_046",
+      "created_at": "2026-07-15T12:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 136,
+        "body_chars": 255,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_047",
+      "created_at": "2026-07-15T12:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "success",
+        "duration_ms": 4702
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_048",
+      "created_at": "2026-07-15T12:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0d9",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_049",
+      "created_at": "2026-07-15T13:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 179,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_050",
+      "created_at": "2026-07-15T13:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 140,
+        "body_chars": 267,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_051",
+      "created_at": "2026-07-15T13:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "success",
+        "duration_ms": 4850
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_052",
+      "created_at": "2026-07-15T13:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0dd",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_053",
+      "created_at": "2026-07-15T13:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 183,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_054",
+      "created_at": "2026-07-15T13:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 144,
+        "body_chars": 279,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_055",
+      "created_at": "2026-07-15T13:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "success",
+        "duration_ms": 4998
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_056",
+      "created_at": "2026-07-15T13:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "production",
+        "sha": "8c2f0e1",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_057",
+      "created_at": "2026-07-15T13:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 187,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_058",
+      "created_at": "2026-07-15T13:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 148,
+        "body_chars": 291,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_059",
+      "created_at": "2026-07-15T13:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "success",
+        "duration_ms": 5146
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_060",
+      "created_at": "2026-07-15T13:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0e5",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_061",
+      "created_at": "2026-07-15T14:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 191,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_062",
+      "created_at": "2026-07-15T14:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 132,
+        "body_chars": 303,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_063",
+      "created_at": "2026-07-15T14:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "success",
+        "duration_ms": 5294
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_064",
+      "created_at": "2026-07-15T14:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0e9",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_065",
+      "created_at": "2026-07-15T14:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 195,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_066",
+      "created_at": "2026-07-15T14:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 136,
+        "body_chars": 315,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_067",
+      "created_at": "2026-07-15T14:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "failure",
+        "duration_ms": 5442
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_068",
+      "created_at": "2026-07-15T14:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0ed",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_069",
+      "created_at": "2026-07-15T14:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 199,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_070",
+      "created_at": "2026-07-15T14:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 140,
+        "body_chars": 327,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_071",
+      "created_at": "2026-07-15T14:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "success",
+        "duration_ms": 5590
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_072",
+      "created_at": "2026-07-15T14:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0f1",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_073",
+      "created_at": "2026-07-15T15:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 203,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_074",
+      "created_at": "2026-07-15T15:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 144,
+        "body_chars": 339,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_075",
+      "created_at": "2026-07-15T15:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "success",
+        "duration_ms": 5738
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_076",
+      "created_at": "2026-07-15T15:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "production",
+        "sha": "8c2f0f5",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_077",
+      "created_at": "2026-07-15T15:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 207,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_078",
+      "created_at": "2026-07-15T15:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 148,
+        "body_chars": 351,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_079",
+      "created_at": "2026-07-15T15:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "success",
+        "duration_ms": 5886
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_080",
+      "created_at": "2026-07-15T15:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0f9",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_081",
+      "created_at": "2026-07-15T15:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 211,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_082",
+      "created_at": "2026-07-15T15:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 132,
+        "body_chars": 363,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_083",
+      "created_at": "2026-07-15T15:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "success",
+        "duration_ms": 6034
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_084",
+      "created_at": "2026-07-15T15:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f0fd",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_085",
+      "created_at": "2026-07-15T16:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 215,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_086",
+      "created_at": "2026-07-15T16:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 136,
+        "body_chars": 375,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_087",
+      "created_at": "2026-07-15T16:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "success",
+        "duration_ms": 6182
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_088",
+      "created_at": "2026-07-15T16:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f101",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_089",
+      "created_at": "2026-07-15T16:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 219,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_090",
+      "created_at": "2026-07-15T16:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 140,
+        "body_chars": 387,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_091",
+      "created_at": "2026-07-15T16:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "success",
+        "duration_ms": 6330
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_092",
+      "created_at": "2026-07-15T16:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f105",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_093",
+      "created_at": "2026-07-15T16:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 223,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_094",
+      "created_at": "2026-07-15T16:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 144,
+        "body_chars": 399,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_095",
+      "created_at": "2026-07-15T16:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "success",
+        "duration_ms": 6478
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_096",
+      "created_at": "2026-07-15T16:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "production",
+        "sha": "8c2f109",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_097",
+      "created_at": "2026-07-15T17:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 227,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_098",
+      "created_at": "2026-07-15T17:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 148,
+        "body_chars": 411,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_099",
+      "created_at": "2026-07-15T17:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "success",
+        "duration_ms": 6626
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_100",
+      "created_at": "2026-07-15T17:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f10d",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_101",
+      "created_at": "2026-07-15T17:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 231,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_102",
+      "created_at": "2026-07-15T17:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 132,
+        "body_chars": 423,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_103",
+      "created_at": "2026-07-15T17:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "success",
+        "duration_ms": 6774
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_104",
+      "created_at": "2026-07-15T17:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f111",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_105",
+      "created_at": "2026-07-15T17:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 235,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_106",
+      "created_at": "2026-07-15T17:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 136,
+        "body_chars": 435,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_107",
+      "created_at": "2026-07-15T17:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "success",
+        "duration_ms": 6922
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_108",
+      "created_at": "2026-07-15T17:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f115",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_109",
+      "created_at": "2026-07-15T18:00:00Z",
+      "actor": "alice",
+      "issue": {
+        "number": 239,
+        "title": "Build realistic token corpus",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_110",
+      "created_at": "2026-07-15T18:05:00Z",
+      "actor": "bob",
+      "comment": {
+        "issue": 140,
+        "body_chars": 447,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_111",
+      "created_at": "2026-07-15T18:10:00Z",
+      "actor": "ci",
+      "check": {
+        "name": "unit-rust",
+        "conclusion": "failure",
+        "duration_ms": 7070
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_112",
+      "created_at": "2026-07-15T18:15:00Z",
+      "actor": "release-bot",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f119",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_113",
+      "created_at": "2026-07-15T18:20:00Z",
+      "actor": "carol",
+      "issue": {
+        "number": 243,
+        "title": "Regenerate token report",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_114",
+      "created_at": "2026-07-15T18:25:00Z",
+      "actor": "ops",
+      "comment": {
+        "issue": 144,
+        "body_chars": 459,
+        "mentions": []
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_115",
+      "created_at": "2026-07-15T18:30:00Z",
+      "actor": "alice",
+      "check": {
+        "name": "benchmark-smoke",
+        "conclusion": "success",
+        "duration_ms": 7218
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_116",
+      "created_at": "2026-07-15T18:35:00Z",
+      "actor": "bob",
+      "deployment": {
+        "environment": "production",
+        "sha": "8c2f11d",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    },
+    {
+      "type": "issue_opened",
+      "id": "evt_117",
+      "created_at": "2026-07-15T18:40:00Z",
+      "actor": "ci",
+      "issue": {
+        "number": 247,
+        "title": "Validate benchmark harness",
+        "labels": [
+          "benchmark",
+          "tokens"
+        ]
+      }
+    },
+    {
+      "type": "comment_added",
+      "id": "evt_118",
+      "created_at": "2026-07-15T18:45:00Z",
+      "actor": "release-bot",
+      "comment": {
+        "issue": 148,
+        "body_chars": 471,
+        "mentions": [
+          "alice",
+          "ops"
+        ]
+      }
+    },
+    {
+      "type": "check_completed",
+      "id": "evt_119",
+      "created_at": "2026-07-15T18:50:00Z",
+      "actor": "carol",
+      "check": {
+        "name": "unit-js",
+        "conclusion": "success",
+        "duration_ms": 7366
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "evt_120",
+      "created_at": "2026-07-15T18:55:00Z",
+      "actor": "ops",
+      "deployment": {
+        "environment": "staging",
+        "sha": "8c2f121",
+        "services": [
+          "api",
+          "worker",
+          "web"
+        ]
+      }
+    }
+  ]
+}
