@@ -2,8 +2,8 @@
 //! the encoder and the error paths that the spec corpus does not reach on its own.
 
 use reddb_io_toon::{
-    close_transform_stream, jsonl_to_toonl, toonl_to_jsonl, Array, Document, ParseOptions,
-    ToonlReader, ToonlWriter, Value,
+    close_transform_stream, encode_toonl_values, jsonl_to_toonl, toonl_to_jsonl, Array, Document,
+    ParseOptions, ToonlReader, ToonlWriter, Value,
 };
 use serde_json::json;
 
@@ -172,6 +172,31 @@ fn toonl_reader_and_writer_stream_rows_with_schema_rotation() {
     assert_eq!(
         String::from_utf8(output).unwrap(),
         String::from_utf8(input.to_vec()).unwrap()
+    );
+}
+
+#[test]
+fn toonl_record_encoders_canonicalize_shuffled_shape_field_order() {
+    let rows = [
+        Value::from_json_str(r#"{"id":1,"name":"Ada"}"#).expect("row"),
+        Value::from_json_str(r#"{"name":"Linus","id":2}"#).expect("row"),
+    ];
+
+    assert_eq!(
+        encode_toonl_values(&rows).expect("valid TOONL rows"),
+        "[]{id,name}:\n1,Ada\n2,Linus\n[=2]\n"
+    );
+
+    let mut output = Vec::new();
+    let mut writer = ToonlWriter::new(&mut output);
+    for row in &rows {
+        writer.write_record(row).expect("write row");
+    }
+    writer.finish().expect("finish writer");
+
+    assert_eq!(
+        String::from_utf8(output).unwrap(),
+        "[]{id,name}:\n1,Ada\n2,Linus\n[=2]\n"
     );
 }
 
