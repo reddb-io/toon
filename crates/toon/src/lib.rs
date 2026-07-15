@@ -55,6 +55,8 @@ pub struct EncodeOptions {
     pub keyed_map_collapse: bool,
     /// Emit primitive-array columns inside otherwise tabular object arrays.
     pub primitive_array_columns: bool,
+    /// Emit child tables for array-valued columns inside tabular object arrays.
+    pub object_array_columns: bool,
     /// Active delimiter for encoded array and tabular rows: comma, pipe, or tab.
     pub delimiter: char,
     /// Maximum nesting depth for fallible encoding. `0` disables the guard.
@@ -164,6 +166,7 @@ impl Default for EncodeOptions {
             nested_tabular_headers: false,
             keyed_map_collapse: false,
             primitive_array_columns: false,
+            object_array_columns: false,
             delimiter: DOCUMENT_DELIMITER,
             max_depth: DEFAULT_MAX_DEPTH,
         }
@@ -3274,11 +3277,7 @@ fn parse_fixed_width_list(value: &str) -> Option<(usize, char)> {
 }
 
 fn flatten_header_field_tree(fields: &[HeaderFieldTree]) -> Result<Vec<HeaderField>, HeaderError> {
-    fn visit(
-        fields: &[HeaderFieldTree],
-        prefix: &mut Vec<String>,
-        output: &mut Vec<HeaderField>,
-    ) {
+    fn visit(fields: &[HeaderFieldTree], prefix: &mut Vec<String>, output: &mut Vec<HeaderField>) {
         for field in fields {
             prefix.push(field.key.clone());
             if field.children.is_empty() {
@@ -4138,21 +4137,27 @@ fn write_array(
         );
         output.push('\n');
         for value in values {
-            let Value::Object(_) = value else {
-                unreachable!("tabular_fields only matches objects");
-            };
             write_indent(output, depth + 1);
+            let mut child_output = String::new();
             let cells = shape
                 .paths
                 .iter()
                 .map(|path| {
                     let cell =
                         value_at_path(value, &path.path).expect("tabular_shape checked the path");
-                    column_text(cell, path, options.delimiter)
+                    column_text(
+                        cell,
+                        path,
+                        options.delimiter,
+                        options,
+                        &mut child_output,
+                        depth + 2,
+                    )
                 })
                 .collect::<Vec<_>>();
             output.push_str(&cells.join(&options.delimiter.to_string()));
             output.push('\n');
+            output.push_str(&child_output);
         }
         return Ok(());
     }
@@ -4229,6 +4234,14 @@ fn push_delimiter_prefix(output: &mut String, delimiter: char) {
     }
 }
 
+fn delimiter_prefix_text(delimiter: char) -> String {
+    if delimiter == DOCUMENT_DELIMITER {
+        String::new()
+    } else {
+        delimiter.to_string()
+    }
+}
+
 fn write_keyed_map(
     output: &mut String,
     key: &str,
@@ -4256,17 +4269,26 @@ fn write_keyed_map(
         output.push_str(&canonical_key(&field.key));
         output.push_str(": ");
         let row_value = Value::Object(row.clone());
+        let mut child_output = String::new();
         let cells = shape
             .paths
             .iter()
             .map(|path| {
                 let cell = value_at_path(&row_value, &path.path)
                     .expect("keyed_map_shape checked row paths");
-                column_text(cell, path, options.delimiter)
+                column_text(
+                    cell,
+                    path,
+                    options.delimiter,
+                    options,
+                    &mut child_output,
+                    depth + 2,
+                )
             })
             .collect::<Vec<_>>();
         output.push_str(&cells.join(&options.delimiter.to_string()));
         output.push('\n');
+        output.push_str(&child_output);
     }
     Ok(())
 }
@@ -4274,6 +4296,13 @@ fn write_keyed_map(
 fn header_field_text(field: &HeaderFieldShape, delimiter: char) -> String {
     if let Some(list_delimiter) = field.list_delimiter {
         return format!("{}[{list_delimiter}]", canonical_key(&field.key));
+    }
+    if let Some(fixed_len) = field.fixed_len {
+        return format!(
+            "{}[{fixed_len}{}]",
+            canonical_key(&field.key),
+            delimiter_prefix_text(delimiter)
+        );
     }
     if field.children.is_empty() {
         return canonical_key(&field.key);
@@ -4297,6 +4326,8 @@ struct TabularShape {
 struct HeaderFieldShape {
     key: String,
     list_delimiter: Option<char>,
+    fixed_len: Option<usize>,
+    child_table: bool,
     children: Vec<HeaderFieldShape>,
 }
 
@@ -4304,6 +4335,8 @@ struct HeaderFieldShape {
 struct ColumnPath {
     path: Vec<String>,
     list_delimiter: Option<char>,
+    fixed_len: Option<usize>,
+    child_fields: Vec<HeaderFieldShape>,
 }
 
 fn tabular_shape(
@@ -4311,6 +4344,9 @@ fn tabular_shape(
     options: EncodeOptions,
     depth: usize,
 ) -> Result<Option<TabularShape>, EncodeError> {
+    if let Some(shape) = matrix_shape(values, options) {
+        return Ok(Some(shape));
+    }
     let Some(fields) = object_shape(values, options, depth)? else {
         return Ok(None);
     };
@@ -4353,6 +4389,8 @@ fn object_shape(
         .map(|field| HeaderFieldShape {
             key: field.key.clone(),
             list_delimiter: None,
+            fixed_len: None,
+            child_table: false,
             children: Vec::new(),
         })
         .collect::<Vec<_>>();
@@ -4397,6 +4435,25 @@ fn object_shape(
             field.list_delimiter = Some(';');
             continue;
         }
+        if options.object_array_columns && cells.iter().all(|cell| matches!(cell, Value::Array(_)))
+        {
+            if let Some(fixed_len) = matrix_column_shape(&cells) {
+                field.fixed_len = Some(fixed_len);
+                continue;
+            }
+            let child_values = cells
+                .iter()
+                .flat_map(|cell| match cell {
+                    Value::Array(array) => array.values().to_vec(),
+                    _ => unreachable!("checked arrays"),
+                })
+                .collect::<Vec<_>>();
+            if let Some(children) = object_shape(&child_values, options, depth + 1)? {
+                field.children = children;
+                field.child_table = true;
+                continue;
+            }
+        }
         if !options.nested_tabular_headers {
             return Ok(None);
         }
@@ -4409,6 +4466,43 @@ fn object_shape(
     Ok(Some(fields))
 }
 
+fn matrix_shape(values: &[Value], options: EncodeOptions) -> Option<TabularShape> {
+    if !options.object_array_columns {
+        return None;
+    }
+    let fixed_len = matrix_column_shape(values)?;
+    let fields = vec![HeaderFieldShape {
+        key: "values".to_owned(),
+        list_delimiter: None,
+        fixed_len: Some(fixed_len),
+        child_table: false,
+        children: Vec::new(),
+    }];
+    let paths = vec![ColumnPath {
+        path: Vec::new(),
+        list_delimiter: None,
+        fixed_len: Some(fixed_len),
+        child_fields: Vec::new(),
+    }];
+    Some(TabularShape { fields, paths })
+}
+
+fn matrix_column_shape(values: &[Value]) -> Option<usize> {
+    let first_len = match values.first()? {
+        Value::Array(array) if !array.values().is_empty() => array.values().len(),
+        _ => return None,
+    };
+    values
+        .iter()
+        .all(|value| match value {
+            Value::Array(array) => {
+                array.values().len() == first_len && array.values().iter().all(Value::is_primitive)
+            }
+            _ => false,
+        })
+        .then_some(first_len)
+}
+
 fn collect_leaf_paths(
     fields: &[HeaderFieldShape],
     prefix: &mut Vec<String>,
@@ -4416,10 +4510,26 @@ fn collect_leaf_paths(
 ) {
     for field in fields {
         prefix.push(field.key.clone());
-        if field.children.is_empty() {
+        if field.child_table {
             paths.push(ColumnPath {
                 path: prefix.clone(),
                 list_delimiter: field.list_delimiter,
+                fixed_len: field.fixed_len,
+                child_fields: field.children.clone(),
+            });
+        } else if let Some(fixed_len) = field.fixed_len {
+            paths.push(ColumnPath {
+                path: prefix.clone(),
+                list_delimiter: None,
+                fixed_len: Some(fixed_len),
+                child_fields: Vec::new(),
+            });
+        } else if field.children.is_empty() {
+            paths.push(ColumnPath {
+                path: prefix.clone(),
+                list_delimiter: field.list_delimiter,
+                fixed_len: None,
+                child_fields: Vec::new(),
             });
         } else {
             collect_leaf_paths(&field.children, prefix, paths);
@@ -4449,7 +4559,38 @@ fn primitive_text(value: &Value, delimiter: char) -> String {
     }
 }
 
-fn column_text(value: &Value, column: &ColumnPath, active_delimiter: char) -> String {
+fn column_text(
+    value: &Value,
+    column: &ColumnPath,
+    active_delimiter: char,
+    options: EncodeOptions,
+    child_output: &mut String,
+    child_depth: usize,
+) -> String {
+    if !column.child_fields.is_empty() {
+        write_child_rows(
+            child_output,
+            value,
+            &column.child_fields,
+            options,
+            child_depth,
+        );
+        let Value::Array(array) = value else {
+            unreachable!("object_shape checked child-table values");
+        };
+        return array.values().len().to_string();
+    }
+    if column.fixed_len.is_some() {
+        let Value::Array(array) = value else {
+            unreachable!("object_shape checked fixed-width values");
+        };
+        return array
+            .values()
+            .iter()
+            .map(|value| primitive_text(value, active_delimiter))
+            .collect::<Vec<_>>()
+            .join(&active_delimiter.to_string());
+    }
     let Some(list_delimiter) = column.list_delimiter else {
         return primitive_text(value, active_delimiter);
     };
@@ -4462,6 +4603,42 @@ fn column_text(value: &Value, column: &ColumnPath, active_delimiter: char) -> St
         .map(|value| primitive_list_item_text(value, active_delimiter, list_delimiter))
         .collect::<Vec<_>>()
         .join(&list_delimiter.to_string())
+}
+
+fn write_child_rows(
+    output: &mut String,
+    value: &Value,
+    fields: &[HeaderFieldShape],
+    options: EncodeOptions,
+    depth: usize,
+) {
+    let Value::Array(array) = value else {
+        unreachable!("object_shape checked child-table arrays");
+    };
+    let mut paths = Vec::new();
+    collect_leaf_paths(fields, &mut Vec::new(), &mut paths);
+    for child in array.values() {
+        write_indent(output, depth);
+        let mut nested_output = String::new();
+        let cells = paths
+            .iter()
+            .map(|path| {
+                let cell =
+                    value_at_path(&child, &path.path).expect("object_shape checked child paths");
+                column_text(
+                    cell,
+                    path,
+                    options.delimiter,
+                    options,
+                    &mut nested_output,
+                    depth + 1,
+                )
+            })
+            .collect::<Vec<_>>();
+        output.push_str(&cells.join(&options.delimiter.to_string()));
+        output.push('\n');
+        output.push_str(&nested_output);
+    }
 }
 
 fn primitive_list_item_text(value: &Value, active_delimiter: char, list_delimiter: char) -> String {
