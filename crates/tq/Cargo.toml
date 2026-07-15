@@ -20,6 +20,6 @@ name = "behavior"
 path = "../../tests/runners/rust/tq/behavior.rs"
 
 [dependencies]
-reddb-io-toon = { path = "../toon", version = "0.6.3" }
+reddb-io-toon = { path = "../toon", version = "0.6.4" }
 regex = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
