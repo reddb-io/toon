@@ -3,7 +3,8 @@
 
 use reddb_io_toon::{
     close_transform_stream, encode_toonl_values, jsonl_to_toonl, toonl_to_jsonl, Array, Document,
-    ParseOptions, ToonlEncoder, ToonlReader, ToonlWriter, Value,
+    ParseOptions, ToonlCursor, ToonlCursorInvalidation, ToonlEncoder, ToonlReader,
+    ToonlResumeError, ToonlWriter, Value,
 };
 use serde_json::json;
 
@@ -198,6 +199,78 @@ fn toonl_streaming_reader_accepts_matching_continuation_headers() {
         .expect_err("mismatched continuation is rejected")
         .to_string();
     assert!(error.contains("continuation header mismatch"));
+}
+
+#[test]
+fn toonl_reader_resumes_from_a_serialized_cursor() {
+    let input = b"[]{id,name}:\n1,Ada\n2,Linus\n[=2]\n";
+    let mut reader = ToonlReader::new(lines(input));
+
+    let first = reader.next().expect("first row").expect("valid row");
+    assert_eq!(first.to_json_value(), json!({"id": 1, "name": "Ada"}));
+    let cursor = reader.cursor().expect("cursor after first row");
+    let persisted = cursor.to_json_string();
+    let restored = ToonlCursor::from_json_str(&persisted).expect("cursor JSON round-trip");
+
+    let resumed = ToonlReader::resume_from_bytes(input, restored)
+        .expect("valid cursor")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("resumed rows decode");
+    let sequential = ToonlReader::new(lines(input))
+        .skip(1)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("sequential suffix decodes");
+
+    assert_eq!(resumed, sequential);
+}
+
+#[test]
+fn toonl_reader_resumes_across_continuation_headers() {
+    let input = b"[]{id,name}:\n1,Ada\n2,Linus\n[~]{id,name}:\n3,Grace\n[=3]\n";
+    let mut reader = ToonlReader::new(lines(input));
+
+    reader.next().expect("first row").expect("valid row");
+    reader.next().expect("second row").expect("valid row");
+    let cursor = reader.cursor().expect("cursor before continuation");
+
+    let resumed = ToonlReader::resume_from_bytes(input, cursor)
+        .expect("valid cursor")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("resumed rows decode");
+    assert_eq!(
+        resumed
+            .iter()
+            .map(Value::to_json_value)
+            .collect::<Vec<serde_json::Value>>(),
+        vec![json!({"id": 3, "name": "Grace"})]
+    );
+}
+
+#[test]
+fn toonl_reader_reports_cursor_invalidation_distinctly() {
+    let input = b"[]{id,name}:\n1,Ada\n2,Linus\n";
+    let mut reader = ToonlReader::new(lines(input));
+    reader.next().expect("first row").expect("valid row");
+    let cursor = reader.cursor().expect("cursor after first row");
+
+    let truncated = ToonlCursor::new(999, "[]{id,name}:\n", 0);
+    let error = ToonlReader::resume_from_bytes(input, truncated).expect_err("truncated cursor");
+    assert!(matches!(
+        error,
+        ToonlResumeError::Invalid(ToonlCursorInvalidation::Truncated { .. })
+    ));
+
+    let mut rewritten = input.to_vec();
+    let row_byte = rewritten
+        .iter()
+        .position(|byte| *byte == b'1')
+        .expect("row byte");
+    rewritten[row_byte] = b'9';
+    let error = ToonlReader::resume_from_bytes(&rewritten, cursor).expect_err("mutated cursor");
+    assert!(matches!(
+        error,
+        ToonlResumeError::Invalid(ToonlCursorInvalidation::AnchorMismatch { .. })
+    ));
 }
 
 #[test]

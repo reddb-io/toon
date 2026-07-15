@@ -5,7 +5,7 @@
  * and optionally closed by a `[=N]` trailer that asserts the row count.
  */
 
-import { asToonlError, toonlError } from './errors.js'
+import { ToonlCursorInvalidationError, asToonlError, toonlError } from './errors.js'
 import { parse, serialize } from './toon.js'
 import {
   DOCUMENT_DELIMITER,
@@ -20,6 +20,9 @@ import {
 } from './lexical.js'
 
 const DELIMITERS = [DOCUMENT_DELIMITER, '|', '\t']
+const CURSOR_ANCHOR_LIMIT = 64
+const TEXT_ENCODER = new TextEncoder()
+const TEXT_DECODER = new TextDecoder()
 
 function requireTransformStream() {
   if (typeof TransformStream === 'undefined') {
@@ -288,22 +291,115 @@ async function* toLines(source) {
  * `source` is a string, or an (async) iterable of string/Uint8Array chunks.
  */
 export async function* decodeLines(source) {
-  const state = createDecodeState()
+  yield* new ToonlReader(source)
+}
 
-  for await (const line of toLines(source)) {
-    const record = consumeDecodeLine(state, line)
-    if (record !== undefined) {
-      yield record
+function createDecodeState(cursor = null) {
+  return {
+    open: cursor
+      ? parseCursorHeader(cursor)
+      : null,
+    lineNumber: 0,
+    byteOffset: cursor ? cursor.byteOffset : 0,
+    activeHeaderLine: cursor ? cursor.activeHeaderLine : null,
+    rowsSinceHeader: cursor ? cursor.rowsSinceHeader : 0,
+    anchor: cursor?.anchor ?? null,
+  }
+}
+
+function normalizeHeaderLine(header) {
+  return headerText(header.delimiter, header.fieldText, false)
+}
+
+function parseCursorHeader(cursor) {
+  if (!Number.isSafeInteger(cursor?.byteOffset) || cursor.byteOffset < 0) {
+    throw toonlError(0, 'invalid cursor byteOffset')
+  }
+  if (!Number.isSafeInteger(cursor?.rowsSinceHeader) || cursor.rowsSinceHeader < 0) {
+    throw toonlError(0, 'invalid cursor rowsSinceHeader')
+  }
+  if (typeof cursor.activeHeaderLine !== 'string' || cursor.activeHeaderLine === '') {
+    throw toonlError(0, 'invalid cursor activeHeaderLine')
+  }
+  const header = parseHeaderLine(cursor.activeHeaderLine.trimEnd(), 0)
+  if (header === null || header.continuation) {
+    throw toonlError(0, 'invalid cursor activeHeaderLine')
+  }
+  return {
+    delimiter: header.delimiter,
+    fields: header.fields,
+    fieldText: header.fieldText,
+    rowCount: cursor.rowsSinceHeader,
+  }
+}
+
+function bytesOf(text) {
+  return TEXT_ENCODER.encode(text)
+}
+
+function byteLength(text) {
+  return bytesOf(text).length
+}
+
+function cursorAnchor(lineStartOffset, rawLine) {
+  if (rawLine.length <= CURSOR_ANCHOR_LIMIT) {
+    return { byteOffset: lineStartOffset, bytes: rawLine }
+  }
+  const bytes = bytesOf(rawLine)
+  const start = Math.max(0, bytes.length - CURSOR_ANCHOR_LIMIT)
+  return {
+    byteOffset: lineStartOffset + start,
+    bytes: TEXT_DECODER.decode(bytes.slice(start)),
+  }
+}
+
+function currentCursor(state) {
+  if (state.activeHeaderLine === null) {
+    return null
+  }
+  return {
+    byteOffset: state.byteOffset,
+    activeHeaderLine: state.activeHeaderLine,
+    rowsSinceHeader: state.rowsSinceHeader,
+    ...(state.anchor === null ? {} : { anchor: state.anchor }),
+  }
+}
+
+function validateResumeBytes(bytes, cursor) {
+  if (bytes.length < cursor.byteOffset) {
+    throw new ToonlCursorInvalidationError('truncated', 'TOONL cursor invalidated by truncation', {
+      byteOffset: cursor.byteOffset,
+      fileSize: bytes.length,
+    })
+  }
+  if (cursor.anchor !== undefined) {
+    const { byteOffset, bytes: expected } = cursor.anchor
+    const expectedBytes = bytesOf(String(expected))
+    const actual = bytes.slice(byteOffset, byteOffset + expectedBytes.length)
+    if (actual.length !== expectedBytes.length || TEXT_DECODER.decode(actual) !== expected) {
+      throw new ToonlCursorInvalidationError(
+        'anchor-mismatch',
+        'TOONL cursor invalidated by anchor mismatch',
+        { byteOffset },
+      )
     }
   }
 }
 
-function createDecodeState() {
-  return { open: null, lineNumber: 0 }
+function sourceBytesForResume(source) {
+  if (typeof source === 'string') {
+    return bytesOf(source)
+  }
+  if (source instanceof Uint8Array) {
+    return source
+  }
+  return null
 }
 
-function consumeDecodeLine(state, line) {
+function consumeDecodeLine(state, line, rawLine = `${line}\n`, lineStartOffset = state.byteOffset) {
   state.lineNumber += 1
+  state.byteOffset = lineStartOffset + byteLength(rawLine)
+  state.anchor = cursorAnchor(lineStartOffset, rawLine)
   if (line === '') {
     return undefined
   }
@@ -317,6 +413,8 @@ function consumeDecodeLine(state, line) {
     return undefined
   }
   if (step.kind === 'header') {
+    state.activeHeaderLine = normalizeHeaderLine(step.header)
+    state.rowsSinceHeader = 0
     state.open = {
       delimiter: step.header.delimiter,
       fields: step.header.fields,
@@ -327,7 +425,74 @@ function consumeDecodeLine(state, line) {
   }
 
   state.open.rowCount += 1
+  state.rowsSinceHeader += 1
   return rowRecord(state.open.fields, step.cells, state.lineNumber)
+}
+
+async function* toLineEntries(source, initialByteOffset = 0) {
+  let byteOffset = initialByteOffset
+  if (typeof source === 'string') {
+    const hadTrailingNewline = source.endsWith('\n')
+    const rawLines = source.split('\n')
+    if (hadTrailingNewline) {
+      rawLines.pop()
+    }
+    for (let index = 0; index < rawLines.length; index += 1) {
+      const raw = rawLines[index]
+      const rawLine = `${raw}${index < rawLines.length - 1 || hadTrailingNewline ? '\n' : ''}`
+      const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+      const lineStartOffset = byteOffset
+      byteOffset += byteLength(rawLine)
+      yield { line, rawLine, lineStartOffset }
+    }
+    return
+  }
+
+  for await (const line of toLines(source)) {
+    const rawLine = `${line}\n`
+    const lineStartOffset = byteOffset
+    byteOffset += byteLength(rawLine)
+    yield { line, rawLine, lineStartOffset }
+  }
+}
+
+export class ToonlReader {
+  #source
+  #cursor
+  #state
+
+  constructor(source, options = {}) {
+    this.#source = source
+    this.#cursor = options.cursor ?? null
+    this.#state = createDecodeState(this.#cursor)
+  }
+
+  get cursor() {
+    const cursor = currentCursor(this.#state)
+    return cursor === null ? null : JSON.parse(JSON.stringify(cursor))
+  }
+
+  async *[Symbol.asyncIterator]() {
+    let source = this.#source
+    let initialByteOffset = 0
+
+    if (this.#cursor !== null) {
+      const bytes = sourceBytesForResume(source)
+      if (bytes === null) {
+        throw toonlError(0, 'cursor resume requires a string or Uint8Array source')
+      }
+      validateResumeBytes(bytes, this.#cursor)
+      source = TEXT_DECODER.decode(bytes.slice(this.#cursor.byteOffset))
+      initialByteOffset = this.#cursor.byteOffset
+    }
+
+    for await (const { line, rawLine, lineStartOffset } of toLineEntries(source, initialByteOffset)) {
+      const record = consumeDecodeLine(this.#state, line, rawLine, lineStartOffset)
+      if (record !== undefined) {
+        yield record
+      }
+    }
+  }
 }
 
 function chunkText(decoder, chunk, stream) {

@@ -38,6 +38,11 @@ export class ToonlError extends Error {
   readonly reason: string
 }
 
+export class ToonlCursorInvalidationError extends ToonlError {
+  readonly condition: 'truncated' | 'anchor-mismatch'
+  readonly details: Record<string, unknown>
+}
+
 /** Decodes a TOON document into a JSON value (spec §5 root-form discovery). */
 export function parse(input: string, options?: ParseOptions): JsonValue
 
@@ -88,6 +93,18 @@ export type ToonlRecord = Record<string, null | boolean | number | string>
 /** The delimiters a TOONL header may declare. */
 export type ToonlDelimiter = ',' | '|' | '\t'
 
+export interface ToonlCursorAnchor {
+  byteOffset: number
+  bytes: string
+}
+
+export interface ToonlCursor {
+  byteOffset: number
+  activeHeaderLine: string
+  rowsSinceHeader: number
+  anchor?: ToonlCursorAnchor
+}
+
 /** Parses a whole TOONL stream into its segments, keeping raw cells. */
 export function parseStream(input: string): ToonlSegment[]
 
@@ -110,6 +127,15 @@ export function toonToJson(input: string): string
 export function decodeLines(
   source: string | Iterable<string | Uint8Array> | AsyncIterable<string | Uint8Array>,
 ): AsyncGenerator<ToonlRecord, void, undefined>
+
+export class ToonlReader implements AsyncIterable<ToonlRecord> {
+  constructor(
+    source: string | Iterable<string | Uint8Array> | AsyncIterable<string | Uint8Array> | Uint8Array,
+    options?: { cursor?: ToonlCursor },
+  )
+  readonly cursor: ToonlCursor | null
+  [Symbol.asyncIterator](): AsyncIterator<ToonlRecord>
+}
 
 export interface ToonlContinuationOptions {
   /** Emit a continuation header before the next row after this many rows. */

@@ -21,6 +21,15 @@ export class ToonlError extends Error {
   }
 }
 
+export class ToonlCursorInvalidationError extends ToonlError {
+  constructor(condition, message, details = {}) {
+    super(0, message)
+    this.name = 'ToonlCursorInvalidationError'
+    this.condition = condition
+    this.details = details
+  }
+}
+
 export function toonError(line, message) {
   return new ToonError(line, message)
 }

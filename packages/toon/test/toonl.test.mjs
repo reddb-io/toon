@@ -9,8 +9,10 @@ import {
   ToonlDecodeStream,
   ToonlEncodeStream,
   ToonlToJsonl,
+  ToonlCursorInvalidationError,
   ToonlEncoder,
   ToonlError,
+  ToonlReader,
   closeTransform,
   decodeLines,
   encodeLines,
@@ -102,6 +104,56 @@ test('decodeLines accepts matching continuation headers and rejects mismatches',
   await assert.rejects(
     () => collect('[]{id,name}:\n1,Ada\n[~]{id,role}:\n2,dev\n'),
     /continuation header mismatch/,
+  )
+})
+
+test('ToonlReader resumes from a serialized cursor', async () => {
+  const stream = '[]{id,name}:\n1,Ada\n2,Linus\n[=2]\n'
+  const reader = new ToonlReader(stream)
+  const iterator = reader[Symbol.asyncIterator]()
+
+  assert.deepEqual((await iterator.next()).value, { id: 1, name: 'Ada' })
+  const persisted = JSON.stringify(reader.cursor)
+  const restored = JSON.parse(persisted)
+
+  const resumed = []
+  for await (const record of new ToonlReader(stream, { cursor: restored })) {
+    resumed.push(record)
+  }
+
+  assert.deepEqual(resumed, (await collect(stream)).slice(1))
+})
+
+test('ToonlReader resumes across continuation headers', async () => {
+  const stream = '[]{id,name}:\n1,Ada\n2,Linus\n[~]{id,name}:\n3,Grace\n[=3]\n'
+  const reader = new ToonlReader(stream)
+  const iterator = reader[Symbol.asyncIterator]()
+
+  await iterator.next()
+  await iterator.next()
+
+  const resumed = []
+  for await (const record of new ToonlReader(stream, { cursor: reader.cursor })) {
+    resumed.push(record)
+  }
+  assert.deepEqual(resumed, [{ id: 3, name: 'Grace' }])
+})
+
+test('ToonlReader reports cursor invalidation distinctly', async () => {
+  const stream = '[]{id,name}:\n1,Ada\n2,Linus\n'
+  const reader = new ToonlReader(stream)
+  const iterator = reader[Symbol.asyncIterator]()
+  await iterator.next()
+
+  await assert.rejects(
+    () => collect(new ToonlReader(stream, { cursor: { byteOffset: 999, activeHeaderLine: '[]{id,name}:\n', rowsSinceHeader: 0 } })),
+    (error) => error instanceof ToonlCursorInvalidationError && error.condition === 'truncated',
+  )
+
+  const rewritten = stream.replace('1,Ada', '9,Ada')
+  await assert.rejects(
+    () => collect(new ToonlReader(rewritten, { cursor: reader.cursor })),
+    (error) => error instanceof ToonlCursorInvalidationError && error.condition === 'anchor-mismatch',
   )
 })
 
