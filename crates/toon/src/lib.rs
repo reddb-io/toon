@@ -131,10 +131,12 @@ pub enum ToonlResumeError {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ToonlStream {
     segments: Vec<ToonlSegment>,
+    interleaved_segments: Vec<ToonlSegment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToonlSegment {
+    lane: Option<String>,
     delimiter: char,
     fields: Vec<String>,
     header_fields: String,
@@ -180,6 +182,12 @@ struct ToonlHeaderLine {
 struct TaggedToonlLane {
     segments: Vec<ToonlSegment>,
     current: Option<ToonlSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ToonlLaneOrder {
+    Anonymous,
+    Tagged(String),
 }
 
 #[derive(Debug)]
@@ -575,7 +583,9 @@ impl ToonlStream {
         let mut anonymous_segments = Vec::new();
         let mut current: Option<ToonlSegment> = None;
         let mut tagged_lanes: HashMap<String, TaggedToonlLane> = HashMap::new();
-        let mut tagged_lane_order: Vec<String> = Vec::new();
+        let mut lane_order: Vec<ToonlLaneOrder> = Vec::new();
+        let mut anonymous_declared = false;
+        let mut interleaved_segments = Vec::new();
         let mut saw_tagged_syntax = false;
 
         for (offset, raw_line) in input.lines().enumerate() {
@@ -610,7 +620,7 @@ impl ToonlStream {
                         if tagged_lanes.len() >= TOONL_TAGGED_LANE_LIMIT {
                             return Err(toonl_error(line_number, "too many tagged lanes"));
                         }
-                        tagged_lane_order.push(tag.clone());
+                        lane_order.push(ToonlLaneOrder::Tagged(tag.clone()));
                         tagged_lanes.insert(
                             tag.clone(),
                             TaggedToonlLane {
@@ -624,6 +634,7 @@ impl ToonlStream {
                         lane.segments.push(segment);
                     }
                     lane.current = Some(ToonlSegment {
+                        lane: Some(tag),
                         delimiter: header.delimiter,
                         fields: header.fields,
                         header_fields: header.header_fields,
@@ -634,7 +645,12 @@ impl ToonlStream {
                 if let Some(segment) = current.take() {
                     anonymous_segments.push(segment);
                 }
+                if !anonymous_declared {
+                    lane_order.push(ToonlLaneOrder::Anonymous);
+                    anonymous_declared = true;
+                }
                 current = Some(ToonlSegment {
+                    lane: None,
                     delimiter: header.delimiter,
                     fields: header.fields,
                     header_fields: header.header_fields,
@@ -657,7 +673,8 @@ impl ToonlStream {
                     segment.fields.len(),
                     line_number,
                 )?;
-                segment.rows.push(row);
+                segment.rows.push(row.clone());
+                append_interleaved_toonl_row(&mut interleaved_segments, segment, row);
                 continue;
             }
 
@@ -665,7 +682,8 @@ impl ToonlStream {
                 .as_mut()
                 .ok_or_else(|| toonl_error(line_number, "row before header"))?;
             let row = parse_toonl_row(line, segment.delimiter, segment.fields.len(), line_number)?;
-            segment.rows.push(row);
+            segment.rows.push(row.clone());
+            append_interleaved_toonl_row(&mut interleaved_segments, segment, row);
         }
 
         if let Some(segment) = current {
@@ -673,23 +691,33 @@ impl ToonlStream {
         }
 
         if !saw_tagged_syntax {
+            let interleaved_segments = anonymous_segments.clone();
             return Ok(Self {
                 segments: anonymous_segments,
+                interleaved_segments,
             });
         }
 
-        let mut segments = anonymous_segments;
-        for tag in tagged_lane_order {
-            let mut lane = tagged_lanes
-                .remove(&tag)
-                .expect("lane order only contains declared lanes");
-            segments.append(&mut lane.segments);
-            if let Some(segment) = lane.current {
-                segments.push(segment);
+        let mut segments = Vec::new();
+        for lane_key in lane_order {
+            match lane_key {
+                ToonlLaneOrder::Anonymous => segments.extend(anonymous_segments.clone()),
+                ToonlLaneOrder::Tagged(tag) => {
+                    let mut lane = tagged_lanes
+                        .remove(&tag)
+                        .expect("lane order only contains declared lanes");
+                    segments.append(&mut lane.segments);
+                    if let Some(segment) = lane.current {
+                        segments.push(segment);
+                    }
+                }
             }
         }
 
-        Ok(Self { segments })
+        Ok(Self {
+            segments,
+            interleaved_segments,
+        })
     }
 
     pub fn segments(&self) -> &[ToonlSegment] {
@@ -713,6 +741,37 @@ impl ToonlStream {
             .map(ToonlSegment::to_closed_toon_document)
             .collect())
     }
+
+    pub fn close_transform_interleaved_documents(&self) -> Result<Vec<String>, ToonlError> {
+        Ok(self
+            .interleaved_segments
+            .iter()
+            .map(ToonlSegment::to_closed_toon_document)
+            .collect())
+    }
+}
+
+fn append_interleaved_toonl_row(
+    interleaved_segments: &mut Vec<ToonlSegment>,
+    source: &ToonlSegment,
+    row: Vec<String>,
+) {
+    if let Some(last) = interleaved_segments.last_mut() {
+        if last.lane == source.lane
+            && last.delimiter == source.delimiter
+            && last.header_fields == source.header_fields
+        {
+            last.rows.push(row);
+            return;
+        }
+    }
+    interleaved_segments.push(ToonlSegment {
+        lane: source.lane.clone(),
+        delimiter: source.delimiter,
+        fields: source.fields.clone(),
+        header_fields: source.header_fields.clone(),
+        rows: vec![row],
+    });
 }
 
 impl ToonlSegment {
@@ -958,7 +1017,8 @@ impl<W: Write> ToonlWriter<W> {
             return Err(toonl_error(0, "TOONL writer is closed"));
         }
         validate_toonl_tag(tag, 0)?;
-        if !self.tagged_lanes.contains_key(tag) && self.tagged_lanes.len() >= TOONL_TAGGED_LANE_LIMIT
+        if !self.tagged_lanes.contains_key(tag)
+            && self.tagged_lanes.len() >= TOONL_TAGGED_LANE_LIMIT
         {
             return Err(toonl_error(0, "too many tagged lanes"));
         }
@@ -977,10 +1037,7 @@ impl<W: Write> ToonlWriter<W> {
         self.writer
             .write_all(tagged_toonl_header_text(tag, &header_fields).as_bytes())
             .map_err(write_toonl_error)?;
-        self.tagged_lanes
-            .entry(tag.to_owned())
-            .or_default()
-            .fields = Some(fields);
+        self.tagged_lanes.entry(tag.to_owned()).or_default().fields = Some(fields);
         Ok(())
     }
 
@@ -989,7 +1046,8 @@ impl<W: Write> ToonlWriter<W> {
             return Err(toonl_error(0, "TOONL writer is closed"));
         }
         validate_toonl_tag(tag, 0)?;
-        if !self.tagged_lanes.contains_key(tag) && self.tagged_lanes.len() >= TOONL_TAGGED_LANE_LIMIT
+        if !self.tagged_lanes.contains_key(tag)
+            && self.tagged_lanes.len() >= TOONL_TAGGED_LANE_LIMIT
         {
             return Err(toonl_error(0, "too many tagged lanes"));
         }
@@ -1130,6 +1188,22 @@ pub fn close_transform_stream<R: BufRead, W: Write>(
     for segment in ToonlStream::parse(&input)?.segments() {
         writer
             .write_all(segment.to_closed_toon_document().as_bytes())
+            .map_err(write_toonl_error)?;
+    }
+    writer.flush().map_err(write_toonl_error)
+}
+
+pub fn close_transform_stream_interleaved<R: BufRead, W: Write>(
+    mut reader: R,
+    mut writer: W,
+) -> Result<(), ToonlError> {
+    let mut input = String::new();
+    reader
+        .read_to_string(&mut input)
+        .map_err(read_toonl_error)?;
+    for segment in ToonlStream::parse(&input)?.close_transform_interleaved_documents()? {
+        writer
+            .write_all(segment.as_bytes())
             .map_err(write_toonl_error)?;
     }
     writer.flush().map_err(write_toonl_error)
@@ -2111,8 +2185,7 @@ fn normalize_toonl_header_fields<T: AsRef<str>>(fields: &[T]) -> Result<Vec<Stri
     fields
         .iter()
         .map(|field| {
-            let (field, _) =
-                parse_key(field.as_ref(), 0).map_err(ToonlError::from_parse_error)?;
+            let (field, _) = parse_key(field.as_ref(), 0).map_err(ToonlError::from_parse_error)?;
             if field.is_empty() {
                 return Err(toonl_error(0, "TOONL header requires fields"));
             }
