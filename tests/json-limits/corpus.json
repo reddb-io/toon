@@ -195,6 +195,15 @@
       }
     },
     {
+      "name": "toon-decode/nested-tabular-header",
+      "category": "toon-decode",
+      "rawToon": "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n",
+      "expected": {
+        "js": { "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}" },
+        "rust": { "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}" }
+      }
+    },
+    {
       "name": "adversarial/toon-324-array-header-shaped-string",
       "category": "adversarial-round-trip",
       "rawJson": "[\"[N]:\"]",
