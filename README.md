@@ -494,6 +494,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+Decoding uses `ParseOptions::max_depth` and checked encoding uses
+`EncodeOptions::max_depth`; both default to `1000`. Set the field to `0` only
+for trusted input to disable the nesting guard. Prefer
+`try_to_canonical_toon()` / `try_to_toon_with_options(...)` when encoding
+untrusted or user-supplied values so depth failures return an `EncodeError`.
+
 ```console
 3 users
 first: Some(String("Ada"))
