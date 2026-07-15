@@ -26,6 +26,7 @@ import {
 /** Spaces per indentation level unless `options.indent` says otherwise. */
 export const DEFAULT_INDENT = 2
 export const DEFAULT_MAX_DEPTH = 1000
+const CYCLIC_DISCRIMINATED_ARRAY_SENTINEL = '@toon-cyclic-discriminated-array/1'
 
 function resolveOptions(options = {}) {
   const rawMaxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
@@ -121,6 +122,10 @@ function checkHeaderDepth(header, line, options) {
 
 /** Decodes TOON per spec §5 root-form discovery. */
 export function parse(input, options) {
+  if (splitLines(input)[0] === CYCLIC_DISCRIMINATED_ARRAY_SENTINEL) {
+    return parseCyclicDiscriminatedArrayWire(input)
+  }
+
   const resolved = resolveOptions(options)
   const lines = collectLines(input, resolved)
   const first = lines[0]
@@ -163,6 +168,338 @@ export function parse(input, options) {
     throw toonError(trailing.number, 'expected end of document')
   }
   return document
+}
+
+function parseCyclicDiscriminatedArrayWire(input) {
+  const lines = splitLines(input).map((content, index) => ({ number: index + 1, content }))
+  let index = 0
+
+  index = expectCyclicLine(lines, index, CYCLIC_DISCRIMINATED_ARRAY_SENTINEL)
+  const rootLine = cyclicNextLine(lines, index)
+  index += 1
+  const root = parseCyclicRoot(rootLine.content, rootLine.number)
+
+  const sections = new Map()
+  while (index < lines.length) {
+    const line = lines[index]
+    if (line.content === '@end') {
+      index += 1
+      break
+    }
+    if (!line.content.startsWith('@array ')) {
+      throw cyclicInvalid(line.number)
+    }
+    const section = parseCyclicArraySection(lines, index)
+    index = section.index
+    if (sections.has(section.id)) {
+      throw cyclicInvalid(line.number)
+    }
+    sections.set(section.id, section.value)
+  }
+
+  if (index !== lines.length) {
+    throw cyclicInvalid(lines[index].number)
+  }
+  if (sections.size === 0) {
+    throw cyclicInvalid(lines.at(-1)?.number ?? 1)
+  }
+
+  const document = {}
+  for (const [key, sectionId] of root) {
+    if (!sections.has(sectionId)) {
+      throw cyclicInvalid(2)
+    }
+    setKey(document, key, sections.get(sectionId))
+    sections.delete(sectionId)
+  }
+  return document
+}
+
+function parseCyclicRoot(content, line) {
+  const json = content.startsWith('@root ') ? content.slice('@root '.length) : undefined
+  if (json === undefined) {
+    throw cyclicInvalid(line)
+  }
+  let value
+  try {
+    value = JSON.parse(json)
+  } catch {
+    throw cyclicInvalid(line)
+  }
+  if (!isPlainObject(value) || Object.keys(value).length === 0) {
+    throw cyclicInvalid(line)
+  }
+  return Object.entries(value).map(([key, sectionId]) => {
+    if (typeof sectionId !== 'string') {
+      throw cyclicInvalid(line)
+    }
+    return [key, sectionId]
+  })
+}
+
+function parseCyclicArraySection(lines, index) {
+  const headerLine = cyclicNextLine(lines, index)
+  const header = parseCyclicArrayHeader(headerLine.content, headerLine.number)
+  index += 1
+
+  const common = parseCyclicCommonRows(lines, index, header)
+  index = common.index
+  const groups = new Map()
+  while (index < lines.length) {
+    const line = lines[index]
+    if (line.content === '@end' || line.content.startsWith('@array ')) {
+      break
+    }
+    if (!line.content.startsWith('@group ')) {
+      throw cyclicInvalid(line.number)
+    }
+    const group = parseCyclicGroup(lines, index)
+    index = group.index
+    if (groups.has(group.label)) {
+      throw cyclicInvalid(line.number)
+    }
+    groups.set(group.label, group.rows)
+  }
+
+  const order = parseCyclicOrder(header.order, header.len, headerLine.number)
+  const cursors = new Map()
+  const values = []
+  for (let position = 0; position < order.length; position += 1) {
+    const label = order[position]
+    const group = groups.get(label)
+    if (group === undefined) {
+      throw cyclicGroupLengthMismatch(headerLine.number)
+    }
+    const cursor = cursors.get(label) ?? 0
+    const payload = group[cursor]
+    if (payload === undefined) {
+      throw cyclicGroupLengthMismatch(headerLine.number)
+    }
+    cursors.set(label, cursor + 1)
+    values.push(mergeCyclicRow(header.discriminator, label, common.rows[position], payload, headerLine.number))
+  }
+
+  for (const [label, group] of groups) {
+    if ((cursors.get(label) ?? 0) !== group.length) {
+      throw cyclicGroupLengthMismatch(headerLine.number)
+    }
+  }
+
+  return { id: header.id, value: values, index }
+}
+
+function parseCyclicArrayHeader(content, line) {
+  const rest = content.startsWith('@array ') ? content.slice('@array '.length) : undefined
+  if (rest === undefined) {
+    throw cyclicInvalid(line)
+  }
+  const split = rest.indexOf(' ')
+  if (split === -1) {
+    throw cyclicInvalid(line)
+  }
+  const id = rest.slice(0, split)
+  const parts = rest.slice(split + 1).trim().split(/\s+/)
+  if (parts.length !== 4) {
+    throw cyclicInvalid(line)
+  }
+  const discriminator = parts[0].startsWith('discr=') ? parts[0].slice('discr='.length) : ''
+  if (discriminator === '') {
+    throw cyclicInvalid(line)
+  }
+  if (!parts[1].startsWith('n=')) {
+    throw cyclicInvalid(line)
+  }
+  const len = parseCyclicUsize(parts[1].slice('n='.length), line)
+  const commonPart = parts[2].startsWith('common=') ? parts[2].slice('common='.length) : undefined
+  if (commonPart === undefined) {
+    throw cyclicInvalid(line)
+  }
+  const common = commonPart === '' ? [] : commonPart.split(',')
+  if (common.some((field) => field === '') || new Set(common).size !== common.length) {
+    throw cyclicInvalid(line)
+  }
+  const order = parts[3].startsWith('order=') ? parts[3].slice('order='.length) : ''
+  if (order === '') {
+    throw cyclicInvalid(line)
+  }
+  return { id, discriminator, len, common, order }
+}
+
+function parseCyclicCommonRows(lines, index, header) {
+  if (header.common.length === 0) {
+    if (lines[index]?.content === '@common') {
+      throw cyclicInvalid(lines[index].number)
+    }
+    return { rows: Array.from({ length: header.len }, () => ({})), index }
+  }
+
+  index = expectCyclicLine(lines, index, '@common')
+  const rows = []
+  for (let rowIndex = 0; rowIndex < header.len; rowIndex += 1) {
+    const line = cyclicNextLine(lines, index)
+    if (line.content.startsWith('@')) {
+      throw cyclicLengthMismatch(line.number)
+    }
+    const cells = line.content.split('\t')
+    if (cells.length !== header.common.length) {
+      throw cyclicLengthMismatch(line.number)
+    }
+    const row = {}
+    header.common.forEach((key, cellIndex) => {
+      setKey(row, key, parseCyclicJsonCell(cells[cellIndex], line.number))
+    })
+    rows.push(row)
+    index += 1
+  }
+  return { rows, index }
+}
+
+function parseCyclicGroup(lines, index) {
+  const headerLine = cyclicNextLine(lines, index)
+  const { label, len } = parseCyclicGroupHeader(headerLine.content, headerLine.number)
+  index += 1
+
+  const rows = []
+  for (let rowIndex = 0; rowIndex < len; rowIndex += 1) {
+    const line = cyclicNextLine(lines, index)
+    if (line.content.startsWith('@')) {
+      throw cyclicGroupLengthMismatch(line.number)
+    }
+    rows.push(parseCyclicJsonObject(line.content, line.number))
+    index += 1
+  }
+  const next = lines[index]
+  if (next !== undefined && !next.content.startsWith('@')) {
+    throw cyclicGroupLengthMismatch(next.number)
+  }
+  return { label, rows, index }
+}
+
+function parseCyclicGroupHeader(content, line) {
+  const rest = content.startsWith('@group ') ? content.slice('@group '.length) : undefined
+  if (rest === undefined) {
+    throw cyclicInvalid(line)
+  }
+  const split = rest.indexOf(' n=')
+  if (split === -1) {
+    throw cyclicInvalid(line)
+  }
+  return {
+    label: percentDecode(rest.slice(0, split), line),
+    len: parseCyclicUsize(rest.slice(split + ' n='.length), line),
+  }
+}
+
+function parseCyclicOrder(encoded, len, line) {
+  if (!encoded.startsWith('cycle(')) {
+    throw cyclicInvalid(line)
+  }
+  const rest = encoded.slice('cycle('.length)
+  const split = rest.indexOf(')*')
+  if (split === -1) {
+    throw cyclicInvalid(line)
+  }
+  const cyclePart = rest.slice(0, split)
+  const repeatsPart = rest.slice(split + ')*'.length)
+  if (cyclePart === '' || repeatsPart.includes('+tail(')) {
+    throw cyclicInvalid(line)
+  }
+  const cycle = cyclePart.split(',').map((label) => percentDecode(label, line))
+  if (cycle.some((label) => label === '')) {
+    throw cyclicInvalid(line)
+  }
+  const repeats = parseCyclicUsize(repeatsPart, line)
+  const orderLen = cycle.length * repeats
+  if (!Number.isSafeInteger(orderLen)) {
+    throw cyclicInvalid(line)
+  }
+  if (orderLen !== len) {
+    throw cyclicLengthMismatch(line)
+  }
+  return Array.from({ length: orderLen }, (_, index) => cycle[index % cycle.length])
+}
+
+function mergeCyclicRow(discriminator, label, common, payload, line) {
+  const row = {}
+  setKey(row, discriminator, label)
+  if (common !== undefined) {
+    for (const [key, value] of Object.entries(common)) {
+      if (key === discriminator) {
+        throw cyclicInvalid(line)
+      }
+      setKey(row, key, value)
+    }
+  }
+  for (const [key, value] of Object.entries(payload)) {
+    if (Object.prototype.hasOwnProperty.call(row, key)) {
+      throw cyclicInvalid(line)
+    }
+    setKey(row, key, value)
+  }
+  return row
+}
+
+function parseCyclicJsonCell(input, line) {
+  try {
+    return JSON.parse(input)
+  } catch {
+    throw cyclicInvalid(line)
+  }
+}
+
+function parseCyclicJsonObject(input, line) {
+  const value = parseCyclicJsonCell(input, line)
+  if (!isPlainObject(value)) {
+    throw cyclicInvalid(line)
+  }
+  return value
+}
+
+function expectCyclicLine(lines, index, expected) {
+  const line = cyclicNextLine(lines, index)
+  if (line.content !== expected) {
+    throw cyclicInvalid(line.number)
+  }
+  return index + 1
+}
+
+function cyclicNextLine(lines, index) {
+  const line = lines[index]
+  if (line === undefined) {
+    throw cyclicInvalid((lines.at(-1)?.number ?? 0) + 1)
+  }
+  return line
+}
+
+function parseCyclicUsize(input, line) {
+  if (input === '' || (input.length > 1 && input.startsWith('0')) || !/^[0-9]+$/.test(input)) {
+    throw cyclicInvalid(line)
+  }
+  const value = Number(input)
+  if (!Number.isSafeInteger(value)) {
+    throw cyclicInvalid(line)
+  }
+  return value
+}
+
+function percentDecode(input, line) {
+  try {
+    return decodeURIComponent(input)
+  } catch {
+    throw cyclicInvalid(line)
+  }
+}
+
+function cyclicInvalid(line) {
+  return toonError(line, 'invalid cyclic array wire')
+}
+
+function cyclicLengthMismatch(line) {
+  return toonError(line, 'cyclic array length mismatch')
+}
+
+function cyclicGroupLengthMismatch(line) {
+  return toonError(line, 'cyclic array group length mismatch')
 }
 
 /**
