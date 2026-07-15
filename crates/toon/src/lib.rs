@@ -20,6 +20,7 @@ pub const DEFAULT_MAX_DEPTH: usize = 1000;
 
 /// The default document delimiter used by the encoder (spec §11.1).
 const DOCUMENT_DELIMITER: char = ',';
+const CYCLIC_DISCRIMINATED_ARRAY_SENTINEL: &str = "@toon-cyclic-discriminated-array/1";
 const TOONL_TAGGED_LANE_LIMIT: usize = 8;
 
 /// Decoder options (spec §13).
@@ -678,6 +679,9 @@ impl Value {
             indent: options.indent.max(1),
             ..options
         };
+        if input.lines().next() == Some(CYCLIC_DISCRIMINATED_ARRAY_SENTINEL) {
+            return parse_cyclic_discriminated_array_wire(input);
+        }
         let lines = collect_lines(input, &options)?;
         let Some(first) = lines.first() else {
             return Ok(Self::Object(Document::default()));
@@ -1939,6 +1943,430 @@ fn insert_tabular_path(document: &mut Document, path: &[String], value: Value) {
         unreachable!("nested tabular header paths are validated before rows are decoded");
     };
     insert_tabular_path(nested, &path[1..], value);
+}
+
+fn parse_cyclic_discriminated_array_wire(input: &str) -> Result<Value, ParseError> {
+    let lines = input
+        .lines()
+        .enumerate()
+        .map(|(index, line)| (index + 1, line))
+        .collect::<Vec<_>>();
+    let mut index = 0;
+
+    expect_cyclic_line(&lines, &mut index, CYCLIC_DISCRIMINATED_ARRAY_SENTINEL)?;
+    let (root_line, root_content) = cyclic_next_line(&lines, index)?;
+    index += 1;
+    let root = parse_cyclic_root(root_content, root_line)?;
+
+    let mut sections = HashMap::new();
+    while let Some((line, content)) = lines.get(index).copied() {
+        if content == "@end" {
+            index += 1;
+            break;
+        }
+        if !content.starts_with("@array ") {
+            return Err(cyclic_invalid(line));
+        }
+        let (id, value) = parse_cyclic_array_section(&lines, &mut index)?;
+        if sections.insert(id, value).is_some() {
+            return Err(cyclic_invalid(line));
+        }
+    }
+
+    if index != lines.len() {
+        return Err(cyclic_invalid(lines[index].0));
+    }
+    if sections.is_empty() {
+        let line = lines.last().map_or(1, |(line, _)| *line);
+        return Err(cyclic_invalid(line));
+    }
+
+    let mut document = Document::default();
+    for (key, section_id) in root {
+        let value = sections
+            .remove(&section_id)
+            .ok_or_else(|| cyclic_invalid(2))?;
+        document.fields.push(Field { key, value });
+    }
+    Ok(Value::Object(document))
+}
+
+fn parse_cyclic_root(content: &str, line: usize) -> Result<Vec<(String, String)>, ParseError> {
+    let Some(json) = content.strip_prefix("@root ") else {
+        return Err(cyclic_invalid(line));
+    };
+    let serde_json::Value::Object(map) =
+        serde_json::from_str::<serde_json::Value>(json).map_err(|_| cyclic_invalid(line))?
+    else {
+        return Err(cyclic_invalid(line));
+    };
+    if map.is_empty() {
+        return Err(cyclic_invalid(line));
+    }
+    map.into_iter()
+        .map(|(key, value)| {
+            let serde_json::Value::String(section_id) = value else {
+                return Err(cyclic_invalid(line));
+            };
+            Ok((key, section_id))
+        })
+        .collect()
+}
+
+fn parse_cyclic_array_section(
+    lines: &[(usize, &str)],
+    index: &mut usize,
+) -> Result<(String, Value), ParseError> {
+    let (header_line, header_content) = cyclic_next_line(lines, *index)?;
+    let header = parse_cyclic_array_header(header_content, header_line)?;
+    *index += 1;
+
+    let common_rows = parse_cyclic_common_rows(lines, index, &header)?;
+    let mut groups: HashMap<String, Vec<Document>> = HashMap::new();
+    while let Some((line, content)) = lines.get(*index).copied() {
+        if content == "@end" || content.starts_with("@array ") {
+            break;
+        }
+        if !content.starts_with("@group ") {
+            return Err(cyclic_invalid(line));
+        }
+        let (label, rows) = parse_cyclic_group(lines, index)?;
+        if groups.insert(label, rows).is_some() {
+            return Err(cyclic_invalid(line));
+        }
+    }
+
+    let order = parse_cyclic_order(&header.order, header.len, header_line)?;
+    let mut cursors = HashMap::new();
+    let mut values = Vec::with_capacity(header.len);
+    for (position, label) in order.iter().enumerate() {
+        let group = groups
+            .get(label)
+            .ok_or_else(|| cyclic_group_len_error(header_line))?;
+        let cursor = cursors.entry(label.as_str()).or_insert(0usize);
+        let payload = group
+            .get(*cursor)
+            .ok_or_else(|| cyclic_group_len_error(header_line))?;
+        *cursor += 1;
+        values.push(Value::Object(merge_cyclic_row(
+            &header.discriminator,
+            label,
+            common_rows.get(position),
+            payload,
+            header_line,
+        )?));
+    }
+
+    for (label, group) in &groups {
+        let used = cursors.get(label.as_str()).copied().unwrap_or(0);
+        if used != group.len() {
+            return Err(cyclic_group_len_error(header_line));
+        }
+    }
+
+    Ok((header.id, Value::Array(Array::List(values))))
+}
+
+#[derive(Debug)]
+struct CyclicArrayHeader {
+    id: String,
+    discriminator: String,
+    len: usize,
+    common: Vec<String>,
+    order: String,
+}
+
+fn parse_cyclic_array_header(content: &str, line: usize) -> Result<CyclicArrayHeader, ParseError> {
+    let Some(rest) = content.strip_prefix("@array ") else {
+        return Err(cyclic_invalid(line));
+    };
+    let Some((id, fields)) = rest.split_once(' ') else {
+        return Err(cyclic_invalid(line));
+    };
+    let parts = fields.split_whitespace().collect::<Vec<_>>();
+    let [discriminator, len, common, order] = parts.as_slice() else {
+        return Err(cyclic_invalid(line));
+    };
+    let discriminator = discriminator
+        .strip_prefix("discr=")
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| cyclic_invalid(line))?;
+    let len = len
+        .strip_prefix("n=")
+        .ok_or_else(|| cyclic_invalid(line))
+        .and_then(|value| parse_cyclic_usize(value, line))?;
+    let common = common
+        .strip_prefix("common=")
+        .ok_or_else(|| cyclic_invalid(line))?;
+    let common = if common.is_empty() {
+        Vec::new()
+    } else {
+        let fields = common.split(',').map(str::to_owned).collect::<Vec<_>>();
+        if fields.iter().any(String::is_empty) {
+            return Err(cyclic_invalid(line));
+        }
+        for (offset, field) in fields.iter().enumerate() {
+            if fields[..offset].contains(field) {
+                return Err(cyclic_invalid(line));
+            }
+        }
+        fields
+    };
+    let order = order
+        .strip_prefix("order=")
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| cyclic_invalid(line))?;
+
+    Ok(CyclicArrayHeader {
+        id: id.to_owned(),
+        discriminator: discriminator.to_owned(),
+        len,
+        common,
+        order: order.to_owned(),
+    })
+}
+
+fn parse_cyclic_common_rows(
+    lines: &[(usize, &str)],
+    index: &mut usize,
+    header: &CyclicArrayHeader,
+) -> Result<Vec<Document>, ParseError> {
+    if header.common.is_empty() {
+        if lines
+            .get(*index)
+            .is_some_and(|(_, content)| *content == "@common")
+        {
+            return Err(cyclic_invalid(lines[*index].0));
+        }
+        return Ok((0..header.len).map(|_| Document::default()).collect());
+    }
+
+    expect_cyclic_line(lines, index, "@common")?;
+    let mut rows = Vec::with_capacity(header.len);
+    for _ in 0..header.len {
+        let (line, content) = cyclic_next_line(lines, *index)?;
+        if content.starts_with('@') {
+            return Err(cyclic_len_error(line));
+        }
+        let cells = content.split('\t').collect::<Vec<_>>();
+        if cells.len() != header.common.len() {
+            return Err(cyclic_len_error(line));
+        }
+        let mut row = Document::default();
+        for (key, cell) in header.common.iter().zip(cells) {
+            row.fields.push(Field {
+                key: key.clone(),
+                value: parse_cyclic_json_cell(cell, line)?,
+            });
+        }
+        rows.push(row);
+        *index += 1;
+    }
+    Ok(rows)
+}
+
+fn parse_cyclic_group(
+    lines: &[(usize, &str)],
+    index: &mut usize,
+) -> Result<(String, Vec<Document>), ParseError> {
+    let (header_line, header_content) = cyclic_next_line(lines, *index)?;
+    let (label, len) = parse_cyclic_group_header(header_content, header_line)?;
+    *index += 1;
+
+    let mut rows = Vec::with_capacity(len);
+    for _ in 0..len {
+        let (line, content) = cyclic_next_line(lines, *index)?;
+        if content.starts_with('@') {
+            return Err(cyclic_group_len_error(line));
+        }
+        rows.push(parse_cyclic_json_object(content, line)?);
+        *index += 1;
+    }
+    if let Some((line, content)) = lines.get(*index).copied() {
+        if !content.starts_with('@') {
+            return Err(cyclic_group_len_error(line));
+        }
+    }
+    Ok((label, rows))
+}
+
+fn parse_cyclic_group_header(content: &str, line: usize) -> Result<(String, usize), ParseError> {
+    let Some(rest) = content.strip_prefix("@group ") else {
+        return Err(cyclic_invalid(line));
+    };
+    let Some((label, len)) = rest.split_once(" n=") else {
+        return Err(cyclic_invalid(line));
+    };
+    Ok((
+        percent_decode(label).map_err(|_| cyclic_invalid(line))?,
+        parse_cyclic_usize(len, line)?,
+    ))
+}
+
+fn parse_cyclic_order(encoded: &str, len: usize, line: usize) -> Result<Vec<String>, ParseError> {
+    let Some(rest) = encoded.strip_prefix("cycle(") else {
+        return Err(cyclic_invalid(line));
+    };
+    let Some((cycle, repeats)) = rest.split_once(")*") else {
+        return Err(cyclic_invalid(line));
+    };
+    if cycle.is_empty() || repeats.contains("+tail(") {
+        return Err(cyclic_invalid(line));
+    }
+    let cycle = cycle
+        .split(',')
+        .map(|label| percent_decode(label).map_err(|_| cyclic_invalid(line)))
+        .collect::<Result<Vec<_>, _>>()?;
+    if cycle.iter().any(String::is_empty) {
+        return Err(cyclic_invalid(line));
+    }
+    let repeats = parse_cyclic_usize(repeats, line)?;
+    let order_len = cycle
+        .len()
+        .checked_mul(repeats)
+        .ok_or_else(|| cyclic_invalid(line))?;
+    if order_len != len {
+        return Err(cyclic_len_error(line));
+    }
+    let mut order = Vec::with_capacity(len);
+    for index in 0..order_len {
+        order.push(cycle[index % cycle.len()].clone());
+    }
+    Ok(order)
+}
+
+fn merge_cyclic_row(
+    discriminator: &str,
+    label: &str,
+    common: Option<&Document>,
+    payload: &Document,
+    line: usize,
+) -> Result<Document, ParseError> {
+    let mut row = Document::default();
+    row.fields.push(Field {
+        key: discriminator.to_owned(),
+        value: Value::String(label.to_owned()),
+    });
+    if let Some(common) = common {
+        for field in &common.fields {
+            if field.key == discriminator {
+                return Err(cyclic_invalid(line));
+            }
+            row.fields.push(field.clone());
+        }
+    }
+    for field in &payload.fields {
+        if row.fields.iter().any(|existing| existing.key == field.key) {
+            return Err(cyclic_invalid(line));
+        }
+        row.fields.push(field.clone());
+    }
+    Ok(row)
+}
+
+fn parse_cyclic_json_cell(input: &str, line: usize) -> Result<Value, ParseError> {
+    let value =
+        serde_json::from_str::<serde_json::Value>(input).map_err(|_| cyclic_invalid(line))?;
+    Ok(Value::from_json_value(value))
+}
+
+fn parse_cyclic_json_object(input: &str, line: usize) -> Result<Document, ParseError> {
+    let value =
+        serde_json::from_str::<serde_json::Value>(input).map_err(|_| cyclic_invalid(line))?;
+    let serde_json::Value::Object(_) = value else {
+        return Err(cyclic_invalid(line));
+    };
+    let Value::Object(document) = Value::from_json_value(value) else {
+        unreachable!("object json value converts to object value");
+    };
+    Ok(document)
+}
+
+fn expect_cyclic_line(
+    lines: &[(usize, &str)],
+    index: &mut usize,
+    expected: &'static str,
+) -> Result<(), ParseError> {
+    let (line, content) = cyclic_next_line(lines, *index)?;
+    if content != expected {
+        return Err(cyclic_invalid(line));
+    }
+    *index += 1;
+    Ok(())
+}
+
+fn cyclic_next_line<'a>(
+    lines: &'a [(usize, &'a str)],
+    index: usize,
+) -> Result<(usize, &'a str), ParseError> {
+    lines
+        .get(index)
+        .copied()
+        .ok_or_else(|| cyclic_invalid(lines.last().map_or(1, |(line, _)| line.saturating_add(1))))
+}
+
+fn parse_cyclic_usize(input: &str, line: usize) -> Result<usize, ParseError> {
+    if input.is_empty()
+        || (input.len() > 1 && input.starts_with('0'))
+        || !input.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err(cyclic_invalid(line));
+    }
+    input.parse().map_err(|_| cyclic_invalid(line))
+}
+
+fn percent_decode(input: &str) -> Result<String, ()> {
+    let bytes = input.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            if index + 2 >= bytes.len() {
+                return Err(());
+            }
+            let high = hex_value(bytes[index + 1]).ok_or(())?;
+            let low = hex_value(bytes[index + 2]).ok_or(())?;
+            output.push((high << 4) | low);
+            index += 3;
+        } else {
+            output.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(output).map_err(|_| ())
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn cyclic_invalid(line: usize) -> ParseError {
+    ParseError {
+        line,
+        message: "invalid cyclic array wire",
+        max_depth: None,
+    }
+}
+
+fn cyclic_len_error(line: usize) -> ParseError {
+    ParseError {
+        line,
+        message: "cyclic array length mismatch",
+        max_depth: None,
+    }
+}
+
+fn cyclic_group_len_error(line: usize) -> ParseError {
+    ParseError {
+        line,
+        message: "cyclic array group length mismatch",
+        max_depth: None,
+    }
 }
 
 // ---------------------------------------------------------------------------
