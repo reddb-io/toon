@@ -6,6 +6,7 @@ use std::path::PathBuf;
 const WIRE_EFFICIENCY_FIXTURE: &str = "../../tests/wire-efficiency/corpora.json";
 const PRIMITIVE_ARRAY_COLUMNS_FIXTURE: &str =
     "../../tests/wire-efficiency/primitive-array-columns.json";
+const OBJECT_ARRAY_COLUMNS_FIXTURE: &str = "../../tests/wire-efficiency/object-array-columns.json";
 const EXPECTED_CASE_COUNT: usize = 9;
 
 #[test]
@@ -132,6 +133,59 @@ fn primitive_array_column_corpus_decodes_identically_for_rust() {
 }
 
 #[test]
+fn object_array_column_corpus_decodes_identically_for_rust() {
+    let fixture: Json = serde_json::from_str(&fs::read_to_string(fixture_path(
+        OBJECT_ARRAY_COLUMNS_FIXTURE,
+    ))
+    .expect("object-array column fixture"))
+    .expect("object-array column fixture json");
+    assert_eq!(fixture.get("version").and_then(Json::as_u64), Some(1));
+
+    for test_case in fixture
+        .get("cases")
+        .and_then(Json::as_array)
+        .expect("object-array column cases")
+    {
+        let name = test_case.get("name").and_then(Json::as_str).unwrap();
+        let input = test_case.get("input").and_then(Json::as_str).unwrap();
+        let expected = test_case.get("expected").unwrap();
+        let decoded = Value::parse_toon(input)
+            .unwrap_or_else(|error| panic!("{name}: parse failed: {error}"))
+            .to_json_value();
+        assert_eq!(&decoded, expected, "{name}: decoded value");
+
+        if test_case
+            .get("failClosedV3Strict")
+            .and_then(Json::as_bool)
+            == Some(true)
+        {
+            assert!(
+                reject_v3_strict(input).is_err(),
+                "{name}: strict v3 rejects extension form"
+            );
+        }
+    }
+
+    for test_case in fixture
+        .get("errors")
+        .and_then(Json::as_array)
+        .expect("object-array column errors")
+    {
+        let name = test_case.get("name").and_then(Json::as_str).unwrap();
+        let input = test_case.get("input").and_then(Json::as_str).unwrap();
+        let line = test_case.get("line").and_then(Json::as_u64).unwrap() as usize;
+        let reason = test_case.get("reason").and_then(Json::as_str).unwrap();
+        let error = match Value::parse_toon(input) {
+            Ok(_) => panic!("{name}: expected error"),
+            Err(error) => error,
+        };
+        assert_eq!(error.line(), line, "{name}: line");
+        assert_eq!(error.message(), reason, "{name}: reason");
+        assert_eq!(error.to_string(), format!("line {line}: {reason}"));
+    }
+}
+
+#[test]
 fn primitive_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust() {
     let eligible = serde_json::json!({
         "items": [
@@ -204,7 +258,7 @@ fn reject_v3_strict(input: &str) -> Result<(), String> {
         let Some(fields_start) = key_part.find('{') else {
             continue;
         };
-        if key_part[fields_start..].contains('[') {
+        if key_part[fields_start..].contains('[') || key_part[fields_start + 1..].contains('{') {
             return Err(format!("line {}: invalid array header", index + 1));
         }
     }
