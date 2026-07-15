@@ -26,6 +26,7 @@ serialize(document)
 - `detectTruncation(input, { format?: 'toon' | 'toonl', ...parseOptions })` — return a structured report instead of throwing. Complete input reports `{ complete: true, kind: 'complete', line: null, declared: null, actual: null, message: null }`; truncated tables, cut list bodies, TOONL trailer mismatches, and missing TOONL trailers report the detected line plus declared/actual counts when the format carries them.
 - `parseDocument(input, options?)` — the same, but the root must be an object.
 - `serialize(value)` — encode as canonical TOON: comma delimiter, two-space indent, no key folding, and the same `maxDepth` guard.
+- `serialize(value, { delimiter: '|' | '\t' })` — select pipe or tab as the active delimiter for array and tabular headers; comma remains the default.
 - `serialize(value, { keyedMapCollapse: true })` — opt into keyed-map collapse for uniform object maps. The encoder emits `map{fields}:` only for deterministic uniform maps: at least two entries, every value is a non-empty object, all entries share the first entry's key set, and all header leaves are primitive unless `nestedTabularHeaders` is also enabled. Non-uniform maps fall back to ordinary object form.
 
 Failures throw a `ToonError` carrying the 1-based source `line`.
