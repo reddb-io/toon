@@ -49,6 +49,27 @@
       "failClosedV3Strict": true
     },
     {
+      "name": "mixed empty child arrays decode zero as child count",
+      "input": "items[2]{a,kids{x}}:\n  1,1\n    9\n  2,0\n",
+      "expected": {
+        "items": [
+          {
+            "a": 1,
+            "kids": [
+              {
+                "x": 9
+              }
+            ]
+          },
+          {
+            "a": 2,
+            "kids": []
+          }
+        ]
+      },
+      "failClosedV3Strict": true
+    },
+    {
       "name": "matrix rows decode as uniform fixed-width lists",
       "input": "matrix[2|]{values[3|]}:\n  1|2|3\n  4|5|6\n",
       "expected": {
@@ -58,6 +79,53 @@
         ]
       },
       "failClosedV3Strict": true
+    }
+  ],
+  "encodings": [
+    {
+      "name": "mixed empty child arrays encode child count zero",
+      "value": {
+        "items": [
+          {
+            "a": 1,
+            "kids": [
+              {
+                "x": 9
+              }
+            ]
+          },
+          {
+            "a": 2,
+            "kids": []
+          }
+        ]
+      },
+      "options": {
+        "objectArrayColumns": true
+      },
+      "expected": "items[2]{a,kids{x}}:\n  1,1\n    9\n  2,0\n",
+      "sameAsV3": false,
+      "failClosedV3Strict": true
+    },
+    {
+      "name": "all-empty child arrays fall back to v3.3",
+      "value": {
+        "items": [
+          {
+            "a": 1,
+            "kids": []
+          },
+          {
+            "a": 2,
+            "kids": []
+          }
+        ]
+      },
+      "options": {
+        "objectArrayColumns": true
+      },
+      "expected": "items[2]:\n  - a: 1\n    kids: []\n  - a: 2\n    kids: []\n",
+      "sameAsV3": true
     }
   ],
   "errors": [
