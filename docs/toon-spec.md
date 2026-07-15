@@ -1,5 +1,7 @@
 # TOON v3.3 — Annotated Specification & Implementation Companion
 
+**tl;dr.** This document annotates the official TOON v3.3 specification with implementation notes, corner cases, and executable examples for the two reddb-io runtimes (Rust and JavaScript). We are grateful to the [toon-format](https://github.com/toon-format/spec) team and author Johann Schopplich for the clean, deterministic format that enables 100% conformance across independent implementations.
+
 ## Acknowledgment
 
 This document is an *annotated companion* to the official **TOON** specification
@@ -49,6 +51,40 @@ tabular headers, keyed-map collapse, the depth-guard rationale, wire-efficiency
 numbers) — those live in
 [`toon-spec-reddb-flavored.md`](toon-spec-reddb-flavored.md) — and it is not the
 streaming layer, which is [`toonl.md`](toonl.md).
+
+## Table of Contents
+
+- [Abstract & Status](#abstract--status-official-§abstract-§status)
+- [§1 Terminology and Conventions](#§1-terminology-and-conventions)
+- [§2 Data Model](#§2-data-model)
+- [§3 Encoding Normalization](#§3-encoding-normalization-reference-encoder)
+- [§4 Decoding Interpretation](#§4-decoding-interpretation-reference-decoder)
+- [§5 Concrete Syntax and Root Form](#§5-concrete-syntax-and-root-form)
+- [§6 Header Syntax](#§6-header-syntax-normative)
+- [§7 Strings and Keys](#§7-strings-and-keys)
+  - [§7.1 Escaping](#§71-escaping)
+  - [§7.2 Quoting Rules for String Values](#§72-quoting-rules-for-string-values)
+  - [§7.3 Key Encoding](#§73-key-encoding)
+  - [§7.4 Decoding Rules for Strings and Keys](#§74-decoding-rules-for-strings-and-keys)
+- [§8 Objects](#§8-objects)
+- [§9 Arrays](#§9-arrays)
+  - [§9.1 Primitive Arrays (Inline)](#§91-primitive-arrays-inline)
+  - [§9.2 Arrays of Arrays](#§92-arrays-of-arrays-primitives-only)
+  - [§9.3 Arrays of Objects — Tabular Form](#§93-arrays-of-objects--tabular-form)
+  - [§9.4 Mixed / Non-Uniform Arrays — Expanded List](#§94-mixed--non-uniform-arrays--expanded-list)
+- [§10 Objects as List Items](#§10-objects-as-list-items)
+- [§11 Delimiters](#§11-delimiters)
+- [§12 Indentation and Whitespace](#§12-indentation-and-whitespace)
+- [§13 Conformance and Options](#§13-conformance-and-options)
+  - [§13.4 Key Folding and Path Expansion](#§134-key-folding-and-path-expansion)
+- [§14 Strict Mode Errors](#§14-strict-mode-errors-authoritative-checklist)
+- [§15 Security Considerations](#§15-security-considerations)
+- [§16 Internationalization](#§16-internationalization)
+- [§17 IANA Considerations](#§17-iana-considerations)
+- [§18 Versioning and Extensibility](#§18-versioning-and-extensibility)
+- [§19 Intellectual Property Considerations](#§19-intellectual-property-considerations)
+- [Appendices](#appendices-a–f-informative)
+- [Implementation guarantees](#implementation-guarantees)
 
 ## Abstract & Status (official §Abstract, §Status)
 
@@ -104,6 +140,18 @@ normalized to `0`. Outside that range (non-zero `|n| < 1e-6`, or `|n| ≥ 1e21`)
 encoders MAY use JSON exponent notation, SHOULD use lowercase `e` with an explicit
 sign for determinism. The overriding requirement: emit enough precision that
 `decode(encode(x)) == x` under JSON-model equality.
+
+**Example — canonical number forms:**
+
+```toon
+values: 0,1,1000000,1.5,0.000001,0
+```
+
+```json
+{"values": [0, 1, 1000000, 1.5, 0.000001, 0]}
+```
+
+> **Note:** `1e6` encodes as `1000000` (no exponent), `1.0` as `1` (integer form), `-0` as `0` (normalized).
 
 **Corner cases.** `1e6` MUST render as `1000000`; `1.0` as `1`; `1.5000` as `1.5`.
 Out-of-domain numbers (arbitrary-precision decimals, integers beyond the host
@@ -170,9 +218,63 @@ discovery** decision tree.
 4. Otherwise → **object**.
 5. Empty document (no non-empty lines) → **empty object `{}`**.
 
+**Examples — root forms:**
+
+Single primitive:
+
+```toon
+42
+```
+
+```json
+42
+```
+
+Empty root array:
+
+```toon
+[]
+```
+
+```json
+[]
+```
+
+Root object:
+
+```toon
+name: Alice
+age: 30
+```
+
+```json
+{"name": "Alice", "age": 30}
+```
+
+Root array:
+
+```toon
+[2]{id,name}:
+  1,Alice
+  2,Bob
+```
+
+```json
+[{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+```
+
 **Corner cases.** In strict mode, two-or-more non-empty depth-0 lines that are
 neither headers nor key-value lines is invalid (e.g. `hello\nworld` is *not* two
 primitives — it is a malformed document).
+
+**Example — invalid root (two bare primitives):**
+
+```toon
+hello
+world
+```
+
+**Expected error:** malformed document; depth-0 lines must be a header, key-value, or single primitive.
 
 **Our implementation.** Both runtimes implement this exact precedence; the
 "two bare primitives at root" rejection is covered by the shared corpus.
@@ -182,6 +284,42 @@ primitives — it is a malformed document).
 **What it defends.** Array headers declare length, active delimiter, and optional
 field names, with a normative ABNF. Forms: `[N]:`, `key[N]:`,
 `key[N]{f1,f2}:`; delimiter symbol absent = comma, HTAB = tab, `|` = pipe.
+
+**Examples — header forms:**
+
+Inline primitive array:
+
+```toon
+items[3]: apple,banana,cherry
+```
+
+```json
+{"items": ["apple", "banana", "cherry"]}
+```
+
+Tabular array (field-list required):
+
+```toon
+users[2]{id,name}:
+  1,Alice
+  2,Bob
+```
+
+```json
+{"users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]}
+```
+
+Tab-delimited tabular array:
+
+```toon
+data[2]	id	value:
+	1	100
+	2	200
+```
+
+```json
+{"data": [{"id": 1, "value": 100}, {"id": 2, "value": 200}]}
+```
 
 **The rules that bite.**
 - Length MUST be a non-negative integer with **no leading zeros** (`0` is the only
@@ -195,6 +333,14 @@ field names, with a normative ABNF. Forms: `[N]:`, `key[N]:`,
   parent header.
 - Folded key prefixes (§13.4) are allowed as the key part; the bracket/field
   grammar is unchanged.
+
+**Example — invalid header (leading zero in length):**
+
+```toon
+items[03]: a,b,c
+```
+
+**Expected error:** malformed bracket segment; `03` has a leading zero.
 
 **Our implementation.** Header parsing follows Appendix B.2: isolate the optional
 key prefix (quoted literal or up-to-first-`[`), parse length, then the optional
@@ -229,6 +375,33 @@ contains a C0 control; contains the *relevant* delimiter (active for
 array/tabular cells, document for object field values); equals `-` or starts with
 `-`. Otherwise it MAY be unquoted — Unicode, emoji, and internal spaces are safe.
 
+**Examples — quoting rules:**
+
+Unquoted strings (safe):
+
+```toon
+simple: hello
+with_internal_spaces: "hello world"
+emoji: 🎉
+```
+
+```json
+{"simple": "hello", "with_internal_spaces": "hello world", "emoji": "🎉"}
+```
+
+Quoted strings (must be quoted):
+
+```toon
+empty: ""
+numeric_string: "05"
+boolean_like: "true"
+has_colon: "http://example.com"
+```
+
+```json
+{"empty": "", "numeric_string": "05", "boolean_like": "true", "has_colon": "http://example.com"}
+```
+
 **Corner cases.** The "relevant delimiter" is context-dependent (§11): the same
 string may need quoting as a tabular cell but not as an object field value under a
 different document delimiter. `"05"` is numeric-like → quoted so it survives as a
@@ -259,6 +432,43 @@ decoder MUST error. Handled identically in both runtimes.
 `key:` alone opens a nested/empty object; key order preserved on emit; an empty
 root object yields an empty document.
 
+**Examples — objects:**
+
+Flat object:
+
+```toon
+user: Alice
+status: active
+age: 30
+```
+
+```json
+{"user": "Alice", "status": "active", "age": 30}
+```
+
+Nested object (bare `key:`):
+
+```toon
+config:
+  timeout: 30
+  retries: 3
+```
+
+```json
+{"config": {"timeout": 30, "retries": 3}}
+```
+
+Explicit empty array vs empty object:
+
+```toon
+items: []
+metadata:
+```
+
+```json
+{"items": [], "metadata": {}}
+```
+
 **The bare-`key:` decision.** A bare `key:` with nothing after the colon MUST
 decode as an empty/nested **object**, *not* an empty array — empty arrays use the
 explicit `key: []` form (§9.1). Dotted keys are single literal keys unless path
@@ -280,11 +490,43 @@ whitespace-surrounded) decode to the empty string; strict mode requires the
 decoded count to equal `N`. Empty arrays: `key: []` / `[]` preferred, legacy
 `key[0]:` / `[0]:` accepted.
 
+**Example — inline primitive array:**
+
+```toon
+scores[3]: 95,87,92
+```
+
+```json
+{"scores": [95, 87, 92]}
+```
+
+**Example — primitive array with empty tokens:**
+
+```toon
+values[4]: 1,,3,
+```
+
+```json
+{"values": [1, "", 3, ""]}
+```
+
 ### §9.2 Arrays of Arrays (Primitives Only)
 
 Parent header `key[N]:` then `- [M]: …` list items at depth +1; inner arrays split
 on their own active delimiter; strict mode enforces both `M` and outer `N`. The
 `key: []` field-form does **not** apply to list-item inner arrays.
+
+**Example — array of arrays:**
+
+```toon
+matrix[2]:
+  - [2]: 1,2
+  - [2]: 3,4
+```
+
+```json
+{"matrix": [[1, 2], [3, 4]]}
+```
 
 ### §9.3 Arrays of Objects — Tabular Form
 
@@ -293,6 +535,30 @@ every element is an object; each has ≥1 key; **no** element is an empty `{}`; 
 share the same key set (per-object order MAY vary); all values are primitives.
 When satisfied, emit `key[N]{fields}:` with field order from the first object's
 key encounter order, one row per object at depth +1.
+
+**Example — tabular array:**
+
+```toon
+users[2]{id,name,active}:
+  1,Alice,true
+  2,Bob,false
+```
+
+```json
+{"users": [{"id": 1, "name": "Alice", "active": true}, {"id": 2, "name": "Bob", "active": false}]}
+```
+
+**Example — tabular array with quoted colon in cell:**
+
+```toon
+links[2]{title,url}:
+  "Example Inc","http://example.com"
+  "Another","http://a.co"
+```
+
+```json
+{"links": [{"title": "Example Inc", "url": "http://example.com"}, {"title": "Another", "url": "http://a.co"}]}
+```
 
 **The row-vs-key-value disambiguation (decoding).** At row depth, for unquoted
 tokens: compute the first unquoted active delimiter and the first unquoted colon.
@@ -304,6 +570,28 @@ colon-before-delimiter → **key-value line (rows end)**. Colon but no delimiter
 **Corner cases.** A quoted colon inside a cell (`1,"http://a:b"`) does not end the
 rows — only *unquoted* positions count. Tabular arrays as the first field of a
 list-item object interact with §10 indentation.
+
+### §9.4 Mixed / Non-Uniform Arrays — Expanded List
+
+When tabular requirements fail: `key[N]:` then one list item per element —
+`- <primitive>`, `- [M]: …` for primitive arrays, nested headers for
+arrays-of-objects/non-uniform (tabular form is unavailable in this nested
+position; expanded list MUST be used), objects per §10. Strict mode enforces list
+count = `N`.
+
+**Example — expanded list (mixed elements):**
+
+```toon
+items[3]:
+  - apple
+  - [2]: 1,2
+  - nested:
+      key: value
+```
+
+```json
+{"items": ["apple", [1, 2], {"nested": {"key": "value"}}]}
+```
 
 **Our implementation.** Both runtimes implement the first-unquoted-position
 comparison verbatim; the quoted-colon and mixed cases are pinned by the corpus.
@@ -325,6 +613,23 @@ MUST put the tabular header on the hyphen line
 (`- key[N]{fields}:`), rows at depth +2, and all other fields at depth +1 — never
 rows at +1 or sibling fields level with rows. For all other cases the first field
 SHOULD go on the hyphen line.
+
+**Example — list item with tabular first field (depth +2 rows, +1 siblings):**
+
+```toon
+orders[2]:
+  - items[2]{id,qty}:
+      1,5
+      2,3
+    status: pending
+  - items[1]{id,qty}:
+      3,1
+    status: shipped
+```
+
+```json
+{"orders": [{"items": [{"id": 1, "qty": 5}, {"id": 2, "qty": 3}], "status": "pending"}, {"items": [{"id": 3, "qty": 1}], "status": "shipped"}]}
+```
 
 **Corner cases.** This is the fiddliest indentation rule in the spec (depth +2 for
 rows, +1 for sibling fields, relative to the hyphen). The decoder mirror: a
@@ -427,6 +732,33 @@ invalid escape / unterminated string, header delimiter mismatch, malformed brack
 lengths, content between bracket and colon, indentation/blank-line invariants,
 two-plus bare depth-0 lines); §14.3 path-expansion conflicts; §14.4 duplicate
 object keys (strict → error, non-strict → LWW).
+
+**Examples — strict mode violations:**
+
+**Inline array count mismatch** (declared 3, got 2):
+
+```toon
+items[3]: apple,banana
+```
+
+**Expected error:** declared 3 elements but got 2
+
+**Tabular row width mismatch** (declared 2 fields, got 3):
+
+```toon
+users[1]{id,name}:
+  1,Alice,extra
+```
+
+**Expected error:** row width mismatch (declared 2, got 3)
+
+**Invalid escape sequence:**
+
+```toon
+msg: "bad\xescape"
+```
+
+**Expected error:** invalid escape sequence `\x`
 
 **Why it matters — truncation detection.** These width/count checks are exactly
 what make TOON *self-checking*: a truncated or injected row is a length/width
