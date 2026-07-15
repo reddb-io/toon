@@ -2052,7 +2052,7 @@ fn parse_toonl_header(
             .ok_or_else(|| toonl_error(line_number, "invalid tag"))?;
         let tag_text = &suffix[1..tag_end];
         validate_toonl_tag(tag_text, line_number)?;
-        if delimiter_text != "" {
+        if !delimiter_text.is_empty() {
             return Err(toonl_error(line_number, "invalid header delimiter"));
         }
         tag = Some(tag_text.to_owned());
@@ -2099,10 +2099,10 @@ fn validate_toonl_tag(tag: &str, line_number: usize) -> Result<(), ToonlError> {
     Ok(())
 }
 
-fn toonl_tagged_row_prefix<'a>(
-    line: &'a str,
+fn toonl_tagged_row_prefix(
+    line: &str,
     line_number: usize,
-) -> Result<Option<(&'a str, &'a str)>, ToonlError> {
+) -> Result<Option<(&str, &str)>, ToonlError> {
     let Some(colon) = line.find(':') else {
         return Ok(None);
     };
