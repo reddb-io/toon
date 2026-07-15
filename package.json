@@ -8,14 +8,22 @@
     "node": ">=18"
   },
   "scripts": {
+    "benchmark:accuracy": "node benchmarks/accuracy/run.mjs",
+    "benchmark:tokens": "node benchmarks/tokens/run.mjs",
     "wire:corpora": "node scripts/generate_wire_efficiency_corpora.mjs",
     "wire:tokens": "node scripts/wire_efficiency_token_report.mjs",
     "test": "pnpm -r test",
     "lint": "pnpm -r --if-present lint"
   },
+  "devDependencies": {
+    "gpt-tokenizer": "3.4.0"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/reddb-io/tq.git"
+  },
+  "devDependencies": {
+    "gpt-tokenizer": "3.4.0"
   }
 }
