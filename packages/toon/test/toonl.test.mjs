@@ -14,6 +14,7 @@ import {
   ToonlError,
   ToonlReader,
   closeTransform,
+  closeTransformInterleaved,
   decodeLines,
   encodeLines,
   encodeRecords,
@@ -328,6 +329,27 @@ test('closeTransform emits one canonical TOON document per segment', () => {
     '[1]{id,name}:\n  1,Ada\n',
     '[1|]{id|name}:\n  2|Linus\n',
   ])
+})
+
+test('closeTransformInterleaved preserves tagged row runs', () => {
+  const stream =
+    '[]<req>{method,path,status}:\n[]<metric>{name,value}:\nreq:GET,/health,200\nmetric:cpu,0.42\nreq:POST,/login,401\n'
+
+  assert.deepEqual(closeTransform(stream), [
+    '[2]{method,path,status}:\n  GET,/health,200\n  POST,/login,401\n',
+    '[1]{name,value}:\n  cpu,0.42\n',
+  ])
+  assert.deepEqual(closeTransformInterleaved(stream), [
+    '[1]{method,path,status}:\n  GET,/health,200\n',
+    '[1]{name,value}:\n  cpu,0.42\n',
+    '[1]{method,path,status}:\n  POST,/login,401\n',
+  ])
+})
+
+test('closeTransformInterleaved keeps anonymous streams byte-identical to closeTransform', () => {
+  const stream = '[]{id,name}:\n1,Ada\n[=1]\n[|]{id|name}:\n2|Linus\n[=1]\n'
+
+  assert.deepEqual(closeTransformInterleaved(stream), closeTransform(stream))
 })
 
 test('Web Streams decode and encode TOONL records with schema rotation', async () => {
