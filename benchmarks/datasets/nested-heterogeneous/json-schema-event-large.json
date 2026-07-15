@@ -1,0 +1,2403 @@
+{
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AuditEvent",
+    "type": "object",
+    "required": [
+      "id",
+      "actor",
+      "action",
+      "target",
+      "occurred_at"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^evt_[a-z0-9]+$"
+      },
+      "actor": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "user_id",
+              "email"
+            ],
+            "properties": {
+              "kind": {
+                "const": "user"
+              },
+              "user_id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "service",
+              "scope"
+            ],
+            "properties": {
+              "kind": {
+                "const": "service"
+              },
+              "service": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "action": {
+        "enum": [
+          "created",
+          "updated",
+          "deleted",
+          "exported"
+        ]
+      },
+      "target": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "occurred_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "diff": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "path",
+            "before",
+            "after"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "before": {},
+            "after": {}
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "id": "evt_001",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_100",
+        "email": "user01@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "project",
+        "id": "proj_7000",
+        "labels": {
+          "tier": "prod",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T08:00:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_002",
+      "actor": {
+        "kind": "service",
+        "service": "billing-sync",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "report:read"
+        ]
+      },
+      "action": "updated",
+      "target": {
+        "resource": "report",
+        "id": "repo_7001",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T08:07:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1010,
+          "after": 1212
+        }
+      ]
+    },
+    {
+      "id": "evt_003",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_102",
+        "email": "user03@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "dataset",
+        "id": "data_7002",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T08:14:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1020,
+          "after": 1224
+        }
+      ]
+    },
+    {
+      "id": "evt_004",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_103",
+        "email": "user04@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "invoice",
+        "id": "invo_7003",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T08:21:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1030,
+          "after": 1236
+        }
+      ]
+    },
+    {
+      "id": "evt_005",
+      "actor": {
+        "kind": "service",
+        "service": "scheduler",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "deployment:read"
+        ]
+      },
+      "action": "created",
+      "target": {
+        "resource": "deployment",
+        "id": "depl_7004",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T08:28:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_006",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_105",
+        "email": "user06@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "workflow",
+        "id": "work_7005",
+        "labels": {
+          "tier": "prod",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T08:35:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1050,
+          "after": 1260
+        }
+      ]
+    },
+    {
+      "id": "evt_007",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_106",
+        "email": "user07@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "secret",
+        "id": "secr_7006",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T09:42:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1060,
+          "after": 1272
+        }
+      ]
+    },
+    {
+      "id": "evt_008",
+      "actor": {
+        "kind": "service",
+        "service": "deploy-agent",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "token:read"
+        ]
+      },
+      "action": "exported",
+      "target": {
+        "resource": "token",
+        "id": "toke_7007",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T09:49:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1070,
+          "after": 1284
+        }
+      ]
+    },
+    {
+      "id": "evt_009",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_108",
+        "email": "user09@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "user",
+        "id": "user_7008",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T09:56:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_010",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_109",
+        "email": "user10@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "team",
+        "id": "team_7009",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T09:03:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1090,
+          "after": 1308
+        }
+      ]
+    },
+    {
+      "id": "evt_011",
+      "actor": {
+        "kind": "service",
+        "service": "audit-writer",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "repository:read"
+        ]
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "repository",
+        "id": "repo_7010",
+        "labels": {
+          "tier": "prod",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T09:10:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1100,
+          "after": 1320
+        }
+      ]
+    },
+    {
+      "id": "evt_012",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_111",
+        "email": "user12@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "issue",
+        "id": "issu_7011",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T09:17:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1110,
+          "after": 1332
+        }
+      ]
+    },
+    {
+      "id": "evt_013",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_112",
+        "email": "user13@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "comment",
+        "id": "comm_7012",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T10:24:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_014",
+      "actor": {
+        "kind": "service",
+        "service": "billing-sync",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "release:read"
+        ]
+      },
+      "action": "updated",
+      "target": {
+        "resource": "release",
+        "id": "rele_7013",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T10:31:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1130,
+          "after": 1356
+        }
+      ]
+    },
+    {
+      "id": "evt_015",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_114",
+        "email": "user15@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "alert",
+        "id": "aler_7014",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T10:38:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1140,
+          "after": 1368
+        }
+      ]
+    },
+    {
+      "id": "evt_016",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_115",
+        "email": "user16@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "policy",
+        "id": "poli_7015",
+        "labels": {
+          "tier": "prod",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T10:45:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1150,
+          "after": 1380
+        }
+      ]
+    },
+    {
+      "id": "evt_017",
+      "actor": {
+        "kind": "service",
+        "service": "scheduler",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "dashboard:read"
+        ]
+      },
+      "action": "created",
+      "target": {
+        "resource": "dashboard",
+        "id": "dash_7016",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T10:52:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_018",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_117",
+        "email": "user18@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "billing_account",
+        "id": "bill_7017",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T10:59:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1170,
+          "after": 1404
+        }
+      ]
+    },
+    {
+      "id": "evt_019",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_118",
+        "email": "user19@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "job",
+        "id": "job_7018",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T11:06:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1180,
+          "after": 1416
+        }
+      ]
+    },
+    {
+      "id": "evt_020",
+      "actor": {
+        "kind": "service",
+        "service": "deploy-agent",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "artifact:read"
+        ]
+      },
+      "action": "exported",
+      "target": {
+        "resource": "artifact",
+        "id": "arti_7019",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T11:13:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1190,
+          "after": 1428
+        }
+      ]
+    },
+    {
+      "id": "evt_021",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_120",
+        "email": "user21@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "session",
+        "id": "sess_7020",
+        "labels": {
+          "tier": "prod",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T11:20:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_022",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_121",
+        "email": "user22@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "webhook",
+        "id": "webh_7021",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T11:27:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1210,
+          "after": 1452
+        }
+      ]
+    },
+    {
+      "id": "evt_023",
+      "actor": {
+        "kind": "service",
+        "service": "audit-writer",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "subscription:read"
+        ]
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "subscription",
+        "id": "subs_7022",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T11:34:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1220,
+          "after": 1464
+        }
+      ]
+    },
+    {
+      "id": "evt_024",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_123",
+        "email": "user24@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "quota",
+        "id": "quot_7023",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T11:41:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1230,
+          "after": 1476
+        }
+      ]
+    },
+    {
+      "id": "evt_025",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_124",
+        "email": "user25@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "model",
+        "id": "mode_7024",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T12:48:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_026",
+      "actor": {
+        "kind": "service",
+        "service": "billing-sync",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "prompt:read"
+        ]
+      },
+      "action": "updated",
+      "target": {
+        "resource": "prompt",
+        "id": "prom_7025",
+        "labels": {
+          "tier": "prod",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T12:55:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1250,
+          "after": 1500
+        }
+      ]
+    },
+    {
+      "id": "evt_027",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_126",
+        "email": "user27@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "run",
+        "id": "run_7026",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T12:02:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1260,
+          "after": 1512
+        }
+      ]
+    },
+    {
+      "id": "evt_028",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_127",
+        "email": "user28@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "vector_index",
+        "id": "vect_7027",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T12:09:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1270,
+          "after": 1524
+        }
+      ]
+    },
+    {
+      "id": "evt_029",
+      "actor": {
+        "kind": "service",
+        "service": "scheduler",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "backup:read"
+        ]
+      },
+      "action": "created",
+      "target": {
+        "resource": "backup",
+        "id": "back_7028",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T12:16:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_030",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_129",
+        "email": "user30@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "notification",
+        "id": "noti_7029",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T12:23:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1290,
+          "after": 1548
+        }
+      ]
+    },
+    {
+      "id": "evt_031",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_130",
+        "email": "user31@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "role",
+        "id": "role_7030",
+        "labels": {
+          "tier": "prod",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T13:30:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1300,
+          "after": 1560
+        }
+      ]
+    },
+    {
+      "id": "evt_032",
+      "actor": {
+        "kind": "service",
+        "service": "deploy-agent",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "permission:read"
+        ]
+      },
+      "action": "exported",
+      "target": {
+        "resource": "permission",
+        "id": "perm_7031",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T13:37:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1310,
+          "after": 1572
+        }
+      ]
+    },
+    {
+      "id": "evt_033",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_132",
+        "email": "user33@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "environment",
+        "id": "envi_7032",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T13:44:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_034",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_133",
+        "email": "user34@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "cluster",
+        "id": "clus_7033",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T13:51:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1330,
+          "after": 1596
+        }
+      ]
+    },
+    {
+      "id": "evt_035",
+      "actor": {
+        "kind": "service",
+        "service": "audit-writer",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "service:read"
+        ]
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "service",
+        "id": "serv_7034",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T13:58:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1340,
+          "after": 1608
+        }
+      ]
+    },
+    {
+      "id": "evt_036",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_135",
+        "email": "user36@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "endpoint",
+        "id": "endp_7035",
+        "labels": {
+          "tier": "prod",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T13:05:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1350,
+          "after": 1620
+        }
+      ]
+    },
+    {
+      "id": "evt_037",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_136",
+        "email": "user37@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "certificate",
+        "id": "cert_7036",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T14:12:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_038",
+      "actor": {
+        "kind": "service",
+        "service": "billing-sync",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "domain:read"
+        ]
+      },
+      "action": "updated",
+      "target": {
+        "resource": "domain",
+        "id": "doma_7037",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T14:19:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1370,
+          "after": 1644
+        }
+      ]
+    },
+    {
+      "id": "evt_039",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_138",
+        "email": "user39@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "api_key",
+        "id": "api__7038",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T14:26:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1380,
+          "after": 1656
+        }
+      ]
+    },
+    {
+      "id": "evt_040",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_139",
+        "email": "user40@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "audit_stream",
+        "id": "audi_7039",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T14:33:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1390,
+          "after": 1668
+        }
+      ]
+    },
+    {
+      "id": "evt_041",
+      "actor": {
+        "kind": "service",
+        "service": "scheduler",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "project:read"
+        ]
+      },
+      "action": "created",
+      "target": {
+        "resource": "project",
+        "id": "proj_7040",
+        "labels": {
+          "tier": "prod",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T14:40:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_042",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_141",
+        "email": "user42@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "report",
+        "id": "repo_7041",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T14:47:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1410,
+          "after": 1692
+        }
+      ]
+    },
+    {
+      "id": "evt_043",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_142",
+        "email": "user43@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "dataset",
+        "id": "data_7042",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T15:54:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1420,
+          "after": 1704
+        }
+      ]
+    },
+    {
+      "id": "evt_044",
+      "actor": {
+        "kind": "service",
+        "service": "deploy-agent",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "invoice:read"
+        ]
+      },
+      "action": "exported",
+      "target": {
+        "resource": "invoice",
+        "id": "invo_7043",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T15:01:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1430,
+          "after": 1716
+        }
+      ]
+    },
+    {
+      "id": "evt_045",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_144",
+        "email": "user45@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "deployment",
+        "id": "depl_7044",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T15:08:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_046",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_145",
+        "email": "user46@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "workflow",
+        "id": "work_7045",
+        "labels": {
+          "tier": "prod",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T15:15:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1450,
+          "after": 1740
+        }
+      ]
+    },
+    {
+      "id": "evt_047",
+      "actor": {
+        "kind": "service",
+        "service": "audit-writer",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "secret:read"
+        ]
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "secret",
+        "id": "secr_7046",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T15:22:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1460,
+          "after": 1752
+        }
+      ]
+    },
+    {
+      "id": "evt_048",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_147",
+        "email": "user48@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "token",
+        "id": "toke_7047",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T15:29:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1470,
+          "after": 1764
+        }
+      ]
+    },
+    {
+      "id": "evt_049",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_148",
+        "email": "user49@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "user",
+        "id": "user_7048",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T16:36:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_050",
+      "actor": {
+        "kind": "service",
+        "service": "billing-sync",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "team:read"
+        ]
+      },
+      "action": "updated",
+      "target": {
+        "resource": "team",
+        "id": "team_7049",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T16:43:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1490,
+          "after": 1788
+        }
+      ]
+    },
+    {
+      "id": "evt_051",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_150",
+        "email": "user51@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "repository",
+        "id": "repo_7050",
+        "labels": {
+          "tier": "prod",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T16:50:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1500,
+          "after": 1800
+        }
+      ]
+    },
+    {
+      "id": "evt_052",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_151",
+        "email": "user52@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "issue",
+        "id": "issu_7051",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T16:57:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1510,
+          "after": 1812
+        }
+      ]
+    },
+    {
+      "id": "evt_053",
+      "actor": {
+        "kind": "service",
+        "service": "scheduler",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "comment:read"
+        ]
+      },
+      "action": "created",
+      "target": {
+        "resource": "comment",
+        "id": "comm_7052",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T16:04:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_054",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_153",
+        "email": "user54@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "release",
+        "id": "rele_7053",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T16:11:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1530,
+          "after": 1836
+        }
+      ]
+    },
+    {
+      "id": "evt_055",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_154",
+        "email": "user55@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "alert",
+        "id": "aler_7054",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T17:18:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1540,
+          "after": 1848
+        }
+      ]
+    },
+    {
+      "id": "evt_056",
+      "actor": {
+        "kind": "service",
+        "service": "deploy-agent",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "policy:read"
+        ]
+      },
+      "action": "exported",
+      "target": {
+        "resource": "policy",
+        "id": "poli_7055",
+        "labels": {
+          "tier": "prod",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T17:25:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1550,
+          "after": 1860
+        }
+      ]
+    },
+    {
+      "id": "evt_057",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_156",
+        "email": "user57@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "dashboard",
+        "id": "dash_7056",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T17:32:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_058",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_157",
+        "email": "user58@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "billing_account",
+        "id": "bill_7057",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T17:39:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1570,
+          "after": 1884
+        }
+      ]
+    },
+    {
+      "id": "evt_059",
+      "actor": {
+        "kind": "service",
+        "service": "audit-writer",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "job:read"
+        ]
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "job",
+        "id": "job_7058",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T17:46:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1580,
+          "after": 1896
+        }
+      ]
+    },
+    {
+      "id": "evt_060",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_159",
+        "email": "user60@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "artifact",
+        "id": "arti_7059",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T17:53:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1590,
+          "after": 1908
+        }
+      ]
+    },
+    {
+      "id": "evt_061",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_160",
+        "email": "user61@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "session",
+        "id": "sess_7060",
+        "labels": {
+          "tier": "prod",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T18:00:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_062",
+      "actor": {
+        "kind": "service",
+        "service": "billing-sync",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "webhook:read"
+        ]
+      },
+      "action": "updated",
+      "target": {
+        "resource": "webhook",
+        "id": "webh_7061",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T18:07:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1610,
+          "after": 1932
+        }
+      ]
+    },
+    {
+      "id": "evt_063",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_162",
+        "email": "user63@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "subscription",
+        "id": "subs_7062",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T18:14:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1620,
+          "after": 1944
+        }
+      ]
+    },
+    {
+      "id": "evt_064",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_163",
+        "email": "user64@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "quota",
+        "id": "quot_7063",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T18:21:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1630,
+          "after": 1956
+        }
+      ]
+    },
+    {
+      "id": "evt_065",
+      "actor": {
+        "kind": "service",
+        "service": "scheduler",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "model:read"
+        ]
+      },
+      "action": "created",
+      "target": {
+        "resource": "model",
+        "id": "mode_7064",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T18:28:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_066",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_165",
+        "email": "user66@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "prompt",
+        "id": "prom_7065",
+        "labels": {
+          "tier": "prod",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T18:35:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1650,
+          "after": 1980
+        }
+      ]
+    },
+    {
+      "id": "evt_067",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_166",
+        "email": "user67@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "run",
+        "id": "run_7066",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T19:42:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1660,
+          "after": 1992
+        }
+      ]
+    },
+    {
+      "id": "evt_068",
+      "actor": {
+        "kind": "service",
+        "service": "deploy-agent",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "vector_index:read"
+        ]
+      },
+      "action": "exported",
+      "target": {
+        "resource": "vector_index",
+        "id": "vect_7067",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T19:49:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1670,
+          "after": 2004
+        }
+      ]
+    },
+    {
+      "id": "evt_069",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_168",
+        "email": "user69@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "backup",
+        "id": "back_7068",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T19:56:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_070",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_169",
+        "email": "user70@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "notification",
+        "id": "noti_7069",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T19:03:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1690,
+          "after": 2028
+        }
+      ]
+    },
+    {
+      "id": "evt_071",
+      "actor": {
+        "kind": "service",
+        "service": "audit-writer",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "role:read"
+        ]
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "role",
+        "id": "role_7070",
+        "labels": {
+          "tier": "prod",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T19:10:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1700,
+          "after": 2040
+        }
+      ]
+    },
+    {
+      "id": "evt_072",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_171",
+        "email": "user72@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "permission",
+        "id": "perm_7071",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T19:17:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1710,
+          "after": 2052
+        }
+      ]
+    },
+    {
+      "id": "evt_073",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_172",
+        "email": "user73@example.invalid"
+      },
+      "action": "created",
+      "target": {
+        "resource": "environment",
+        "id": "envi_7072",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T20:24:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_074",
+      "actor": {
+        "kind": "service",
+        "service": "billing-sync",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "cluster:read"
+        ]
+      },
+      "action": "updated",
+      "target": {
+        "resource": "cluster",
+        "id": "clus_7073",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T20:31:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1730,
+          "after": 2076
+        }
+      ]
+    },
+    {
+      "id": "evt_075",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_174",
+        "email": "user75@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "service",
+        "id": "serv_7074",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T20:38:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1740,
+          "after": 2088
+        }
+      ]
+    },
+    {
+      "id": "evt_076",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_175",
+        "email": "user76@example.invalid"
+      },
+      "action": "exported",
+      "target": {
+        "resource": "endpoint",
+        "id": "endp_7075",
+        "labels": {
+          "tier": "prod",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T20:45:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1750,
+          "after": 2100
+        }
+      ]
+    },
+    {
+      "id": "evt_077",
+      "actor": {
+        "kind": "service",
+        "service": "scheduler",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "certificate:read"
+        ]
+      },
+      "action": "created",
+      "target": {
+        "resource": "certificate",
+        "id": "cert_7076",
+        "labels": {
+          "tier": "standard",
+          "region": "br"
+        }
+      },
+      "occurred_at": "2026-07-15T20:52:00Z",
+      "diff": []
+    },
+    {
+      "id": "evt_078",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_177",
+        "email": "user78@example.invalid"
+      },
+      "action": "updated",
+      "target": {
+        "resource": "domain",
+        "id": "doma_7077",
+        "labels": {
+          "tier": "standard",
+          "region": "us"
+        }
+      },
+      "occurred_at": "2026-07-15T20:59:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "active",
+          "after": "staging"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1770,
+          "after": 2124
+        }
+      ]
+    },
+    {
+      "id": "evt_079",
+      "actor": {
+        "kind": "user",
+        "user_id": "u_178",
+        "email": "user79@example.invalid"
+      },
+      "action": "deleted",
+      "target": {
+        "resource": "api_key",
+        "id": "api__7078",
+        "labels": {
+          "tier": "standard",
+          "region": "de"
+        }
+      },
+      "occurred_at": "2026-07-15T21:06:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "queued",
+          "after": "active"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1780,
+          "after": 2136
+        }
+      ]
+    },
+    {
+      "id": "evt_080",
+      "actor": {
+        "kind": "service",
+        "service": "deploy-agent",
+        "scope": [
+          "jobs:write",
+          "audit:append",
+          "audit_stream:read"
+        ]
+      },
+      "action": "exported",
+      "target": {
+        "resource": "audit_stream",
+        "id": "audi_7079",
+        "labels": {
+          "tier": "standard",
+          "region": "jp"
+        }
+      },
+      "occurred_at": "2026-07-15T21:13:00Z",
+      "diff": [
+        {
+          "path": "/status",
+          "before": "staging",
+          "after": "archived"
+        },
+        {
+          "path": "/limits/requests",
+          "before": 1790,
+          "after": 2148
+        }
+      ]
+    }
+  ]
+}
