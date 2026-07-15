@@ -1,12 +1,14 @@
 use std::env;
-use std::fs;
-use std::io::{self, BufRead, BufReader, Read};
-use std::process::ExitCode;
+use std::fs::{self, OpenOptions};
+use std::io::{self, BufRead, BufReader, Cursor, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{self, ExitCode};
 
 use reddb_io_toon::{encode_toonl_values, Array, ToonlReader, Value};
 
 const USAGE: &str =
     "usage: tq [-p toon|json|toonl] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] <query> [file]";
+const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Format {
@@ -26,6 +28,31 @@ struct Options {
     slurp: bool,
 }
 
+#[derive(Debug)]
+struct TrimOptions {
+    keep_last: usize,
+    in_place: bool,
+    input_path: Option<String>,
+}
+
+#[derive(Debug)]
+struct TrimPlan {
+    output: String,
+    changed: bool,
+}
+
+#[derive(Debug)]
+struct TrimSegment {
+    header_line: String,
+    trailer: Option<(usize, usize)>,
+}
+
+#[derive(Debug)]
+struct TrimRow {
+    start: usize,
+    segment: usize,
+}
+
 fn main() -> ExitCode {
     match run() {
         Ok(output) => {
@@ -40,14 +67,18 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<String, String> {
-    let mut args = env::args().skip(1).peekable();
+    let args = env::args().skip(1).collect::<Vec<_>>();
     if args
-        .peek()
+        .first()
         .is_some_and(|arg| arg == "-V" || arg == "--version")
     {
         return Ok(format!("tq {}\n", env!("CARGO_PKG_VERSION")));
     }
-    let options = parse_args(args)?;
+    if args.first().is_some_and(|arg| arg == "trim") {
+        return run_trim(parse_trim_args(args.into_iter().skip(1))?);
+    }
+
+    let options = parse_args(args.into_iter())?;
 
     if options.input_format == Format::Toonl {
         return run_toonl(&options);
@@ -66,6 +97,27 @@ fn run() -> Result<String, String> {
         Format::Toonl => unreachable!("TOONL input is handled before reading into a string"),
     };
     format_values(&values, &options)
+}
+
+fn run_trim(options: TrimOptions) -> Result<String, String> {
+    let input = match &options.input_path {
+        Some(path) => fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?,
+        None => read_stdin()?,
+    };
+    let plan = trim_toonl_keep_last(&input, options.keep_last)?;
+
+    if options.in_place {
+        let path = options
+            .input_path
+            .as_deref()
+            .ok_or_else(|| "--in-place requires FILE".to_owned())?;
+        if plan.changed {
+            write_in_place_atomically(path, plan.output.as_bytes())?;
+        }
+        Ok(String::new())
+    } else {
+        Ok(plan.output)
+    }
 }
 
 fn run_toonl(options: &Options) -> Result<String, String> {
@@ -139,6 +191,45 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
     })
 }
 
+fn parse_trim_args(args: impl Iterator<Item = String>) -> Result<TrimOptions, String> {
+    let mut keep_last = None;
+    let mut in_place = false;
+    let mut positional = Vec::new();
+    let mut args = args.peekable();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--keep-last" => {
+                let value = args.next().ok_or_else(|| TRIM_USAGE.to_owned())?;
+                let parsed = value
+                    .parse::<usize>()
+                    .map_err(|_| "`--keep-last` expects a non-negative integer".to_owned())?;
+                keep_last = Some(parsed);
+            }
+            "--in-place" => in_place = true,
+            "--" => {
+                positional.extend(args);
+                break;
+            }
+            value if value.starts_with('-') => return Err(TRIM_USAGE.to_owned()),
+            value => positional.push(value.to_owned()),
+        }
+    }
+
+    if positional.len() > 1 {
+        return Err(TRIM_USAGE.to_owned());
+    }
+    if in_place && positional.is_empty() {
+        return Err("--in-place requires FILE".to_owned());
+    }
+
+    Ok(TrimOptions {
+        keep_last: keep_last.ok_or_else(|| TRIM_USAGE.to_owned())?,
+        in_place,
+        input_path: positional.pop(),
+    })
+}
+
 fn parse_format(value: &str) -> Result<Format, String> {
     match value {
         "json" => Ok(Format::Json),
@@ -178,6 +269,213 @@ fn input_reader(options: &Options) -> Result<Box<dyn BufRead>, String> {
             .map_err(|error| format!("{path}: {error}")),
         None => Ok(Box::new(BufReader::new(io::stdin()))),
     }
+}
+
+fn trim_toonl_keep_last(input: &str, keep_last: usize) -> Result<TrimPlan, String> {
+    reject_v0_2_only_constructs(input)?;
+    validate_toonl(input)?;
+    let (segments, rows, last_segment) = scan_toonl_trim_units(input)?;
+
+    if rows.len() <= keep_last {
+        return Ok(TrimPlan {
+            output: input.to_owned(),
+            changed: false,
+        });
+    }
+
+    let (first_segment, suffix_start, retained_first_rows) = if keep_last == 0 {
+        let segment = last_segment.ok_or_else(|| "cannot trim an empty TOONL stream".to_owned())?;
+        (segment, input.len(), 0)
+    } else {
+        let cut_index = rows.len() - keep_last;
+        let cut = &rows[cut_index];
+        let retained_first_rows = rows[cut_index..]
+            .iter()
+            .take_while(|row| row.segment == cut.segment)
+            .count();
+        (cut.segment, cut.start, retained_first_rows)
+    };
+    let segment = &segments[first_segment];
+
+    let mut output = String::new();
+    output.push_str(&line_with_lf(&segment.header_line));
+    if let Some((trailer_start, trailer_end)) = segment.trailer {
+        if trailer_start >= suffix_start {
+            output.push_str(&input[suffix_start..trailer_start]);
+            output.push_str(&format!("[={retained_first_rows}]\n"));
+            output.push_str(&input[trailer_end..]);
+        } else if keep_last == 0 {
+            output.push_str("[=0]\n");
+        } else {
+            output.push_str(&input[suffix_start..]);
+        }
+    } else {
+        output.push_str(&input[suffix_start..]);
+    }
+    validate_toonl(&output)?;
+
+    Ok(TrimPlan {
+        changed: output != input,
+        output,
+    })
+}
+
+fn reject_v0_2_only_constructs(input: &str) -> Result<(), String> {
+    for (line_number, raw_line) in input.lines().enumerate() {
+        let line = raw_line.trim_end_matches('\r');
+        if line.is_empty() {
+            continue;
+        }
+        let construct = if line.starts_with("[~]") && line.ends_with("}:") {
+            Some("continuation header")
+        } else if line.starts_with("[]<") && line.contains(">{") && line.ends_with("}:") {
+            Some("named schema declaration")
+        } else if line.starts_with('<') && line.contains(">:") {
+            Some("tagged row")
+        } else {
+            None
+        };
+        if let Some(construct) = construct {
+            return Err(format!(
+                "line {}: v0.2-only construct `{construct}` is not supported by trim",
+                line_number + 1
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_toonl(input: &str) -> Result<(), String> {
+    for row in ToonlReader::new(Cursor::new(input.as_bytes())) {
+        row.map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+fn scan_toonl_trim_units(
+    input: &str,
+) -> Result<(Vec<TrimSegment>, Vec<TrimRow>, Option<usize>), String> {
+    let mut segments: Vec<TrimSegment> = Vec::new();
+    let mut rows: Vec<TrimRow> = Vec::new();
+    let mut current: Option<usize> = None;
+    let mut last_segment: Option<usize> = None;
+    let mut offset = 0;
+    let mut line_number = 0;
+
+    while offset < input.len() {
+        let line_start = offset;
+        let line_end = input[offset..]
+            .find('\n')
+            .map(|index| offset + index + 1)
+            .unwrap_or(input.len());
+        offset = line_end;
+        line_number += 1;
+
+        let raw_line = &input[line_start..line_end];
+        let line = raw_line.trim_end_matches('\n').trim_end_matches('\r');
+        if line.is_empty() {
+            continue;
+        }
+        if is_toonl_trailer(line) {
+            let segment = current
+                .take()
+                .ok_or_else(|| format!("line {line_number}: trailer without header"))?;
+            segments[segment].trailer = Some((line_start, line_end));
+            continue;
+        }
+        if is_toonl_header(line) {
+            let segment = segments.len();
+            segments.push(TrimSegment {
+                header_line: raw_line.to_owned(),
+                trailer: None,
+            });
+            current = Some(segment);
+            last_segment = Some(segment);
+            continue;
+        }
+
+        let segment = current.ok_or_else(|| format!("line {line_number}: row before header"))?;
+        rows.push(TrimRow {
+            start: line_start,
+            segment,
+        });
+    }
+
+    Ok((segments, rows, last_segment))
+}
+
+fn is_toonl_trailer(line: &str) -> bool {
+    line.starts_with("[=") && line.ends_with(']')
+}
+
+fn is_toonl_header(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix('[') else {
+        return false;
+    };
+    let Some(close_bracket) = rest.find(']') else {
+        return false;
+    };
+    if !matches!(&rest[..close_bracket], "" | "|" | "\t") {
+        return false;
+    }
+    let suffix = &rest[close_bracket + 1..];
+    suffix.starts_with('{') && suffix.ends_with("}:")
+}
+
+fn line_with_lf(line: &str) -> String {
+    if line.ends_with('\n') {
+        line.to_owned()
+    } else {
+        format!("{line}\n")
+    }
+}
+
+fn write_in_place_atomically(path: &str, bytes: &[u8]) -> Result<(), String> {
+    let path = Path::new(path);
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "input path must name a file".to_owned())?;
+
+    let mut last_error = None;
+    for attempt in 0..100 {
+        let tmp_path = parent.join(format!(
+            ".{file_name}.tq-trim.{}.{}.tmp",
+            process::id(),
+            attempt
+        ));
+        match write_temp_then_rename(path, &tmp_path, bytes) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                last_error = Some(error);
+            }
+            Err(error) => {
+                let _ = fs::remove_file(&tmp_path);
+                return Err(format!("{}: {error}", path.display()));
+            }
+        }
+    }
+
+    Err(format!(
+        "{}: could not create temporary trim file: {}",
+        path.display(),
+        last_error
+            .map(|error| error.to_string())
+            .unwrap_or_else(|| "too many collisions".to_owned())
+    ))
+}
+
+fn write_temp_then_rename(path: &Path, tmp_path: &PathBuf, bytes: &[u8]) -> io::Result<()> {
+    {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(tmp_path)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+    }
+    fs::rename(tmp_path, path)
 }
 
 fn evaluate(document: &Value, query: &str) -> Result<Vec<Value>, String> {
