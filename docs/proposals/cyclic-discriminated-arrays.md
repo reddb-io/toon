@@ -1,10 +1,10 @@
 # Proposal — Cyclic discriminated arrays
 
-**Stage:** 1 — measured proposal
-**Status:** prototype only; recommendation is implement this narrow shape behind an opt-in encoder rule.
-**Spec section:** *(none; not graduated)*
+**Stage:** 4 — graduated (landed via [#150](https://github.com/reddb-io/toon/issues/150) / [#151](https://github.com/reddb-io/toon/issues/151))
+**Status:** graduated into `toon-reddb-spec.md` as Extension 5; decode always-on, encode opt-in, fail-closed.
+**Spec section:** [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays)
 **Upstream RFC:** *(none)*
-**Repo issues / PRs:** [#142](https://github.com/reddb-io/toon/issues/142)
+**Repo issues / PRs:** [#142](https://github.com/reddb-io/toon/issues/142), [#150](https://github.com/reddb-io/toon/issues/150), [#151](https://github.com/reddb-io/toon/issues/151)
 
 ## Motivation
 
@@ -27,9 +27,9 @@ must remain in the lossless TOON v3.3 fallback path.
 
 ## Design / grammar
 
-This is a measured grammar sketch, not normative syntax. It refines Candidate B
-from the previous proposal with stricter deterministic eligibility and a compact
-order grammar.
+This proposal refined Candidate B from the previous proposal with stricter
+deterministic eligibility and a compact order grammar. The shipped normative
+syntax is [Extension 5](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays).
 
 ### Eligibility
 
@@ -40,8 +40,7 @@ An array is eligible only when all rules pass:
   from `type`, `kind`, or `event`;
 - the discriminator sequence has a repeated cycle of length 2 through 8;
 - the cycle repeats at least three full times;
-- any tail, if admitted by a future frozen grammar, must be a prefix of the
-  cycle;
+- the shipped grammar admits only complete cycles, with no tail form;
 - the compact order expression must be at most 40% of the raw per-row
   discriminator list;
 - controls that are non-cyclic, partially cyclic below the repeat threshold, or
@@ -59,15 +58,8 @@ The order vector is encoded once as the cycle plus repetition count:
 order=cycle(open,comment,check,deploy)*60
 ```
 
-The measured prototype also implements a tail form for grammar pressure tests:
-
-```toon
-order=cycle(open,comment,check)*30+tail(open,comment)
-```
-
-The Stage 2 decision should decide whether to keep the tail form. The Stage 1
-measurements below use complete cycles only because the useful frontier is
-cleaner and the fallback story is simpler.
+The shipped grammar deliberately rejects the prototype's pressure-test tail
+form. Every emitted or accepted order expands to exactly the declared row count.
 
 ### Grouped payload tables
 
@@ -105,7 +97,14 @@ payload from each group cursor, and merging:
 
 ## How to test it
 
-The prototype is intentionally outside normative code:
+- JS: `serialize(value, { cyclicDiscriminatedArrays: true })`
+- Rust: `to_toon_with_options(EncodeOptions { cyclic_discriminated_arrays: true, .. })`
+- `tq`: `--cyclic-discriminated-arrays`
+
+Decoding is always-on. The shared wire-efficiency corpus covers decode values,
+encode bytes, and malformed fail-closed cases across both implementations.
+
+The original prototype remains useful as design evidence:
 
 ```sh
 node scripts/cyclic_discriminated_arrays_prototype.mjs --check
@@ -119,7 +118,7 @@ It generates deterministic corpora with a seeded LCG and no network:
 - non-cyclic controls: irregular sequence, short partial cycle, and shuffled
   random sequence.
 
-For every eligible wire it decodes and asserts:
+For every eligible prototype wire it decodes and asserts:
 
 ```js
 JSON.stringify(decoded) === JSON.stringify(original)
@@ -133,8 +132,19 @@ through existing encoder options.
 
 ## Measured numbers
 
-Measured by `scripts/cyclic_discriminated_arrays_prototype.mjs --check` using
-`js-tiktoken` `o200k_base`.
+Prototype measurements came from
+`scripts/cyclic_discriminated_arrays_prototype.mjs --check` using `js-tiktoken`
+`o200k_base`. The graduation decision uses the shipped re-measurement in
+[`benchmarks/results/2026-07-15-token-efficiency.md`](../../benchmarks/results/2026-07-15-token-efficiency.md),
+which measured the implemented extension through the JS package and Rust crate.
+
+The shipped Rust implementation is the best TOON-family format for the cyclic
+representative shape, with a median **10.2% token reduction versus minified
+JSON** across the four cyclic datasets. The amortization curve remains positive
+from the smallest complete cyclic corpus: 24 records save 4.2% tokens; 90, 240,
+and 500 records save 9.8%, 10.7%, and 11.3% respectively.
+
+Historical prototype table:
 
 | Corpus | Eligible | Rows | Cycle | Repeats | JSON bytes | TOON v3.3 bytes | Best current bytes | Cyclic bytes | Cyclic bytes vs JSON | JSON tokens | TOON v3.3 tokens | Best current tokens | Cyclic tokens | Cyclic tokens vs JSON |
 | --- | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -151,8 +161,9 @@ control was rejected by eligibility and used the lossless fallback.
 
 ## Why it is a good decision
 
-Recommendation: **implement the cyclic discriminated-array shape, but only with
-the deterministic eligibility gate and compact RLE order grammar above.**
+Decision: **the cyclic discriminated-array shape is implemented and graduated,
+but only with the deterministic eligibility gate and compact RLE order grammar
+above.**
 
 The measured token gain starts at the smallest complete cyclic corpus in this
 prototype: 24 records over a 2-item cycle wins by 4.2% tokens and 18.7% bytes
@@ -167,8 +178,7 @@ The frontier is therefore narrow:
   three times, and compresses the order grammar below the 40% threshold;
 - do not implement for short event lists, one-off heterogeneous arrays,
   irregular streams, random ordering, or partial cycles below the repeat gate;
-- consider dropping tail support at Stage 2 unless a real corpus proves it earns
-  its complexity.
+- reject tail support; no real corpus justified its grammar complexity.
 
 This is a better recommendation than the previous general Candidate B because
 the eligibility rule removes the losing cases instead of making every decoder
@@ -196,12 +206,16 @@ narrow and deterministic.
 - **Stage 0 — idea:** issue [#142](https://github.com/reddb-io/toon/issues/142).
 - **Stage 1 — measured proposal:** this document and
   `scripts/cyclic_discriminated_arrays_prototype.mjs`.
-- **Stage 2 — frozen grammar:** not advanced.
-- **Stage 3 — implemented opt-in:** not advanced.
-- **Stage 4 — graduated:** not advanced.
+- **Stage 2 — frozen grammar:** complete-cycle `cycle(...)*N` order grammar;
+  tail support rejected.
+- **Stage 3 — implemented opt-in:** `cyclicDiscriminatedArrays` /
+  `cyclic_discriminated_arrays` / `--cyclic-discriminated-arrays`.
+- **Stage 4 — graduated:** [Extension 5](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays).
 
 ## Links
 
+- Spec section: [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays)
 - Prototype: `scripts/cyclic_discriminated_arrays_prototype.mjs`
+- Benchmark report: [`2026-07-15-token-efficiency.md`](../../benchmarks/results/2026-07-15-token-efficiency.md)
 - Prior proposal: `docs/proposals/discriminated-heterogeneous-arrays.md`
-- Repo issue: https://github.com/reddb-io/toon/issues/142
+- Repo issues: [#142](https://github.com/reddb-io/toon/issues/142), [#150](https://github.com/reddb-io/toon/issues/150), [#151](https://github.com/reddb-io/toon/issues/151)

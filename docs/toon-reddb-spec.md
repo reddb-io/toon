@@ -1,6 +1,6 @@
 # TOON — reddb-io Flavored Specification
 
-**tl;dr.** This document specifies four opt-in extensions (nested tabular headers, keyed-map collapse, primitive-array columns, delimiter choice) and robustness features (depth guard, `detectTruncation` API) that reddb-io layers over TOON v3.3. All extensions decode always-on and fail closed, so output remains canonical TOON v3.3 by default. We thank the [toon-format](https://github.com/toon-format/spec) team and author Johann Schopplich for a standard clean enough to extend safely.
+**tl;dr.** This document specifies five opt-in extensions (nested tabular headers, keyed-map collapse, primitive-array columns, object-array columns, cyclic discriminated arrays), delimiter choice, and robustness features (depth guard, `detectTruncation` API) that reddb-io layers over TOON v3.3. All extensions decode always-on and fail closed, so output remains canonical TOON v3.3 by default. We thank the [toon-format](https://github.com/toon-format/spec) team and author Johann Schopplich for a standard clean enough to extend safely.
 
 ## Acknowledgment
 
@@ -41,6 +41,7 @@ RECOMMENDED, MAY, and OPTIONAL are to be interpreted as described in RFC 2119.
   - [The entry-count guardrail and its trade-off](#the-entry-count-guardrail-and-its-trade-off)
 - [Extension 3 — Primitive-array columns](#extension-3--primitive-array-columns)
 - [Extension 4 — Object-array columns](#extension-4--object-array-columns)
+- [Extension 5 — Cyclic discriminated arrays](#extension-5--cyclic-discriminated-arrays)
 - [Delimiter choice](#delimiter-choice)
 - [Depth guard](#depth-guard)
 - [detectTruncation — structured completeness reports](#detecttruncation--structured-completeness-reports)
@@ -69,7 +70,7 @@ unless explicitly enabled.
 
 ## The extension model
 
-Both wire extensions follow the same asymmetric rule. These four properties are
+The wire extensions follow the same asymmetric rule. These four properties are
 the contract of the reddb-io flavor:
 
 - **Decoding is always on.** A decoder in this repository MUST accept the extended
@@ -92,11 +93,11 @@ form errors loudly instead of quietly reading a different shape.
 
 ### Enabling emission, per surface
 
-| Surface | Active delimiter | Nested tabular headers | Keyed-map collapse | Primitive-array columns | Object-array columns |
-| --- | --- | --- | --- | --- | --- |
-| JS — `serialize(value, opts)` | `{ delimiter: ',' \| '\t' \| '\|' }` | `{ nestedTabularHeaders: true }` | `{ keyedMapCollapse: true }` | `{ primitiveArrayColumns: true }` | `{ objectArrayColumns: true }` |
-| Rust — `to_toon_with_options(EncodeOptions)` | `delimiter: ',' \| '\t' \| '\|'` | `nested_tabular_headers: true` | `keyed_map_collapse: true` | `primitive_array_columns: true` | `object_array_columns: true` |
-| `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | `--nested-tabular-headers` | `--keyed-map-collapse` | `--primitive-array-columns` | `--object-array-columns` |
+| Surface | Active delimiter | Nested tabular headers | Keyed-map collapse | Primitive-array columns | Object-array columns | Cyclic discriminated arrays |
+| --- | --- | --- | --- | --- | --- | --- |
+| JS — `serialize(value, opts)` | `{ delimiter: ',' \| '\t' \| '\|' }` | `{ nestedTabularHeaders: true }` | `{ keyedMapCollapse: true }` | `{ primitiveArrayColumns: true }` | `{ objectArrayColumns: true }` | `{ cyclicDiscriminatedArrays: true }` |
+| Rust — `to_toon_with_options(EncodeOptions)` | `delimiter: ',' \| '\t' \| '\|'` | `nested_tabular_headers: true` | `keyed_map_collapse: true` | `primitive_array_columns: true` | `object_array_columns: true` | `cyclic_discriminated_arrays: true` |
+| `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | `--nested-tabular-headers` | `--keyed-map-collapse` | `--primitive-array-columns` | `--object-array-columns` | `--cyclic-discriminated-arrays` |
 
 Delimiter choice is pure TOON v3.3 for arrays and tabular rows: encoders emit the active-delimiter declaration in the header (`[N|]`, `[N\t]`, and matching field lists) and quote cells that contain the active delimiter. The keyed-map collapse extension mirrors that declaration at the start of its field list, for example `map{|id|name}:`, so extension rows remain self-describing.
 
@@ -363,6 +364,109 @@ Here `values[3|]` declares a fixed-width list cell: each row has exactly three
 primitive cells separated by the active delimiter. The single fixed-width field
 decodes back to a row array, not an object wrapper.
 
+## Extension 5 — Cyclic discriminated arrays
+
+> **Proposal history:** [Cyclic discriminated arrays](proposals/cyclic-discriminated-arrays.md) — **stage 4 (graduated)**, landed via [#150](https://github.com/reddb-io/toon/issues/150) / [#151](https://github.com/reddb-io/toon/issues/151). The proposal records the rejected broader heterogeneous-array design, the frozen complete-cycle grammar, and the shipped benchmark re-measurement.
+
+Strongly cyclic event streams repeat a discriminator such as `type`, `kind`, or
+`event` in a stable order. TOON v3.3 repeats that discriminator in every row.
+This extension emits a sentinel-framed document that groups payload rows by
+discriminator label, factors scalar common-prefix fields into a shared table,
+and carries the original interleaving as a compact RLE cycle.
+
+The wire starts with exactly `@toon-cyclic-discriminated-array/1`, followed by a
+JSON root map from top-level object keys to section ids, one or more array
+sections, and a final `@end`:
+
+```toon
+@toon-cyclic-discriminated-array/1
+@root {"events":"$C0"}
+@array $C0 discr=type n=6 common=tenant,seq order=cycle(login,purchase,logout)*2
+@common
+"acme"	1
+"acme"	2
+"acme"	3
+"acme"	4
+"acme"	5
+"acme"	6
+@group login n=2
+{"actor":"u1","ok":true}
+{"actor":"u2","ok":true}
+@group purchase n=2
+{"actor":"u1","amount":12.5}
+{"actor":"u2","amount":4}
+@group logout n=2
+{"actor":"u1","durationMs":1200}
+{"actor":"u2","durationMs":900}
+@end
+```
+
+This decodes to:
+
+```json
+{"events":[{"type":"login","tenant":"acme","seq":1,"actor":"u1","ok":true},{"type":"purchase","tenant":"acme","seq":2,"actor":"u1","amount":12.5},{"type":"logout","tenant":"acme","seq":3,"actor":"u1","durationMs":1200},{"type":"login","tenant":"acme","seq":4,"actor":"u2","ok":true},{"type":"purchase","tenant":"acme","seq":5,"actor":"u2","amount":4},{"type":"logout","tenant":"acme","seq":6,"actor":"u2","durationMs":900}]}
+```
+
+Grammar:
+
+- `@root` MUST contain a non-empty JSON object whose values are section-id
+  strings.
+- Each `@array` header is `@array <id> discr=<key> n=<rows> common=<fields>
+  order=cycle(<label>[,<label>...])*<repeats>`.
+- `common=` is empty or a comma-separated list of unique field names. When it is
+  non-empty, an `@common` block MUST follow with exactly `n` tab-separated rows,
+  each with exactly the same number of JSON cells as common fields.
+- The only order form is the complete-cycle RLE grammar
+  `cycle(label[,label...])*repeats`. Tail forms are invalid. The expanded order
+  length MUST equal the declared `n`.
+- Group labels and order labels use percent encoding for bytes outside
+  `A-Z`, `a-z`, `0-9`, `-`, `_`, `.`, and `~`.
+- Each `@group <label> n=<rows>` block carries exactly `rows` JSON object
+  payloads. The decoder consumes one payload from the matching group each time
+  that label appears in the expanded order, and every declared payload MUST be
+  consumed exactly once.
+
+Decoding is always-on and fail-closed. A malformed sentinel document, missing
+section, duplicate section id, invalid order expression, wrong common-row width,
+common-row count mismatch, missing group, duplicate group, or group length
+mismatch MUST be rejected. The decoder reconstructs each row as:
+
+```js
+{ [discriminator]: label, ...commonRow, ...groupPayload }
+```
+
+Encoder eligibility is deterministic. An encoder with the option enabled emits
+this form only when **all** of the following hold:
+
+1. the root value is a non-empty object whose fields are unique and whose values
+   are arrays;
+2. every item in every candidate array is an object with unique keys;
+3. every row has the same scalar string discriminator key, chosen in priority
+   order from `type`, `kind`, then `event`;
+4. the discriminator key, root keys, and common field keys contain no whitespace,
+   comma, or equals sign;
+5. the discriminator sequence is a complete repeated cycle of unique labels,
+   with cycle length 2 through 8 and at least three full repeats;
+6. the compact order expression is at most 40% of the raw percent-encoded
+   per-row discriminator list; and
+7. common fields, if any, are the contiguous primitive-valued fields immediately
+   after the discriminator in the first row and present as primitive values in
+   every row.
+
+Any ordinary ineligible value falls back to canonical TOON v3.3. The encoder
+MUST NOT raise an error merely because a value is irregular, too short,
+partially cyclic, random, has non-string discriminator values, lacks an eligible
+discriminator, contains a tail after the last complete cycle, or fails the order
+compression threshold.
+
+The shipped benchmark re-measurement in
+[`benchmarks/results/2026-07-15-token-efficiency.md`](../benchmarks/results/2026-07-15-token-efficiency.md)
+measured the implemented extension through both shipped implementations. On the
+representative cyclic shape, the best TOON-family format was the Rust cyclic
+extension with a median **10.2% token reduction versus minified JSON**. The
+amortization curve crossed over at 24 records and measured 4.2%, 9.8%, 10.7%,
+and 11.3% token reductions for the 24-, 90-, 240-, and 500-row cyclic datasets.
+
 ## Delimiter choice
 
 > **Proposal history:** [Delimiter choice](proposals/delimiter-choice.md) — **stage 4 (graduated)**. The proposal records why comma stays the default and when to reach for tab or pipe, with measured trade-offs and the upstream RFC link.
@@ -535,8 +639,9 @@ the measured reports.
 TOONL ([`toonl-reddb-spec.md`](toonl-reddb-spec.md)) is an independent line-oriented streaming
 extension with its own versioning; it is unaffected by this document. The
 TOONL close-transform continues to target canonical TOON v3.3 documents and does
-**not** emit the nested-tabular-header or keyed-map-collapse forms defined here.
-The two concerns compose cleanly but are specified separately.
+**not** emit the nested-tabular-header, keyed-map-collapse,
+primitive-array-column, object-array-column, or cyclic-discriminated-array forms
+defined here. The two concerns compose cleanly but are specified separately.
 
 ## Conformance
 
@@ -545,13 +650,13 @@ The shared corpora under `tests/` pin both implementations to identical behavior
 - `tests/toon/fixtures/` (live from the `vendor/toon-spec` submodule) — the v3.3
   baseline, run by both the Rust crate and the JS package.
 - The extension corpora — encode bytes and decode values for nested tabular
-  headers, keyed-map collapse, primitive-array columns, and object-array columns,
-  including the eligibility and fail-closed cases.
+  headers, keyed-map collapse, primitive-array columns, object-array columns, and
+  cyclic discriminated arrays, including the eligibility and fail-closed cases.
 - `tests/json-limits/corpus.json` — the shared JSON edge corpus (numbers at the
   boundaries of the safe-integer range, precision, and other parser limits) run
   identically by the JS package and the Rust crate.
 - The `tq` golden tests cover the extension emission flags end-to-end, including
-  `--object-array-columns`.
+  `--object-array-columns` and `--cyclic-discriminated-arrays`.
 
 CI enforces the whole set on every change, so the two implementations cannot
 disagree about the flavor.
