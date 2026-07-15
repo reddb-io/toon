@@ -96,6 +96,7 @@ function encoderOptions(options) {
   return {
     nestedTabularHeaders: options.nestedTabularHeaders === true,
     keyedMapCollapse: options.keyedMapCollapse === true,
+    primitiveArrayColumns: options.primitiveArrayColumns === true,
     delimiter: options.delimiter,
   }
 }
@@ -147,7 +148,8 @@ test('official TOON spec fixtures all pass', () => {
           } else {
             if (
               Object.prototype.hasOwnProperty.call(testCase, 'input') &&
-              testCase.options?.keyedMapCollapse === true
+              (testCase.options?.keyedMapCollapse === true ||
+                testCase.options?.primitiveArrayColumns === true)
             ) {
               const encoded = serialize(testCase.input, encoderOptions(testCase.options))
               const decoded = parse(testCase.expected, options)
