@@ -74,7 +74,7 @@ pub enum Array {
 /// materialised into [`Document`]s.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TabularArray {
-    fields: Vec<String>,
+    fields: Vec<Vec<String>>,
     rows: Vec<Vec<Value>>,
 }
 
@@ -93,7 +93,7 @@ struct Header {
     key_quoted: bool,
     len: usize,
     delimiter: char,
-    fields: Option<Vec<String>>,
+    fields: Option<Vec<Vec<String>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1513,19 +1513,40 @@ impl TabularArray {
     fn get(&self, index: usize) -> Option<Value> {
         self.rows.get(index).map(|row| {
             count_tabular_row_decode_for_tests();
-            Value::Object(Document {
-                fields: self
-                    .fields
-                    .iter()
-                    .zip(row)
-                    .map(|(key, value)| Field {
-                        key: key.clone(),
-                        value: value.clone(),
-                    })
-                    .collect(),
-            })
+            let mut document = Document::default();
+            for (path, value) in self.fields.iter().zip(row) {
+                insert_tabular_path(&mut document, path, value.clone());
+            }
+            Value::Object(document)
         })
     }
+}
+
+fn insert_tabular_path(document: &mut Document, path: &[String], value: Value) {
+    let key = &path[0];
+    if path.len() == 1 {
+        document.fields.push(Field {
+            key: key.clone(),
+            value,
+        });
+        return;
+    }
+
+    let position = document
+        .fields
+        .iter()
+        .position(|field| field.key == *key)
+        .unwrap_or_else(|| {
+            document.fields.push(Field {
+                key: key.clone(),
+                value: Value::Object(Document::default()),
+            });
+            document.fields.len() - 1
+        });
+    let Value::Object(nested) = &mut document.fields[position].value else {
+        unreachable!("nested tabular header paths are validated before rows are decoded");
+    };
+    insert_tabular_path(nested, &path[1..], value);
 }
 
 // ---------------------------------------------------------------------------
@@ -1750,7 +1771,7 @@ fn parse_array_field(
 
 fn parse_tabular_rows(
     header: &Header,
-    fields: &[String],
+    fields: &[Vec<String>],
     lines: &[Line<'_>],
     index: &mut usize,
     row_depth: usize,
@@ -1996,18 +2017,10 @@ fn parse_header(content: &str, colon: Option<usize>) -> Result<Header, HeaderErr
     let fields = if suffix.is_empty() {
         None
     } else if suffix.starts_with('{') && suffix.ends_with('}') && suffix.len() >= 2 {
-        let names = split_delimited(&suffix[1..suffix.len() - 1], delimiter, 0)
-            .map_err(|_| HeaderError("invalid array header"))?;
-        Some(
-            names
-                .iter()
-                .map(|name| {
-                    parse_key(name, 0)
-                        .map(|(key, _)| key)
-                        .map_err(|_| HeaderError("invalid array header"))
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-        )
+        Some(parse_header_fields(
+            &suffix[1..suffix.len() - 1],
+            delimiter,
+        )?)
     } else {
         return Err(HeaderError("invalid array header"));
     };
@@ -2019,6 +2032,127 @@ fn parse_header(content: &str, colon: Option<usize>) -> Result<Header, HeaderErr
         delimiter,
         fields,
     })
+}
+
+fn parse_header_fields(source: &str, delimiter: char) -> Result<Vec<Vec<String>>, HeaderError> {
+    struct Parser<'a> {
+        source: &'a str,
+        delimiter: u8,
+        index: usize,
+        paths: Vec<Vec<String>>,
+    }
+
+    impl Parser<'_> {
+        fn parse_list(&mut self, prefix: &[String], nested: bool) -> Result<(), HeaderError> {
+            let mut count = 0usize;
+            while self.index < self.source.len() {
+                let current = self.source.as_bytes()[self.index];
+                if nested && current == b'}' {
+                    break;
+                }
+                if current == self.delimiter || current == b'}' {
+                    return Err(HeaderError("invalid array header"));
+                }
+
+                let start = self.index;
+                while self.index < self.source.len() {
+                    let character = self.source.as_bytes()[self.index];
+                    if character == b'"' {
+                        self.skip_quoted_header_key();
+                        continue;
+                    }
+                    if character == self.delimiter || character == b'{' || character == b'}' {
+                        break;
+                    }
+                    self.index += 1;
+                }
+
+                let (key, _) = parse_key(&self.source[start..self.index], 0)
+                    .map_err(|_| HeaderError("invalid array header"))?;
+                if key.is_empty() {
+                    return Err(HeaderError("invalid array header"));
+                }
+
+                count += 1;
+                if self.index < self.source.len() && self.source.as_bytes()[self.index] == b'{' {
+                    self.index += 1;
+                    let before = self.paths.len();
+                    let mut nested_prefix = prefix.to_vec();
+                    nested_prefix.push(key);
+                    self.parse_list(&nested_prefix, true)?;
+                    if self.index >= self.source.len()
+                        || self.source.as_bytes()[self.index] != b'}'
+                        || self.paths.len() == before
+                    {
+                        return Err(HeaderError("invalid array header"));
+                    }
+                    self.index += 1;
+                } else {
+                    let mut path = prefix.to_vec();
+                    path.push(key);
+                    self.paths.push(path);
+                }
+
+                if self.index < self.source.len()
+                    && self.source.as_bytes()[self.index] == self.delimiter
+                {
+                    self.index += 1;
+                    if self.index >= self.source.len() || self.source.as_bytes()[self.index] == b'}'
+                    {
+                        return Err(HeaderError("invalid array header"));
+                    }
+                    continue;
+                }
+                if (nested
+                    && self.index < self.source.len()
+                    && self.source.as_bytes()[self.index] == b'}')
+                    || (!nested && self.index == self.source.len())
+                {
+                    break;
+                }
+                return Err(HeaderError("invalid array header"));
+            }
+
+            if count == 0 {
+                return Err(HeaderError("invalid array header"));
+            }
+            Ok(())
+        }
+
+        fn skip_quoted_header_key(&mut self) {
+            self.index += 1;
+            while self.index < self.source.len() {
+                let character = self.source.as_bytes()[self.index];
+                self.index += 1;
+                if character == b'\\' {
+                    self.index += 1;
+                } else if character == b'"' {
+                    return;
+                }
+            }
+        }
+    }
+
+    let mut parser = Parser {
+        source,
+        delimiter: delimiter as u8,
+        index: 0,
+        paths: Vec::new(),
+    };
+    parser.parse_list(&[], false)?;
+    if parser.index != source.len() {
+        return Err(HeaderError("invalid array header"));
+    }
+    for index in 0..parser.paths.len() {
+        for other in index + 1..parser.paths.len() {
+            let left = &parser.paths[index];
+            let right = &parser.paths[other];
+            if left == right || left.starts_with(right) || right.starts_with(left) {
+                return Err(HeaderError("duplicate key"));
+            }
+        }
+    }
+    Ok(parser.paths)
 }
 
 fn parse_toonl_header(
@@ -3047,6 +3181,47 @@ mod tests {
             document.to_canonical_toon(),
             "users[2]{id,name,active}:\n  1,Ada,true\n  2,Bob Smith,false\n"
         );
+    }
+
+    #[test]
+    fn parses_nested_tabular_headers() {
+        let document = Document::parse(
+            "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            document.to_json_value(),
+            serde_json::json!({
+                "orders": [
+                    { "id": 1, "customer": { "name": "Ada", "country": "UK" }, "total": 10.5 },
+                    { "id": 2, "customer": { "name": "Bob", "country": "US" }, "total": 20 }
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn nested_tabular_headers_validate_leaf_arity_and_shape() {
+        let arity = Document::parse("orders[1]{id,customer{name,country}}:\n  1,Ada\n")
+            .expect_err("leaf count controls row arity");
+        assert_eq!(arity.line(), 2);
+        assert_eq!(arity.message(), "array row length mismatch");
+
+        let empty = Document::parse("orders[1]{id,customer{}}:\n  1\n")
+            .expect_err("empty nested groups are invalid");
+        assert_eq!(empty.line(), 1);
+        assert_eq!(empty.message(), "invalid array header");
+
+        let duplicate = Document::parse("orders[1]{customer{name},customer{name}}:\n  Ada,Bob\n")
+            .expect_err("duplicate leaf paths are invalid");
+        assert_eq!(duplicate.line(), 1);
+        assert_eq!(duplicate.message(), "duplicate key");
+
+        let unbalanced = Document::parse("orders[1]{id,customer{name,country}:\n  1,Ada,UK\n")
+            .expect_err("unbalanced nested groups are invalid");
+        assert_eq!(unbalanced.line(), 1);
+        assert_eq!(unbalanced.message(), "invalid array header");
     }
 
     #[test]
