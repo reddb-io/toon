@@ -40,6 +40,29 @@ export interface SerializeOptions {
   maxDepth?: number
 }
 
+export type TruncationKind =
+  | 'complete'
+  | 'array_length_mismatch'
+  | 'unterminated_nesting'
+  | 'toonl_trailer_count_mismatch'
+  | 'toonl_missing_trailer'
+  | 'invalid'
+
+export interface DetectTruncationOptions extends ParseOptions {
+  /** Input dialect to inspect. Default `toon`. */
+  format?: 'toon' | 'toonl'
+}
+
+export interface TruncationReport {
+  complete: boolean
+  kind: TruncationKind
+  /** 1-based source line where truncation was detected, or `null` for complete input. */
+  line: number | null
+  declared: number | null
+  actual: number | null
+  message: string | null
+}
+
 /** A TOON decode failure, carrying the 1-based source line. */
 export class ToonError extends Error {
   readonly line: number
@@ -59,6 +82,9 @@ export class ToonlCursorInvalidationError extends ToonlError {
 
 /** Decodes a TOON document into a JSON value (spec §5 root-form discovery). */
 export function parse(input: string, options?: ParseOptions): JsonValue
+
+/** Returns a structured completeness/truncation diagnosis for TOON or TOONL input. */
+export function detectTruncation(input: string, options?: DetectTruncationOptions): TruncationReport
 
 /** Decodes TOON whose root form is an object. Throws otherwise. */
 export function parseDocument(

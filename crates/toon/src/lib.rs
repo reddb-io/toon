@@ -57,6 +57,103 @@ pub struct EncodeOptions {
     pub max_depth: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TruncationKind {
+    Complete,
+    ArrayLengthMismatch,
+    UnterminatedNesting,
+    ToonlTrailerCountMismatch,
+    ToonlMissingTrailer,
+    Invalid,
+}
+
+impl TruncationKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Complete => "complete",
+            Self::ArrayLengthMismatch => "array_length_mismatch",
+            Self::UnterminatedNesting => "unterminated_nesting",
+            Self::ToonlTrailerCountMismatch => "toonl_trailer_count_mismatch",
+            Self::ToonlMissingTrailer => "toonl_missing_trailer",
+            Self::Invalid => "invalid",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TruncationReport {
+    pub complete: bool,
+    pub kind: TruncationKind,
+    pub line: Option<usize>,
+    pub declared: Option<usize>,
+    pub actual: Option<usize>,
+    pub message: Option<String>,
+}
+
+impl TruncationReport {
+    pub fn complete() -> Self {
+        Self {
+            complete: true,
+            kind: TruncationKind::Complete,
+            line: None,
+            declared: None,
+            actual: None,
+            message: None,
+        }
+    }
+
+    fn truncated(
+        kind: TruncationKind,
+        line: usize,
+        declared: Option<usize>,
+        actual: Option<usize>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            complete: false,
+            kind,
+            line: Some(line),
+            declared,
+            actual,
+            message: Some(message.into()),
+        }
+    }
+
+    pub fn to_json_value(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "complete".to_owned(),
+            serde_json::Value::Bool(self.complete),
+        );
+        map.insert(
+            "kind".to_owned(),
+            serde_json::Value::String(self.kind.as_str().to_owned()),
+        );
+        map.insert(
+            "line".to_owned(),
+            self.line
+                .map_or(serde_json::Value::Null, |value| value.into()),
+        );
+        map.insert(
+            "declared".to_owned(),
+            self.declared
+                .map_or(serde_json::Value::Null, |value| value.into()),
+        );
+        map.insert(
+            "actual".to_owned(),
+            self.actual
+                .map_or(serde_json::Value::Null, |value| value.into()),
+        );
+        map.insert(
+            "message".to_owned(),
+            self.message
+                .as_ref()
+                .map_or(serde_json::Value::Null, |value| value.clone().into()),
+        );
+        serde_json::Value::Object(map)
+    }
+}
+
 impl Default for EncodeOptions {
     fn default() -> Self {
         Self {
@@ -355,6 +452,155 @@ impl Document {
         }
         Ok(())
     }
+}
+
+pub fn detect_truncation(input: &str) -> TruncationReport {
+    detect_truncation_with_options(input, ParseOptions::default())
+}
+
+pub fn detect_truncation_with_options(input: &str, options: ParseOptions) -> TruncationReport {
+    match Value::parse_with_options(input, options) {
+        Ok(_) => TruncationReport::complete(),
+        Err(error) if error.message() == "array length mismatch" => {
+            detect_toon_array_truncation(input, options, error.line())
+        }
+        Err(error) => TruncationReport::truncated(
+            TruncationKind::Invalid,
+            error.line(),
+            None,
+            None,
+            error.to_string(),
+        ),
+    }
+}
+
+pub fn detect_toonl_truncation(input: &str) -> TruncationReport {
+    let mut open: Option<(usize, usize)> = None;
+    for (offset, raw_line) in input.lines().enumerate() {
+        let line_number = offset + 1;
+        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with("[=") && line.ends_with(']') {
+            let declared = line[2..line.len() - 1].parse::<usize>().ok();
+            let Some((_, actual)) = open.take() else {
+                return TruncationReport::truncated(
+                    TruncationKind::Invalid,
+                    line_number,
+                    declared,
+                    None,
+                    "trailer without header",
+                );
+            };
+            if declared != Some(actual) {
+                return TruncationReport::truncated(
+                    TruncationKind::ToonlTrailerCountMismatch,
+                    line_number,
+                    declared,
+                    Some(actual),
+                    format!(
+                        "trailer declared {} rows but received {actual}",
+                        declared
+                            .map(|value| value.to_string())
+                            .unwrap_or_else(|| "invalid".to_owned())
+                    ),
+                );
+            }
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(':') && open.is_none() {
+            open = Some((line_number, 0));
+            continue;
+        }
+        if let Some((_, actual)) = open.as_mut() {
+            *actual += 1;
+        }
+    }
+
+    if let Some((line, actual)) = open {
+        return TruncationReport::truncated(
+            TruncationKind::ToonlMissingTrailer,
+            line,
+            None,
+            Some(actual),
+            format!("stream ended without a trailer after {actual} rows"),
+        );
+    }
+    TruncationReport::complete()
+}
+
+fn detect_toon_array_truncation(
+    input: &str,
+    options: ParseOptions,
+    fallback_line: usize,
+) -> TruncationReport {
+    let Ok(lines) = collect_lines(input, &options) else {
+        return TruncationReport::truncated(
+            TruncationKind::Invalid,
+            fallback_line,
+            None,
+            None,
+            "invalid indentation",
+        );
+    };
+
+    for (index, line) in lines.iter().enumerate() {
+        let Ok(Some(colon)) = find_unquoted(line.content, ':', line.number) else {
+            continue;
+        };
+        if !line.content.contains('[') {
+            continue;
+        }
+        let Ok(header) = parse_header(line.content, Some(colon)) else {
+            continue;
+        };
+        let value_part = line.content[colon + 1..].trim();
+        if header.fields.is_none() && !value_part.is_empty() {
+            let actual = split_delimited(value_part, header.delimiter, line.number)
+                .map(|values| values.len())
+                .unwrap_or(0);
+            if actual != header.len {
+                return TruncationReport::truncated(
+                    TruncationKind::ArrayLengthMismatch,
+                    line.number,
+                    Some(header.len),
+                    Some(actual),
+                    format!("declared {} items but received {actual}", header.len),
+                );
+            }
+            continue;
+        }
+
+        let row_depth = line.depth + 1;
+        let mut actual = 0;
+        for row in lines.iter().skip(index + 1) {
+            if row.depth < row_depth {
+                break;
+            }
+            if row.depth == row_depth {
+                actual += 1;
+            }
+        }
+        if actual < header.len {
+            let detected_line = lines.last().map_or(fallback_line, |line| line.number);
+            return TruncationReport::truncated(
+                TruncationKind::ArrayLengthMismatch,
+                detected_line,
+                Some(header.len),
+                Some(actual),
+                format!("declared {} rows but received {actual}", header.len),
+            );
+        }
+    }
+
+    TruncationReport::truncated(
+        TruncationKind::UnterminatedNesting,
+        lines.last().map_or(fallback_line, |line| line.number),
+        None,
+        None,
+        "document ended before the declared nested structure was complete",
+    )
 }
 
 impl ParseError {

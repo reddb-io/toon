@@ -422,6 +422,22 @@ Streaming input and output is [TOONL](#toonl--append-only-streams), and it is th
 | `--keyed-map-collapse` | TOON output: emit the [keyed-map collapse](docs/toon-extensions.md) form for uniform object maps |
 | `-V`, `--version` | Print the version |
 
+### Check mode
+
+`tq check [-p toon|toonl] [FILE]` prints a structured completeness report and exits non-zero when TOON guardrails prove the input is truncated. The report fields are stable across the CLI, Rust crate, and JS package: `complete`, `kind`, `line`, `declared`, `actual`, and `message`.
+
+```console
+$ printf 'users[2]{id,name}:\n  1,Ada\n' | tq check
+{
+  "complete": false,
+  "kind": "array_length_mismatch",
+  "line": 2,
+  "declared": 2,
+  "actual": 1,
+  "message": "declared 2 rows but received 1"
+}
+```
+
 ### jq compatibility
 
 `tq` implements a deliberate subset of jq's language — enough for the filtering, reshaping and aggregation that real pipelines do, and honest about the rest. Everything in the left column is implemented and covered by tests, several of which run **jq itself as an oracle** and assert byte-identical output.
@@ -510,7 +526,7 @@ users[3]{id,name,role}:
 {"users":[{"id":1,"name":"Ada","role":"admin"},{"id":2,"name":"Linus","role":"dev"},{"id":3,"name":"Grace","role":"ops"}]}
 ```
 
-`Value::from_json_str` / `Value::from_json_value` come in from the JSON side, `to_canonical_toon` and `to_json_string(compact)` go out, and `Document::parse` / `parse_with_options` give you the object model with the spec's decoder options.
+`Value::from_json_str` / `Value::from_json_value` come in from the JSON side, `to_canonical_toon` and `to_json_string(compact)` go out, and `Document::parse` / `parse_with_options` give you the object model with the spec's decoder options. `detect_truncation_with_options(input, options)` and `detect_toonl_truncation(input)` expose the same structured report as `tq check` for callers that need a diagnosis instead of a decode exception.
 
 For TOONL, the crate exposes streaming APIs directly: `ToonlReader<R: BufRead>` iterates records in constant memory, `ToonlWriter<W: Write>` writes lazy headers with automatic schema rotation, and the bridge functions `jsonl_to_toonl`, `toonl_to_jsonl`, `close_transform_stream`, and `close_transform_stream_interleaved` wire the common conversions without going through the CLI. The default close transform emits one TOON document per lane; the interleaved form emits one document per maximal row run.
 
@@ -547,7 +563,7 @@ users[3]{id,name,role}:
 {"users":[{"id":1,"name":"Ada","role":"admin"},{"id":2,"name":"Linus","role":"dev"},{"id":3,"name":"Grace","role":"ops"}]}
 ```
 
-`parse(input, options)` takes the spec's decoder options (`indent`, `strict`, `expandPaths`), `parseDocument` insists on an object root, and `serialize` writes the canonical default profile.
+`parse(input, options)` takes the spec's decoder options (`indent`, `strict`, `expandPaths`), `parseDocument` insists on an object root, and `serialize` writes the canonical default profile. `detectTruncation(input, { format: 'toon' | 'toonl' })` returns the same structured report as the Rust crate and `tq check`.
 
 TOONL is the streaming half: `encodeLines` emits an append-only stream, `decodeLines` reads it back a record at a time, `closeTransform` turns each lane into length-bearing TOON documents, and `closeTransformInterleaved` preserves multiplexed row-run order for post-mortem rendering. The Web Streams API surface (`ToonlDecodeStream`, `ToonlEncodeStream`, `JsonlToToonl`, `ToonlToJsonl`, and `recordTransform`) is universal across Node, Bun, Deno and browsers; in Node, use `Readable.toWeb()` / `Readable.fromWeb()` when crossing between Node streams and Web streams. The optional `@reddb-io/toon/node` subpath adds `readToonlFile(path)` and `writeToonlFile(path, records)` using only `node:fs` and `node:stream`.
 

@@ -4,10 +4,10 @@
 use std::io::{self, Read, Write};
 
 use reddb_io_toon::{
-    close_transform_stream, close_transform_stream_interleaved, encode_toonl_values,
-    jsonl_to_toonl, toonl_to_jsonl, Array, Document, EncodeOptions, ParseOptions, ToonlCursor,
-    ToonlCursorInvalidation, ToonlEncoder, ToonlReader, ToonlResumeError, ToonlStream, ToonlWriter,
-    Value,
+    close_transform_stream, close_transform_stream_interleaved, detect_toonl_truncation,
+    detect_truncation_with_options, encode_toonl_values, jsonl_to_toonl, toonl_to_jsonl, Array,
+    Document, EncodeOptions, ParseOptions, ToonlCursor, ToonlCursorInvalidation, ToonlEncoder,
+    ToonlReader, ToonlResumeError, ToonlStream, ToonlWriter, Value,
 };
 use serde_json::json;
 
@@ -115,6 +115,26 @@ fn an_indent_of_zero_is_clamped_rather_than_dividing_by_zero() {
 
     let value = Value::parse_with_options("a: 1\n", options).expect("clamped indent");
     assert_eq!(value.to_json_value(), json!({"a": 1}));
+}
+
+#[test]
+fn detects_truncation_with_the_shared_structured_report_corpus() {
+    let corpus: serde_json::Value =
+        serde_json::from_str(include_str!("../truncation/corpus.json")).expect("corpus json");
+    for fixture in corpus.as_array().expect("corpus is an array") {
+        let input = fixture["input"].as_str().expect("fixture input");
+        let report = match fixture["format"].as_str().expect("fixture format") {
+            "toon" => detect_truncation_with_options(input, ParseOptions::default()),
+            "toonl" => detect_toonl_truncation(input),
+            format => panic!("unexpected format {format}"),
+        };
+        assert_eq!(
+            report.to_json_value(),
+            fixture["report"],
+            "{}",
+            fixture["name"].as_str().unwrap_or("fixture")
+        );
+    }
 }
 
 #[test]

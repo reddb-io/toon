@@ -1,0 +1,54 @@
+[
+  {
+    "name": "complete-toon",
+    "format": "toon",
+    "input": "users[2]{id,name}:\n  1,Ada\n  2,Bob\n",
+    "report": {
+      "complete": true,
+      "kind": "complete",
+      "line": null,
+      "declared": null,
+      "actual": null,
+      "message": null
+    }
+  },
+  {
+    "name": "table-fewer-rows",
+    "format": "toon",
+    "input": "users[2]{id,name}:\n  1,Ada\n",
+    "report": {
+      "complete": false,
+      "kind": "array_length_mismatch",
+      "line": 2,
+      "declared": 2,
+      "actual": 1,
+      "message": "declared 2 rows but received 1"
+    }
+  },
+  {
+    "name": "cut-mid-nesting",
+    "format": "toon",
+    "input": "users[2]:\n  - id: 1\n    name: Ada\n",
+    "report": {
+      "complete": false,
+      "kind": "array_length_mismatch",
+      "line": 3,
+      "declared": 2,
+      "actual": 1,
+      "message": "declared 2 rows but received 1"
+    }
+  },
+  {
+    "name": "toonl-trailer-mismatch",
+    "format": "toonl",
+    "input": "[]{id,name}:\n1,Ada\n[=2]\n",
+    "report": {
+      "complete": false,
+      "kind": "toonl_trailer_count_mismatch",
+      "line": 3,
+      "declared": 2,
+      "actual": 1,
+      "message": "trailer declared 2 rows but received 1"
+    }
+  }
+]

@@ -5,14 +5,16 @@ use std::path::{Path, PathBuf};
 use std::process::{self, ExitCode};
 
 use reddb_io_toon::{
-    close_transform_stream, close_transform_stream_interleaved, encode_toonl_values, Array,
-    EncodeOptions, ToonlReader, Value,
+    close_transform_stream, close_transform_stream_interleaved, detect_toonl_truncation,
+    detect_truncation_with_options, encode_toonl_values, Array, EncodeOptions, ParseOptions,
+    ToonlReader, Value,
 };
 
 const USAGE: &str =
     "usage: tq [-p toon|json|toonl] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--nested-tabular-headers] [--keyed-map-collapse] <query> [file]";
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
 const CLOSE_USAGE: &str = "usage: tq close [--per-lane|--interleaved] [FILE]";
+const CHECK_USAGE: &str = "usage: tq check [-p toon|toonl] [FILE]";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Format {
@@ -48,6 +50,12 @@ struct CloseOptions {
 }
 
 #[derive(Debug)]
+struct CheckOptions {
+    input_path: Option<String>,
+    input_format: Format,
+}
+
+#[derive(Debug)]
 struct TrimPlan {
     output: String,
     changed: bool,
@@ -68,9 +76,9 @@ struct TrimRow {
 
 fn main() -> ExitCode {
     match run() {
-        Ok(output) => {
+        Ok((output, code)) => {
             print!("{output}");
-            ExitCode::SUCCESS
+            code
         }
         Err(error) => {
             eprintln!("error: {error}");
@@ -79,25 +87,33 @@ fn main() -> ExitCode {
     }
 }
 
-fn run() -> Result<String, String> {
+fn run() -> Result<(String, ExitCode), String> {
     let args = env::args().skip(1).collect::<Vec<_>>();
     if args
         .first()
         .is_some_and(|arg| arg == "-V" || arg == "--version")
     {
-        return Ok(format!("tq {}\n", env!("CARGO_PKG_VERSION")));
+        return Ok((
+            format!("tq {}\n", env!("CARGO_PKG_VERSION")),
+            ExitCode::SUCCESS,
+        ));
     }
     if args.first().is_some_and(|arg| arg == "trim") {
-        return run_trim(parse_trim_args(args.into_iter().skip(1))?);
+        return run_trim(parse_trim_args(args.into_iter().skip(1))?)
+            .map(|output| (output, ExitCode::SUCCESS));
     }
     if args.first().is_some_and(|arg| arg == "close") {
-        return run_close(parse_close_args(args.into_iter().skip(1))?);
+        return run_close(parse_close_args(args.into_iter().skip(1))?)
+            .map(|output| (output, ExitCode::SUCCESS));
+    }
+    if args.first().is_some_and(|arg| arg == "check") {
+        return run_check(parse_check_args(args.into_iter().skip(1))?);
     }
 
     let options = parse_args(args.into_iter())?;
 
     if options.input_format == Format::Toonl {
-        return run_toonl(&options);
+        return run_toonl(&options).map(|output| (output, ExitCode::SUCCESS));
     }
 
     let input = read_input(&options)?;
@@ -112,7 +128,7 @@ fn run() -> Result<String, String> {
         }
         Format::Toonl => unreachable!("TOONL input is handled before reading into a string"),
     };
-    format_values(&values, &options)
+    format_values(&values, &options).map(|output| (output, ExitCode::SUCCESS))
 }
 
 fn run_trim(options: TrimOptions) -> Result<String, String> {
@@ -149,6 +165,26 @@ fn run_close(options: CloseOptions) -> Result<String, String> {
     }
     .map_err(|error| error.to_string())?;
     String::from_utf8(output).map_err(|error| error.to_string())
+}
+
+fn run_check(options: CheckOptions) -> Result<(String, ExitCode), String> {
+    let input = match &options.input_path {
+        Some(path) => fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?,
+        None => read_stdin()?,
+    };
+    let report = match options.input_format {
+        Format::Toon => detect_truncation_with_options(&input, ParseOptions::default()),
+        Format::Toonl => detect_toonl_truncation(&input),
+        Format::Json => unreachable!("check rejects JSON input"),
+    };
+    let output =
+        serde_json::to_string_pretty(&report.to_json_value()).map_err(|error| error.to_string())?;
+    let code = if report.complete {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    };
+    Ok((format!("{output}\n"), code))
 }
 
 fn run_toonl(options: &Options) -> Result<String, String> {
@@ -292,6 +328,45 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseOptions, 
     Ok(CloseOptions {
         interleaved,
         input_path: positional.pop(),
+    })
+}
+
+fn parse_check_args(args: impl Iterator<Item = String>) -> Result<CheckOptions, String> {
+    let mut input_format = None;
+    let mut positional = Vec::new();
+    let mut args = args.peekable();
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "-p" => {
+                let format = args.next().ok_or_else(|| CHECK_USAGE.to_owned())?;
+                let format = parse_format(&format)?;
+                if format == Format::Json {
+                    return Err(CHECK_USAGE.to_owned());
+                }
+                input_format = Some(format);
+            }
+            "--" => {
+                positional.extend(args);
+                break;
+            }
+            value if value.starts_with('-') => return Err(CHECK_USAGE.to_owned()),
+            value => positional.push(value.to_owned()),
+        }
+    }
+
+    if positional.len() > 1 {
+        return Err(CHECK_USAGE.to_owned());
+    }
+
+    let input_path = positional.pop();
+    let input_format = input_format.unwrap_or_else(|| detect_input_format(input_path.as_deref()));
+    if input_format == Format::Json {
+        return Err(CHECK_USAGE.to_owned());
+    }
+    Ok(CheckOptions {
+        input_path,
+        input_format,
     })
 }
 

@@ -7,7 +7,7 @@
  * two-space indentation, no key folding.
  */
 
-import { toonError } from './errors.js'
+import { ToonError, toonError } from './errors.js'
 import {
   DOCUMENT_DELIMITER,
   canonicalKey,
@@ -163,6 +163,37 @@ export function parse(input, options) {
   return document
 }
 
+/**
+ * Inspects a TOON document or TOONL stream and returns a stable truncation
+ * diagnosis instead of throwing on decode.
+ */
+export function detectTruncation(input, options = {}) {
+  const format = options.format ?? 'toon'
+  if (format === 'toonl') {
+    return detectToonlTruncation(input)
+  }
+  if (format !== 'toon') {
+    throw new TypeError('detectTruncation format must be "toon" or "toonl"')
+  }
+
+  try {
+    parse(input, options)
+    return completeReport()
+  } catch (error) {
+    if (error instanceof ToonError && error.reason === 'array length mismatch') {
+      return detectToonArrayTruncation(input, options, error.line)
+    }
+    return {
+      complete: false,
+      kind: 'invalid',
+      line: error instanceof ToonError ? error.line : 1,
+      declared: null,
+      actual: null,
+      message: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 /** Decodes TOON whose root form is an object. */
 export function parseDocument(input, options) {
   const value = parse(input, options)
@@ -170,6 +201,124 @@ export function parseDocument(input, options) {
     throw toonError(1, 'expected `key: value`')
   }
   return value
+}
+
+function completeReport() {
+  return { complete: true, kind: 'complete', line: null, declared: null, actual: null, message: null }
+}
+
+function truncationReport(kind, line, declared, actual, message) {
+  return { complete: false, kind, line, declared, actual, message }
+}
+
+function detectToonArrayTruncation(input, options, fallbackLine) {
+  const resolved = resolveOptions(options)
+  const lines = collectLines(input, resolved)
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    const colon = findUnquoted(line.content, ':', line.number)
+    if (colon === -1 || !line.content.includes('[')) {
+      continue
+    }
+    let header
+    try {
+      header = parseHeader(line.content, colon)
+    } catch {
+      continue
+    }
+    const headerDepth = line.depth
+    const rowDepth = headerDepth + 1
+    const valuePart = line.content.slice(colon + 1).trim()
+    if (header.fields === undefined && valuePart !== '') {
+      const actual = splitDelimited(valuePart, header.delimiter, line.number).length
+      if (actual !== header.len) {
+        return truncationReport(
+          'array_length_mismatch',
+          line.number,
+          header.len,
+          actual,
+          `declared ${header.len} items but received ${actual}`,
+        )
+      }
+      continue
+    }
+
+    let actual = 0
+    for (let rowIndex = index + 1; rowIndex < lines.length; rowIndex += 1) {
+      const row = lines[rowIndex]
+      if (row.depth < rowDepth) {
+        break
+      }
+      if (row.depth === rowDepth) {
+        actual += 1
+      }
+    }
+    if (actual < header.len) {
+      const last = lines[lines.length - 1]
+      return truncationReport(
+        header.fields === undefined ? 'array_length_mismatch' : 'array_length_mismatch',
+        last === undefined ? fallbackLine : last.number,
+        header.len,
+        actual,
+        `declared ${header.len} rows but received ${actual}`,
+      )
+    }
+  }
+
+  const last = lines[lines.length - 1]
+  return truncationReport(
+    'unterminated_nesting',
+    last === undefined ? fallbackLine : last.number,
+    null,
+    null,
+    'document ended before the declared nested structure was complete',
+  )
+}
+
+function detectToonlTruncation(input) {
+  let open = null
+  for (const [offset, rawLine] of input.split(/\n/).entries()) {
+    const lineNumber = offset + 1
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
+    if (line === '') {
+      continue
+    }
+    if (line.startsWith('[=') && line.endsWith(']')) {
+      const digits = line.slice(2, -1)
+      const declared = /^[0-9]+$/.test(digits) ? Number.parseInt(digits, 10) : null
+      if (open === null) {
+        return truncationReport('invalid', lineNumber, declared, null, 'trailer without header')
+      }
+      if (declared !== open.actual) {
+        return truncationReport(
+          'toonl_trailer_count_mismatch',
+          lineNumber,
+          declared,
+          open.actual,
+          `trailer declared ${declared} rows but received ${open.actual}`,
+        )
+      }
+      open = null
+      continue
+    }
+    if (line.startsWith('[') && line.endsWith(':') && open === null) {
+      open = { line: lineNumber, actual: 0 }
+      continue
+    }
+    if (open !== null) {
+      open.actual += 1
+    }
+  }
+  if (open !== null) {
+    return truncationReport(
+      'toonl_missing_trailer',
+      open.line,
+      null,
+      open.actual,
+      `stream ended without a trailer after ${open.actual} rows`,
+    )
+  }
+  return completeReport()
 }
 
 function parseObject(lines, cursor, depth, options) {

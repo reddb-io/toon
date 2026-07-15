@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { ToonError, parse, parseDocument, serialize } from '../src/index.js'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+import { ToonError, detectTruncation, parse, parseDocument, serialize } from '../src/index.js'
 
 /** `assert.throws` returns nothing, so capture the error to inspect its line. */
 function caught(fn) {
@@ -25,11 +28,25 @@ function deeplyNestedObject(depth) {
   return value
 }
 
+const truncationCorpus = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../../../tests/truncation/corpus.json', import.meta.url)), 'utf8'),
+)
+
 test('parses flat fields and serializes canonical TOON', () => {
   const document = parse('name : Ada\nactive: true\ncount: 3\n')
 
   assert.deepEqual(document, { name: 'Ada', active: true, count: 3 })
   assert.equal(serialize(document), 'name: Ada\nactive: true\ncount: 3\n')
+})
+
+test('detects truncation with the shared structured report corpus', () => {
+  for (const fixture of truncationCorpus) {
+    assert.deepEqual(
+      detectTruncation(fixture.input, { format: fixture.format }),
+      fixture.report,
+      fixture.name,
+    )
+  }
 })
 
 test('parses nested objects', () => {
