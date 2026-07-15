@@ -17,8 +17,8 @@ This is the monorepo for the **TOON** format: two format specs, and three implem
 
 | Surface | Deliverable | Install |
 | --- | --- | --- |
-| **Format** | [TOON v3.3](#toon) — the token-oriented object notation, at 100% of the [official spec](https://github.com/toon-format/spec) corpus ([annotated companion](docs/toon-spec.md)), plus two opt-in [reddb-io extensions](docs/toon-spec-reddb-flavored.md) | — |
-| **Format** | [TOONL](#toonl--append-only-streams) — our append-only streaming extension ([unified spec](docs/toonl.md); v0.2 is a strict superset of v0.1) | — |
+| **Format** | [TOON v3.3](#toon) — the token-oriented object notation, at 100% of the [official spec](https://github.com/toon-format/spec) corpus ([annotated companion](docs/toon-official-spec.md)), plus two opt-in [reddb-io extensions](docs/toon-reddb-spec.md) | — |
+| **Format** | [TOONL](#toonl--append-only-streams) — our append-only streaming extension ([unified spec](docs/toonl-reddb-spec.md); v0.2 is a strict superset of v0.1) | — |
 | **CLI** | [`tq`](#tq--the-cli) — jq for TOON: query, convert, stream | `curl -fsSL …/install.sh \| sh` |
 | **Rust** | [`reddb-io-toon`](#rust-library) — parser, serializer, lazy document model | `cargo install reddb-io-tq` / crates.io |
 | **JS/TS** | [`@reddb-io/toon`](#jsts-library) — the same format, dependency-free ESM | `pnpm add @reddb-io/toon` |
@@ -99,8 +99,8 @@ TOON is also *self-checking* in a way JSON is not: `[4]` declares the row count 
 The official specification is [toon-format/spec](https://github.com/toon-format/spec)
 `SPEC.md` v3.3, vendored at `vendor/toon-spec` — the exact pin our conformance
 suite runs against, walked through section by section in our
-[annotated companion](docs/toon-spec.md). On top of it we implement three extensions, specified
-normatively in [`docs/toon-spec-reddb-flavored.md`](docs/toon-spec-reddb-flavored.md) and
+[annotated companion](docs/toon-official-spec.md). On top of it we implement three extensions, specified
+normatively in [`docs/toon-reddb-spec.md`](docs/toon-reddb-spec.md) and
 originating in upstream RFCs
 ([spec#46](https://github.com/toon-format/spec/issues/46),
 [spec#57](https://github.com/toon-format/spec/issues/57)) and the frozen wire-efficiency grammar. Decoding them is
@@ -152,7 +152,7 @@ so round-trip is lossless.
 
 ### TOONL — append-only streams
 
-**TOONL is to TOON what JSONL is to JSON**: one record per line, header once, append forever — a log you can `>>` into and `tail -f` out of. It is a reddb-io extension — current normative spec: [TOONL](docs/toonl.md) (a single unified document; v0.2 is a strict superset of v0.1) that adds resumable readers, header-preserving trim (`tq trim`), tagged-row multiplexing, and a blessed retry pattern, all implemented in the crate, the package, and `tq` — with a guaranteed bridge back to standard TOON: every *closed* stream converts to a valid TOON v3.3 document in one O(n) pass.
+**TOONL is to TOON what JSONL is to JSON**: one record per line, header once, append forever — a log you can `>>` into and `tail -f` out of. It is a reddb-io extension — current normative spec: [TOONL](docs/toonl-reddb-spec.md) (a single unified document; v0.2 is a strict superset of v0.1) that adds resumable readers, header-preserving trim (`tq trim`), tagged-row multiplexing, and a blessed retry pattern, all implemented in the crate, the package, and `tq` — with a guaranteed bridge back to standard TOON: every *closed* stream converts to a valid TOON v3.3 document in one O(n) pass.
 
 ```toonl
 []{ts,level,msg}:
@@ -435,9 +435,9 @@ Streaming input and output is [TOONL](#toonl--append-only-streams), and it is th
 | `-r` | Raw output: emit strings unquoted, without JSON escaping |
 | `-c` | Compact JSON output (one line, no spaces) |
 | `--delimiter comma\|tab\|pipe` | TOON output: choose the active row/header delimiter (default: `comma`) |
-| `--nested-tabular-headers` | TOON output: emit [nested tabular headers](docs/toon-spec-reddb-flavored.md) for uniform nested records |
-| `--keyed-map-collapse` | TOON output: emit the [keyed-map collapse](docs/toon-spec-reddb-flavored.md) form for uniform object maps |
-| `--primitive-array-columns` | TOON output: emit [primitive-array columns](docs/toon-spec-reddb-flavored.md) for eligible primitive-list table fields |
+| `--nested-tabular-headers` | TOON output: emit [nested tabular headers](docs/toon-reddb-spec.md) for uniform nested records |
+| `--keyed-map-collapse` | TOON output: emit the [keyed-map collapse](docs/toon-reddb-spec.md) form for uniform object maps |
+| `--primitive-array-columns` | TOON output: emit [primitive-array columns](docs/toon-reddb-spec.md) for eligible primitive-list table fields |
 | `-V`, `--version` | Print the version |
 
 ### Check mode

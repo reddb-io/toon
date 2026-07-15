@@ -49,8 +49,8 @@ motivates them, and summarized under [Implementation guarantees](#implementation
 Two things this companion is **not**: it is not the reddb-io *extensions* (nested
 tabular headers, keyed-map collapse, the depth-guard rationale, wire-efficiency
 numbers) — those live in
-[`toon-spec-reddb-flavored.md`](toon-spec-reddb-flavored.md) — and it is not the
-streaming layer, which is [`toonl.md`](toonl.md).
+[`toon-reddb-spec.md`](toon-reddb-spec.md) — and it is not the
+streaming layer, which is [`toonl-reddb-spec.md`](toonl-reddb-spec.md).
 
 ## Table of Contents
 
@@ -653,7 +653,7 @@ delimiter; empty tokens are preserved with surrounding spaces trimmed.
 **Our implementation.** The active/document split is a first-class concept in both
 runtimes' quoting and splitting paths — see §7.2. This is the reddb *flavor's*
 lever for tab/pipe delimiter choice, documented in
-[`toon-spec-reddb-flavored.md`](toon-spec-reddb-flavored.md#delimiter-choice);
+[`toon-reddb-spec.md`](toon-reddb-spec.md#delimiter-choice);
 the base behavior here is pure v3.3.
 
 ## §12 Indentation and Whitespace
@@ -772,7 +772,7 @@ Rust `detect_truncation_with_options` / `detect_toonl_truncation`, JS
 `actual`, `message`. That turns §14.1's "MUST error" into a machine-readable
 diagnosis (declared-vs-actual with a line number) callers can act on. The API and
 its rationale are documented in
-[`toon-spec-reddb-flavored.md`](toon-spec-reddb-flavored.md#detecttruncation--structured-completeness-reports).
+[`toon-reddb-spec.md`](toon-reddb-spec.md#detecttruncation--structured-completeness-reports).
 
 ## §15 Security Considerations
 
@@ -790,7 +790,7 @@ decoder's stack. Our implementations add a **depth guard** (`max_depth`, default
 with a structured error instead of crashing, configurable to `0` for trusted
 input, with checked encode entry points for untrusted values. It changes no
 decoded value — a within-limit document decodes identically. See the flavored
-spec's [Depth guard](toon-spec-reddb-flavored.md#depth-guard).
+spec's [Depth guard](toon-reddb-spec.md#depth-guard).
 
 ## §16 Internationalization
 
@@ -803,7 +803,7 @@ Appendix A.
 
 Provisional media type `text/toon`, extension `.toon`, always UTF-8; no
 registration requested yet. (Our streaming layer uses the parallel provisional
-`application/toonl` / `.toonl`, defined in [`toonl.md`](toonl.md), not by this
+`application/toonl` / `.toonl`, defined in [`toonl-reddb-spec.md`](toonl-reddb-spec.md), not by this
 spec.)
 
 ## §18 Versioning and Extensibility
@@ -816,7 +816,7 @@ hyphen) keep their meaning across versions; the path separator is fixed to `.`.
 they add no new sigil family, reuse the recursive-brace header grammar, and
 fail-closed against strict v3.3 — so they are backward-compatible evolutions
 rather than a fork. Details in
-[`toon-spec-reddb-flavored.md`](toon-spec-reddb-flavored.md).
+[`toon-reddb-spec.md`](toon-reddb-spec.md).
 
 ## §19 Intellectual Property Considerations
 
@@ -881,5 +881,5 @@ official section:
   verify exactly what they install.
 
 For the reddb-io *extensions* over this baseline, see
-[`toon-spec-reddb-flavored.md`](toon-spec-reddb-flavored.md); for the streaming
-layer, [`toonl.md`](toonl.md).
+[`toon-reddb-spec.md`](toon-reddb-spec.md); for the streaming
+layer, [`toonl-reddb-spec.md`](toonl-reddb-spec.md).

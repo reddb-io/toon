@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **TOONL v0.2 specification** (now unified into `docs/toonl.md`): a normative, requirements-only
+- **TOONL v0.2 specification** (now unified into `docs/toonl-reddb-spec.md`): a normative, requirements-only
   spec that formally closes the red-skills requirements R1–R4. It promotes
   suffix-closure, concatenation closure, and the header-on-open discipline to
   first-class data-model guarantees, and builds on them:

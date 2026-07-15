@@ -1427,10 +1427,10 @@ whether to accept v0.2 constructs — it accepts them iff it is a v0.2 decoder.
 - The reserved `- ` line prefix stays reserved for a future nested-frame syntax.
 - The reddb-io TOON extensions (nested tabular headers, keyed-map collapse) are an
   independent concern; see
-  [`toon-spec-reddb-flavored.md`](toon-spec-reddb-flavored.md). The close-transform
+  [`toon-reddb-spec.md`](toon-reddb-spec.md). The close-transform
   targets canonical TOON v3.3 and does not emit those forms.
 - For an annotated walk through the official TOON v3.3 specification and how our
-  implementations conform to it, see [`toon-spec.md`](toon-spec.md).
+  implementations conform to it, see [`toon-official-spec.md`](toon-official-spec.md).
 
 ## Conformance
 

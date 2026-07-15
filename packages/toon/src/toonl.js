@@ -1,6 +1,6 @@
 /**
  * TOONL v0.1 — the append-only, line-oriented streaming profile of TOON.
- * Semantics follow `docs/toonl.md`: a stream is a sequence of segments,
+ * Semantics follow `docs/toonl-reddb-spec.md`: a stream is a sequence of segments,
  * each opened by a `[<delim?>]{fields}:` header, filled with one row per line,
  * and optionally closed by a `[=N]` trailer that asserts the row count.
  */
