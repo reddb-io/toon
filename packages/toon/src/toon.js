@@ -570,6 +570,15 @@ function parseStructuredTabularRows(header, lines, cursor, rowDepth, options) {
 
 function parseStructuredRows(len, fields, delimiter, lines, cursor, rowDepth, options, root) {
   const rows = []
+  const childTableFields = inferChildTableFields(
+    len,
+    fields,
+    delimiter,
+    lines,
+    cursor.index,
+    rowDepth,
+    options,
+  )
 
   while (rows.length < len) {
     const line = lines[cursor.index]
@@ -590,7 +599,12 @@ function parseStructuredRows(len, fields, delimiter, lines, cursor, rowDepth, op
     }
 
     const cells = splitDelimited(line.content, delimiter, line.number)
-    const state = { cellIndex: 0, nextIndex: cursor.index + 1, flatWidth: leafWidth(fields) }
+    const state = {
+      cellIndex: 0,
+      nextIndex: cursor.index + 1,
+      flatWidth: leafWidth(fields),
+      childTableFields,
+    }
     const row = parseStructuredRowFields(fields, cells, line.number, lines, state, rowDepth + 1, delimiter, options)
     if (state.cellIndex !== cells.length) {
       throw toonError(line.number, 'array row length mismatch')
@@ -643,13 +657,19 @@ function parseStructuredField(field, remainingFields, cells, line, lines, state,
     const cellsAfterChildCount = cells.length - state.cellIndex - 1
     const childLine = lines[state.nextIndex]
     const hasChildRows = childLine !== undefined && childLine.depth === childDepth
-    const mustBeChildTable =
-      count !== undefined &&
-      (hasChildRows ||
-        (cells.length !== state.flatWidth &&
-          cellsAfterChildCount < flatWidth + minimumRowWidth(remainingFields)))
+    const knownChildTable =
+      state.childTableFields === undefined ? undefined : state.childTableFields.has(field)
+    const mustBeChildTable = knownChildTable === undefined
+      ? count !== undefined &&
+        (hasChildRows ||
+          (cells.length !== state.flatWidth &&
+            cellsAfterChildCount < flatWidth + minimumRowWidth(remainingFields)))
+      : knownChildTable
 
     if (mustBeChildTable) {
+      if (count === undefined) {
+        throw toonError(line, 'array row length mismatch')
+      }
       state.cellIndex += 1
       return parseStructuredRows(
         count,
@@ -672,6 +692,176 @@ function parseStructuredField(field, remainingFields, cells, line, lines, state,
   }
   state.cellIndex += 1
   return parseTabularCell(field, cell, line)
+}
+
+function inferChildTableFields(len, fields, delimiter, lines, startIndex, rowDepth, options) {
+  const candidates = fields.filter((field) => field.children !== undefined)
+  if (candidates.length === 0) {
+    return new Set()
+  }
+  if (candidates.length > 12) {
+    return undefined
+  }
+
+  let best
+  const combinations = 1 << candidates.length
+  for (let mask = 0; mask < combinations; mask += 1) {
+    const childTableFields = new Set()
+    candidates.forEach((field, index) => {
+      if ((mask & (1 << index)) !== 0) {
+        childTableFields.add(field)
+      }
+    })
+    const result = validateStructuredRowsWithKind(
+      len,
+      fields,
+      childTableFields,
+      delimiter,
+      lines,
+      startIndex,
+      rowDepth,
+      options,
+    )
+    if (result === undefined) {
+      continue
+    }
+    if (
+      best === undefined ||
+      result.consumedChildRows > best.consumedChildRows ||
+      (result.consumedChildRows === best.consumedChildRows && childTableFields.size < best.childTableFields.size)
+    ) {
+      best = { childTableFields, consumedChildRows: result.consumedChildRows }
+    }
+  }
+
+  return best?.childTableFields
+}
+
+function validateStructuredRowsWithKind(
+  len,
+  fields,
+  childTableFields,
+  delimiter,
+  lines,
+  startIndex,
+  rowDepth,
+  options,
+) {
+  let index = startIndex
+  let consumedChildRows = 0
+
+  try {
+    for (let row = 0; row < len; row += 1) {
+      const line = lines[index]
+      if (
+        line === undefined ||
+        line.depth !== rowDepth ||
+        (line.blankBefore && options.strict) ||
+        !isTabularRow(line.content, delimiter, line.number)
+      ) {
+        return undefined
+      }
+
+      const cells = splitDelimited(line.content, delimiter, line.number)
+      const result = validateStructuredRowWithKind(
+        fields,
+        childTableFields,
+        cells,
+        delimiter,
+        lines,
+        index + 1,
+        rowDepth + 1,
+        options,
+      )
+      if (result === undefined) {
+        return undefined
+      }
+      if (lines[result.nextIndex]?.depth > rowDepth) {
+        return undefined
+      }
+      consumedChildRows += result.consumedChildRows
+      index = result.nextIndex
+    }
+
+    const next = lines[index]
+    if (next !== undefined && next.depth >= rowDepth && isTabularRow(next.content, delimiter, next.number)) {
+      return undefined
+    }
+  } catch {
+    return undefined
+  }
+
+  return { nextIndex: index, consumedChildRows }
+}
+
+function validateStructuredRowWithKind(
+  fields,
+  childTableFields,
+  cells,
+  delimiter,
+  lines,
+  startIndex,
+  childDepth,
+  options,
+) {
+  let cellIndex = 0
+  let nextIndex = startIndex
+  let consumedChildRows = 0
+
+  for (const field of fields) {
+    if (field.fixedLength !== undefined) {
+      cellIndex += field.fixedLength
+    } else if (field.children !== undefined) {
+      if (childTableFields.has(field)) {
+        const count = parseChildCount(cells[cellIndex])
+        if (count === undefined) {
+          return undefined
+        }
+        cellIndex += 1
+        const nestedChildTableFields = inferChildTableFields(
+          count,
+          field.children,
+          delimiter,
+          lines,
+          nextIndex,
+          childDepth,
+          options,
+        )
+        if (nestedChildTableFields === undefined) {
+          return undefined
+        }
+        const result = validateStructuredRowsWithKind(
+          count,
+          field.children,
+          nestedChildTableFields,
+          delimiter,
+          lines,
+          nextIndex,
+          childDepth,
+          options,
+        )
+        if (result === undefined) {
+          return undefined
+        }
+        nextIndex = result.nextIndex
+        consumedChildRows += count + result.consumedChildRows
+      } else {
+        cellIndex += leafWidth(field.children)
+      }
+    } else {
+      cellIndex += 1
+    }
+
+    if (cellIndex > cells.length) {
+      return undefined
+    }
+  }
+
+  if (cellIndex !== cells.length) {
+    return undefined
+  }
+
+  return { nextIndex, consumedChildRows }
 }
 
 function matrixRowValue(fields, row, root) {
