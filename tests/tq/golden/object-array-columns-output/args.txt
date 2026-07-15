@@ -1,0 +1,1 @@
+-p json -o toon --object-array-columns --delimiter pipe .
