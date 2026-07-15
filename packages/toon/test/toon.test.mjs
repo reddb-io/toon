@@ -13,6 +13,18 @@ function caught(fn) {
   return assert.fail('expected a throw')
 }
 
+function deeplyNestedToon(depth) {
+  return Array.from({ length: depth + 1 }, (_, index) => `${'  '.repeat(index)}k${index}:`).join('\n') + '\n'
+}
+
+function deeplyNestedObject(depth) {
+  let value = 'leaf'
+  for (let index = depth; index >= 0; index -= 1) {
+    value = { [`k${index}`]: value }
+  }
+  return value
+}
+
 test('parses flat fields and serializes canonical TOON', () => {
   const document = parse('name : Ada\nactive: true\ncount: 3\n')
 
@@ -163,6 +175,39 @@ test('errors carry the offending line', () => {
   assert.equal(error.line, 2)
   assert.equal(error.reason, 'invalid indentation')
   assert.match(error.message, /line 2: invalid indentation/)
+})
+
+test('decode enforces maxDepth and supports an explicit opt-out', () => {
+  assert.deepEqual(parse('a:\n  b:\n    c: 1\n', { maxDepth: 2 }), { a: { b: { c: 1 } } })
+
+  const custom = caught(() => parse('a:\n  b:\n    c: 1\n', { maxDepth: 1 }))
+  assert.ok(custom instanceof ToonError)
+  assert.equal(custom.line, 3)
+  assert.equal(custom.reason, 'maximum nesting depth exceeded (maxDepth 1)')
+
+  assert.throws(
+    () => parse('rows[1]{a{b{c}}}:\n  1\n', { maxDepth: 2 }),
+    /maximum nesting depth exceeded \(maxDepth 2\)/,
+  )
+
+  const hostile = caught(() => parse(deeplyNestedToon(1001)))
+  assert.ok(hostile instanceof ToonError)
+  assert.equal(hostile.line, 1002)
+  assert.match(hostile.message, /maxDepth 1000/)
+
+  assert.doesNotThrow(() => parse(deeplyNestedToon(1001), { maxDepth: 0 }))
+})
+
+test('serialize enforces maxDepth and supports an explicit opt-out', () => {
+  assert.throws(
+    () => serialize(deeplyNestedObject(1001)),
+    (error) =>
+      error instanceof ToonError &&
+      error.line === 0 &&
+      error.reason === 'maximum nesting depth exceeded (maxDepth 1000)',
+  )
+
+  assert.doesNotThrow(() => serialize(deeplyNestedObject(1001), { maxDepth: 0 }))
 })
 
 test('rejects array length mismatches', () => {

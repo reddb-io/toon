@@ -1,16 +1,17 @@
-use reddb_io_toon::{EncodeOptions, Value};
+use reddb_io_toon::{EncodeOptions, ParseOptions, Value};
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
 const JSON_LIMITS_FIXTURE: &str = "../../tests/json-limits/corpus.json";
-const EXPECTED_CASE_COUNT: usize = 26;
-const REQUIRED_CATEGORIES: [&str; 5] = [
+const EXPECTED_CASE_COUNT: usize = 28;
+const REQUIRED_CATEGORIES: [&str; 6] = [
     "numbers",
     "strings-unicode",
     "structure",
     "toon-decode",
+    "toon-depth",
     "adversarial-round-trip",
 ];
 
@@ -45,7 +46,18 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
             .expect("Rust expectation");
 
         if let Some(raw_toon) = test.get("rawToon").and_then(Json::as_str) {
-            let actual_round_trip = Value::parse_toon(raw_toon)
+            let parse_options = parse_options(test.get("parseOptions"));
+            if let Some(expected_error) = expected.get("error").and_then(Json::as_str) {
+                let actual = Value::parse_with_options(raw_toon, parse_options)
+                    .expect_err("case must reject");
+                assert!(
+                    actual.to_string().contains(expected_error),
+                    "{name}: expected TOON decode error containing {expected_error:?}, got {actual}"
+                );
+                continue;
+            }
+
+            let actual_round_trip = Value::parse_with_options(raw_toon, parse_options)
                 .unwrap_or_else(|err| panic!("{name}: TOON parse: {err}"))
                 .to_json_value();
             let expected_round_trip: Json = serde_json::from_str(
@@ -92,6 +104,7 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
             let nested_toon = value.to_toon_with_options(EncodeOptions {
                 nested_tabular_headers: true,
                 keyed_map_collapse: false,
+                ..EncodeOptions::default()
             });
             assert_eq!(nested_toon, expected_nested, "{name}: nested-header TOON");
 
@@ -146,4 +159,18 @@ fn read_fixture(path: &PathBuf) -> Json {
     let json =
         fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     serde_json::from_str(&json).unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
+}
+
+fn parse_options(options: Option<&Json>) -> ParseOptions {
+    let defaults = ParseOptions::default();
+    let Some(options) = options.and_then(Json::as_object) else {
+        return defaults;
+    };
+    ParseOptions {
+        max_depth: options
+            .get("maxDepth")
+            .and_then(Json::as_u64)
+            .map_or(defaults.max_depth, |value| value as usize),
+        ..defaults
+    }
 }

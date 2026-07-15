@@ -23,13 +23,17 @@ import {
 
 /** Spaces per indentation level unless `options.indent` says otherwise. */
 export const DEFAULT_INDENT = 2
+export const DEFAULT_MAX_DEPTH = 1000
 
 function resolveOptions(options = {}) {
+  const rawMaxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
+  const maxDepth = rawMaxDepth === Number.POSITIVE_INFINITY ? 0 : Math.max(0, Math.floor(rawMaxDepth))
   return {
     indent: Math.max(1, options.indent ?? DEFAULT_INDENT),
     strict: options.strict ?? true,
     // The spec spells this `expandPaths: "safe"`; a boolean is accepted too.
     expandPaths: options.expandPaths === 'safe' || options.expandPaths === true,
+    maxDepth,
   }
 }
 
@@ -56,9 +60,12 @@ function collectLines(input, options) {
       throw toonError(number, 'invalid indentation')
     }
 
+    const depth = Math.floor(spaces / options.indent)
+    checkDepth(depth, number, options)
+
     lines.push({
       number,
-      depth: Math.floor(spaces / options.indent),
+      depth,
       content: rawLine.slice(spaces),
       blankBefore,
     })
@@ -66,6 +73,44 @@ function collectLines(input, options) {
   })
 
   return lines
+}
+
+function checkDepth(depth, line, options) {
+  if (options.maxDepth !== 0 && depth > options.maxDepth) {
+    throw toonError(line, `maximum nesting depth exceeded (maxDepth ${options.maxDepth})`)
+  }
+}
+
+function checkHeaderDepth(header, line, options) {
+  if (options.maxDepth === 0) {
+    return
+  }
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (const character of header) {
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (inString && character === '\\') {
+      escaped = true
+      continue
+    }
+    if (character === '"') {
+      inString = !inString
+      continue
+    }
+    if (inString) {
+      continue
+    }
+    if (character === '{') {
+      depth += 1
+      checkDepth(depth, line, options)
+    } else if (character === '}') {
+      depth = Math.max(0, depth - 1)
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +135,7 @@ export function parse(input, options) {
   }
 
   if (first.content.startsWith('[')) {
+    checkHeaderDepth(first.content, first.number, resolved)
     let header
     try {
       header = parseHeader(first.content, findUnquoted(first.content, ':', first.number))
@@ -159,6 +205,7 @@ function parseField(lines, cursor, depth, options) {
   const arrayOpen = findUnquoted(keyPart, '[', line.number)
   const mapOpen = findUnquoted(keyPart, '{', line.number)
   if (mapOpen !== -1 && (arrayOpen === -1 || mapOpen < arrayOpen)) {
+    checkHeaderDepth(keyPart, line.number, options)
     let header
     try {
       header = parseMapHeader(keyPart)
@@ -179,6 +226,7 @@ function parseField(lines, cursor, depth, options) {
   }
 
   if (arrayOpen !== -1) {
+    checkHeaderDepth(keyPart, line.number, options)
     let header
     try {
       header = parseHeader(keyPart, colon)
@@ -415,6 +463,7 @@ function parseListItem(lines, cursor, itemDepth, options) {
   // `- [M]: …`: a nested array whose body sits one level under the hyphen (§9.4).
   if (inner.startsWith('[')) {
     const colon = findUnquoted(inner, ':', line.number)
+    checkHeaderDepth(inner, line.number, options)
     let header
     try {
       header = parseHeader(inner, colon)
@@ -684,6 +733,8 @@ function insertField(document, key, quoted, value, options, line) {
 }
 
 function insertPath(document, segments, value, options, line) {
+  checkDepth(segments.length - 1, line, options)
+
   const key = segments[0]
   const exists = Object.prototype.hasOwnProperty.call(document, key)
 
@@ -722,9 +773,11 @@ export function isPlainObject(value) {
 
 /** Encodes a JSON value as canonical TOON (default profile). */
 export function serialize(value, options = {}) {
+  const rawMaxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
   const resolved = {
     nestedTabularHeaders: options.nestedTabularHeaders === true,
     keyedMapCollapse: options.keyedMapCollapse === true,
+    maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY ? 0 : Math.max(0, Math.floor(rawMaxDepth)),
   }
   const output = []
   if (Array.isArray(value)) {
@@ -742,6 +795,7 @@ function writeIndent(output, depth) {
 }
 
 function writeFields(output, document, depth, options) {
+  checkDepth(depth, 0, options)
   for (const [key, value] of Object.entries(document)) {
     writeIndent(output, depth)
     writeField(output, key, value, depth, options)
@@ -750,12 +804,13 @@ function writeFields(output, document, depth, options) {
 
 /** Writes `key: value` at the caller's cursor (indent or `- ` already emitted). */
 function writeField(output, key, value, depth, options) {
+  checkDepth(depth, 0, options)
   if (Array.isArray(value)) {
     writeArray(output, key, value, depth, false, options)
     return
   }
   if (isPlainObject(value)) {
-    const shape = options.keyedMapCollapse ? keyedMapShape(value, options) : undefined
+    const shape = options.keyedMapCollapse ? keyedMapShape(value, options, depth + 1) : undefined
     if (shape !== undefined) {
       output.push(canonicalKey(key), '{', shape.fields.map(headerFieldText).join(DOCUMENT_DELIMITER), '}:\n')
       for (const [rowKey, rowValue] of Object.entries(value)) {
@@ -783,6 +838,7 @@ function writeField(output, key, value, depth, options) {
  * `[0]:` inside a list (§9.2) versus `key: []` / `[]` elsewhere (§9.1).
  */
 function writeArray(output, key, values, depth, listItem, options) {
+  checkDepth(depth, 0, options)
   if (values.length === 0) {
     if (key !== undefined) {
       output.push(canonicalKey(key), ': []\n')
@@ -804,7 +860,7 @@ function writeArray(output, key, values, depth, listItem, options) {
 
   // In list-item position the tabular form has nowhere to put its field list, so
   // §9.4 requires the expanded list even for a uniform array of objects.
-  const shape = listItem ? undefined : tabularShape(values, options)
+  const shape = listItem ? undefined : tabularShape(values, options, depth + 1)
   if (shape !== undefined) {
     writeArrayHeader(output, key, values.length, shape.fields)
     output.push('\n')
@@ -829,6 +885,7 @@ function writeArray(output, key, values, depth, listItem, options) {
 }
 
 function writeListItem(output, value, depth, options) {
+  checkDepth(depth, 0, options)
   if (Array.isArray(value)) {
     output.push('- ')
     writeArray(output, undefined, value, depth, true, options)
@@ -867,24 +924,25 @@ function writeArrayHeader(output, key, len, fields) {
  * first element's key set, and every value is primitive.
  */
 export function tabularFields(values) {
-  const shape = tabularShape(values, { nestedTabularHeaders: false })
+  const shape = tabularShape(values, { nestedTabularHeaders: false, maxDepth: DEFAULT_MAX_DEPTH }, 1)
   return shape?.fields.map((field) => field.key)
 }
 
-function tabularShape(values, options) {
-  const shape = objectShape(values.map((value) => ({ value })), options)
+function tabularShape(values, options, depth) {
+  const shape = objectShape(values.map((value) => ({ value })), options, depth)
   return shape === undefined ? undefined : { fields: shape, paths: leafPaths(shape) }
 }
 
-function keyedMapShape(document, options) {
+function keyedMapShape(document, options, depth) {
   const values = Object.values(document)
   if (values.length < 2) {
     return undefined
   }
-  return tabularShape(values, options)
+  return tabularShape(values, options, depth)
 }
 
-function objectShape(records, options) {
+function objectShape(records, options, depth) {
+  checkDepth(depth, 0, options)
   const first = records[0]?.value
   if (!isPlainObject(first)) {
     return undefined
@@ -916,7 +974,7 @@ function objectShape(records, options) {
     if (!options.nestedTabularHeaders) {
       return undefined
     }
-    const children = objectShape(cells, options)
+    const children = objectShape(cells, options, depth + 1)
     if (children === undefined) {
       return undefined
     }

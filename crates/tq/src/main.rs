@@ -1853,10 +1853,15 @@ fn format_values(values: &[Value], options: &Options) -> Result<String, String> 
                 output.push('\n');
             }
             Format::Toon => {
-                output.push_str(&value.to_toon_with_options(EncodeOptions {
-                    nested_tabular_headers: options.nested_tabular_headers,
-                    keyed_map_collapse: options.keyed_map_collapse,
-                }));
+                output.push_str(
+                    &value
+                        .try_to_toon_with_options(EncodeOptions {
+                            nested_tabular_headers: options.nested_tabular_headers,
+                            keyed_map_collapse: options.keyed_map_collapse,
+                            ..EncodeOptions::default()
+                        })
+                        .map_err(|error| error.to_string())?,
+                );
                 if !output.ends_with('\n') {
                     output.push('\n');
                 }

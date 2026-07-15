@@ -5,7 +5,7 @@ use std::io::{self, Read, Write};
 
 use reddb_io_toon::{
     close_transform_stream, close_transform_stream_interleaved, encode_toonl_values,
-    jsonl_to_toonl, toonl_to_jsonl, Array, Document, ParseOptions, ToonlCursor,
+    jsonl_to_toonl, toonl_to_jsonl, Array, Document, EncodeOptions, ParseOptions, ToonlCursor,
     ToonlCursorInvalidation, ToonlEncoder, ToonlReader, ToonlResumeError, ToonlStream, ToonlWriter,
     Value,
 };
@@ -27,6 +27,23 @@ fn json_of(input: &str) -> serde_json::Value {
 
 fn lines(input: &[u8]) -> std::io::Cursor<&[u8]> {
     std::io::Cursor::new(input)
+}
+
+fn deeply_nested_toon(depth: usize) -> String {
+    let mut input = String::new();
+    for index in 0..=depth {
+        input.push_str(&"  ".repeat(index));
+        input.push_str(&format!("k{index}:\n"));
+    }
+    input
+}
+
+fn deeply_nested_value(depth: usize) -> Value {
+    let mut value = Value::String("leaf".to_owned());
+    for index in (0..=depth).rev() {
+        value = Value::from_json_value(json!({ format!("k{index}"): value.to_json_value() }));
+    }
+    value
 }
 
 /// A reader that always fails, so read-error propagation paths can be
@@ -146,6 +163,78 @@ fn path_expansion_splits_dotted_keys_and_deep_merges_them() {
         value.to_json_value(),
         json!({"a": {"b": {"c": 1, "d": 2}, "e": 3}})
     );
+}
+
+#[test]
+fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
+    let options = ParseOptions {
+        max_depth: 2,
+        ..ParseOptions::default()
+    };
+    let value = Value::parse_with_options("a:\n  b:\n    c: 1\n", options).expect("at limit");
+    assert_eq!(value.to_json_value(), json!({"a": {"b": {"c": 1}}}));
+
+    let error = Value::parse_with_options(
+        "a:\n  b:\n    c: 1\n",
+        ParseOptions {
+            max_depth: 1,
+            ..ParseOptions::default()
+        },
+    )
+    .expect_err("over custom limit");
+    assert_eq!(
+        error.to_string(),
+        "line 3: maximum nesting depth exceeded (maxDepth 1)"
+    );
+
+    let header_error = Value::parse_with_options(
+        "rows[1]{a{b{c}}}:\n  1\n",
+        ParseOptions {
+            max_depth: 2,
+            ..ParseOptions::default()
+        },
+    )
+    .expect_err("header nesting is guarded too");
+    assert_eq!(
+        header_error.to_string(),
+        "line 1: maximum nesting depth exceeded (maxDepth 2)"
+    );
+
+    let hostile = deeply_nested_toon(1001);
+    let error = Value::parse_toon(&hostile).expect_err("over default limit");
+    assert_eq!(error.line(), 1002);
+    assert!(
+        error.to_string().contains("maxDepth 1000"),
+        "depth limit appears in {error}"
+    );
+
+    Value::parse_with_options(
+        "a:\n  b:\n    c: 1\n",
+        ParseOptions {
+            max_depth: 0,
+            ..ParseOptions::default()
+        },
+    )
+    .expect("maxDepth 0 disables the guard");
+}
+
+#[test]
+fn encode_enforces_max_depth_and_supports_an_explicit_opt_out() {
+    let value = deeply_nested_value(1001);
+    let error = value
+        .try_to_canonical_toon()
+        .expect_err("over default encode limit");
+    assert_eq!(
+        error.to_string(),
+        "maximum nesting depth exceeded (maxDepth 1000)"
+    );
+
+    value
+        .try_to_toon_with_options(EncodeOptions {
+            max_depth: 0,
+            ..EncodeOptions::default()
+        })
+        .expect("maxDepth 0 disables the guard");
 }
 
 #[test]

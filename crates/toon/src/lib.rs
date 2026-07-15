@@ -12,6 +12,12 @@ use std::io::{BufRead, Write};
 /// Spaces per indentation level unless [`ParseOptions::indent`] says otherwise.
 pub const DEFAULT_INDENT: usize = 2;
 
+/// Default maximum nesting depth for decoding and fallible encoding.
+///
+/// A value of `0` in [`ParseOptions::max_depth`] or [`EncodeOptions::max_depth`]
+/// disables the guard for trusted input.
+pub const DEFAULT_MAX_DEPTH: usize = 1000;
+
 /// The document delimiter used by the encoder (spec §11.1, default profile).
 const DOCUMENT_DELIMITER: char = ',';
 const TOONL_TAGGED_LANE_LIMIT: usize = 8;
@@ -25,6 +31,8 @@ pub struct ParseOptions {
     pub strict: bool,
     /// Expand dotted keys into nested objects (spec §13.4, `expandPaths: "safe"`).
     pub expand_paths: bool,
+    /// Maximum nesting depth. `0` disables the guard for trusted input.
+    pub max_depth: usize,
 }
 
 impl Default for ParseOptions {
@@ -33,17 +41,30 @@ impl Default for ParseOptions {
             indent: DEFAULT_INDENT,
             strict: true,
             expand_paths: false,
+            max_depth: DEFAULT_MAX_DEPTH,
         }
     }
 }
 
 /// Encoder options. Defaults preserve the canonical v3 output profile.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EncodeOptions {
     /// Emit recursive-brace tabular headers for uniform nested object fields.
     pub nested_tabular_headers: bool,
     /// Emit brace-header tabular rows for keyed maps with uniform object values.
     pub keyed_map_collapse: bool,
+    /// Maximum nesting depth for fallible encoding. `0` disables the guard.
+    pub max_depth: usize,
+}
+
+impl Default for EncodeOptions {
+    fn default() -> Self {
+        Self {
+            nested_tabular_headers: false,
+            keyed_map_collapse: false,
+            max_depth: DEFAULT_MAX_DEPTH,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -61,6 +82,13 @@ pub struct Field {
 pub struct ParseError {
     line: usize,
     message: &'static str,
+    max_depth: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncodeError {
+    message: &'static str,
+    max_depth: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -267,6 +295,7 @@ impl Document {
             _ => Err(ParseError {
                 line: 1,
                 message: "expected `key: value`",
+                max_depth: None,
             }),
         }
     }
@@ -291,9 +320,18 @@ impl Document {
     }
 
     pub fn to_toon_with_options(&self, options: EncodeOptions) -> String {
+        self.try_to_toon_with_options(options)
+            .expect("TOON encoding failed")
+    }
+
+    pub fn try_to_canonical_toon(&self) -> Result<String, EncodeError> {
+        self.try_to_toon_with_options(EncodeOptions::default())
+    }
+
+    pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
         let mut output = String::new();
-        self.write_fields(&mut output, 0, options);
-        output
+        self.write_fields(&mut output, 0, options)?;
+        Ok(output)
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
@@ -304,11 +342,18 @@ impl Document {
         serde_json::Value::Object(map)
     }
 
-    fn write_fields(&self, output: &mut String, depth: usize, options: EncodeOptions) {
+    fn write_fields(
+        &self,
+        output: &mut String,
+        depth: usize,
+        options: EncodeOptions,
+    ) -> Result<(), EncodeError> {
+        check_encode_depth(depth, options)?;
         for field in &self.fields {
             write_indent(output, depth);
-            write_field(output, &field.key, &field.value, depth, options);
+            write_field(output, &field.key, &field.value, depth, options)?;
         }
+        Ok(())
     }
 }
 
@@ -324,11 +369,33 @@ impl ParseError {
 
 impl fmt::Display for ParseError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "line {}: {}", self.line, self.message)
+        write!(formatter, "line {}: {}", self.line, self.message)?;
+        if let Some(max_depth) = self.max_depth {
+            write!(formatter, " (maxDepth {max_depth})")?;
+        }
+        Ok(())
     }
 }
 
 impl std::error::Error for ParseError {}
+
+impl EncodeError {
+    pub fn message(&self) -> &'static str {
+        self.message
+    }
+}
+
+impl fmt::Display for EncodeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", self.message)?;
+        if let Some(max_depth) = self.max_depth {
+            write!(formatter, " (maxDepth {max_depth})")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for EncodeError {}
 
 impl Value {
     pub fn parse_toon(input: &str) -> Result<Self, ParseError> {
@@ -349,6 +416,7 @@ impl Value {
             return Err(ParseError {
                 line: first.number,
                 message: "invalid indentation",
+                max_depth: None,
             });
         }
 
@@ -358,6 +426,7 @@ impl Value {
         }
 
         if first.content.starts_with('[') {
+            check_header_depth(first.content, first.number, &options)?;
             match parse_header(
                 first.content,
                 find_unquoted(first.content, ':', first.number)?,
@@ -378,6 +447,7 @@ impl Value {
             return Err(ParseError {
                 line: line.number,
                 message: "expected end of document",
+                max_depth: None,
             });
         }
         Ok(Self::Object(document))
@@ -414,15 +484,24 @@ impl Value {
     }
 
     pub fn to_toon_with_options(&self, options: EncodeOptions) -> String {
+        self.try_to_toon_with_options(options)
+            .expect("TOON encoding failed")
+    }
+
+    pub fn try_to_canonical_toon(&self) -> Result<String, EncodeError> {
+        self.try_to_toon_with_options(EncodeOptions::default())
+    }
+
+    pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
         let mut output = String::new();
         match self {
             Self::Array(array) => {
-                write_array(&mut output, None, &array.values(), 0, false, options)
+                write_array(&mut output, None, &array.values(), 0, false, options)?
             }
-            Self::Object(document) => document.write_fields(&mut output, 0, options),
+            Self::Object(document) => document.write_fields(&mut output, 0, options)?,
             value => output.push_str(&primitive_text(value, DOCUMENT_DELIMITER)),
         }
-        output
+        Ok(output)
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
@@ -1525,9 +1604,18 @@ impl Array {
     }
 
     pub fn to_toon_with_options(&self, options: EncodeOptions) -> String {
+        self.try_to_toon_with_options(options)
+            .expect("TOON encoding failed")
+    }
+
+    pub fn try_to_canonical_toon(&self) -> Result<String, EncodeError> {
+        self.try_to_toon_with_options(EncodeOptions::default())
+    }
+
+    pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
         let mut output = String::new();
-        write_array(&mut output, None, &self.values(), 0, false, options);
-        output
+        write_array(&mut output, None, &self.values(), 0, false, options)?;
+        Ok(output)
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
@@ -1601,18 +1689,23 @@ fn collect_lines<'a>(input: &'a str, options: &ParseOptions) -> Result<Vec<Line<
             return Err(ParseError {
                 line: number,
                 message: "invalid indentation",
+                max_depth: None,
             });
         }
         if options.strict && spaces % options.indent != 0 {
             return Err(ParseError {
                 line: number,
                 message: "invalid indentation",
+                max_depth: None,
             });
         }
 
+        let depth = spaces / options.indent;
+        check_parse_depth(depth, number, options)?;
+
         lines.push(Line {
             number,
-            depth: spaces / options.indent,
+            depth,
             content: &raw_line[spaces..],
             blank_before,
         });
@@ -1620,6 +1713,44 @@ fn collect_lines<'a>(input: &'a str, options: &ParseOptions) -> Result<Vec<Line<
     }
 
     Ok(lines)
+}
+
+fn check_parse_depth(depth: usize, line: usize, options: &ParseOptions) -> Result<(), ParseError> {
+    if options.max_depth != 0 && depth > options.max_depth {
+        return Err(ParseError {
+            line,
+            message: "maximum nesting depth exceeded",
+            max_depth: Some(options.max_depth),
+        });
+    }
+    Ok(())
+}
+
+fn check_header_depth(header: &str, line: usize, options: &ParseOptions) -> Result<(), ParseError> {
+    if options.max_depth == 0 {
+        return Ok(());
+    }
+
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for character in header.chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match character {
+            '\\' if in_string => escaped = true,
+            '"' => in_string = !in_string,
+            '{' if !in_string => {
+                depth += 1;
+                check_parse_depth(depth, line, options)?;
+            }
+            '}' if !in_string => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -1642,6 +1773,7 @@ fn parse_object(
             return Err(ParseError {
                 line: line.number,
                 message: "invalid indentation",
+                max_depth: None,
             });
         }
 
@@ -1664,6 +1796,7 @@ fn parse_field(
     let colon = find_unquoted(content, ':', line.number)?.ok_or(ParseError {
         line: line.number,
         message: "expected `key: value`",
+        max_depth: None,
     })?;
     let key_part = &content[..colon];
     let value_part = &content[colon + 1..];
@@ -1671,12 +1804,14 @@ fn parse_field(
     let array_open = find_unquoted(key_part, '[', line.number)?;
     let map_open = find_unquoted(key_part, '{', line.number)?;
     if map_open.is_some_and(|open| array_open.map_or(true, |array_open| open < array_open)) {
+        check_header_depth(key_part, line.number, options)?;
         match parse_map_header(key_part) {
             Ok(header) => {
                 if !value_part.trim().is_empty() {
                     return Err(ParseError {
                         line: line.number,
                         message: "expected keyed map rows",
+                        max_depth: None,
                     });
                 }
                 let key = header.key.clone();
@@ -1694,12 +1829,14 @@ fn parse_field(
     }
 
     if array_open.is_some() {
+        check_header_depth(key_part, line.number, options)?;
         match parse_header(key_part, Some(colon)) {
             Ok(header) => {
                 if header.key.is_empty() && !header.key_quoted {
                     return Err(ParseError {
                         line: line.number,
                         message: "expected non-empty field name",
+                        max_depth: None,
                     });
                 }
                 let key = header.key.clone();
@@ -1723,6 +1860,7 @@ fn parse_field(
         return Err(ParseError {
             line: line.number,
             message: "expected non-empty field name",
+            max_depth: None,
         });
     }
     *index += 1;
@@ -1777,24 +1915,28 @@ fn parse_keyed_map_rows(
             return Err(ParseError {
                 line: line.number,
                 message: "invalid indentation",
+                max_depth: None,
             });
         }
         if line.blank_before && options.strict {
             return Err(ParseError {
                 line: line.number,
                 message: "blank line inside keyed map",
+                max_depth: None,
             });
         }
 
         let colon = find_unquoted(line.content, ':', line.number)?.ok_or(ParseError {
             line: line.number,
             message: "expected `key: value`",
+            max_depth: None,
         })?;
         let (key, quoted) = parse_key(&line.content[..colon], line.number)?;
         if key.is_empty() && !quoted {
             return Err(ParseError {
                 line: line.number,
                 message: "expected non-empty field name",
+                max_depth: None,
             });
         }
         let cells = split_delimited(
@@ -1806,6 +1948,7 @@ fn parse_keyed_map_rows(
             return Err(ParseError {
                 line: line.number,
                 message: "keyed map row length mismatch",
+                max_depth: None,
             });
         }
 
@@ -1842,6 +1985,7 @@ fn parse_root_array(
     let colon = find_unquoted(first.content, ':', first.number)?.ok_or(ParseError {
         line: first.number,
         message: "expected `key: value`",
+        max_depth: None,
     })?;
     let value_part = &first.content[colon + 1..];
     let mut index = 0;
@@ -1850,6 +1994,7 @@ fn parse_root_array(
         return Err(ParseError {
             line: line.number,
             message: "expected end of document",
+            max_depth: None,
         });
     }
     Ok(value)
@@ -1873,6 +2018,7 @@ fn parse_array_field(
             return Err(ParseError {
                 line: header_line,
                 message: "expected tabular rows",
+                max_depth: None,
             });
         }
         return parse_tabular_rows(header, fields, lines, index, header_depth + 1, options);
@@ -1887,6 +2033,7 @@ fn parse_array_field(
             return Err(ParseError {
                 line: header_line,
                 message: "array length mismatch",
+                max_depth: None,
             });
         }
         return Ok(Value::Array(Array::List(values)));
@@ -1916,12 +2063,14 @@ fn parse_tabular_rows(
             return Err(ParseError {
                 line: line.number,
                 message: "invalid indentation",
+                max_depth: None,
             });
         }
         if line.blank_before && options.strict {
             return Err(ParseError {
                 line: line.number,
                 message: "blank line inside array",
+                max_depth: None,
             });
         }
         if !is_tabular_row(line.content, header.delimiter, line.number)? {
@@ -1933,6 +2082,7 @@ fn parse_tabular_rows(
             return Err(ParseError {
                 line: line.number,
                 message: "array row length mismatch",
+                max_depth: None,
             });
         }
         rows.push(
@@ -1952,6 +2102,7 @@ fn parse_tabular_rows(
             return Err(ParseError {
                 line: line.number,
                 message: "array length mismatch",
+                max_depth: None,
             });
         }
     }
@@ -1994,12 +2145,14 @@ fn parse_list_items(
             return Err(ParseError {
                 line: line.number,
                 message: "invalid indentation",
+                max_depth: None,
             });
         }
         if line.blank_before && options.strict {
             return Err(ParseError {
                 line: line.number,
                 message: "blank line inside array",
+                max_depth: None,
             });
         }
         values.push(parse_list_item(lines, index, item_depth, options)?);
@@ -2010,6 +2163,7 @@ fn parse_list_items(
             return Err(ParseError {
                 line: line.number,
                 message: "array length mismatch",
+                max_depth: None,
             });
         }
     }
@@ -2028,6 +2182,7 @@ fn parse_list_item(
         return Err(ParseError {
             line: line.number,
             message: "expected array item",
+            max_depth: None,
         });
     };
     let inner = rest.trim_start();
@@ -2041,6 +2196,7 @@ fn parse_list_item(
     // `- [M]: …`: a nested array whose body sits one level under the hyphen (§9.4).
     if inner.starts_with('[') {
         let colon = find_unquoted(inner, ':', line.number)?;
+        check_header_depth(inner, line.number, options)?;
         if let Ok(header) = parse_header(inner, colon) {
             let colon = colon.expect("a parsed header ends at its colon");
             let value_part = inner[colon + 1..].to_owned();
@@ -2087,6 +2243,7 @@ fn length_mismatch(lines: &[Line<'_>], index: usize) -> ParseError {
     ParseError {
         line,
         message: "array length mismatch",
+        max_depth: None,
     }
 }
 
@@ -2102,6 +2259,7 @@ impl HeaderError {
         ParseError {
             line,
             message: self.0,
+            max_depth: None,
         }
     }
 }
@@ -2669,6 +2827,8 @@ fn insert_path(
     options: &ParseOptions,
     line: usize,
 ) -> Result<(), ParseError> {
+    check_parse_depth(segments.len().saturating_sub(1), line, options)?;
+
     let key = segments[0];
     let existing = document.fields.iter().position(|field| field.key == key);
 
@@ -2677,6 +2837,7 @@ fn insert_path(
             Some(_) if options.strict => Err(ParseError {
                 line,
                 message: "duplicate key",
+                max_depth: None,
             }),
             // Last write wins in non-strict mode (§14.3, §14.4).
             Some(position) => {
@@ -2699,6 +2860,7 @@ fn insert_path(
                         return Err(ParseError {
                             line,
                             message: "path expansion conflict",
+                            max_depth: None,
                         });
                     }
                     document.fields[position].value = Value::Object(Document::default());
@@ -2746,6 +2908,7 @@ fn parse_scalar(value: &str, line: usize) -> Result<Value, ParseError> {
         return Err(ParseError {
             line,
             message: "invalid quoted string",
+            max_depth: None,
         });
     }
 
@@ -2767,6 +2930,7 @@ fn parse_key(value: &str, line: usize) -> Result<(String, bool), ParseError> {
         return Err(ParseError {
             line,
             message: "expected non-empty field name",
+            max_depth: None,
         });
     }
     Ok((value.to_owned(), false))
@@ -2828,6 +2992,7 @@ fn invalid_quoted_string(line: usize) -> ParseError {
     ParseError {
         line,
         message: "invalid quoted string",
+        max_depth: None,
     }
 }
 
@@ -3009,6 +3174,16 @@ fn canonical_number(value: &str) -> String {
 // Encoding
 // ---------------------------------------------------------------------------
 
+fn check_encode_depth(depth: usize, options: EncodeOptions) -> Result<(), EncodeError> {
+    if options.max_depth != 0 && depth > options.max_depth {
+        return Err(EncodeError {
+            message: "maximum nesting depth exceeded",
+            max_depth: Some(options.max_depth),
+        });
+    }
+    Ok(())
+}
+
 fn write_indent(output: &mut String, depth: usize) {
     for _ in 0..depth * DEFAULT_INDENT {
         output.push(' ');
@@ -3022,19 +3197,20 @@ fn write_field(
     value: &Value,
     depth: usize,
     options: EncodeOptions,
-) {
+) -> Result<(), EncodeError> {
+    check_encode_depth(depth, options)?;
     match value {
         Value::Array(array) => {
-            write_array(output, Some(key), &array.values(), depth, false, options)
+            write_array(output, Some(key), &array.values(), depth, false, options)?;
         }
         Value::Object(document) => {
-            if let Some(shape) = keyed_map_shape(document, options) {
-                write_keyed_map(output, key, document, &shape, depth);
-                return;
+            if let Some(shape) = keyed_map_shape(document, options, depth + 1)? {
+                write_keyed_map(output, key, document, &shape, depth, options)?;
+                return Ok(());
             }
             output.push_str(&canonical_key(key));
             output.push_str(":\n");
-            document.write_fields(output, depth + 1, options);
+            document.write_fields(output, depth + 1, options)?;
         }
         value => {
             output.push_str(&canonical_key(key));
@@ -3043,6 +3219,7 @@ fn write_field(
             output.push('\n');
         }
     }
+    Ok(())
 }
 
 /// Writes an array header plus body. `list_item` selects the empty-array form:
@@ -3054,7 +3231,8 @@ fn write_array(
     depth: usize,
     list_item: bool,
     options: EncodeOptions,
-) {
+) -> Result<(), EncodeError> {
+    check_encode_depth(depth, options)?;
     if values.is_empty() {
         match key {
             Some(key) => {
@@ -3064,7 +3242,7 @@ fn write_array(
             None if list_item => output.push_str("[0]:\n"),
             None => output.push_str("[]\n"),
         }
-        return;
+        return Ok(());
     }
 
     if values.iter().all(Value::is_primitive) {
@@ -3076,12 +3254,16 @@ fn write_array(
             .collect::<Vec<_>>();
         output.push_str(&cells.join(&DOCUMENT_DELIMITER.to_string()));
         output.push('\n');
-        return;
+        return Ok(());
     }
 
     // In list-item position the tabular form has nowhere to put its field list,
     // so §9.4 requires the expanded list even for a uniform array of objects.
-    if let Some(shape) = tabular_shape(values, options).filter(|_| !list_item) {
+    if let Some(shape) = if list_item {
+        None
+    } else {
+        tabular_shape(values, options, depth + 1)?
+    } {
         write_array_header(output, key, values.len(), Some(&shape.fields));
         output.push('\n');
         for value in values {
@@ -3100,32 +3282,39 @@ fn write_array(
             output.push_str(&cells.join(&DOCUMENT_DELIMITER.to_string()));
             output.push('\n');
         }
-        return;
+        return Ok(());
     }
 
     write_array_header(output, key, values.len(), None);
     output.push('\n');
     for value in values {
         write_indent(output, depth + 1);
-        write_list_item(output, value, depth + 1, options);
+        write_list_item(output, value, depth + 1, options)?;
     }
+    Ok(())
 }
 
-fn write_list_item(output: &mut String, value: &Value, depth: usize, options: EncodeOptions) {
+fn write_list_item(
+    output: &mut String,
+    value: &Value,
+    depth: usize,
+    options: EncodeOptions,
+) -> Result<(), EncodeError> {
+    check_encode_depth(depth, options)?;
     match value {
         Value::Object(document) if document.fields.is_empty() => output.push_str("-\n"),
         Value::Object(document) => {
             output.push_str("- ");
             let first = &document.fields[0];
-            write_field(output, &first.key, &first.value, depth + 1, options);
+            write_field(output, &first.key, &first.value, depth + 1, options)?;
             for field in &document.fields[1..] {
                 write_indent(output, depth + 1);
-                write_field(output, &field.key, &field.value, depth + 1, options);
+                write_field(output, &field.key, &field.value, depth + 1, options)?;
             }
         }
         Value::Array(array) => {
             output.push_str("- ");
-            write_array(output, None, &array.values(), depth, true, options);
+            write_array(output, None, &array.values(), depth, true, options)?;
         }
         value => {
             output.push_str("- ");
@@ -3133,6 +3322,7 @@ fn write_list_item(output: &mut String, value: &Value, depth: usize, options: En
             output.push('\n');
         }
     }
+    Ok(())
 }
 
 fn write_array_header(
@@ -3162,7 +3352,9 @@ fn write_keyed_map(
     document: &Document,
     shape: &TabularShape,
     depth: usize,
-) {
+    options: EncodeOptions,
+) -> Result<(), EncodeError> {
+    check_encode_depth(depth, options)?;
     output.push_str(&canonical_key(key));
     output.push('{');
     let names = shape
@@ -3192,6 +3384,7 @@ fn write_keyed_map(
         output.push_str(&cells.join(&DOCUMENT_DELIMITER.to_string()));
         output.push('\n');
     }
+    Ok(())
 }
 
 fn header_field_text(field: &HeaderFieldShape) -> String {
@@ -3219,31 +3412,46 @@ struct HeaderFieldShape {
     children: Vec<HeaderFieldShape>,
 }
 
-fn tabular_shape(values: &[Value], options: EncodeOptions) -> Option<TabularShape> {
-    let fields = object_shape(values, options)?;
+fn tabular_shape(
+    values: &[Value],
+    options: EncodeOptions,
+    depth: usize,
+) -> Result<Option<TabularShape>, EncodeError> {
+    let Some(fields) = object_shape(values, options, depth)? else {
+        return Ok(None);
+    };
     let mut paths = Vec::new();
     collect_leaf_paths(&fields, &mut Vec::new(), &mut paths);
-    Some(TabularShape { fields, paths })
+    Ok(Some(TabularShape { fields, paths }))
 }
 
-fn keyed_map_shape(document: &Document, options: EncodeOptions) -> Option<TabularShape> {
+fn keyed_map_shape(
+    document: &Document,
+    options: EncodeOptions,
+    depth: usize,
+) -> Result<Option<TabularShape>, EncodeError> {
     if !options.keyed_map_collapse || document.fields.len() < 2 {
-        return None;
+        return Ok(None);
     }
     let values = document
         .fields
         .iter()
         .map(|field| field.value.clone())
         .collect::<Vec<_>>();
-    tabular_shape(&values, options)
+    tabular_shape(&values, options, depth)
 }
 
-fn object_shape(values: &[Value], options: EncodeOptions) -> Option<Vec<HeaderFieldShape>> {
-    let Value::Object(first) = values.first()? else {
-        return None;
+fn object_shape(
+    values: &[Value],
+    options: EncodeOptions,
+    depth: usize,
+) -> Result<Option<Vec<HeaderFieldShape>>, EncodeError> {
+    check_encode_depth(depth, options)?;
+    let Some(Value::Object(first)) = values.first() else {
+        return Ok(None);
     };
     if first.fields.is_empty() {
-        return None;
+        return Ok(None);
     }
     let mut fields = first
         .fields
@@ -3256,16 +3464,16 @@ fn object_shape(values: &[Value], options: EncodeOptions) -> Option<Vec<HeaderFi
 
     for value in values {
         let Value::Object(document) = value else {
-            return None;
+            return Ok(None);
         };
         if document.fields.len() != fields.len() {
-            return None;
+            return Ok(None);
         }
         if fields
             .iter()
             .any(|field| document.get(&field.key).is_none())
         {
-            return None;
+            return Ok(None);
         }
     }
 
@@ -3286,12 +3494,15 @@ fn object_shape(values: &[Value], options: EncodeOptions) -> Option<Vec<HeaderFi
             continue;
         }
         if !options.nested_tabular_headers {
-            return None;
+            return Ok(None);
         }
-        field.children = object_shape(&cells, options)?;
+        let Some(children) = object_shape(&cells, options, depth + 1)? else {
+            return Ok(None);
+        };
+        field.children = children;
     }
 
-    Some(fields)
+    Ok(Some(fields))
 }
 
 fn collect_leaf_paths(
@@ -3510,6 +3721,7 @@ mod tests {
         let options = EncodeOptions {
             nested_tabular_headers: true,
             keyed_map_collapse: false,
+            ..EncodeOptions::default()
         };
 
         assert_eq!(document.to_canonical_toon(), expanded);
@@ -3533,6 +3745,7 @@ mod tests {
             document.to_toon_with_options(EncodeOptions {
                 nested_tabular_headers: true,
                 keyed_map_collapse: false,
+                ..EncodeOptions::default()
             }),
             "rows[2]:\n  - id: 1\n    point:\n      x: 1\n      y: 2\n  - id: 2\n    point:\n      x: 3\n      z: 4\n"
         );
@@ -3596,6 +3809,7 @@ mod tests {
             document.to_toon_with_options(EncodeOptions {
                 nested_tabular_headers: false,
                 keyed_map_collapse: true,
+                ..EncodeOptions::default()
             }),
             collapsed
         );
@@ -3614,6 +3828,7 @@ mod tests {
             document.to_toon_with_options(EncodeOptions {
                 nested_tabular_headers: false,
                 keyed_map_collapse: true,
+                ..EncodeOptions::default()
             }),
             "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin\n"
         );

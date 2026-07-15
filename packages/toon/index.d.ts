@@ -15,6 +15,8 @@ export type JsonValue =
 
 /** Spaces per indentation level unless `ParseOptions.indent` says otherwise. */
 export const DEFAULT_INDENT: 2
+/** Default maximum decode/encode nesting depth. */
+export const DEFAULT_MAX_DEPTH: 1000
 
 /** Decoder options (TOON spec §13). */
 export interface ParseOptions {
@@ -24,6 +26,8 @@ export interface ParseOptions {
   strict?: boolean
   /** Expand dotted keys into nested objects (§13.4). Default off. */
   expandPaths?: 'safe' | boolean
+  /** Maximum nesting depth. Default `1000`; `0` disables the guard for trusted input. */
+  maxDepth?: number
 }
 
 /** Encoder options. Defaults preserve the canonical v3 output profile. */
@@ -32,6 +36,8 @@ export interface SerializeOptions {
   nestedTabularHeaders?: boolean
   /** Emit brace-header tabular rows for keyed maps with uniform object values. */
   keyedMapCollapse?: boolean
+  /** Maximum nesting depth. Default `1000`; `0` disables the guard for trusted input. */
+  maxDepth?: number
 }
 
 /** A TOON decode failure, carrying the 1-based source line. */

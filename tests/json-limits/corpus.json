@@ -204,6 +204,26 @@
       }
     },
     {
+      "name": "toon-depth/custom-limit-allows-equal-depth",
+      "category": "toon-depth",
+      "rawToon": "a:\n  b:\n    c: 1\n",
+      "parseOptions": { "maxDepth": 2 },
+      "expected": {
+        "js": { "roundTripJson": "{\"a\":{\"b\":{\"c\":1}}}" },
+        "rust": { "roundTripJson": "{\"a\":{\"b\":{\"c\":1}}}" }
+      }
+    },
+    {
+      "name": "toon-depth/custom-limit-rejects-next-depth",
+      "category": "toon-depth",
+      "rawToon": "a:\n  b:\n    c: 1\n",
+      "parseOptions": { "maxDepth": 1 },
+      "expected": {
+        "js": { "error": "maximum nesting depth exceeded (maxDepth 1)" },
+        "rust": { "error": "maximum nesting depth exceeded (maxDepth 1)" }
+      }
+    },
+    {
       "name": "structure/nested-tabular-header-encode-option",
       "category": "structure",
       "rawJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}",
