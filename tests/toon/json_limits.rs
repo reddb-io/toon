@@ -1,11 +1,11 @@
-use reddb_io_toon::Value;
+use reddb_io_toon::{EncodeOptions, Value};
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
 const JSON_LIMITS_FIXTURE: &str = "../../tests/json-limits/corpus.json";
-const EXPECTED_CASE_COUNT: usize = 25;
+const EXPECTED_CASE_COUNT: usize = 26;
 const REQUIRED_CATEGORIES: [&str; 5] = [
     "numbers",
     "strings-unicode",
@@ -87,6 +87,28 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
                 .expect("expected canonical TOON"),
             "{name}: canonical TOON"
         );
+
+        if let Some(expected_nested) = expected.get("nestedHeaderToon").and_then(Json::as_str) {
+            let nested_toon = value.to_toon_with_options(EncodeOptions {
+                nested_tabular_headers: true,
+            });
+            assert_eq!(nested_toon, expected_nested, "{name}: nested-header TOON");
+
+            let actual_nested_round_trip = Value::parse_toon(&nested_toon)
+                .unwrap_or_else(|err| panic!("{name}: nested-header TOON parse: {err}"))
+                .to_json_value();
+            let expected_round_trip: Json = serde_json::from_str(
+                expected
+                    .get("roundTripJson")
+                    .and_then(Json::as_str)
+                    .expect("expected round-trip JSON"),
+            )
+            .unwrap_or_else(|err| panic!("{name}: expected round-trip JSON parse: {err}"));
+            assert_eq!(
+                actual_nested_round_trip, expected_round_trip,
+                "{name}: nested-header round-trip JSON"
+            );
+        }
 
         let actual_round_trip = Value::parse_toon(&toon)
             .unwrap_or_else(|err| panic!("{name}: TOON parse: {err}"))
