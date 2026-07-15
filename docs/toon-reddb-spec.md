@@ -102,6 +102,8 @@ Delimiter choice is pure TOON v3.3 for arrays and tabular rows: encoders emit th
 
 ## Extension 1 — Nested tabular headers
 
+> **Proposal history:** [Nested tabular headers](proposals/nested-tabular-headers.md) — **stage 4 (graduated)**. That proposal records the motivation, frozen grammar, how to test it, measured numbers, and links to the upstream RFC and this repo's issues/PRs. This section is the normative definition.
+
 *Origin: upstream RFC [toon-format/spec#46](https://github.com/toon-format/spec/issues/46).*
 
 v3.3's tabular form (`key[N]{fields}:`) requires every column to be a primitive.
@@ -156,6 +158,8 @@ Rules:
   hard error.
 
 ## Extension 2 — Keyed-map collapse
+
+> **Proposal history:** [Keyed-map collapse](proposals/keyed-map-collapse.md) — **stage 4 (graduated)**. The proposal documents the deliberate absence of an `[N]` entry count and the entry-count guardrail trade-off in full, alongside the upstream RFC and repo links.
 
 *Origin: upstream RFC [toon-format/spec#57](https://github.com/toon-format/spec/issues/57).*
 
@@ -244,6 +248,8 @@ because a non-collapsed map is just standard v3.3.
 
 ## Extension 3 — Primitive-array columns
 
+> **Proposal history:** [Primitive-array columns](proposals/primitive-array-columns.md) — **stage 4 (graduated)**, landed via [#100](https://github.com/reddb-io/toon/pull/100) / [#101](https://github.com/reddb-io/toon/pull/101). The proposal carries the frozen grammar, the per-cell list-length caveat, and the measured token/byte wins.
+
 Uniform object arrays sometimes contain fields whose values are arrays of
 primitive scalars. TOON v3.3 cannot keep that containing array tabular, because
 the array-valued field is not itself primitive. This extension lets an otherwise
@@ -299,6 +305,8 @@ sub-delimiter check, but it does not declare each list cell's item count. A
 malformed quoted subcell is still rejected by the quote scanner.
 
 ## Extension 4 — Object-array columns
+
+> **Proposal history:** [Child tables + matrix](proposals/child-tables-and-matrix.md) — **stage 4 (graduated)**, landed via [#102](https://github.com/reddb-io/toon/pull/102) / [#103](https://github.com/reddb-io/toon/pull/103). The proposal covers the recursive child-table grammar and documents the fixed-width matrix form as *not recommended* for a token win.
 
 Uniform object arrays sometimes contain fields whose values are themselves
 arrays of uniform objects. TOON v3.3 must expand the parent rows because the
@@ -356,6 +364,8 @@ primitive cells separated by the active delimiter. The single fixed-width field
 decodes back to a row array, not an object wrapper.
 
 ## Delimiter choice
+
+> **Proposal history:** [Delimiter choice](proposals/delimiter-choice.md) — **stage 4 (graduated)**. The proposal records why comma stays the default and when to reach for tab or pipe, with measured trade-offs and the upstream RFC link.
 
 TOON v3.3 supports three delimiters — comma (default), tab (HTAB), and pipe
 (`|`) — selected by the encoder as the *document delimiter* and declared per
@@ -430,6 +440,8 @@ lossless for every choice.
 
 ## Depth guard
 
+> **Proposal history:** [Depth guard](proposals/depth-guard.md) — **stage 4 (graduated)**. The proposal explains the stack-exhaustion threat this closes, the `1000` default, and why it never changes a decoded value.
+
 Neither the official spec's data model nor its strict-mode checklist bounds
 nesting depth; a maliciously or accidentally deep document can drive a naïve
 recursive decoder into stack exhaustion. The reddb-io flavor adds a **depth
@@ -472,6 +484,8 @@ the limit decodes identically whether or not the guard is present, and the limit
 is configurable for callers whose inputs are known-shallow or known-trusted.
 
 ## detectTruncation — structured completeness reports
+
+> **Proposal history:** [detectTruncation](proposals/detect-truncation.md) — **stage 4 (graduated)**. The proposal shows how TOON's self-checking guardrails become a first-class diagnostic API across all three surfaces, with the stable report schema.
 
 TOON is *self-checking* in a way JSON is not: `[N]` declares a row count and
 `{f1,f2}` declares a field set, so a truncated or hallucinated table is a
