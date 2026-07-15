@@ -1,8 +1,13 @@
-# TOON wire-efficiency S3 proposed array-column grammars
+# TOON wire-efficiency S3 array-column grammars
 
-Status: **PROPOSED**. This document records prototype measurements and a
-recommended grammar for issue #97 / spec #93. It is not part of the implemented
-dialect yet, and the grammar remains pending the grammar-freeze decision.
+Status: **FROZEN** (grammar-freeze decision recorded on issue #99, 2026-07-15).
+The grammar below is frozen as proposed, with the primitive-list per-cell
+length caveat explicitly accepted: list cells do not declare their own item
+count; the table row count and declared leaf width remain the guardrails.
+Implementation slices (#100–#103) implement exactly this grammar — JS and Rust
+never design independently. This document records the prototype measurements
+and the frozen grammar for issue #97 / spec #93; it is not part of the
+implemented dialect until those slices land.
 
 The prototype generator lives in `scripts/wire_efficiency_s3_prototype.mjs`.
 Run:
