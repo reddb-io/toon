@@ -271,6 +271,102 @@ fn cyclic_discriminated_array_corpus_decodes_identically_for_rust() {
 }
 
 #[test]
+fn cyclic_discriminated_array_encoding_is_opt_in_and_pins_the_frozen_wire_for_rust() {
+    let fixture = read_fixture(&fixture_path(CYCLIC_DISCRIMINATED_ARRAYS_FIXTURE));
+    let test_case = fixture
+        .get("cases")
+        .and_then(Json::as_array)
+        .and_then(|cases| cases.first())
+        .expect("cyclic discriminated-array case");
+    let expected_value = test_case.get("expected").unwrap();
+    let value = Value::from_json_value(expected_value.clone());
+    let default_encoded = value.to_canonical_toon();
+    let encoded = value.to_toon_with_options(EncodeOptions {
+        cyclic_discriminated_arrays: true,
+        ..EncodeOptions::default()
+    });
+    let expected_wire = "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=12 common=tenant,seq,actor order=cycle(login,purchase,logout)*4\n@common\n\"acme\"\t1\t\"u1\"\n\"acme\"\t2\t\"u1\"\n\"acme\"\t3\t\"u1\"\n\"acme\"\t4\t\"u2\"\n\"acme\"\t5\t\"u2\"\n\"acme\"\t6\t\"u2\"\n\"acme\"\t7\t\"u3\"\n\"acme\"\t8\t\"u3\"\n\"acme\"\t9\t\"u3\"\n\"acme\"\t10\t\"u4\"\n\"acme\"\t11\t\"u4\"\n\"acme\"\t12\t\"u4\"\n@group login n=4\n{\"ok\":true}\n{\"ok\":true}\n{\"ok\":false}\n{\"ok\":true}\n@group purchase n=4\n{\"amount\":12.5,\"currency\":\"USD\"}\n{\"amount\":4,\"currency\":\"EUR\"}\n{\"amount\":99.95,\"currency\":\"USD\"}\n{\"amount\":1.25,\"currency\":\"BRL\"}\n@group logout n=4\n{\"durationMs\":1200}\n{\"durationMs\":900}\n{\"durationMs\":1800}\n{\"durationMs\":600}\n@end\n";
+
+    assert_ne!(encoded, default_encoded);
+    assert_eq!(encoded, expected_wire);
+    assert_eq!(
+        value.to_toon_with_options(EncodeOptions::default()),
+        default_encoded
+    );
+    assert_eq!(
+        Value::parse_toon(&encoded).unwrap().to_json_value(),
+        expected_value.clone()
+    );
+    assert!(
+        reject_v3_strict(&encoded).is_err(),
+        "strict v3 rejects extension form"
+    );
+}
+
+#[test]
+fn cyclic_discriminated_array_encoding_falls_back_for_boundary_cases_for_rust() {
+    for (name, input) in [
+        (
+            "two repeats is below the repeat threshold",
+            serde_json::json!({
+                "events": [
+                    { "type": "login", "tenant": "acme", "seq": 1, "actor": "u1" },
+                    { "type": "purchase", "tenant": "acme", "seq": 2, "actor": "u1" },
+                    { "type": "login", "tenant": "acme", "seq": 3, "actor": "u2" },
+                    { "type": "purchase", "tenant": "acme", "seq": 4, "actor": "u2" }
+                ]
+            }),
+        ),
+        (
+            "partial cycle is ineligible",
+            serde_json::json!({
+                "events": [
+                    { "type": "login", "tenant": "acme", "seq": 1, "actor": "u1" },
+                    { "type": "purchase", "tenant": "acme", "seq": 2, "actor": "u1" },
+                    { "type": "logout", "tenant": "acme", "seq": 3, "actor": "u1" },
+                    { "type": "login", "tenant": "acme", "seq": 4, "actor": "u2" },
+                    { "type": "purchase", "tenant": "acme", "seq": 5, "actor": "u2" }
+                ]
+            }),
+        ),
+        (
+            "irregular order is ineligible",
+            serde_json::json!({
+                "events": [
+                    { "type": "login", "tenant": "acme", "seq": 1, "actor": "u1" },
+                    { "type": "purchase", "tenant": "acme", "seq": 2, "actor": "u1" },
+                    { "type": "logout", "tenant": "acme", "seq": 3, "actor": "u1" },
+                    { "type": "purchase", "tenant": "acme", "seq": 4, "actor": "u2" },
+                    { "type": "login", "tenant": "acme", "seq": 5, "actor": "u2" },
+                    { "type": "logout", "tenant": "acme", "seq": 6, "actor": "u2" }
+                ]
+            }),
+        ),
+        (
+            "compact order must beat the threshold",
+            serde_json::json!({
+                "events": [
+                    { "type": "a", "seq": 1 },
+                    { "type": "b", "seq": 2 },
+                    { "type": "a", "seq": 3 },
+                    { "type": "b", "seq": 4 },
+                    { "type": "a", "seq": 5 },
+                    { "type": "b", "seq": 6 }
+                ]
+            }),
+        ),
+    ] {
+        let value = Value::from_json_value(input.clone());
+        let encoded = value.to_toon_with_options(EncodeOptions {
+            cyclic_discriminated_arrays: true,
+            ..EncodeOptions::default()
+        });
+        assert_eq!(encoded, value.to_canonical_toon(), "{name}");
+        assert_eq!(Value::parse_toon(&encoded).unwrap().to_json_value(), input);
+    }
+}
+
+#[test]
 fn primitive_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust() {
     let eligible = serde_json::json!({
         "items": [
@@ -405,6 +501,7 @@ fn ext_options() -> EncodeOptions {
         keyed_map_collapse: true,
         primitive_array_columns: true,
         object_array_columns: true,
+        cyclic_discriminated_arrays: true,
         ..EncodeOptions::default()
     }
 }
@@ -425,6 +522,10 @@ fn encode_options(options: &Json) -> EncodeOptions {
             .unwrap_or(false),
         object_array_columns: options
             .get("objectArrayColumns")
+            .and_then(Json::as_bool)
+            .unwrap_or(false),
+        cyclic_discriminated_arrays: options
+            .get("cyclicDiscriminatedArrays")
             .and_then(Json::as_bool)
             .unwrap_or(false),
         delimiter: options
