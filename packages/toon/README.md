@@ -28,6 +28,7 @@ serialize(document)
 - `serialize(value)` — encode as canonical TOON: comma delimiter, two-space indent, no key folding, and the same `maxDepth` guard.
 - `serialize(value, { delimiter: '|' | '\t' })` — select pipe or tab as the active delimiter for array and tabular headers; comma remains the default.
 - `serialize(value, { keyedMapCollapse: true })` — opt into keyed-map collapse for uniform object maps. The encoder emits `map{fields}:` only for deterministic uniform maps: at least two entries, every value is a non-empty object, all entries share the first entry's key set, and all header leaves are primitive unless `nestedTabularHeaders` is also enabled. Non-uniform maps fall back to ordinary object form.
+- `serialize(value, { primitiveArrayColumns: true })` — opt into primitive-array columns for otherwise tabular object arrays. Eligible fields must be arrays whose items are only strings, numbers, booleans, or null; ineligible rows fall back to ordinary TOON losslessly.
 
 Failures throw a `ToonError` carrying the 1-based source `line`.
 
