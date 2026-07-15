@@ -162,7 +162,11 @@ function caseEntry({ name, description, value, honestyZeroDelta = false, specTok
     jsonMin: compactJsonBytes(value),
     toonV3: toonBytes(value),
     toonTab: toonBytes(value, { delimiter: '\t' }),
-    toonExt: toonBytes(value, { nestedTabularHeaders: true, keyedMapCollapse: true }),
+    toonExt: toonBytes(value, {
+      nestedTabularHeaders: true,
+      keyedMapCollapse: true,
+      primitiveArrayColumns: true,
+    }),
   }
   return {
     name,
@@ -199,9 +203,8 @@ const cases = [
   }),
   caseEntry({
     name: 'tagged-300',
-    description: 'Primitive-array column honesty control; current shipped extensions must not change bytes.',
+    description: 'Primitive-array column corpus; enabled extensions should beat minified JSON.',
     value: tagged(300, random),
-    honestyZeroDelta: true,
     specTokens: { jsonMin: 6506, toonV3: 8698, hypothetical: 4325, tolerancePct: 5 },
   }),
   caseEntry({
@@ -240,8 +243,8 @@ const fixture = {
   notes: [
     'jsonMin is JSON.stringify(value).',
     'toonV3 is canonical TOON v3 output with no extensions enabled.',
-    'toonExt enables the currently shipped nestedTabularHeaders and keyedMapCollapse options.',
-    'honestyZeroDelta cases must keep toonV3 and toonExt byte-identical until a future extension is implemented.',
+    'toonExt enables the currently shipped nestedTabularHeaders, keyedMapCollapse, and primitiveArrayColumns options.',
+    'honestyZeroDelta cases must keep toonV3 and toonExt byte-identical when the enabled extensions are ineligible.',
     'specTokens records the Spec #93 Further Notes o200k_base baselines where available; token counting is local-only and not part of CI.',
   ],
   cases,
