@@ -1,0 +1,60 @@
+{
+  "entity": {
+    "id": "Q146",
+    "label": "cat",
+    "statements": [
+      {
+        "property": "subclass of",
+        "value": {
+          "id": "Q25265",
+          "label": "carnivoran",
+          "statements": [
+            {
+              "property": "subclass of",
+              "value": {
+                "id": "Q7377",
+                "label": "mammal",
+                "statements": [
+                  {
+                    "property": "subclass of",
+                    "value": {
+                      "id": "Q729",
+                      "label": "animal",
+                      "statements": [
+                        {
+                          "property": "subclass of",
+                          "value": {
+                            "id": "Q35120",
+                            "label": "entity",
+                            "statements": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "property": "taxon rank",
+        "value": {
+          "id": "Q7432",
+          "label": "species",
+          "statements": [
+            {
+              "property": "part of",
+              "value": {
+                "id": "Q16521",
+                "label": "taxonomic rank",
+                "statements": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
