@@ -1,0 +1,85 @@
+name: Auto release
+
+# Auto-cut stable releases from conventional commits on main (issue #60,
+# porting the red-skills scheme). scripts/plan-auto-release.sh decides the
+# bump; the version-sync commit is pushed with the default GITHUB_TOKEN,
+# which triggers no workflows (GitHub suppresses workflow-from-workflow
+# events) — that is the primary anti-loop guarantee. The stable release is
+# then started via workflow_dispatch, the one cross-workflow trigger the
+# default token CAN fire; the tag itself is created by the release run
+# (action-gh-release), so pushing a v*.*.* tag by hand keeps working as the
+# manual override.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: auto-release-main
+  cancel-in-progress: false
+
+jobs:
+  auto-release:
+    name: Cut stable release if commits warrant one
+    runs-on: ubuntu-latest
+    # Belt and braces: GITHUB_TOKEN pushes never trigger this workflow, but a
+    # maintainer pushing a release commit by hand must not loop either.
+    if: "!startsWith(github.event.head_commit.message, 'chore: release')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Head of main, not the trigger sha: a run queued behind the
+          # concurrency group must see commits — including a release commit —
+          # that landed while it waited, or it would double-release.
+          ref: main
+          fetch-depth: 0
+
+      - name: Decide bump from conventional commits
+        id: plan
+        run: bash scripts/plan-auto-release.sh
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.plan.outputs.bump != 'none'
+
+      - name: Sync workspace version and push release commit
+        if: steps.plan.outputs.bump != 'none'
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.plan.outputs.version }}"
+          bash scripts/sync-version.sh "$VERSION"
+          # Cargo.lock pins the workspace members' own versions and CI builds
+          # with --locked, so the lockfile must land with the manifests.
+          # pnpm-lock.yaml records no workspace-package version, so the npm
+          # side needs no lockfile change.
+          cargo generate-lockfile
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml crates/tq/Cargo.toml packages/toon/package.json Cargo.lock
+          git commit -m "chore: release ${VERSION}"
+          if ! git push origin HEAD:main; then
+            # main moved while we worked. The push that beat us triggers its
+            # own auto-release run, which re-plans over the full range — so
+            # dropping this attempt loses nothing.
+            echo "::notice::main moved before the release commit could land; the newer push's run takes over"
+            exit 0
+          fi
+          echo "pushed_release_commit=true" >> "$GITHUB_OUTPUT"
+        id: sync
+
+      - name: Dispatch stable release
+        if: steps.sync.outputs.pushed_release_commit == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.plan.outputs.version }}"
+          gh workflow run release.yml --ref main \
+            -f channel=stable \
+            -f version="$VERSION" \
+            -f publish_cargo=true
+          echo "dispatched release.yml for v${VERSION}"

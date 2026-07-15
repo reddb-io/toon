@@ -116,11 +116,16 @@ jobs:
             SHOULD_SKIP=true
           fi
 
-          if [[ "$SHOULD_SKIP" != "true" && "$EVENT_NAME" == "push" && "$REF" == refs/tags/v* ]]; then
+          # Every stable release — tag push or workflow_dispatch (the path
+          # auto-release.yml uses) — must match the checked-out manifests, so
+          # the released tag always equals the synced workspace version. To
+          # re-run publishing for an already-tagged version, dispatch the
+          # workflow on that tag's ref.
+          if [[ "$SHOULD_SKIP" != "true" && "$RELEASE_CHANNEL" == "stable" ]]; then
             MANIFEST_VERSION="$(base_version)"
             if [[ "$MANIFEST_VERSION" != "$PACKAGE_VERSION" ]]; then
-              echo "Tag ${RELEASE_TAG} resolves to ${PACKAGE_VERSION}, but Cargo.toml is ${MANIFEST_VERSION}."
-              echo "Run scripts/sync-version.sh ${PACKAGE_VERSION}, commit, then re-tag."
+              echo "${RELEASE_TAG} resolves to ${PACKAGE_VERSION}, but Cargo.toml is ${MANIFEST_VERSION}."
+              echo "Run scripts/sync-version.sh ${PACKAGE_VERSION}, commit, then re-tag (or dispatch on the matching ref)."
               exit 1
             fi
           fi
