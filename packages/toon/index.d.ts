@@ -118,7 +118,11 @@ export interface EncodeLinesOptions {
   trailer?: boolean
 }
 
-/** An incremental TOONL emitter: lazy header, automatic rotation, optional trailer. */
+/**
+ * An incremental TOONL emitter: lazy header, automatic rotation, optional trailer.
+ * Field order is canonicalized per record shape using the first order seen for
+ * that shape, so shuffled object keys do not force a rotation.
+ */
 export interface ToonlLineEmitter {
   /** Appends a record and returns the text to write. */
   push(record: ToonlRecord): string
@@ -128,7 +132,10 @@ export interface ToonlLineEmitter {
 
 export function encodeLines(options?: EncodeLinesOptions): ToonlLineEmitter
 
-/** Encodes records to one TOONL string, rotating segments on schema change. */
+/**
+ * Encodes records to one TOONL string, rotating segments on schema change.
+ * Field order is canonicalized per record shape using first-seen order.
+ */
 export function encodeRecords(
   records: Iterable<ToonlRecord>,
   options?: EncodeLinesOptions,
