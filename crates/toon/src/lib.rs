@@ -2696,7 +2696,7 @@ fn infer_child_table_fields(
             .iter()
             .filter(|enabled| **enabled)
             .count();
-        if best.as_ref().is_none_or(|(_, consumed, best_enabled)| {
+        if best.as_ref().map_or(true, |(_, consumed, best_enabled)| {
             result.consumed_child_rows > *consumed
                 || (result.consumed_child_rows == *consumed && enabled < *best_enabled)
         }) {
