@@ -10,8 +10,8 @@
   "notes": [
     "jsonMin is JSON.stringify(value).",
     "toonV3 is canonical TOON v3 output with no extensions enabled.",
-    "toonExt enables the currently shipped nestedTabularHeaders and keyedMapCollapse options.",
-    "honestyZeroDelta cases must keep toonV3 and toonExt byte-identical until a future extension is implemented.",
+    "toonExt enables the currently shipped nestedTabularHeaders, keyedMapCollapse, and primitiveArrayColumns options.",
+    "honestyZeroDelta cases must keep toonV3 and toonExt byte-identical when ineligible for all shipped extensions.",
     "specTokens records the Spec #93 Further Notes o200k_base baselines where available; token counting is local-only and not part of CI."
   ],
   "cases": [
@@ -11882,8 +11882,7 @@
     },
     {
       "name": "tagged-300",
-      "description": "Primitive-array column honesty control; current shipped extensions must not change bytes.",
-      "honestyZeroDelta": true,
+      "description": "Primitive-array column benchmark; opt-in primitive-array columns should beat minified JSON.",
       "specTokens": {
         "jsonMin": 6506,
         "toonV3": 8698,
@@ -11894,7 +11893,7 @@
         "jsonMin": 24794,
         "toonV3": 25359,
         "toonTab": 25660,
-        "toonExt": 25359
+        "toonExt": 12784
       },
       "value": {
         "items": [
