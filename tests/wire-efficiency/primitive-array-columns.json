@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "primitive list columns decode empty lists and quoted sub-delimiters",
+      "input": "items[3|]{id,tags[;],quantity}:\n  item_001|hazmat;oversize|60\n  item_002||0\n  item_003|\"frag;ile\";null;true|7\n",
+      "expected": {
+        "items": [
+          {
+            "id": "item_001",
+            "tags": ["hazmat", "oversize"],
+            "quantity": 60
+          },
+          {
+            "id": "item_002",
+            "tags": [],
+            "quantity": 0
+          },
+          {
+            "id": "item_003",
+            "tags": ["frag;ile", null, true],
+            "quantity": 7
+          }
+        ]
+      },
+      "failClosedV3Strict": true
+    }
+  ],
+  "errors": [
+    {
+      "name": "missing primitive list sub-delimiter",
+      "input": "items[1|]{id,tags[]}:\n  item_001|hazmat\n",
+      "line": 1,
+      "reason": "invalid array header"
+    },
+    {
+      "name": "primitive list sub-delimiter matches active delimiter",
+      "input": "items[1|]{id,tags[|]}:\n  item_001|hazmat\n",
+      "line": 1,
+      "reason": "invalid array header"
+    },
+    {
+      "name": "malformed quoted primitive list cell",
+      "input": "items[1|]{id,tags[;]}:\n  item_001|\"hazmat;oversize\n",
+      "line": 2,
+      "reason": "invalid quoted string"
+    },
+    {
+      "name": "primitive list row width mismatch",
+      "input": "items[1|]{id,tags[;]}:\n  item_001\n",
+      "line": 2,
+      "reason": "array row length mismatch"
+    }
+  ]
+}
