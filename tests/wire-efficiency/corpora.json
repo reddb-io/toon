@@ -27,6 +27,7 @@
       "expectedBytes": {
         "jsonMin": 54164,
         "toonV3": 20214,
+        "toonTab": 20215,
         "toonExt": 20214
       },
       "value": {
@@ -4041,6 +4042,7 @@
       "expectedBytes": {
         "jsonMin": 33841,
         "toonV3": 39242,
+        "toonTab": 39243,
         "toonExt": 12289
       },
       "value": {
@@ -7655,6 +7657,7 @@
       "expectedBytes": {
         "jsonMin": 18775,
         "toonV3": 20571,
+        "toonTab": 20571,
         "toonExt": 10403
       },
       "value": {
@@ -8869,6 +8872,7 @@
       "expectedBytes": {
         "jsonMin": 33542,
         "toonV3": 39043,
+        "toonTab": 39044,
         "toonExt": 14349
       },
       "value": {
@@ -11889,6 +11893,7 @@
       "expectedBytes": {
         "jsonMin": 24794,
         "toonV3": 25359,
+        "toonTab": 25660,
         "toonExt": 25359
       },
       "value": {
@@ -14777,6 +14782,7 @@
       "expectedBytes": {
         "jsonMin": 7616,
         "toonV3": 8667,
+        "toonTab": 8818,
         "toonExt": 8667
       },
       "value": {
@@ -16297,6 +16303,7 @@
       "expectedBytes": {
         "jsonMin": 37076,
         "toonV3": 37889,
+        "toonTab": 38216,
         "toonExt": 37889
       },
       "value": {
@@ -20622,6 +20629,7 @@
       "expectedBytes": {
         "jsonMin": 72,
         "toonV3": 95,
+        "toonTab": 96,
         "toonExt": 95
       },
       "value": {
@@ -20650,6 +20658,7 @@
       "expectedBytes": {
         "jsonMin": 92,
         "toonV3": 92,
+        "toonTab": 92,
         "toonExt": 92
       },
       "value": {
