@@ -74,6 +74,24 @@ The main entry uses standard Web Streams. In Node, bridge native streams with `R
 
 Failures throw a `ToonlError` (`line` is `0` when there is no line context).
 
+## Helpers
+
+Consumer-facing conveniences layered on the codec (`encode`/`decode` are exact
+aliases of `serialize`/`parse` for consumers that speak that vocabulary):
+
+```js
+import { appendSummaryField, projectFields } from '@reddb-io/toon'
+
+// One conforming document with a trailing spec-legal `summary:` field —
+// parse(out) recovers the rollup with the rest of the payload.
+const out = appendSummaryField({ service: 'checkout', rows: 3 }, { total: 3 })
+
+// Rows projected onto a minimal schema: allowlist order kept, other fields
+// dropped, absent fields left absent (never null-filled).
+const thin = projectFields(rows, ['id', 'state'])
+```
+
 ## License
+
 
 [MIT](LICENSE).

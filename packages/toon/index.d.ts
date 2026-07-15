@@ -50,6 +50,31 @@ export function parseDocument(
 /** Encodes a JSON value as canonical TOON (default profile). */
 export function serialize(value: JsonValue): string
 
+/** An object-rooted JSON value. */
+export type JsonObject = { [key: string]: JsonValue }
+
+/** Alias of `parse`, for consumers that speak encode/decode vocabulary. */
+export const decode: typeof parse
+
+/** Alias of `serialize`, for consumers that speak encode/decode vocabulary. */
+export const encode: typeof serialize
+
+/**
+ * Encodes an object with a trailing spec-legal `summary:` field. Any existing
+ * `summary` key is replaced and moved to the end; the result is one
+ * conforming TOON document.
+ */
+export function appendSummaryField(value: JsonObject, summary: JsonValue): string
+
+/**
+ * Projects object rows onto an explicit minimal schema, preserving allowlist
+ * order and dropping all non-allowlisted fields. Absent fields stay absent.
+ */
+export function projectFields<T extends Readonly<Record<string, JsonValue>>>(
+  rows: readonly T[],
+  fields: readonly string[],
+): Array<Partial<T>>
+
 /** One TOONL segment: a schema, and the raw (still-encoded) cells of its rows. */
 export interface ToonlSegment {
   delimiter: string
