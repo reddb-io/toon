@@ -12,7 +12,7 @@ const PRIMITIVE_ARRAY_COLUMNS_PATH = join(
   REPO_ROOT,
   'tests/wire-efficiency/primitive-array-columns.json',
 )
-const EXT_OPTIONS = { nestedTabularHeaders: true, keyedMapCollapse: true }
+const EXT_OPTIONS = { nestedTabularHeaders: true, keyedMapCollapse: true, primitiveArrayColumns: true }
 const EXPECTED_CASE_COUNT = 9
 
 function readFixture(path) {
@@ -74,6 +74,25 @@ test('primitive-array column corpus decodes identically for JS', () => {
       `${testCase.name}: line-numbered parse error`,
     )
   }
+})
+
+test('primitive-array column encoding is opt-in and falls back losslessly for ineligible values in JS', () => {
+  const eligible = {
+    items: [
+      { id: 1, tags: ['hot', 'fragile'], note: 'a,b' },
+      { id: 2, tags: ['semi;quoted'], note: 'plain' },
+    ],
+  }
+  assert.equal(
+    serialize(eligible, { primitiveArrayColumns: true }),
+    'items[2]{id,tags[;],note}:\n  1,hot;fragile,"a,b"\n  2,"semi;quoted",plain\n',
+  )
+  assert.equal(serialize(eligible), 'items[2]:\n  - id: 1\n    tags[2]: hot,fragile\n    note: "a,b"\n  - id: 2\n    tags[1]: semi;quoted\n    note: plain\n')
+  assert.deepEqual(parse(serialize(eligible, { primitiveArrayColumns: true })), eligible)
+
+  const ineligible = { items: [{ id: 1, tags: null }, { id: 2, tags: ['ok'] }] }
+  assert.equal(serialize(ineligible, { primitiveArrayColumns: true }), serialize(ineligible))
+  assert.deepEqual(parse(serialize(ineligible, { primitiveArrayColumns: true })), ineligible)
 })
 
 function rejectV3Strict(input) {
