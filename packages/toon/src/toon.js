@@ -740,13 +740,20 @@ function parseMapHeader(content) {
     throw toonError(0, 'expected non-empty field name')
   }
 
+  let fieldText = content.slice(open + 1, -1)
+  let delimiter = DOCUMENT_DELIMITER
+  if (fieldText.startsWith('|') || fieldText.startsWith('\t')) {
+    delimiter = fieldText[0]
+    fieldText = fieldText.slice(1)
+  }
+
   let fields
   try {
-    fields = parseHeaderFields(content.slice(open + 1, -1), DOCUMENT_DELIMITER)
+    fields = parseHeaderFields(fieldText, delimiter)
   } catch (error) {
     throw toonError(0, error.reason === 'duplicate key' ? 'duplicate key' : 'invalid keyed map header')
   }
-  return { key, keyQuoted, delimiter: DOCUMENT_DELIMITER, fields }
+  return { key, keyQuoted, delimiter, fields }
 }
 
 function parseHeaderFields(source, delimiter) {
@@ -923,9 +930,14 @@ export function isPlainObject(value) {
 /** Encodes a JSON value as canonical TOON (default profile). */
 export function serialize(value, options = {}) {
   const rawMaxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
+  const delimiter = options.delimiter ?? DOCUMENT_DELIMITER
+  if (![DOCUMENT_DELIMITER, '|', '\t'].includes(delimiter)) {
+    throw toonError(0, 'invalid array header')
+  }
   const resolved = {
     nestedTabularHeaders: options.nestedTabularHeaders === true,
     keyedMapCollapse: options.keyedMapCollapse === true,
+    delimiter,
     maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY ? 0 : Math.max(0, Math.floor(rawMaxDepth)),
   }
   const output = []
@@ -934,7 +946,7 @@ export function serialize(value, options = {}) {
   } else if (isPlainObject(value)) {
     writeFields(output, value, 0, resolved)
   } else {
-    output.push(primitiveText(value, DOCUMENT_DELIMITER))
+    output.push(primitiveText(value, delimiter))
   }
   return output.join('')
 }
@@ -961,15 +973,21 @@ function writeField(output, key, value, depth, options) {
   if (isPlainObject(value)) {
     const shape = options.keyedMapCollapse ? keyedMapShape(value, options, depth + 1) : undefined
     if (shape !== undefined) {
-      output.push(canonicalKey(key), '{', shape.fields.map(headerFieldText).join(DOCUMENT_DELIMITER), '}:\n')
+      output.push(
+        canonicalKey(key),
+        '{',
+        delimiterPrefix(options.delimiter),
+        shape.fields.map((field) => headerFieldText(field, options.delimiter)).join(options.delimiter),
+        '}:\n',
+      )
       for (const [rowKey, rowValue] of Object.entries(value)) {
         writeIndent(output, depth + 1)
         output.push(
           canonicalKey(rowKey),
           ': ',
           shape.paths
-            .map((path) => primitiveText(valueAtPath(rowValue, path), DOCUMENT_DELIMITER))
-            .join(DOCUMENT_DELIMITER),
+            .map((path) => primitiveText(valueAtPath(rowValue, path), options.delimiter))
+            .join(options.delimiter),
           '\n',
         )
       }
@@ -979,7 +997,7 @@ function writeField(output, key, value, depth, options) {
     writeFields(output, value, depth + 1, options)
     return
   }
-  output.push(canonicalKey(key), ': ', primitiveText(value, DOCUMENT_DELIMITER), '\n')
+  output.push(canonicalKey(key), ': ', primitiveText(value, options.delimiter), '\n')
 }
 
 /**
@@ -1000,9 +1018,9 @@ function writeArray(output, key, values, depth, listItem, options) {
   }
 
   if (values.every(isPrimitive)) {
-    writeArrayHeader(output, key, values.length, undefined)
+    writeArrayHeader(output, key, values.length, undefined, options.delimiter)
     output.push(' ')
-    output.push(values.map((value) => primitiveText(value, DOCUMENT_DELIMITER)).join(DOCUMENT_DELIMITER))
+    output.push(values.map((value) => primitiveText(value, options.delimiter)).join(options.delimiter))
     output.push('\n')
     return
   }
@@ -1011,21 +1029,21 @@ function writeArray(output, key, values, depth, listItem, options) {
   // §9.4 requires the expanded list even for a uniform array of objects.
   const shape = listItem ? undefined : tabularShape(values, options, depth + 1)
   if (shape !== undefined) {
-    writeArrayHeader(output, key, values.length, shape.fields)
+    writeArrayHeader(output, key, values.length, shape.fields, options.delimiter)
     output.push('\n')
     for (const value of values) {
       writeIndent(output, depth + 1)
       output.push(
         shape.paths
-          .map((path) => primitiveText(valueAtPath(value, path), DOCUMENT_DELIMITER))
-          .join(DOCUMENT_DELIMITER),
+          .map((path) => primitiveText(valueAtPath(value, path), options.delimiter))
+          .join(options.delimiter),
       )
       output.push('\n')
     }
     return
   }
 
-  writeArrayHeader(output, key, values.length, undefined)
+  writeArrayHeader(output, key, values.length, undefined, options.delimiter)
   output.push('\n')
   for (const value of values) {
     writeIndent(output, depth + 1)
@@ -1054,18 +1072,22 @@ function writeListItem(output, value, depth, options) {
     }
     return
   }
-  output.push('- ', primitiveText(value, DOCUMENT_DELIMITER), '\n')
+  output.push('- ', primitiveText(value, options.delimiter), '\n')
 }
 
-function writeArrayHeader(output, key, len, fields) {
+function writeArrayHeader(output, key, len, fields, delimiter) {
   if (key !== undefined) {
     output.push(canonicalKey(key))
   }
-  output.push('[', String(len), ']')
+  output.push('[', String(len), delimiterPrefix(delimiter), ']')
   if (fields !== undefined) {
-    output.push('{', fields.map(headerFieldText).join(DOCUMENT_DELIMITER), '}')
+    output.push('{', fields.map((field) => headerFieldText(field, delimiter)).join(delimiter), '}')
   }
   output.push(':')
+}
+
+function delimiterPrefix(delimiter) {
+  return delimiter === DOCUMENT_DELIMITER ? '' : delimiter
 }
 
 /**
@@ -1148,9 +1170,9 @@ function valueAtPath(value, path) {
   return cursor
 }
 
-function headerFieldText(field) {
+function headerFieldText(field, delimiter) {
   if (field.children === undefined) {
     return canonicalKey(field.key)
   }
-  return `${canonicalKey(field.key)}{${field.children.map(headerFieldText).join(DOCUMENT_DELIMITER)}}`
+  return `${canonicalKey(field.key)}{${field.children.map((child) => headerFieldText(child, delimiter)).join(delimiter)}}`
 }
