@@ -13,9 +13,11 @@ import {
   canonicalKey,
   findUnquoted,
   isPrimitive,
+  needsQuotes,
   parseKey,
   parseScalar,
   primitiveText,
+  quoteString,
   setKey,
   splitDelimited,
   splitLines,
@@ -982,6 +984,7 @@ export function serialize(value, options = {}) {
   const resolved = {
     nestedTabularHeaders: options.nestedTabularHeaders === true,
     keyedMapCollapse: options.keyedMapCollapse === true,
+    primitiveArrayColumns: options.primitiveArrayColumns === true,
     delimiter,
     maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY ? 0 : Math.max(0, Math.floor(rawMaxDepth)),
   }
@@ -1031,7 +1034,7 @@ function writeField(output, key, value, depth, options) {
           canonicalKey(rowKey),
           ': ',
           shape.paths
-            .map((path) => primitiveText(valueAtPath(rowValue, path), options.delimiter))
+            .map((column) => columnText(valueAtPath(rowValue, column.path), column, options.delimiter))
             .join(options.delimiter),
           '\n',
         )
@@ -1080,7 +1083,7 @@ function writeArray(output, key, values, depth, listItem, options) {
       writeIndent(output, depth + 1)
       output.push(
         shape.paths
-          .map((path) => primitiveText(valueAtPath(value, path), options.delimiter))
+          .map((column) => columnText(valueAtPath(value, column.path), column, options.delimiter))
           .join(options.delimiter),
       )
       output.push('\n')
@@ -1187,6 +1190,13 @@ function objectShape(records, options, depth) {
     if (cells.every(({ value }) => isPrimitive(value))) {
       continue
     }
+    if (
+      options.primitiveArrayColumns &&
+      cells.every(({ value }) => Array.isArray(value) && value.every(isPrimitive))
+    ) {
+      field.listDelimiter = ';'
+      continue
+    }
     if (!options.nestedTabularHeaders) {
       return undefined
     }
@@ -1203,7 +1213,9 @@ function objectShape(records, options, depth) {
 function leafPaths(fields, prefix = []) {
   return fields.flatMap((field) => {
     const path = [...prefix, field.key]
-    return field.children === undefined ? [path] : leafPaths(field.children, path)
+    return field.children === undefined
+      ? [{ path, listDelimiter: field.listDelimiter }]
+      : leafPaths(field.children, path)
   })
 }
 
@@ -1216,8 +1228,25 @@ function valueAtPath(value, path) {
 }
 
 function headerFieldText(field, delimiter) {
+  if (field.listDelimiter !== undefined) {
+    return `${canonicalKey(field.key)}[${field.listDelimiter}]`
+  }
   if (field.children === undefined) {
     return canonicalKey(field.key)
   }
   return `${canonicalKey(field.key)}{${field.children.map((child) => headerFieldText(child, delimiter)).join(delimiter)}}`
+}
+
+function columnText(value, column, activeDelimiter) {
+  if (column.listDelimiter === undefined) {
+    return primitiveText(value, activeDelimiter)
+  }
+  return value.map((item) => primitiveListItemText(item, activeDelimiter, column.listDelimiter)).join(column.listDelimiter)
+}
+
+function primitiveListItemText(value, activeDelimiter, listDelimiter) {
+  if (typeof value !== 'string') {
+    return primitiveText(value, activeDelimiter)
+  }
+  return needsQuotes(value, activeDelimiter) || value.includes(listDelimiter) ? quoteString(value) : value
 }
