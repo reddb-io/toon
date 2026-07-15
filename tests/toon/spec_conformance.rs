@@ -91,7 +91,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             {
                                 assert!(
                                     reject_v3_strict(input).is_err(),
-                                    "{id}: strict v3 decoder must reject keyed map header"
+                                    "{id}: strict v3 decoder must reject extension header"
                                 );
                             }
                             matches_spec && round_trips_to(&value, &decoded)
@@ -381,6 +381,11 @@ fn reject_v3_strict(input: &str) -> Result<(), String> {
             let key_part = &trimmed[..colon];
             if key_part.contains('{') && key_part.ends_with('}') && !key_part.contains('[') {
                 return Err(format!("line {}: invalid keyed map header", index + 1));
+            }
+            if let Some(fields_start) = key_part.find('{') {
+                if key_part[fields_start..].contains('[') {
+                    return Err(format!("line {}: invalid array header", index + 1));
+                }
             }
         }
     }
