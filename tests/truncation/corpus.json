@@ -50,5 +50,83 @@
       "actual": 1,
       "message": "trailer declared 2 rows but received 1"
     }
+  },
+  {
+    "name": "toon-inline-array-fewer-items",
+    "format": "toon",
+    "input": "a[3]: 1,2\n",
+    "report": {
+      "complete": false,
+      "kind": "array_length_mismatch",
+      "line": 1,
+      "declared": 3,
+      "actual": 2,
+      "message": "declared 3 items but received 2"
+    }
+  },
+  {
+    "name": "toon-table-zero-rows",
+    "format": "toon",
+    "input": "items[1]{a}:\n",
+    "report": {
+      "complete": false,
+      "kind": "array_length_mismatch",
+      "line": 1,
+      "declared": 1,
+      "actual": 0,
+      "message": "declared 1 rows but received 0"
+    }
+  },
+  {
+    "name": "toon-invalid-quoted-string",
+    "format": "toon",
+    "input": "\"unclosed\n",
+    "report": {
+      "complete": false,
+      "kind": "invalid",
+      "line": 1,
+      "declared": null,
+      "actual": null,
+      "message": "line 1: invalid quoted string"
+    }
+  },
+  {
+    "name": "toonl-complete-with-trailer",
+    "format": "toonl",
+    "input": "[]{a}:\n1\n[=1]\n",
+    "report": {
+      "complete": true,
+      "kind": "complete",
+      "line": null,
+      "declared": null,
+      "actual": null,
+      "message": null
+    }
+  },
+  {
+    "name": "toonl-missing-trailer",
+    "format": "toonl",
+    "input": "[]{a}:\n1\n",
+    "report": {
+      "complete": false,
+      "kind": "toonl_missing_trailer",
+      "line": 1,
+      "declared": null,
+      "actual": 1,
+      "message": "stream ended without a trailer after 1 rows"
+    }
+  },
+  {
+    "name": "toonl-trailer-without-header",
+    "format": "toonl",
+    "input": "[=1]\n",
+    "report": {
+      "complete": false,
+      "kind": "invalid",
+      "line": 1,
+      "declared": 1,
+      "actual": null,
+      "message": "trailer without header"
+    }
   }
 ]
