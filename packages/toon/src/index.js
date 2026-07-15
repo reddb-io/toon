@@ -16,6 +16,7 @@ export {
   ToonlEncoder,
   ToonlReader,
   closeTransform,
+  closeTransformInterleaved,
   decodeLines,
   encodeLines,
   encodeRecords,
