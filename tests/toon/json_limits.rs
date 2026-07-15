@@ -91,6 +91,7 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
         if let Some(expected_nested) = expected.get("nestedHeaderToon").and_then(Json::as_str) {
             let nested_toon = value.to_toon_with_options(EncodeOptions {
                 nested_tabular_headers: true,
+                keyed_map_collapse: false,
             });
             assert_eq!(nested_toon, expected_nested, "{name}: nested-header TOON");
 
