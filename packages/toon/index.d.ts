@@ -36,6 +36,8 @@ export interface SerializeOptions {
   nestedTabularHeaders?: boolean
   /** Emit brace-header tabular rows for keyed maps with uniform object values. */
   keyedMapCollapse?: boolean
+  /** Emit primitive-array columns inside otherwise tabular object arrays. */
+  primitiveArrayColumns?: boolean
   /** Active delimiter for array and tabular rows. Default `','`. */
   delimiter?: ToonDelimiter
   /** Maximum nesting depth. Default `1000`; `0` disables the guard for trusted input. */
