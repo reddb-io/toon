@@ -1,0 +1,5 @@
+orders[2|]{id|items{sku|quantity}}:
+  ord_001|2
+    sku_1|3
+    sku_2|1
+  ord_002|0
