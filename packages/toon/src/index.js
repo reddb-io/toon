@@ -5,7 +5,7 @@
  */
 
 export { ToonError, ToonlCursorInvalidationError, ToonlError } from './errors.js'
-export { DEFAULT_INDENT, parse, parseDocument, serialize } from './toon.js'
+export { DEFAULT_INDENT, DEFAULT_MAX_DEPTH, parse, parseDocument, serialize } from './toon.js'
 export { parse as decode, serialize as encode } from './toon.js'
 export { appendSummaryField, projectFields } from './helpers.js'
 export {
