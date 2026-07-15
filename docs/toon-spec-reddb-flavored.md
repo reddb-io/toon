@@ -40,6 +40,7 @@ RECOMMENDED, MAY, and OPTIONAL are to be interpreted as described in RFC 2119.
 - [Extension 2 — Keyed-map collapse](#extension-2--keyed-map-collapse)
   - [The entry-count guardrail and its trade-off](#the-entry-count-guardrail-and-its-trade-off)
 - [Extension 3 — Primitive-array columns](#extension-3--primitive-array-columns)
+- [Extension 4 — Object-array columns](#extension-4--object-array-columns)
 - [Delimiter choice](#delimiter-choice)
 - [Depth guard](#depth-guard)
 - [detectTruncation — structured completeness reports](#detecttruncation--structured-completeness-reports)
@@ -91,11 +92,11 @@ form errors loudly instead of quietly reading a different shape.
 
 ### Enabling emission, per surface
 
-| Surface | Active delimiter | Nested tabular headers | Keyed-map collapse | Primitive-array columns |
-| --- | --- | --- | --- | --- |
-| JS — `serialize(value, opts)` | `{ delimiter: ',' \| '\t' \| '\|' }` | `{ nestedTabularHeaders: true }` | `{ keyedMapCollapse: true }` | `{ primitiveArrayColumns: true }` |
-| Rust — `to_toon_with_options(EncodeOptions)` | `delimiter: ',' \| '\t' \| '\|'` | `nested_tabular_headers: true` | `keyed_map_collapse: true` | `primitive_array_columns: true` |
-| `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | `--nested-tabular-headers` | `--keyed-map-collapse` | `--primitive-array-columns` |
+| Surface | Active delimiter | Nested tabular headers | Keyed-map collapse | Primitive-array columns | Object-array columns |
+| --- | --- | --- | --- | --- | --- |
+| JS — `serialize(value, opts)` | `{ delimiter: ',' \| '\t' \| '\|' }` | `{ nestedTabularHeaders: true }` | `{ keyedMapCollapse: true }` | `{ primitiveArrayColumns: true }` | `{ objectArrayColumns: true }` |
+| Rust — `to_toon_with_options(EncodeOptions)` | `delimiter: ',' \| '\t' \| '\|'` | `nested_tabular_headers: true` | `keyed_map_collapse: true` | `primitive_array_columns: true` | `object_array_columns: true` |
+| `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | `--nested-tabular-headers` | `--keyed-map-collapse` | `--primitive-array-columns` | `--object-array-columns` |
 
 Delimiter choice is pure TOON v3.3 for arrays and tabular rows: encoders emit the active-delimiter declaration in the header (`[N|]`, `[N\t]`, and matching field lists) and quote cells that contain the active delimiter. The keyed-map collapse extension mirrors that declaration at the start of its field list, for example `map{|id|name}:`, so extension rows remain self-describing.
 
@@ -297,6 +298,63 @@ list still checks row width. The primitive-list declaration adds a type and
 sub-delimiter check, but it does not declare each list cell's item count. A
 malformed quoted subcell is still rejected by the quote scanner.
 
+## Extension 4 — Object-array columns
+
+Uniform object arrays sometimes contain fields whose values are themselves
+arrays of uniform objects. TOON v3.3 must expand the parent rows because the
+child array is not primitive. This extension keeps the parent table and emits
+the child rows immediately below the parent row. The parent cell stores the
+child row count:
+
+```toon
+orders[2|]{id|customer|items{sku|quantity|components{part|lot|ok}}}:
+  ord_001|cust_a|2
+    sku_1|3|2
+      part_a|lot_1|true
+      part_b|lot_2|false
+    sku_2|1|0
+  ord_002|cust_b|0
+```
+
+This decodes to the same JSON shape as the expanded TOON v3.3 list form:
+`orders[].items[]` is an object array, and `items[].components[]` is another
+object array. The grammar is recursive:
+
+- `field{child,fields}` in a tabular header MAY denote either a nested object
+  column or a child-table column. The row cell disambiguates the child-table
+  case: it is a non-negative decimal count, and the following rows are indented
+  one level deeper.
+- Each child table uses the same active delimiter as the containing table.
+- A child row count of `0` emits no child rows.
+- The declared parent row count and every child row count are checked during
+  decode; truncated child rows are an `array length mismatch`.
+
+Eligibility is deterministic. An encoder with the option enabled emits this
+form only when **all** of the following hold:
+
+1. the containing array can otherwise be represented as a tabular object array;
+2. each child-table field value is an array;
+3. across all rows, every element of that child array is a non-empty object with
+   the same key set; and
+4. nested child-table fields satisfy the same rules recursively.
+
+If any row contains a scalar child value, a mixed object/scalar child array, a
+heterogeneous child object shape, or a depth violation, the encoder falls back
+losslessly to ordinary TOON v3.3.
+
+The same header form also carries fixed-width primitive matrices. A root or
+field value shaped as a uniform non-empty list of primitive lists MAY encode as:
+
+```toon
+matrix[2|]{values[3|]}:
+  1|2|3
+  4|5|6
+```
+
+Here `values[3|]` declares a fixed-width list cell: each row has exactly three
+primitive cells separated by the active delimiter. The single fixed-width field
+decodes back to a row array, not an object wrapper.
+
 ## Delimiter choice
 
 TOON v3.3 supports three delimiters — comma (default), tab (HTAB), and pipe
@@ -492,6 +550,17 @@ opaque JSON payload cell that TOONL cannot collapse, marks the low end of the
 range: the format saves on structure, so a payload with almost no repeated
 structure saves the least.
 
+### Extension corpus measurements
+
+The shared wire-efficiency corpus records byte gates and the token report records
+the current measured wins. With all shipped extensions enabled, the `tree3-100`
+recursive object-array corpus measures **19,076 bytes** and **8,834 tokens**,
+versus **37,076 bytes** and **13,370 tokens** for minified JSON. The
+`matrix-150x8` corpus is emitted through the fixed-width matrix form at
+**7,628 bytes** and **5,107 tokens**; this is byte-neutral against minified JSON
+for that corpus but proves the matrix grammar uses the same opt-in extension
+surface and round-trips through both implementations.
+
 ## Relationship to the streaming layer
 
 TOONL ([`toonl.md`](toonl.md)) is an independent line-oriented streaming
@@ -507,12 +576,13 @@ The shared corpora under `tests/` pin both implementations to identical behavior
 - `tests/toon/fixtures/` (live from the `vendor/toon-spec` submodule) — the v3.3
   baseline, run by both the Rust crate and the JS package.
 - The extension corpora — encode bytes and decode values for nested tabular
-  headers and keyed-map collapse, including the eligibility and fail-closed cases.
+  headers, keyed-map collapse, primitive-array columns, and object-array columns,
+  including the eligibility and fail-closed cases.
 - `tests/json-limits/corpus.json` — the shared JSON edge corpus (numbers at the
   boundaries of the safe-integer range, precision, and other parser limits) run
   identically by the JS package and the Rust crate.
-- The `tq` golden tests cover the `--nested-tabular-headers` and
-  `--keyed-map-collapse` flags end-to-end.
+- The `tq` golden tests cover the extension emission flags end-to-end, including
+  `--object-array-columns`.
 
 CI enforces the whole set on every change, so the two implementations cannot
 disagree about the flavor.
