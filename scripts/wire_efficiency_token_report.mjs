@@ -11,7 +11,12 @@ const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const FIXTURE_PATH = join(REPO_ROOT, 'tests/wire-efficiency/corpora.json')
 const TOKENIZER_DIR = join(REPO_ROOT, '.red/tmp/wire-efficiency-tokenizer')
 const TOKENIZER_PACKAGE = 'js-tiktoken'
-const EXT_OPTIONS = { nestedTabularHeaders: true, keyedMapCollapse: true }
+const EXT_OPTIONS = {
+  nestedTabularHeaders: true,
+  keyedMapCollapse: true,
+  primitiveArrayColumns: true,
+  objectArrayColumns: true,
+}
 
 function ensureTokenizer() {
   const packageJson = join(TOKENIZER_DIR, 'node_modules', TOKENIZER_PACKAGE, 'package.json')
