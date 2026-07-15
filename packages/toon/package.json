@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "TOON v3.3 parser and serializer, plus TOONL v0.2 append-only streaming. Dependency-free ESM, conformant against the official spec corpus.",
   "type": "module",
   "main": "src/index.js",
