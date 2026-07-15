@@ -90,15 +90,10 @@ deploys[4]{id,version,env,status,duration}:
   4,2.5.0,prod,success,203
 ```
 
-Those two blocks are the same document — the JSON is literally `tq -o json . deploys.toon`. Tokenized with `o200k_base` (the GPT-4o/GPT-5 encoding, via `tiktoken`), they measure:
-
-| Encoding | Tokens | Bytes |
-| --- | ---: | ---: |
-| JSON, pretty-printed | 200 | 569 |
-| JSON, minified | 114 | 353 |
-| **TOON** | **91** | **189** |
-
-That is **54% fewer tokens than pretty-printed JSON** and **20% fewer than minified JSON** — on this payload, with this tokenizer. The saving is not a universal constant: it grows with the number of rows in a uniform array (the header is amortized) and shrinks toward zero for deeply nested, non-uniform data, where TOON has nothing to collapse. Measure your own payload before quoting a number; `tq` makes that a one-liner.
+Those two blocks are the same document — the JSON is literally
+`tq -o json . deploys.toon`. Reproducible token and byte evidence now lives in
+[`benchmarks/`](benchmarks/), which is the canonical place for benchmark
+methodology and dated results.
 
 TOON is also *self-checking* in a way JSON is not: `[4]` declares the row count and `{id,version,…}` declares the fields, so a truncated or hallucinated table is a parse error rather than silently short data.
 
@@ -212,17 +207,12 @@ $ echo $?
 1
 ```
 
-#### Why bother? Tokens.
+#### Benchmark evidence
 
-Same payloads, tokenized with `o200k_base` at 10,000 rows ([full benchmark](.red/researches/token-benchmark-toonl-vs-jsonl.md), reproducible via `scripts/research_token_benchmark.py`):
-
-| Payload class | JSONL tokens | TOONL tokens | Saving |
-| --- | ---: | ---: | ---: |
-| Analytics export | 535,576 | 305,604 | **−42.9%** |
-| Flat log | 552,500 | 360,024 | **−34.8%** |
-| Envelope (opaque payload cell) | 990,000 | 906,686 | −8.4% |
-
-The saving grows with stream length (the header amortizes) and open TOONL even beats closed TOON by a point or two — there is no `[N]` to pay.
+TOONL and JSONL comparisons are measured by the first-class harness in
+[`benchmarks/`](benchmarks/). The root README intentionally avoids embedding
+benchmark result tables so published documentation does not drift from the
+reproducible reports.
 
 ---
 
