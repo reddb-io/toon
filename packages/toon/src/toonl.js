@@ -56,24 +56,25 @@ function parseHeaderLine(line, lineNumber) {
   }
 
   const bracket = rest.slice(0, close)
-  if (bracket.startsWith('=')) {
+  const continuation = bracket.startsWith('~')
+  const delimiterText = continuation ? bracket.slice(1) : bracket
+  if (!continuation && delimiterText.startsWith('=')) {
     return null
   }
-  if (!DELIMITERS.includes(bracket) && bracket !== '') {
+  if (!DELIMITERS.includes(delimiterText) && delimiterText !== '') {
     throw toonlError(lineNumber, 'invalid header delimiter')
   }
-  const delimiter = bracket === '' ? DOCUMENT_DELIMITER : bracket
+  const delimiter = delimiterText === '' ? DOCUMENT_DELIMITER : delimiterText
 
   const suffix = rest.slice(close + 1)
   if (!suffix.startsWith('{') || !suffix.endsWith('}:')) {
     throw toonlError(lineNumber, 'invalid header')
   }
 
+  const fieldText = suffix.slice(1, -2)
   let fields
   try {
-    fields = splitDelimited(suffix.slice(1, -2), delimiter, lineNumber).map(
-      (field) => parseKey(field, lineNumber)[0],
-    )
+    fields = splitDelimited(fieldText, delimiter, lineNumber).map((field) => parseKey(field, lineNumber)[0])
   } catch (error) {
     throw asToonlError(error)
   }
@@ -81,7 +82,16 @@ function parseHeaderLine(line, lineNumber) {
     throw toonlError(lineNumber, 'invalid header fields')
   }
 
-  return { delimiter, fields }
+  return { delimiter, fields, fieldText, continuation }
+}
+
+function assertContinuation(open, header, lineNumber) {
+  if (open === null) {
+    throw toonlError(lineNumber, 'continuation header before header')
+  }
+  if (open.delimiter !== header.delimiter || open.fieldText !== header.fieldText) {
+    throw toonlError(lineNumber, 'continuation header mismatch')
+  }
 }
 
 /** Splits a row into raw (still-encoded) cells, validating arity and each scalar. */
@@ -140,6 +150,10 @@ function classifyLine(line, lineNumber, open) {
 
   const header = parseHeaderLine(line, lineNumber)
   if (header !== null) {
+    if (header.continuation) {
+      assertContinuation(open, header, lineNumber)
+      return { kind: 'continuation' }
+    }
     return { kind: 'header', header }
   }
 
@@ -161,7 +175,7 @@ function classifyLine(line, lineNumber, open) {
  * A segment left open at EOF is still returned — TOONL is append-only, and an
  * unterminated tail is the normal shape of a stream someone is still writing.
  */
-export function parseStream(input) {
+function parseStreamInternal(input) {
   const segments = []
   let current = null
 
@@ -174,7 +188,12 @@ export function parseStream(input) {
     const open =
       current === null
         ? null
-        : { delimiter: current.delimiter, fields: current.fields, rowCount: current.rows.length }
+        : {
+            delimiter: current.delimiter,
+            fields: current.fields,
+            fieldText: current.fieldText,
+            rowCount: current.rows.length,
+          }
     const step = classifyLine(line, lineNumber, open)
 
     if (step.kind === 'trailer') {
@@ -182,11 +201,19 @@ export function parseStream(input) {
       current = null
       return
     }
+    if (step.kind === 'continuation') {
+      return
+    }
     if (step.kind === 'header') {
       if (current !== null) {
         segments.push(current)
       }
-      current = { delimiter: step.header.delimiter, fields: step.header.fields, rows: [] }
+      current = {
+        delimiter: step.header.delimiter,
+        fields: step.header.fields,
+        fieldText: step.header.fieldText,
+        rows: [],
+      }
       return
     }
     current.rows.push(step.cells)
@@ -199,9 +226,13 @@ export function parseStream(input) {
   return segments
 }
 
+export function parseStream(input) {
+  return parseStreamInternal(input).map(({ delimiter, fields, rows }) => ({ delimiter, fields, rows }))
+}
+
 /** Every row of every segment, decoded into records. */
 export function parseRecords(input) {
-  return parseStream(input).flatMap((segment) =>
+  return parseStreamInternal(input).flatMap((segment) =>
     segment.rows.map((row) => rowRecord(segment.fields, row, 0)),
   )
 }
@@ -212,7 +243,7 @@ export function parseRecords(input) {
  * transform). Cells are already canonical, so they are re-emitted verbatim.
  */
 export function closeTransform(input) {
-  return parseStream(input).map((segment) => {
+  return parseStreamInternal(input).map((segment) => {
     const delimiter = segment.delimiter
     const bracket = delimiter === DOCUMENT_DELIMITER ? '' : delimiter
     const fields = segment.fields.map(canonicalKey).join(delimiter)
@@ -282,8 +313,16 @@ function consumeDecodeLine(state, line) {
     state.open = null
     return undefined
   }
+  if (step.kind === 'continuation') {
+    return undefined
+  }
   if (step.kind === 'header') {
-    state.open = { delimiter: step.header.delimiter, fields: step.header.fields, rowCount: 0 }
+    state.open = {
+      delimiter: step.header.delimiter,
+      fields: step.header.fields,
+      fieldText: step.header.fieldText,
+      rowCount: 0,
+    }
     return undefined
   }
 
@@ -483,9 +522,28 @@ function validateDelimiter(delimiter) {
   }
 }
 
-function headerText(delimiter, fields) {
-  const bracket = delimiter === DOCUMENT_DELIMITER ? '' : delimiter
-  return `[${bracket}]{${fields.map(canonicalKey).join(delimiter)}}:\n`
+function headerText(delimiter, fieldText, continuation = false) {
+  const bracket = `${continuation ? '~' : ''}${delimiter === DOCUMENT_DELIMITER ? '' : delimiter}`
+  return `[${bracket}]{${fieldText}}:\n`
+}
+
+function headerFieldText(delimiter, fields) {
+  return fields.map(canonicalKey).join(delimiter)
+}
+
+function validateCadence(cadence) {
+  if (cadence !== undefined && (!Number.isInteger(cadence) || cadence <= 0)) {
+    throw toonlError(0, 'TOONL continuation cadence must be positive')
+  }
+}
+
+function continuationDue(options, rowsSinceContinuation, bytesSinceContinuation) {
+  return (
+    (options.continuationEveryRows !== undefined &&
+      rowsSinceContinuation >= options.continuationEveryRows) ||
+    (options.continuationEveryBytes !== undefined &&
+      bytesSinceContinuation >= options.continuationEveryBytes)
+  )
 }
 
 /** Field list of a record, rejecting anything TOONL cannot put in a flat row. */
@@ -521,11 +579,17 @@ function canonicalFieldsForShape(fields, fieldsByShape) {
 export class ToonlEncoder {
   #delimiter
   #fields
+  #fieldText
   #chunks
   #rowCount = 0
+  #rowsSinceContinuation = 0
+  #bytesSinceContinuation = 0
+  #options
 
-  constructor(delimiter, fields) {
+  constructor(delimiter, fields, options = {}) {
     validateDelimiter(delimiter)
+    validateCadence(options.continuationEveryRows)
+    validateCadence(options.continuationEveryBytes)
     if (!Array.isArray(fields) || fields.length === 0) {
       throw toonlError(0, 'TOONL header requires fields')
     }
@@ -544,7 +608,9 @@ export class ToonlEncoder {
 
     this.#delimiter = delimiter
     this.#fields = names
-    this.#chunks = [headerText(delimiter, names)]
+    this.#fieldText = headerFieldText(delimiter, names)
+    this.#chunks = [headerText(delimiter, this.#fieldText)]
+    this.#options = { ...options }
   }
 
   get fields() {
@@ -553,6 +619,16 @@ export class ToonlEncoder {
 
   get rowCount() {
     return this.#rowCount
+  }
+
+  setContinuationEveryRows(rows) {
+    validateCadence(rows)
+    this.#options.continuationEveryRows = rows
+  }
+
+  setContinuationEveryBytes(bytes) {
+    validateCadence(bytes)
+    this.#options.continuationEveryBytes = bytes
   }
 
   /** Appends already-encoded cells, validating arity and each scalar. */
@@ -567,8 +643,12 @@ export class ToonlEncoder {
         throw asToonlError(error)
       }
     }
-    this.#chunks.push(`${cells.join(this.#delimiter)}\n`)
+    this.#pushContinuationIfDue()
+    const row = `${cells.join(this.#delimiter)}\n`
+    this.#chunks.push(row)
     this.#rowCount += 1
+    this.#rowsSinceContinuation += 1
+    this.#bytesSinceContinuation += row.length
   }
 
   /** Appends a record, which must carry exactly this segment's fields. */
@@ -594,6 +674,15 @@ export class ToonlEncoder {
   toString() {
     return this.#chunks.join('')
   }
+
+  #pushContinuationIfDue() {
+    if (!continuationDue(this.#options, this.#rowsSinceContinuation, this.#bytesSinceContinuation)) {
+      return
+    }
+    this.#chunks.push(headerText(this.#delimiter, this.#fieldText, true))
+    this.#rowsSinceContinuation = 0
+    this.#bytesSinceContinuation = 0
+  }
 }
 
 /**
@@ -606,18 +695,38 @@ export class ToonlEncoder {
  *
  * `trailer` (default `true`) writes the `[=N]` trailer when a segment closes.
  */
-export function encodeLines({ delimiter = DOCUMENT_DELIMITER, trailer = true } = {}) {
+export function encodeLines({
+  delimiter = DOCUMENT_DELIMITER,
+  trailer = true,
+  continuationEveryRows,
+  continuationEveryBytes,
+} = {}) {
   validateDelimiter(delimiter)
+  validateCadence(continuationEveryRows)
+  validateCadence(continuationEveryBytes)
   let fields = null
+  let fieldText = ''
   const fieldsByShape = new Map()
   let rowCount = 0
+  let rowsSinceContinuation = 0
+  let bytesSinceContinuation = 0
   let ended = false
+  const continuationOptions = { continuationEveryRows, continuationEveryBytes }
 
   const closeSegment = () => {
     if (fields === null || !trailer) {
       return ''
     }
     return `[=${rowCount}]\n`
+  }
+
+  const continuationHeader = () => {
+    if (!continuationDue(continuationOptions, rowsSinceContinuation, bytesSinceContinuation)) {
+      return ''
+    }
+    rowsSinceContinuation = 0
+    bytesSinceContinuation = 0
+    return headerText(delimiter, fieldText, true)
   }
 
   return {
@@ -631,13 +740,20 @@ export function encodeLines({ delimiter = DOCUMENT_DELIMITER, trailer = true } =
       if (fields === null || fields.length !== next.length || fields.some((f, i) => f !== next[i])) {
         output += closeSegment()
         fields = next
+        fieldText = headerFieldText(delimiter, fields)
         rowCount = 0
-        output += headerText(delimiter, fields)
+        rowsSinceContinuation = 0
+        bytesSinceContinuation = 0
+        output += headerText(delimiter, fieldText)
       }
 
       const cells = fields.map((field) => primitiveText(record[field], delimiter))
-      output += `${cells.join(delimiter)}\n`
+      output += continuationHeader()
+      const row = `${cells.join(delimiter)}\n`
+      output += row
       rowCount += 1
+      rowsSinceContinuation += 1
+      bytesSinceContinuation += row.length
       return output
     },
 
