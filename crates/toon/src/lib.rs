@@ -42,6 +42,8 @@ impl Default for ParseOptions {
 pub struct EncodeOptions {
     /// Emit recursive-brace tabular headers for uniform nested object fields.
     pub nested_tabular_headers: bool,
+    /// Emit brace-header tabular rows for keyed maps with uniform object values.
+    pub keyed_map_collapse: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -101,6 +103,14 @@ struct Header {
     len: usize,
     delimiter: char,
     fields: Option<Vec<Vec<String>>>,
+}
+
+#[derive(Debug)]
+struct MapHeader {
+    key: String,
+    key_quoted: bool,
+    delimiter: char,
+    fields: Vec<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1658,7 +1668,32 @@ fn parse_field(
     let key_part = &content[..colon];
     let value_part = &content[colon + 1..];
 
-    if find_unquoted(key_part, '[', line.number)?.is_some() {
+    let array_open = find_unquoted(key_part, '[', line.number)?;
+    let map_open = find_unquoted(key_part, '{', line.number)?;
+    if map_open.is_some_and(|open| array_open.is_none_or(|array_open| open < array_open)) {
+        match parse_map_header(key_part) {
+            Ok(header) => {
+                if !value_part.trim().is_empty() {
+                    return Err(ParseError {
+                        line: line.number,
+                        message: "expected keyed map rows",
+                    });
+                }
+                let key = header.key.clone();
+                let value = parse_keyed_map_rows(&header, lines, index, depth + 1, options)?;
+                return Ok((key, header.key_quoted, value));
+            }
+            Err(error) if options.strict => return Err(error.at(line.number)),
+            Err(_) => {
+                *index += 1;
+                let value =
+                    parse_field_value(lines, index, depth, value_part, line.number, options)?;
+                return Ok((key_part.trim().to_owned(), false, value));
+            }
+        }
+    }
+
+    if array_open.is_some() {
         match parse_header(key_part, Some(colon)) {
             Ok(header) => {
                 if header.key.is_empty() && !header.key_quoted {
@@ -1722,6 +1757,76 @@ fn parse_field_value(
         )?)),
         _ => Ok(Value::Object(Document::default())),
     }
+}
+
+fn parse_keyed_map_rows(
+    header: &MapHeader,
+    lines: &[Line<'_>],
+    index: &mut usize,
+    row_depth: usize,
+    options: &ParseOptions,
+) -> Result<Value, ParseError> {
+    let mut document = Document::default();
+    *index += 1;
+
+    while let Some(line) = lines.get(*index) {
+        if line.depth < row_depth {
+            break;
+        }
+        if line.depth > row_depth {
+            return Err(ParseError {
+                line: line.number,
+                message: "invalid indentation",
+            });
+        }
+        if line.blank_before && options.strict {
+            return Err(ParseError {
+                line: line.number,
+                message: "blank line inside keyed map",
+            });
+        }
+
+        let colon = find_unquoted(line.content, ':', line.number)?.ok_or(ParseError {
+            line: line.number,
+            message: "expected `key: value`",
+        })?;
+        let (key, quoted) = parse_key(&line.content[..colon], line.number)?;
+        if key.is_empty() && !quoted {
+            return Err(ParseError {
+                line: line.number,
+                message: "expected non-empty field name",
+            });
+        }
+        let cells = split_delimited(
+            line.content[colon + 1..].trim(),
+            header.delimiter,
+            line.number,
+        )?;
+        if cells.len() != header.fields.len() {
+            return Err(ParseError {
+                line: line.number,
+                message: "keyed map row length mismatch",
+            });
+        }
+
+        let mut row = Document::default();
+        for (path, cell) in header.fields.iter().zip(cells.iter()) {
+            let value = parse_scalar(cell, line.number)?;
+            let segments = path.iter().map(String::as_str).collect::<Vec<_>>();
+            insert_path(&mut row, &segments, value, options, line.number)?;
+        }
+        insert_field(
+            &mut document,
+            &key,
+            quoted,
+            Value::Object(row),
+            options,
+            line.number,
+        )?;
+        *index += 1;
+    }
+
+    Ok(Value::Object(document))
 }
 
 // ---------------------------------------------------------------------------
@@ -2051,6 +2156,35 @@ fn parse_header(content: &str, colon: Option<usize>) -> Result<Header, HeaderErr
         key_quoted,
         len,
         delimiter,
+        fields,
+    })
+}
+
+fn parse_map_header(content: &str) -> Result<MapHeader, HeaderError> {
+    let open = find_unquoted(content, '{', 0)
+        .map_err(|_| HeaderError("invalid quoted string"))?
+        .ok_or(HeaderError("invalid keyed map header"))?;
+    if !content.ends_with('}') {
+        return Err(HeaderError("invalid keyed map header"));
+    }
+    let (key, key_quoted) =
+        parse_key(&content[..open], 0).map_err(|_| HeaderError("invalid keyed map header"))?;
+    if key.is_empty() && !key_quoted {
+        return Err(HeaderError("expected non-empty field name"));
+    }
+    let fields = parse_header_fields(&content[open + 1..content.len() - 1], DOCUMENT_DELIMITER)
+        .map_err(|error| {
+            if error.0 == "duplicate key" {
+                HeaderError("duplicate key")
+            } else {
+                HeaderError("invalid keyed map header")
+            }
+        })?;
+
+    Ok(MapHeader {
+        key,
+        key_quoted,
+        delimiter: DOCUMENT_DELIMITER,
         fields,
     })
 }
@@ -2894,6 +3028,10 @@ fn write_field(
             write_array(output, Some(key), &array.values(), depth, false, options)
         }
         Value::Object(document) => {
+            if let Some(shape) = keyed_map_shape(document, options) {
+                write_keyed_map(output, key, document, &shape, depth);
+                return;
+            }
             output.push_str(&canonical_key(key));
             output.push_str(":\n");
             document.write_fields(output, depth + 1, options);
@@ -3018,6 +3156,44 @@ fn write_array_header(
     output.push(':');
 }
 
+fn write_keyed_map(
+    output: &mut String,
+    key: &str,
+    document: &Document,
+    shape: &TabularShape,
+    depth: usize,
+) {
+    output.push_str(&canonical_key(key));
+    output.push('{');
+    let names = shape
+        .fields
+        .iter()
+        .map(header_field_text)
+        .collect::<Vec<_>>();
+    output.push_str(&names.join(&DOCUMENT_DELIMITER.to_string()));
+    output.push_str("}:\n");
+    for field in &document.fields {
+        let Value::Object(row) = &field.value else {
+            unreachable!("keyed_map_shape checked row values");
+        };
+        write_indent(output, depth + 1);
+        output.push_str(&canonical_key(&field.key));
+        output.push_str(": ");
+        let row_value = Value::Object(row.clone());
+        let cells = shape
+            .paths
+            .iter()
+            .map(|path| {
+                let cell =
+                    value_at_path(&row_value, path).expect("keyed_map_shape checked row paths");
+                primitive_text(cell, DOCUMENT_DELIMITER)
+            })
+            .collect::<Vec<_>>();
+        output.push_str(&cells.join(&DOCUMENT_DELIMITER.to_string()));
+        output.push('\n');
+    }
+}
+
 fn header_field_text(field: &HeaderFieldShape) -> String {
     if field.children.is_empty() {
         return canonical_key(&field.key);
@@ -3048,6 +3224,18 @@ fn tabular_shape(values: &[Value], options: EncodeOptions) -> Option<TabularShap
     let mut paths = Vec::new();
     collect_leaf_paths(&fields, &mut Vec::new(), &mut paths);
     Some(TabularShape { fields, paths })
+}
+
+fn keyed_map_shape(document: &Document, options: EncodeOptions) -> Option<TabularShape> {
+    if !options.keyed_map_collapse || document.fields.len() < 2 {
+        return None;
+    }
+    let values = document
+        .fields
+        .iter()
+        .map(|field| field.value.clone())
+        .collect::<Vec<_>>();
+    tabular_shape(&values, options)
 }
 
 fn object_shape(values: &[Value], options: EncodeOptions) -> Option<Vec<HeaderFieldShape>> {
@@ -3321,6 +3509,7 @@ mod tests {
             "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n";
         let options = EncodeOptions {
             nested_tabular_headers: true,
+            keyed_map_collapse: false,
         };
 
         assert_eq!(document.to_canonical_toon(), expanded);
@@ -3343,6 +3532,7 @@ mod tests {
         assert_eq!(
             document.to_toon_with_options(EncodeOptions {
                 nested_tabular_headers: true,
+                keyed_map_collapse: false,
             }),
             "rows[2]:\n  - id: 1\n    point:\n      x: 1\n      y: 2\n  - id: 2\n    point:\n      x: 3\n      z: 4\n"
         );
@@ -3369,6 +3559,64 @@ mod tests {
             .expect_err("unbalanced nested groups are invalid");
         assert_eq!(unbalanced.line(), 1);
         assert_eq!(unbalanced.message(), "invalid array header");
+    }
+
+    #[test]
+    fn parses_keyed_map_collapse_rows() {
+        let document = Document::parse(
+            "people{first,last,meta{active,score}}:\n  joe: Joe,Schmoe,true,7\n  mary: Mary,Jane,false,9\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            document.to_json_value(),
+            serde_json::json!({
+                "people": {
+                    "joe": { "first": "Joe", "last": "Schmoe", "meta": { "active": true, "score": 7 } },
+                    "mary": { "first": "Mary", "last": "Jane", "meta": { "active": false, "score": 9 } }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn serializes_keyed_map_collapse_only_when_opted_in() {
+        let document = Value::from_json_value(serde_json::json!({
+            "people": {
+                "joe": { "first": "Joe", "last": "Schmoe" },
+                "mary": { "first": "Mary", "last": "Jane" }
+            }
+        }));
+        let expanded =
+            "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    last: Jane\n";
+        let collapsed = "people{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane\n";
+
+        assert_eq!(document.to_canonical_toon(), expanded);
+        assert_eq!(
+            document.to_toon_with_options(EncodeOptions {
+                nested_tabular_headers: false,
+                keyed_map_collapse: true,
+            }),
+            collapsed
+        );
+    }
+
+    #[test]
+    fn keyed_map_collapse_falls_back_for_non_uniform_maps() {
+        let document = Value::from_json_value(serde_json::json!({
+            "people": {
+                "joe": { "first": "Joe", "last": "Schmoe" },
+                "mary": { "first": "Mary", "role": "admin" }
+            }
+        }));
+
+        assert_eq!(
+            document.to_toon_with_options(EncodeOptions {
+                nested_tabular_headers: false,
+                keyed_map_collapse: true,
+            }),
+            "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin\n"
+        );
     }
 
     #[test]

@@ -1,0 +1,35 @@
+{
+  "category": "decode",
+  "tests": [
+    {
+      "name": "keyed map collapse decodes uniform object map",
+      "input": "people{first,last,meta{active,score}}:\n  joe: Joe,Schmoe,true,7\n  mary: Mary,Jane,false,9\n",
+      "expected": {
+        "people": {
+          "joe": {
+            "first": "Joe",
+            "last": "Schmoe",
+            "meta": { "active": true, "score": 7 }
+          },
+          "mary": {
+            "first": "Mary",
+            "last": "Jane",
+            "meta": { "active": false, "score": 9 }
+          }
+        }
+      },
+      "failClosedV3Strict": true
+    },
+    {
+      "name": "keyed map row keys use standard quoting",
+      "input": "registry{role}:\n  \"#admin\": superuser\n  \"-guest\": viewer\n",
+      "expected": {
+        "registry": {
+          "#admin": { "role": "superuser" },
+          "-guest": { "role": "viewer" }
+        }
+      },
+      "failClosedV3Strict": true
+    }
+  ]
+}

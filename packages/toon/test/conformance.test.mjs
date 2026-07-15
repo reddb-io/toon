@@ -27,6 +27,7 @@ import {
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const FIXTURE_ROOT = join(REPO_ROOT, 'vendor/toon-spec/tests/fixtures')
+const LOCAL_FIXTURE_ROOT = join(REPO_ROOT, 'tests/toon/fixtures')
 const TOONL_FIXTURE_ROOT = join(REPO_ROOT, 'tests/toonl/fixtures')
 
 function readFixtures(directory) {
@@ -88,6 +89,16 @@ function decoderOptions(options) {
   }
 }
 
+function encoderOptions(options) {
+  if (options === undefined || options === null) {
+    return {}
+  }
+  return {
+    nestedTabularHeaders: options.nestedTabularHeaders === true,
+    keyedMapCollapse: options.keyedMapCollapse === true,
+  }
+}
+
 /** Our canonical output has to decode back to the value we started from. */
 function roundTripsTo(value) {
   // The canonical profile is always the default one, whatever the input used.
@@ -99,7 +110,11 @@ test('official TOON spec fixtures all pass', () => {
   let executed = 0
 
   for (const category of ['decode', 'encode']) {
-    for (const { file, fixture } of readFixtures(join(FIXTURE_ROOT, category))) {
+    const fixtures = [
+      ...readFixtures(join(FIXTURE_ROOT, category)),
+      ...readFixtures(join(LOCAL_FIXTURE_ROOT, category)),
+    ]
+    for (const { file, fixture } of fixtures) {
       for (const testCase of fixture.tests) {
         const id = `${category}/${file}::${testCase.name}`
         executed += 1
@@ -124,10 +139,22 @@ test('official TOON spec fixtures all pass', () => {
               // cannot read.
               const value = parse(testCase.input, options)
               passed = jsonEqual(value, testCase.expected) && roundTripsTo(value)
+              if (passed && testCase.failClosedV3Strict === true) {
+                assert.throws(() => rejectV3Strict(testCase.input), /invalid keyed map header/)
+              }
             }
           } else {
-            const value = parse(testCase.expected, options)
-            passed = roundTripsTo(value)
+            if (
+              Object.prototype.hasOwnProperty.call(testCase, 'input') &&
+              testCase.options?.keyedMapCollapse === true
+            ) {
+              const encoded = serialize(testCase.input, encoderOptions(testCase.options))
+              const decoded = parse(testCase.expected, options)
+              passed = encoded === testCase.expected && jsonEqual(decoded, testCase.input)
+            } else {
+              const value = parse(testCase.expected, options)
+              passed = roundTripsTo(value)
+            }
           }
         } catch (error) {
           failures.push(`${id} — threw: ${error.message}`)
@@ -266,6 +293,16 @@ function rejectV01Toonl(input) {
     const suffix = line.slice(close + 1)
     if (!suffix.startsWith('{') || !suffix.endsWith('}:')) {
       throw new Error(`line ${lineNumber}: invalid header`)
+    }
+  })
+}
+
+function rejectV3Strict(input) {
+  input.split(/\n/).forEach((rawLine, index) => {
+    const lineNumber = index + 1
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
+    if (/^[ ]*[^:[\n]+{.*}:[ ]*$/.test(line)) {
+      throw new Error(`line ${lineNumber}: invalid keyed map header`)
     }
   })
 }

@@ -100,6 +100,50 @@ test('nested tabular headers validate leaf arity and shape', () => {
   })
 })
 
+test('parses keyed map collapse rows', () => {
+  const input =
+    'people{first,last,meta{active,score}}:\n  joe: Joe,Schmoe,true,7\n  mary: Mary,Jane,false,9\n'
+
+  assert.deepEqual(parse(input), {
+    people: {
+      joe: { first: 'Joe', last: 'Schmoe', meta: { active: true, score: 7 } },
+      mary: { first: 'Mary', last: 'Jane', meta: { active: false, score: 9 } },
+    },
+  })
+})
+
+test('serializes keyed map collapse only when opted in', () => {
+  const document = {
+    people: {
+      joe: { first: 'Joe', last: 'Schmoe' },
+      mary: { first: 'Mary', last: 'Jane' },
+    },
+  }
+
+  assert.equal(
+    serialize(document),
+    'people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    last: Jane\n',
+  )
+  assert.equal(
+    serialize(document, { keyedMapCollapse: true }),
+    'people{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane\n',
+  )
+})
+
+test('keyed map collapse falls back for non-uniform maps', () => {
+  const document = {
+    people: {
+      joe: { first: 'Joe', last: 'Schmoe' },
+      mary: { first: 'Mary', role: 'admin' },
+    },
+  }
+
+  assert.equal(
+    serialize(document, { keyedMapCollapse: true }),
+    'people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin\n',
+  )
+})
+
 test('parses inline list arrays', () => {
   assert.deepEqual(parse('tags[3]: admin,ops,dev\n'), { tags: ['admin', 'ops', 'dev'] })
   assert.equal(serialize({ tags: ['admin', 'ops', 'dev'] }), 'tags[3]: admin,ops,dev\n')

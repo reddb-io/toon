@@ -156,7 +156,29 @@ function parseField(lines, cursor, depth, options) {
   const keyPart = content.slice(0, colon)
   const valuePart = content.slice(colon + 1)
 
-  if (findUnquoted(keyPart, '[', line.number) !== -1) {
+  const arrayOpen = findUnquoted(keyPart, '[', line.number)
+  const mapOpen = findUnquoted(keyPart, '{', line.number)
+  if (mapOpen !== -1 && (arrayOpen === -1 || mapOpen < arrayOpen)) {
+    let header
+    try {
+      header = parseMapHeader(keyPart)
+    } catch (error) {
+      if (options.strict) {
+        throw atLine(error, line.number)
+      }
+      cursor.index += 1
+      const value = parseFieldValue(lines, cursor, depth, valuePart, line.number, options)
+      return { key: keyPart.trim(), quoted: false, value }
+    }
+
+    if (valuePart.trim() !== '') {
+      throw toonError(line.number, 'expected keyed map rows')
+    }
+    const value = parseKeyedMapRows(header, lines, cursor, depth + 1, options)
+    return { key: header.key, quoted: header.keyQuoted, value }
+  }
+
+  if (arrayOpen !== -1) {
     let header
     try {
       header = parseHeader(keyPart, colon)
@@ -203,6 +225,46 @@ function parseFieldValue(lines, cursor, depth, valuePart, line, options) {
     return parseObject(lines, cursor, depth + 1, options)
   }
   return {}
+}
+
+function parseKeyedMapRows(header, lines, cursor, rowDepth, options) {
+  const document = {}
+  cursor.index += 1
+
+  while (cursor.index < lines.length) {
+    const line = lines[cursor.index]
+    if (line.depth < rowDepth) {
+      break
+    }
+    if (line.depth > rowDepth) {
+      throw toonError(line.number, 'invalid indentation')
+    }
+    if (line.blankBefore && options.strict) {
+      throw toonError(line.number, 'blank line inside keyed map')
+    }
+
+    const colon = findUnquoted(line.content, ':', line.number)
+    if (colon === -1) {
+      throw toonError(line.number, 'expected `key: value`')
+    }
+    const [key, quoted] = parseKey(line.content.slice(0, colon), line.number)
+    if (key === '' && !quoted) {
+      throw toonError(line.number, 'expected non-empty field name')
+    }
+    const cells = splitDelimited(line.content.slice(colon + 1).trim(), header.delimiter, line.number)
+    if (cells.length !== header.fields.length) {
+      throw toonError(line.number, 'keyed map row length mismatch')
+    }
+
+    const row = {}
+    header.fields.forEach((field, index) => {
+      insertPath(row, field, parseScalar(cells[index], line.number), options, line.number)
+    })
+    insertField(document, key, quoted, row, options, line.number)
+    cursor.index += 1
+  }
+
+  return document
 }
 
 // ---------------------------------------------------------------------------
@@ -464,6 +526,31 @@ function parseHeader(content, colon) {
   return { key, keyQuoted, len, delimiter, fields }
 }
 
+function parseMapHeader(content) {
+  const open = findUnquoted(content, '{', 0)
+  if (open === -1 || !content.endsWith('}')) {
+    throw toonError(0, 'invalid keyed map header')
+  }
+  let key
+  let keyQuoted
+  try {
+    ;[key, keyQuoted] = parseKey(content.slice(0, open), 0)
+  } catch {
+    throw toonError(0, 'invalid keyed map header')
+  }
+  if (key === '' && !keyQuoted) {
+    throw toonError(0, 'expected non-empty field name')
+  }
+
+  let fields
+  try {
+    fields = parseHeaderFields(content.slice(open + 1, -1), DOCUMENT_DELIMITER)
+  } catch (error) {
+    throw toonError(0, error.reason === 'duplicate key' ? 'duplicate key' : 'invalid keyed map header')
+  }
+  return { key, keyQuoted, delimiter: DOCUMENT_DELIMITER, fields }
+}
+
 function parseHeaderFields(source, delimiter) {
   const paths = []
   let index = 0
@@ -637,6 +724,7 @@ export function isPlainObject(value) {
 export function serialize(value, options = {}) {
   const resolved = {
     nestedTabularHeaders: options.nestedTabularHeaders === true,
+    keyedMapCollapse: options.keyedMapCollapse === true,
   }
   const output = []
   if (Array.isArray(value)) {
@@ -667,6 +755,22 @@ function writeField(output, key, value, depth, options) {
     return
   }
   if (isPlainObject(value)) {
+    const shape = options.keyedMapCollapse ? keyedMapShape(value, options) : undefined
+    if (shape !== undefined) {
+      output.push(canonicalKey(key), '{', shape.fields.map(headerFieldText).join(DOCUMENT_DELIMITER), '}:\n')
+      for (const [rowKey, rowValue] of Object.entries(value)) {
+        writeIndent(output, depth + 1)
+        output.push(
+          canonicalKey(rowKey),
+          ': ',
+          shape.paths
+            .map((path) => primitiveText(valueAtPath(rowValue, path), DOCUMENT_DELIMITER))
+            .join(DOCUMENT_DELIMITER),
+          '\n',
+        )
+      }
+      return
+    }
     output.push(canonicalKey(key), ':\n')
     writeFields(output, value, depth + 1, options)
     return
@@ -770,6 +874,14 @@ export function tabularFields(values) {
 function tabularShape(values, options) {
   const shape = objectShape(values.map((value) => ({ value })), options)
   return shape === undefined ? undefined : { fields: shape, paths: leafPaths(shape) }
+}
+
+function keyedMapShape(document, options) {
+  const values = Object.values(document)
+  if (values.length < 2) {
+    return undefined
+  }
+  return tabularShape(values, options)
 }
 
 function objectShape(records, options) {

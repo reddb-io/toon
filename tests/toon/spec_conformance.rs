@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 /// Fixtures come from the `toon-format/spec` submodule, so the corpus tracks
 /// upstream instead of drifting from a vendored copy.
 const FIXTURE_ROOT: &str = "../../vendor/toon-spec/tests/fixtures";
+const LOCAL_FIXTURE_ROOT: &str = "../../tests/toon/fixtures";
 const EXPECTED_FAILURE_LEDGER: &str = "../../tests/toon/expected-failures.txt";
 const TOONL_FIXTURE_ROOT: &str = "../../tests/toonl/fixtures";
 
@@ -26,7 +27,11 @@ fn official_toon_spec_fixtures_do_not_regress() {
     let mut unexpected_failures = Vec::new();
     let mut stale_expected_failures = Vec::new();
 
-    for fixture_path in fixture_paths(&fixture_root) {
+    let mut paths = fixture_paths(&fixture_root);
+    paths.extend(fixture_paths(&manifest_dir.join(LOCAL_FIXTURE_ROOT)));
+    paths.sort();
+
+    for fixture_path in paths {
         let fixture = read_fixture(&fixture_path);
         let category = fixture
             .get("category")
@@ -39,7 +44,12 @@ fn official_toon_spec_fixtures_do_not_regress() {
 
         for test in tests {
             let name = test.get("name").and_then(Json::as_str).expect("test name");
-            let id = fixture_id(&fixture_root, &fixture_path, name);
+            let id_root = if fixture_path.starts_with(&fixture_root) {
+                &fixture_root
+            } else {
+                &manifest_dir
+            };
+            let id = fixture_id(id_root, &fixture_path, name);
             seen.insert(id.clone());
 
             // Every case declares the decoder options it is written against, and
@@ -73,16 +83,44 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             let matches_spec = test
                                 .get("expected")
                                 .is_some_and(|expected| decoded == *expected);
+                            if matches_spec
+                                && test
+                                    .get("failClosedV3Strict")
+                                    .and_then(Json::as_bool)
+                                    .unwrap_or(false)
+                            {
+                                assert!(
+                                    reject_v3_strict(input).is_err(),
+                                    "{id}: strict v3 decoder must reject keyed map header"
+                                );
+                            }
                             matches_spec && round_trips_to(&value, &decoded)
                         }
                     }
                 }
                 "encode" => {
-                    let expected = test
-                        .get("expected")
-                        .and_then(Json::as_str)
-                        .expect("encode expected TOON");
-                    parse_round_trips(expected, options).is_ok()
+                    if test
+                        .get("options")
+                        .and_then(|options| options.get("keyedMapCollapse"))
+                        .and_then(Json::as_bool)
+                        .unwrap_or(false)
+                    {
+                        let input = test.get("input").expect("keyed map encode input");
+                        let expected = test
+                            .get("expected")
+                            .and_then(Json::as_str)
+                            .expect("encode expected TOON");
+                        let value = Value::from_json_value(input.clone());
+                        value.to_toon_with_options(encoder_options(test.get("options"))) == expected
+                            && Value::parse_with_options(expected, options)
+                                .is_ok_and(|actual| actual.to_json_value() == *input)
+                    } else {
+                        let expected = test
+                            .get("expected")
+                            .and_then(Json::as_str)
+                            .expect("encode expected TOON");
+                        parse_round_trips(expected, options).is_ok()
+                    }
                 }
                 other => panic!("unknown fixture category {other}"),
             };
@@ -306,10 +344,40 @@ fn decoder_options(options: Option<&Json>) -> ParseOptions {
     }
 }
 
+fn encoder_options(options: Option<&Json>) -> reddb_io_toon::EncodeOptions {
+    let Some(options) = options.and_then(Json::as_object) else {
+        return reddb_io_toon::EncodeOptions::default();
+    };
+
+    reddb_io_toon::EncodeOptions {
+        nested_tabular_headers: options
+            .get("nestedTabularHeaders")
+            .and_then(Json::as_bool)
+            .unwrap_or(false),
+        keyed_map_collapse: options
+            .get("keyedMapCollapse")
+            .and_then(Json::as_bool)
+            .unwrap_or(false),
+    }
+}
+
 /// The canonical output is always written in the default profile, so it is
 /// re-read with default options no matter what the fixture's input used.
 fn canonical_options() -> ParseOptions {
     ParseOptions::default()
+}
+
+fn reject_v3_strict(input: &str) -> Result<(), String> {
+    for (index, line) in input.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if let Some(colon) = trimmed.find(':') {
+            let key_part = &trimmed[..colon];
+            if key_part.contains('{') && key_part.ends_with('}') && !key_part.contains('[') {
+                return Err(format!("line {}: invalid keyed map header", index + 1));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn fixture_paths(root: &Path) -> Vec<PathBuf> {

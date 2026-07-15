@@ -10,7 +10,7 @@ use reddb_io_toon::{
 };
 
 const USAGE: &str =
-    "usage: tq [-p toon|json|toonl] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--nested-tabular-headers] <query> [file]";
+    "usage: tq [-p toon|json|toonl] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--nested-tabular-headers] [--keyed-map-collapse] <query> [file]";
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
 const CLOSE_USAGE: &str = "usage: tq close [--per-lane|--interleaved] [FILE]";
 
@@ -31,6 +31,7 @@ struct Options {
     compact: bool,
     slurp: bool,
     nested_tabular_headers: bool,
+    keyed_map_collapse: bool,
 }
 
 #[derive(Debug)]
@@ -178,6 +179,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut compact = false;
     let mut slurp = false;
     let mut nested_tabular_headers = false;
+    let mut keyed_map_collapse = false;
     let mut positional = Vec::new();
     let mut args = args.peekable();
 
@@ -195,6 +197,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
             "-c" => compact = true,
             "-s" | "--slurp" => slurp = true,
             "--nested-tabular-headers" => nested_tabular_headers = true,
+            "--keyed-map-collapse" => keyed_map_collapse = true,
             "--" => {
                 positional.extend(args);
                 break;
@@ -221,6 +224,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         compact,
         slurp,
         nested_tabular_headers,
+        keyed_map_collapse,
     })
 }
 
@@ -1851,6 +1855,7 @@ fn format_values(values: &[Value], options: &Options) -> Result<String, String> 
             Format::Toon => {
                 output.push_str(&value.to_toon_with_options(EncodeOptions {
                     nested_tabular_headers: options.nested_tabular_headers,
+                    keyed_map_collapse: options.keyed_map_collapse,
                 }));
                 if !output.ends_with('\n') {
                     output.push('\n');

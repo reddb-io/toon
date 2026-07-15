@@ -1,0 +1,3 @@
+people{first,last}:
+  joe: Joe,Schmoe
+  mary: Mary,Jane

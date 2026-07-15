@@ -25,6 +25,7 @@ serialize(document)
 - `parse(input, options?)` — decode to a JSON value. Options are the spec's decoder options: `indent` (default `2`), `strict` (default `true`), `expandPaths` (`'safe'` expands dotted keys into nested objects).
 - `parseDocument(input, options?)` — the same, but the root must be an object.
 - `serialize(value)` — encode as canonical TOON: comma delimiter, two-space indent, no key folding.
+- `serialize(value, { keyedMapCollapse: true })` — opt into keyed-map collapse for uniform object maps. The encoder emits `map{fields}:` only for deterministic uniform maps: at least two entries, every value is a non-empty object, all entries share the first entry's key set, and all header leaves are primitive unless `nestedTabularHeaders` is also enabled. Non-uniform maps fall back to ordinary object form.
 
 Failures throw a `ToonError` carrying the 1-based source `line`.
 

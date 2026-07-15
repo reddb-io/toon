@@ -30,6 +30,8 @@ export interface ParseOptions {
 export interface SerializeOptions {
   /** Emit recursive-brace tabular headers for uniform nested object fields. */
   nestedTabularHeaders?: boolean
+  /** Emit brace-header tabular rows for keyed maps with uniform object values. */
+  keyedMapCollapse?: boolean
 }
 
 /** A TOON decode failure, carrying the 1-based source line. */
