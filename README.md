@@ -99,13 +99,13 @@ TOON is also *self-checking* in a way JSON is not: `[4]` declares the row count 
 The official specification is [toon-format/spec](https://github.com/toon-format/spec)
 `SPEC.md` v3.3, vendored at `vendor/toon-spec` — the exact pin our conformance
 suite runs against, walked through section by section in our
-[annotated companion](docs/toon-spec.md). On top of it we implement two extensions, specified
+[annotated companion](docs/toon-spec.md). On top of it we implement three extensions, specified
 normatively in [`docs/toon-spec-reddb-flavored.md`](docs/toon-spec-reddb-flavored.md) and
 originating in upstream RFCs
 ([spec#46](https://github.com/toon-format/spec/issues/46),
-[spec#57](https://github.com/toon-format/spec/issues/57)). Decoding them is
+[spec#57](https://github.com/toon-format/spec/issues/57)) and the frozen wire-efficiency grammar. Decoding them is
 always on; emitting them is opt-in, so **default output stays byte-identical
-canonical v3.3**, and both forms are syntax errors for a strict v3 decoder
+canonical v3.3**, and the extension forms are syntax errors for a strict v3 decoder
 (fail-closed) rather than silent shape changes.
 
 **Nested tabular headers** let a table column be a uniform nested object,
@@ -133,6 +133,21 @@ uniform maps: the object has at least two entries, every entry value is a
 non-empty object, every entry has the same key set as the first entry, and each
 header leaf is primitive. Recursive object leaves are eligible only when nested
 tabular headers are also enabled. Non-uniform maps stay in ordinary object form,
+as do maps below the entry-count guardrail.
+
+**Primitive-array columns** keep an otherwise tabular object array collapsed when
+one or more fields are arrays of primitive scalars:
+
+```toon
+items[2]{id,tags[;],quantity}:
+  item_0001,hazmat;oversize,60
+  item_0002,oversize,11
+```
+
+The `tags[;]` header declares `tags` as a primitive-list cell split by `;`.
+The row delimiter remains the active table delimiter, and ineligible values such
+as null list fields or non-primitive list items fall back losslessly to ordinary
+TOON v3.3.
 so round-trip is lossless.
 
 ### TOONL — append-only streams
@@ -422,6 +437,7 @@ Streaming input and output is [TOONL](#toonl--append-only-streams), and it is th
 | `--delimiter comma\|tab\|pipe` | TOON output: choose the active row/header delimiter (default: `comma`) |
 | `--nested-tabular-headers` | TOON output: emit [nested tabular headers](docs/toon-spec-reddb-flavored.md) for uniform nested records |
 | `--keyed-map-collapse` | TOON output: emit the [keyed-map collapse](docs/toon-spec-reddb-flavored.md) form for uniform object maps |
+| `--primitive-array-columns` | TOON output: emit [primitive-array columns](docs/toon-spec-reddb-flavored.md) for eligible primitive-list table fields |
 | `-V`, `--version` | Print the version |
 
 ### Check mode
@@ -519,6 +535,8 @@ for trusted input to disable the nesting guard. Prefer
 untrusted or user-supplied values so depth failures return an `EncodeError`.
 `EncodeOptions::delimiter` selects the active TOON delimiter for array and
 tabular headers: `','` by default, or `'|'` / `'\t'` for pipe and tab output.
+Set `nested_tabular_headers`, `keyed_map_collapse`, or
+`primitive_array_columns` to emit the opt-in reddb-io extension forms.
 
 ```console
 3 users
@@ -567,7 +585,7 @@ users[3]{id,name,role}:
 {"users":[{"id":1,"name":"Ada","role":"admin"},{"id":2,"name":"Linus","role":"dev"},{"id":3,"name":"Grace","role":"ops"}]}
 ```
 
-`parse(input, options)` takes the spec's decoder options (`indent`, `strict`, `expandPaths`), `parseDocument` insists on an object root, and `serialize` writes the canonical default profile unless `serialize(value, { delimiter: '|' | '\t' })` selects pipe or tab for array and tabular headers. `detectTruncation(input, { format: 'toon' | 'toonl' })` returns the same structured report as the Rust crate and `tq check`.
+`parse(input, options)` takes the spec's decoder options (`indent`, `strict`, `expandPaths`), `parseDocument` insists on an object root, and `serialize` writes the canonical default profile unless options such as `{ delimiter: '|' | '\t' }`, `{ nestedTabularHeaders: true }`, `{ keyedMapCollapse: true }`, or `{ primitiveArrayColumns: true }` opt into flavored output. `detectTruncation(input, { format: 'toon' | 'toonl' })` returns the same structured report as the Rust crate and `tq check`.
 
 TOONL is the streaming half: `encodeLines` emits an append-only stream, `decodeLines` reads it back a record at a time, `closeTransform` turns each lane into length-bearing TOON documents, and `closeTransformInterleaved` preserves multiplexed row-run order for post-mortem rendering. The Web Streams API surface (`ToonlDecodeStream`, `ToonlEncodeStream`, `JsonlToToonl`, `ToonlToJsonl`, and `recordTransform`) is universal across Node, Bun, Deno and browsers; in Node, use `Readable.toWeb()` / `Readable.fromWeb()` when crossing between Node streams and Web streams. The optional `@reddb-io/toon/node` subpath adds `readToonlFile(path)` and `writeToonlFile(path, records)` using only `node:fs` and `node:stream`.
 
