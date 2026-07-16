@@ -8,4 +8,4 @@
  * so it stays in lockstep with the crates and the manifest (ADR 0003);
  * test/version.test.mjs is the guard that they never drift apart.
  */
-export const VERSION = '0.10.1'
+export const VERSION = '0.11.0'
