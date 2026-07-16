@@ -20,7 +20,7 @@ name = "behavior"
 path = "../../tests/runners/rust/tq/behavior.rs"
 
 [dependencies]
-reddb-io-toon = { path = "../toon", version = "0.10.0" }
+reddb-io-toon = { path = "../toon", version = "0.10.1" }
 regex = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 # YAML input parser.
