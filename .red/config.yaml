@@ -151,6 +151,7 @@ rsp:
 # reach main in one session. Any non-zero exit parks the issue to ready-for-human.
 afk:
   backpressure:
+    - scripts/check-file-length.sh
     - cargo clippy --workspace -- -D warnings
     - cargo llvm-cov --workspace --fail-under-lines 95
     - pnpm -r test

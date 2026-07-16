@@ -20,6 +20,8 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Check source file length
+        run: scripts/check-file-length.sh
       - name: Check formatting
         run: cargo fmt --check
       - name: Lint
@@ -45,5 +47,7 @@ jobs:
         run: corepack enable
       - name: Install
         run: pnpm install --frozen-lockfile
+      - name: Check source file length
+        run: scripts/check-file-length.sh
       - name: Test
         run: pnpm -r test
