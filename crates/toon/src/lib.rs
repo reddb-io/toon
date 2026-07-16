@@ -20,7 +20,7 @@ pub const DEFAULT_MAX_DEPTH: usize = 1000;
 
 /// The default document delimiter used by the encoder (spec §11.1).
 const DOCUMENT_DELIMITER: char = ',';
-const CYCLIC_DISCRIMINATED_ARRAY_SENTINEL: &str = "@toon-cyclic-discriminated-array/1";
+const CYCLIC_TABLE_DELIMITER: char = '|';
 const TOONL_TAGGED_LANE_LIMIT: usize = 8;
 
 /// Decoder options (spec §13).
@@ -32,6 +32,8 @@ pub struct ParseOptions {
     pub strict: bool,
     /// Expand dotted keys into nested objects (spec §13.4, `expandPaths: "safe"`).
     pub expand_paths: bool,
+    /// Recognize the tabular cyclic discriminated-array extension during decode.
+    pub cyclic_discriminated_arrays: bool,
     /// Maximum nesting depth. `0` disables the guard for trusted input.
     pub max_depth: usize,
 }
@@ -42,6 +44,7 @@ impl Default for ParseOptions {
             indent: DEFAULT_INDENT,
             strict: true,
             expand_paths: false,
+            cyclic_discriminated_arrays: true,
             max_depth: DEFAULT_MAX_DEPTH,
         }
     }
@@ -685,9 +688,6 @@ impl Value {
             indent: options.indent.max(1),
             ..options
         };
-        if input.lines().next() == Some(CYCLIC_DISCRIMINATED_ARRAY_SENTINEL) {
-            return parse_cyclic_discriminated_array_wire(input);
-        }
         let lines = collect_lines(input, &options)?;
         let Some(first) = lines.first() else {
             return Ok(Self::Object(Document::default()));
@@ -730,6 +730,11 @@ impl Value {
                 max_depth: None,
             });
         }
+        let document = if options.cyclic_discriminated_arrays {
+            expand_cyclic_discriminated_arrays(document)?
+        } else {
+            document
+        };
         Ok(Self::Object(document))
     }
 
@@ -1956,262 +1961,117 @@ fn insert_tabular_path(document: &mut Document, path: &[String], value: Value) {
     insert_tabular_path(nested, &path[1..], value);
 }
 
-fn parse_cyclic_discriminated_array_wire(input: &str) -> Result<Value, ParseError> {
-    let lines = input
-        .lines()
-        .enumerate()
-        .map(|(index, line)| (index + 1, line))
-        .collect::<Vec<_>>();
-    let mut index = 0;
-
-    expect_cyclic_line(&lines, &mut index, CYCLIC_DISCRIMINATED_ARRAY_SENTINEL)?;
-    let (root_line, root_content) = cyclic_next_line(&lines, index)?;
-    index += 1;
-    let root = parse_cyclic_root(root_content, root_line)?;
-
-    let mut sections = HashMap::new();
-    while let Some((line, content)) = lines.get(index).copied() {
-        if content == "@end" {
-            index += 1;
-            break;
-        }
-        if !content.starts_with("@array ") {
-            return Err(cyclic_invalid(line));
-        }
-        let (id, value) = parse_cyclic_array_section(&lines, &mut index)?;
-        if sections.insert(id, value).is_some() {
-            return Err(cyclic_invalid(line));
-        }
+fn expand_cyclic_discriminated_arrays(document: Document) -> Result<Document, ParseError> {
+    if document.fields.is_empty() {
+        return Ok(document);
     }
-
-    if index != lines.len() {
-        return Err(cyclic_invalid(lines[index].0));
+    let mut expanded = Document::default();
+    for field in &document.fields {
+        let Some(value) = cyclic_array_from_tabular_object(&field.value, 1)? else {
+            return Ok(document);
+        };
+        expanded.fields.push(Field {
+            key: field.key.clone(),
+            value,
+        });
     }
-    if sections.is_empty() {
-        let line = lines.last().map_or(1, |(line, _)| *line);
-        return Err(cyclic_invalid(line));
-    }
-
-    let mut document = Document::default();
-    for (key, section_id) in root {
-        let value = sections
-            .remove(&section_id)
-            .ok_or_else(|| cyclic_invalid(2))?;
-        document.fields.push(Field { key, value });
-    }
-    Ok(Value::Object(document))
+    Ok(expanded)
 }
 
-fn parse_cyclic_root(content: &str, line: usize) -> Result<Vec<(String, String)>, ParseError> {
-    let Some(json) = content.strip_prefix("@root ") else {
-        return Err(cyclic_invalid(line));
+fn cyclic_array_from_tabular_object(
+    value: &Value,
+    line: usize,
+) -> Result<Option<Value>, ParseError> {
+    let Value::Object(section) = value else {
+        return Ok(None);
     };
-    let serde_json::Value::Object(map) =
-        serde_json::from_str::<serde_json::Value>(json).map_err(|_| cyclic_invalid(line))?
-    else {
-        return Err(cyclic_invalid(line));
-    };
-    if map.is_empty() {
-        return Err(cyclic_invalid(line));
+    if !is_cyclic_section_like(section) {
+        return Ok(None);
     }
-    map.into_iter()
-        .map(|(key, value)| {
-            let serde_json::Value::String(section_id) = value else {
-                return Err(cyclic_invalid(line));
-            };
-            Ok((key, section_id))
-        })
-        .collect()
-}
+    let Some(Value::String(order)) = section.get("order") else {
+        return Err(cyclic_invalid(line));
+    };
+    let Some(Value::String(discriminator)) = section.get("discriminator") else {
+        return Err(cyclic_invalid(line));
+    };
+    let Some(rows) = section.get("rows").and_then(value_to_usize) else {
+        return Err(cyclic_invalid(line));
+    };
+    let order = parse_cyclic_order(order, rows, line)?;
+    let common_rows = match section.get("common") {
+        Some(Value::Array(array)) => array
+            .values()
+            .into_iter()
+            .map(|value| match value {
+                Value::Object(document) => Some(document),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| cyclic_invalid(line))?,
+        Some(_) => return Err(cyclic_invalid(line)),
+        None => (0..rows).map(|_| Document::default()).collect(),
+    };
+    if common_rows.len() != rows {
+        return Err(cyclic_len_error(line));
+    }
 
-fn parse_cyclic_array_section(
-    lines: &[(usize, &str)],
-    index: &mut usize,
-) -> Result<(String, Value), ParseError> {
-    let (header_line, header_content) = cyclic_next_line(lines, *index)?;
-    let header = parse_cyclic_array_header(header_content, header_line)?;
-    *index += 1;
-
-    let common_rows = parse_cyclic_common_rows(lines, index, &header)?;
     let mut groups: HashMap<String, Vec<Document>> = HashMap::new();
-    while let Some((line, content)) = lines.get(*index).copied() {
-        if content == "@end" || content.starts_with("@array ") {
-            break;
+    for field in &section.fields {
+        if matches!(
+            field.key.as_str(),
+            "order" | "discriminator" | "rows" | "common"
+        ) {
+            continue;
         }
-        if !content.starts_with("@group ") {
+        let Value::Array(array) = &field.value else {
             return Err(cyclic_invalid(line));
-        }
-        let (label, rows) = parse_cyclic_group(lines, index)?;
-        if groups.insert(label, rows).is_some() {
-            return Err(cyclic_invalid(line));
-        }
+        };
+        let group_rows = array
+            .values()
+            .into_iter()
+            .map(|value| match value {
+                Value::Object(document) => Some(document),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| cyclic_invalid(line))?;
+        groups.insert(field.key.clone(), group_rows);
+    }
+    if groups.is_empty() {
+        return Err(cyclic_invalid(line));
     }
 
-    let order = parse_cyclic_order(&header.order, header.len, header_line)?;
-    let mut cursors = HashMap::new();
-    let mut values = Vec::with_capacity(header.len);
+    let mut cursors: HashMap<&str, usize> = HashMap::new();
+    let mut values = Vec::with_capacity(rows);
     for (position, label) in order.iter().enumerate() {
         let group = groups
             .get(label)
-            .ok_or_else(|| cyclic_group_len_error(header_line))?;
-        let cursor = cursors.entry(label.as_str()).or_insert(0usize);
+            .ok_or_else(|| cyclic_group_len_error(line))?;
+        let cursor = cursors.entry(label.as_str()).or_insert(0);
         let payload = group
             .get(*cursor)
-            .ok_or_else(|| cyclic_group_len_error(header_line))?;
+            .ok_or_else(|| cyclic_group_len_error(line))?;
         *cursor += 1;
         values.push(Value::Object(merge_cyclic_row(
-            &header.discriminator,
+            discriminator,
             label,
             common_rows.get(position),
             payload,
-            header_line,
+            line,
         )?));
     }
-
     for (label, group) in &groups {
-        let used = cursors.get(label.as_str()).copied().unwrap_or(0);
-        if used != group.len() {
-            return Err(cyclic_group_len_error(header_line));
-        }
-    }
-
-    Ok((header.id, Value::Array(Array::List(values))))
-}
-
-#[derive(Debug)]
-struct CyclicArrayHeader {
-    id: String,
-    discriminator: String,
-    len: usize,
-    common: Vec<String>,
-    order: String,
-}
-
-fn parse_cyclic_array_header(content: &str, line: usize) -> Result<CyclicArrayHeader, ParseError> {
-    let Some(rest) = content.strip_prefix("@array ") else {
-        return Err(cyclic_invalid(line));
-    };
-    let Some((id, fields)) = rest.split_once(' ') else {
-        return Err(cyclic_invalid(line));
-    };
-    let parts = fields.split_whitespace().collect::<Vec<_>>();
-    let [discriminator, len, common, order] = parts.as_slice() else {
-        return Err(cyclic_invalid(line));
-    };
-    let discriminator = discriminator
-        .strip_prefix("discr=")
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| cyclic_invalid(line))?;
-    let len = len
-        .strip_prefix("n=")
-        .ok_or_else(|| cyclic_invalid(line))
-        .and_then(|value| parse_cyclic_usize(value, line))?;
-    let common = common
-        .strip_prefix("common=")
-        .ok_or_else(|| cyclic_invalid(line))?;
-    let common = if common.is_empty() {
-        Vec::new()
-    } else {
-        let fields = common.split(',').map(str::to_owned).collect::<Vec<_>>();
-        if fields.iter().any(String::is_empty) {
-            return Err(cyclic_invalid(line));
-        }
-        for (offset, field) in fields.iter().enumerate() {
-            if fields[..offset].contains(field) {
-                return Err(cyclic_invalid(line));
-            }
-        }
-        fields
-    };
-    let order = order
-        .strip_prefix("order=")
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| cyclic_invalid(line))?;
-
-    Ok(CyclicArrayHeader {
-        id: id.to_owned(),
-        discriminator: discriminator.to_owned(),
-        len,
-        common,
-        order: order.to_owned(),
-    })
-}
-
-fn parse_cyclic_common_rows(
-    lines: &[(usize, &str)],
-    index: &mut usize,
-    header: &CyclicArrayHeader,
-) -> Result<Vec<Document>, ParseError> {
-    if header.common.is_empty() {
-        if lines
-            .get(*index)
-            .is_some_and(|(_, content)| *content == "@common")
-        {
-            return Err(cyclic_invalid(lines[*index].0));
-        }
-        return Ok((0..header.len).map(|_| Document::default()).collect());
-    }
-
-    expect_cyclic_line(lines, index, "@common")?;
-    let mut rows = Vec::with_capacity(header.len);
-    for _ in 0..header.len {
-        let (line, content) = cyclic_next_line(lines, *index)?;
-        if content.starts_with('@') {
-            return Err(cyclic_len_error(line));
-        }
-        let cells = content.split('\t').collect::<Vec<_>>();
-        if cells.len() != header.common.len() {
-            return Err(cyclic_len_error(line));
-        }
-        let mut row = Document::default();
-        for (key, cell) in header.common.iter().zip(cells) {
-            row.fields.push(Field {
-                key: key.clone(),
-                value: parse_cyclic_json_cell(cell, line)?,
-            });
-        }
-        rows.push(row);
-        *index += 1;
-    }
-    Ok(rows)
-}
-
-fn parse_cyclic_group(
-    lines: &[(usize, &str)],
-    index: &mut usize,
-) -> Result<(String, Vec<Document>), ParseError> {
-    let (header_line, header_content) = cyclic_next_line(lines, *index)?;
-    let (label, len) = parse_cyclic_group_header(header_content, header_line)?;
-    *index += 1;
-
-    let mut rows = Vec::with_capacity(len);
-    for _ in 0..len {
-        let (line, content) = cyclic_next_line(lines, *index)?;
-        if content.starts_with('@') {
-            return Err(cyclic_group_len_error(line));
-        }
-        rows.push(parse_cyclic_json_object(content, line)?);
-        *index += 1;
-    }
-    if let Some((line, content)) = lines.get(*index).copied() {
-        if !content.starts_with('@') {
+        if cursors.get(label.as_str()).copied().unwrap_or(0) != group.len() {
             return Err(cyclic_group_len_error(line));
         }
     }
-    Ok((label, rows))
+    Ok(Some(Value::Array(Array::List(values))))
 }
 
-fn parse_cyclic_group_header(content: &str, line: usize) -> Result<(String, usize), ParseError> {
-    let Some(rest) = content.strip_prefix("@group ") else {
-        return Err(cyclic_invalid(line));
-    };
-    let Some((label, len)) = rest.split_once(" n=") else {
-        return Err(cyclic_invalid(line));
-    };
-    Ok((
-        percent_decode(label).map_err(|_| cyclic_invalid(line))?,
-        parse_cyclic_usize(len, line)?,
-    ))
+fn is_cyclic_section_like(document: &Document) -> bool {
+    ["order", "discriminator", "rows"]
+        .iter()
+        .any(|key| document.get(key).is_some())
 }
 
 fn parse_cyclic_order(encoded: &str, len: usize, line: usize) -> Result<Vec<String>, ParseError> {
@@ -2266,54 +2126,18 @@ fn merge_cyclic_row(
             row.fields.push(field.clone());
         }
     }
+    let payload = inflate_cyclic_flat_document(payload, line)?;
+    let Value::Object(payload) = payload else {
+        return Err(cyclic_invalid(line));
+    };
     for field in &payload.fields {
-        if row.fields.iter().any(|existing| existing.key == field.key) {
+        if field.key == discriminator || row.fields.iter().any(|existing| existing.key == field.key)
+        {
             return Err(cyclic_invalid(line));
         }
         row.fields.push(field.clone());
     }
     Ok(row)
-}
-
-fn parse_cyclic_json_cell(input: &str, line: usize) -> Result<Value, ParseError> {
-    let value =
-        serde_json::from_str::<serde_json::Value>(input).map_err(|_| cyclic_invalid(line))?;
-    Ok(Value::from_json_value(value))
-}
-
-fn parse_cyclic_json_object(input: &str, line: usize) -> Result<Document, ParseError> {
-    let value =
-        serde_json::from_str::<serde_json::Value>(input).map_err(|_| cyclic_invalid(line))?;
-    let serde_json::Value::Object(_) = value else {
-        return Err(cyclic_invalid(line));
-    };
-    let Value::Object(document) = Value::from_json_value(value) else {
-        unreachable!("object json value converts to object value");
-    };
-    Ok(document)
-}
-
-fn expect_cyclic_line(
-    lines: &[(usize, &str)],
-    index: &mut usize,
-    expected: &'static str,
-) -> Result<(), ParseError> {
-    let (line, content) = cyclic_next_line(lines, *index)?;
-    if content != expected {
-        return Err(cyclic_invalid(line));
-    }
-    *index += 1;
-    Ok(())
-}
-
-fn cyclic_next_line<'a>(
-    lines: &'a [(usize, &'a str)],
-    index: usize,
-) -> Result<(usize, &'a str), ParseError> {
-    lines
-        .get(index)
-        .copied()
-        .ok_or_else(|| cyclic_invalid(lines.last().map_or(1, |(line, _)| line.saturating_add(1))))
 }
 
 fn parse_cyclic_usize(input: &str, line: usize) -> Result<usize, ParseError> {
@@ -2324,6 +2148,13 @@ fn parse_cyclic_usize(input: &str, line: usize) -> Result<usize, ParseError> {
         return Err(cyclic_invalid(line));
     }
     input.parse().map_err(|_| cyclic_invalid(line))
+}
+
+fn value_to_usize(value: &Value) -> Option<usize> {
+    let Value::Number(value) = value else {
+        return None;
+    };
+    parse_cyclic_usize(value, 1).ok()
 }
 
 fn percent_decode(input: &str) -> Result<String, ()> {
@@ -4709,7 +4540,6 @@ fn write_indent(output: &mut String, depth: usize) {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CyclicEncodedSection {
     key: String,
-    id: String,
     shape: CyclicArrayShape,
 }
 
@@ -4718,7 +4548,7 @@ struct CyclicArrayShape {
     discriminator: String,
     len: usize,
     common: Vec<String>,
-    common_rows: Vec<Vec<Value>>,
+    common_rows: Vec<Document>,
     order: CyclicOrder,
     groups: Vec<CyclicGroup>,
 }
@@ -4733,6 +4563,7 @@ struct CyclicOrder {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CyclicGroup {
     label: String,
+    fields: Vec<String>,
     rows: Vec<Document>,
 }
 
@@ -4748,7 +4579,7 @@ fn write_cyclic_discriminated_arrays(
 
     let mut seen_keys = Vec::new();
     let mut sections = Vec::with_capacity(document.fields.len());
-    for (index, field) in document.fields.iter().enumerate() {
+    for field in &document.fields {
         if seen_keys.contains(&field.key) || !is_cyclic_header_token(&field.key) {
             return Ok(false);
         }
@@ -4762,31 +4593,13 @@ fn write_cyclic_discriminated_arrays(
         };
         sections.push(CyclicEncodedSection {
             key: field.key.clone(),
-            id: format!("$C{index}"),
             shape,
         });
     }
 
-    output.push_str(CYCLIC_DISCRIMINATED_ARRAY_SENTINEL);
-    output.push('\n');
-    output.push_str("@root ");
-    let mut root = serde_json::Map::new();
-    for section in &sections {
-        root.insert(
-            section.key.clone(),
-            serde_json::Value::String(section.id.clone()),
-        );
-    }
-    output.push_str(
-        &serde_json::to_string(&serde_json::Value::Object(root))
-            .expect("cyclic root JSON is serializable"),
-    );
-    output.push('\n');
-
     for section in &sections {
         write_cyclic_section(output, section);
     }
-    output.push_str("@end\n");
     Ok(true)
 }
 
@@ -4832,35 +4645,49 @@ fn cyclic_array_shape(
     let mut common_rows = Vec::with_capacity(rows.len());
     let mut groups_by_label: HashMap<String, Vec<Document>> = HashMap::new();
     for (row, label) in rows.iter().zip(&labels) {
-        common_rows.push(
-            common
+        common_rows.push(Document {
+            fields: common
                 .iter()
-                .map(|key| row.get(key).expect("common fields are present").clone())
+                .map(|key| Field {
+                    key: key.clone(),
+                    value: row.get(key).expect("common fields are present").clone(),
+                })
                 .collect(),
-        );
+        });
         let common_or_discriminator =
             |key: &str| key == discriminator || common_contains(&common, key);
-        let fields = row
+        let mut payload = Document::default();
+        for field in row
             .fields
             .iter()
             .filter(|field| !common_or_discriminator(&field.key))
-            .cloned()
-            .collect::<Vec<_>>();
+        {
+            if !flatten_cyclic_value(&field.value, &field.key, &mut payload) {
+                return Ok(None);
+            }
+        }
         groups_by_label
             .entry(label.clone())
             .or_default()
-            .push(Document { fields });
+            .push(payload);
     }
-    let groups = order
-        .cycle
-        .iter()
-        .map(|label| CyclicGroup {
+    let mut groups = Vec::with_capacity(order.cycle.len());
+    for label in &order.cycle {
+        let rows = groups_by_label
+            .remove(label)
+            .expect("cycle labels come from the row labels");
+        let Some(fields) = cyclic_uniform_fields(&rows) else {
+            return Ok(None);
+        };
+        if fields.is_empty() {
+            return Ok(None);
+        }
+        groups.push(CyclicGroup {
             label: label.clone(),
-            rows: groups_by_label
-                .remove(label)
-                .expect("cycle labels come from the row labels"),
-        })
-        .collect::<Vec<_>>();
+            fields,
+            rows,
+        });
+    }
 
     Ok(Some(CyclicArrayShape {
         discriminator,
@@ -4974,51 +4801,177 @@ fn common_contains(common: &[String], key: &str) -> bool {
 }
 
 fn is_cyclic_header_token(value: &str) -> bool {
-    !value.is_empty()
-        && !value
-            .chars()
-            .any(|character| character.is_whitespace() || matches!(character, ',' | '='))
+    !value.is_empty() && is_bare_cyclic_path(value)
+}
+
+fn flatten_cyclic_value(value: &Value, prefix: &str, output: &mut Document) -> bool {
+    if !is_bare_cyclic_path(prefix) {
+        return false;
+    }
+    if value.is_primitive() {
+        output.fields.push(Field {
+            key: prefix.to_owned(),
+            value: value.clone(),
+        });
+        return true;
+    }
+    match value {
+        Value::Array(array) => {
+            let values = array.values();
+            output.fields.push(Field {
+                key: format!("{prefix}.length"),
+                value: Value::Number(values.len().to_string()),
+            });
+            values.iter().enumerate().all(|(index, value)| {
+                flatten_cyclic_value(value, &format!("{prefix}.{index}"), output)
+            })
+        }
+        Value::Object(document) => document.fields.iter().all(|field| {
+            !field.key.contains('.')
+                && flatten_cyclic_value(&field.value, &format!("{prefix}.{}", field.key), output)
+        }),
+        _ => false,
+    }
+}
+
+fn cyclic_uniform_fields(rows: &[Document]) -> Option<Vec<String>> {
+    let fields: Vec<String> = rows
+        .first()
+        .map(|row| row.fields.iter().map(|field| field.key.clone()).collect())?;
+    if rows.iter().all(|row| {
+        row.fields.len() == fields.len()
+            && row
+                .fields
+                .iter()
+                .zip(&fields)
+                .all(|(field, expected)| field.key == *expected)
+    }) && fields.iter().all(|field| is_bare_cyclic_path(field))
+    {
+        Some(fields)
+    } else {
+        None
+    }
+}
+
+fn inflate_cyclic_document(document: &Document, line: usize) -> Result<Value, ParseError> {
+    if let Some(length) = document.get("length").and_then(value_to_usize) {
+        let mut values = Vec::with_capacity(length);
+        for index in 0..length {
+            let key = index.to_string();
+            let Some(value) = document.get(&key) else {
+                return Err(cyclic_invalid(line));
+            };
+            values.push(inflate_cyclic_value(value, line)?);
+        }
+        return Ok(Value::Array(Array::List(values)));
+    }
+    let mut inflated = Document::default();
+    for field in &document.fields {
+        inflated.fields.push(Field {
+            key: field.key.clone(),
+            value: inflate_cyclic_value(&field.value, line)?,
+        });
+    }
+    Ok(Value::Object(inflated))
+}
+
+fn inflate_cyclic_flat_document(document: &Document, line: usize) -> Result<Value, ParseError> {
+    let mut nested = Document::default();
+    for field in &document.fields {
+        let path = field.key.split('.').map(str::to_owned).collect::<Vec<_>>();
+        insert_tabular_path(&mut nested, &path, field.value.clone());
+    }
+    inflate_cyclic_document(&nested, line)
+}
+
+fn inflate_cyclic_value(value: &Value, line: usize) -> Result<Value, ParseError> {
+    match value {
+        Value::Object(document) => inflate_cyclic_document(document, line),
+        Value::Array(array) => Ok(Value::Array(Array::List(
+            array
+                .values()
+                .into_iter()
+                .map(|value| inflate_cyclic_value(&value, line))
+                .collect::<Result<Vec<_>, _>>()?,
+        ))),
+        value => Ok(value.clone()),
+    }
+}
+
+fn is_bare_cyclic_path(value: &str) -> bool {
+    value.split('.').all(|segment| {
+        !segment.is_empty()
+            && (segment.bytes().all(|byte| byte.is_ascii_digit()) || {
+                let mut bytes = segment.bytes();
+                bytes
+                    .next()
+                    .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_')
+                    && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            })
+    })
 }
 
 fn write_cyclic_section(output: &mut String, section: &CyclicEncodedSection) {
-    output.push_str("@array ");
-    output.push_str(&section.id);
-    output.push_str(" discr=");
-    output.push_str(&section.shape.discriminator);
-    output.push_str(" n=");
+    output.push_str(&canonical_key(&section.key));
+    output.push_str(":\n");
+    output.push_str("  order: ");
+    output.push_str(&primitive_text(
+        &Value::String(section.shape.order.encoded.clone()),
+        CYCLIC_TABLE_DELIMITER,
+    ));
+    output.push('\n');
+    output.push_str("  discriminator: ");
+    output.push_str(&primitive_text(
+        &Value::String(section.shape.discriminator.clone()),
+        CYCLIC_TABLE_DELIMITER,
+    ));
+    output.push('\n');
+    output.push_str("  rows: ");
     output.push_str(&section.shape.len.to_string());
-    output.push_str(" common=");
-    output.push_str(&section.shape.common.join(","));
-    output.push_str(" order=");
-    output.push_str(&section.shape.order.encoded);
     output.push('\n');
     if !section.shape.common.is_empty() {
-        output.push_str("@common\n");
-        for row in &section.shape.common_rows {
-            let cells = row
-                .iter()
-                .map(cyclic_json_text)
-                .collect::<Vec<_>>()
-                .join("\t");
-            output.push_str(&cells);
-            output.push('\n');
-        }
+        write_cyclic_table(
+            output,
+            "common",
+            &section.shape.common,
+            &section.shape.common_rows,
+        );
     }
     for group in &section.shape.groups {
-        output.push_str("@group ");
-        output.push_str(&percent_encode(&group.label));
-        output.push_str(" n=");
-        output.push_str(&group.rows.len().to_string());
-        output.push('\n');
-        for row in &group.rows {
-            output.push_str(&cyclic_json_text(&Value::Object(row.clone())));
-            output.push('\n');
-        }
+        write_cyclic_table(output, &group.label, &group.fields, &group.rows);
     }
 }
 
-fn cyclic_json_text(value: &Value) -> String {
-    serde_json::to_string(&value.to_json_value()).expect("TOON values are JSON serializable")
+fn write_cyclic_table(output: &mut String, key: &str, fields: &[String], rows: &[Document]) {
+    output.push_str("  ");
+    output.push_str(&canonical_key(key));
+    output.push('[');
+    output.push_str(&rows.len().to_string());
+    output.push(CYCLIC_TABLE_DELIMITER);
+    output.push_str("]{");
+    output.push_str(
+        &fields
+            .iter()
+            .map(|field| canonical_key(field))
+            .collect::<Vec<_>>()
+            .join(&CYCLIC_TABLE_DELIMITER.to_string()),
+    );
+    output.push_str("}:\n");
+    for row in rows {
+        output.push_str("    ");
+        let cells = fields
+            .iter()
+            .map(|field| {
+                primitive_text(
+                    row.get(field)
+                        .expect("cyclic table shape checked row fields"),
+                    CYCLIC_TABLE_DELIMITER,
+                )
+            })
+            .collect::<Vec<_>>();
+        output.push_str(&cells.join(&CYCLIC_TABLE_DELIMITER.to_string()));
+        output.push('\n');
+    }
 }
 
 fn percent_encode(value: &str) -> String {
