@@ -4,6 +4,7 @@
  * values; the TOONL side is built for append-only streams.
  */
 
+export { VERSION } from './version.js'
 export { ToonError, ToonlCursorInvalidationError, ToonlError } from './errors.js'
 export {
   DEFAULT_INDENT,
