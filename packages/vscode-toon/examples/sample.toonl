@@ -1,0 +1,23 @@
+[]{ts,level,msg}:
+"2026-07-14T03:00:00Z",info,boot
+"2026-07-14T03:00:02Z",error,"disk full"
+[=2]
+[|]{name|value}:
+cpu|0.93
+mem|0.71
+[=2]
+[]{id,name,age}:
+1,alice,30
+2,bob,null
+3,"charlie smith",25
+[]{id,metadata}:
+1,"{\"tags\":[\"a\",\"b\"],\"color\":\"red\"}"
+2,"{\"tags\":[],\"color\":\"blue\"}"
+[=2]
+[]<audit>{actor,action}:
+[]<metric>{name,value}:
+audit:u1,delete
+metric:cpu,0.93
+audit:u2,login
+[~]{ts,level,msg}:
+"2026-07-14T04:00:00Z",info,resume

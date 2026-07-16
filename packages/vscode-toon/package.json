@@ -1,0 +1,90 @@
+{
+  "name": "reddb-toon",
+  "displayName": "RedDB Toon",
+  "description": "Syntax highlighting for the TOON format (by the toon-format team) and TOONL streams, as implemented by the reddb-io flavor (@reddb-io/toon / reddb-io-toon), including the reddb-io wire extensions.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "reddb-io",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.75.0",
+    "node": ">=18"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "toon",
+    "toonl",
+    "syntax",
+    "highlighting",
+    "grammar"
+  ],
+  "scripts": {
+    "test": "node --test test/grammar.test.mjs"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "toon",
+        "aliases": [
+          "RedDB TOON",
+          "TOON"
+        ],
+        "extensions": [
+          ".toon"
+        ],
+        "mimetypes": [
+          "text/toon"
+        ],
+        "configuration": "./language-configuration-toon.json"
+      },
+      {
+        "id": "toonl",
+        "aliases": [
+          "RedDB TOONL",
+          "TOONL"
+        ],
+        "extensions": [
+          ".toonl"
+        ],
+        "mimetypes": [
+          "application/toonl"
+        ],
+        "configuration": "./language-configuration-toonl.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "toon",
+        "scopeName": "source.toon",
+        "path": "./syntaxes/toon.tmLanguage.json"
+      },
+      {
+        "language": "toonl",
+        "scopeName": "source.toonl",
+        "path": "./syntaxes/toonl.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.toon.codeblock",
+        "path": "./syntaxes/toon-markdown-injection.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.toon": "toon",
+          "meta.embedded.block.toonl": "toonl"
+        }
+      }
+    ]
+  },
+  "homepage": "https://github.com/reddb-io/tq",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reddb-io/tq.git",
+    "directory": "packages/vscode-toon"
+  },
+  "bugs": {
+    "url": "https://github.com/reddb-io/tq/issues"
+  }
+}

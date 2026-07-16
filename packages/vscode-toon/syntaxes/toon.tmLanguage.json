@@ -1,0 +1,140 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "TOON",
+  "scopeName": "source.toon",
+  "patterns": [
+    { "include": "#array-header" },
+    { "include": "#keyed-map-header" },
+    { "include": "#key-value" },
+    { "include": "#list-item" },
+    { "include": "#string" },
+    { "include": "#empty-array" },
+    { "include": "#constant" },
+    { "include": "#number" },
+    { "include": "#delimiter" },
+    { "include": "#unquoted-cell" }
+  ],
+  "repository": {
+    "array-header": {
+      "comment": "TOON v3.3 array header `key[N]{fields}:` — key optional at root, delimiter symbol optional inside the bracket ([N|], [N<TAB>]), field list optional. Not anchored to line start so it also matches after a `- ` list-item prefix. TOON quoting rules keep `[]{}:` out of unquoted text, so a mid-line match can only be a real header.",
+      "match": "(?:(\"(?:[^\"\\\\]|\\\\.)*\")|([A-Za-z_][A-Za-z0-9_.]*))?(\\[)([0-9]+)?([|;\\t])?(\\])(\\{.*\\})?(:)(?=[ \\t]|$)",
+      "captures": {
+        "1": { "name": "entity.name.tag.key.quoted.toon" },
+        "2": { "name": "entity.name.tag.key.toon" },
+        "3": { "name": "punctuation.section.brackets.begin.toon" },
+        "4": { "name": "constant.numeric.array-length.toon" },
+        "5": { "name": "keyword.operator.delimiter.toon" },
+        "6": { "name": "punctuation.section.brackets.end.toon" },
+        "7": { "patterns": [{ "include": "#field-list" }] },
+        "8": { "name": "punctuation.separator.key-value.toon" }
+      }
+    },
+    "keyed-map-header": {
+      "comment": "reddb-io Extension 2 (keyed-map collapse): `key{fields}:` with no [N] segment. The field list may open with the delimiter symbol, e.g. `map{|id|name}:`.",
+      "match": "(?:(\"(?:[^\"\\\\]|\\\\.)*\")|([A-Za-z_][A-Za-z0-9_.]*))(\\{.*\\})(:)(?=[ \\t]*$)",
+      "captures": {
+        "1": { "name": "entity.name.tag.key.quoted.toon" },
+        "2": { "name": "entity.name.tag.key.toon" },
+        "3": { "patterns": [{ "include": "#field-list" }] },
+        "4": { "name": "punctuation.separator.key-value.toon" }
+      }
+    },
+    "field-list": {
+      "comment": "Field list between braces. Recursive groups (Extension 1/4: `customer{name,country}`), primitive-list columns (Extension 3: `tags[;]`), fixed-width cells (Extension 4: `values[3|]`), and dotted paths (Extension 5: `issue.number`, `labels.0`) all reduce to these token shapes.",
+      "patterns": [
+        { "match": "[{}]", "name": "punctuation.section.braces.toon" },
+        { "include": "#string" },
+        {
+          "match": "(\\[)([0-9]*)([|;\\t]?)(\\])",
+          "captures": {
+            "1": { "name": "punctuation.section.brackets.begin.toon" },
+            "2": { "name": "constant.numeric.width.toon" },
+            "3": { "name": "keyword.operator.delimiter.toon" },
+            "4": { "name": "punctuation.section.brackets.end.toon" }
+          }
+        },
+        { "match": "[A-Za-z_][A-Za-z0-9_.]*", "name": "variable.parameter.field.toon" },
+        { "match": "[,|;\\t]", "name": "punctuation.separator.fields.toon" }
+      ]
+    },
+    "key-value": {
+      "comment": "`key: value` and bare `key:` (opens a nested object). Also matches keyed-map row lines `mapKey: cells` (Extension 2), whose value region is tokenized per cell.",
+      "begin": "(?:(\"(?:[^\"\\\\]|\\\\.)*\")|([A-Za-z_][A-Za-z0-9_.]*))(:)(?=[ \\t]|$)",
+      "beginCaptures": {
+        "1": { "name": "entity.name.tag.key.quoted.toon" },
+        "2": { "name": "entity.name.tag.key.toon" },
+        "3": { "name": "punctuation.separator.key-value.toon" }
+      },
+      "end": "$",
+      "patterns": [
+        { "include": "#cycle" },
+        { "include": "#string" },
+        { "include": "#empty-array" },
+        { "include": "#constant" },
+        { "include": "#number" },
+        { "include": "#delimiter" },
+        { "include": "#unquoted-cell" }
+      ]
+    },
+    "cycle": {
+      "comment": "reddb-io Extension 5 (cyclic discriminated arrays): the complete-cycle RLE expression `cycle(label,label,...)*repeats` carried by the `order:` metadata field.",
+      "match": "\\b(cycle)(\\()([^)]*)(\\))(\\*)([0-9]+)",
+      "captures": {
+        "1": { "name": "support.function.cycle.toon" },
+        "2": { "name": "punctuation.section.parens.begin.toon" },
+        "3": {
+          "patterns": [
+            { "match": "[^,]+", "name": "constant.other.label.toon" },
+            { "match": ",", "name": "punctuation.separator.labels.toon" }
+          ]
+        },
+        "4": { "name": "punctuation.section.parens.end.toon" },
+        "5": { "name": "keyword.operator.repetition.toon" },
+        "6": { "name": "constant.numeric.repeat-count.toon" }
+      }
+    },
+    "list-item": {
+      "comment": "Expanded-list item prefix `- `; a bare `-` is an empty object list item.",
+      "match": "^[ \\t]*(-)(?=[ \\t]|$)",
+      "captures": {
+        "1": { "name": "punctuation.definition.list-item.toon" }
+      }
+    },
+    "string": {
+      "comment": "Double-quoted string with the closed v3.3 escape repertoire; any other escape is invalid. Strings never span lines.",
+      "name": "string.quoted.double.toon",
+      "begin": "\"",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.toon" } },
+      "end": "\"|$",
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.toon" } },
+      "patterns": [
+        { "name": "constant.character.escape.toon", "match": "\\\\(?:[\\\\\"nrt]|u[0-9A-Fa-f]{4})" },
+        { "name": "invalid.illegal.escape.toon", "match": "\\\\." }
+      ]
+    },
+    "empty-array": {
+      "comment": "The literal empty array `[]`, at root or as a field value (`items: []`).",
+      "match": "(\\[\\])(?=[ \\t]*$)",
+      "captures": { "1": { "name": "constant.language.empty-array.toon" } }
+    },
+    "constant": {
+      "match": "(?<![\\w.\"-])(true|false|null)(?![\\w.-])",
+      "name": "constant.language.toon"
+    },
+    "number": {
+      "comment": "Canonical decimal plus the exponent forms decoders accept. Leading-zero tokens like `05` are deliberately excluded — they decode as strings.",
+      "match": "(?<![\\w.\"-])-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![\\w.-])",
+      "name": "constant.numeric.toon"
+    },
+    "delimiter": {
+      "comment": "Cell separators: comma, pipe, tab (the three active delimiters) and `;` (Extension 3 in-cell list sub-delimiter).",
+      "match": "[,|;\\t]",
+      "name": "punctuation.separator.sequence.toon"
+    },
+    "unquoted-cell": {
+      "comment": "Fallback: an unquoted string cell/value. Runs last, so headers, keys, constants and numbers win at the same position.",
+      "match": "[^,|;\\t\\s\"][^,|;\\t]*",
+      "name": "string.unquoted.toon"
+    }
+  }
+}

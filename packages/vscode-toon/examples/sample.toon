@@ -1,0 +1,82 @@
+id: 123
+name: Ada Lovelace
+active: true
+score: 98.5
+nickname: null
+motto: "TOON: token-oriented"
+empty: ""
+legacy_code: "05"
+big: 1000000
+tiny: 0.000001
+items: []
+server.host: localhost
+database.connection.username: admin
+"my-key": quoted key
+config:
+  timeout: 30
+  retries: 3
+scores[3]: 95,87,92
+tags[3]: admin,ops,dev
+sparse[4]: 1,,3,
+users[2]{id,name,active}:
+  1,Alice,true
+  2,Bob,false
+links[2]{title,url}:
+  "Example Inc","http://example.com"
+  "Another","http://a.co"
+piped[2|]{name|status}:
+  Alice|active
+  Bob|inactive
+matrix[2]:
+  - [2]: 1,2
+  - [2]: 3,4
+mixed[3]:
+  - apple
+  - [2]: 1,2
+  - nested:
+      key: value
+orders[2]:
+  - items[2]{id,qty}:
+      1,5
+      2,3
+    status: pending
+  - items[1]{id,qty}:
+      3,1
+    status: shipped
+nested_headers[2]{id,customer{name,country},total}:
+  1,Ada,UK,10.5
+  2,Bob,US,20
+people{first,last}:
+  joe: Joe,Schmoe
+  mary: Mary,Jane
+shipment[2]{id,tags[;],quantity}:
+  item_0001,hazmat;oversize,60
+  item_0002,oversize,11
+fulfilment[2|]{id|customer|items{sku|quantity}}:
+  ord_001|cust_a|2
+    sku_1|3
+    sku_2|1
+  ord_002|cust_b|0
+grid[2|]{values[3|]}:
+  1|2|3
+  4|5|6
+events:
+  order: cycle(login,purchase,logout)*2
+  discriminator: type
+  rows: 6
+  common[6|]{tenant|seq}:
+    acme|1
+    acme|2
+    acme|3
+    acme|4
+    acme|5
+    acme|6
+  login[2|]{actor|ok}:
+    u1|true
+    u2|true
+  purchase[2|]{actor|amount}:
+    u1|12.5
+    u2|4
+  logout[2|]{actor|durationMs}:
+    u1|1200
+    u2|900
