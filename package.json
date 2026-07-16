@@ -1,6 +1,6 @@
 {
   "name": "tq-workspace",
-  "version": "0.1.0",
+  "version": "0.10.1",
   "private": true,
   "description": "pnpm workspace for the JS packages published from the tq repo (@reddb-io/toon).",
   "packageManager": "pnpm@11.6.0",
@@ -13,10 +13,9 @@
     "wire:corpora": "node scripts/generate_wire_efficiency_corpora.mjs",
     "wire:tokens": "node scripts/wire_efficiency_token_report.mjs",
     "test": "pnpm -r test",
-    "lint": "pnpm -r --if-present lint"
-  },
-  "devDependencies": {
-    "gpt-tokenizer": "3.4.0"
+    "lint": "pnpm -r --if-present lint",
+    "version": "bash scripts/sync-version.sh \"$npm_package_version\" && git add -- Cargo.toml Cargo.lock crates/tq/Cargo.toml package.json packages/toon/package.json packages/toon/src/version.js packages/vscode-toon/package.json",
+    "check:versions": "bash scripts/check-versions.sh"
   },
   "license": "MIT",
   "repository": {
