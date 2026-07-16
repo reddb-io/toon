@@ -5,6 +5,9 @@
  * these are the contract, not a compiler artefact.
  */
 
+/** The package version, in lockstep with the crates (ADR 0003). */
+export const VERSION: string
+
 export type JsonValue =
   | null
   | boolean
