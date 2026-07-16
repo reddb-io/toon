@@ -40,7 +40,9 @@ The root README is a hub, not the normative spec. Use these documents for detail
 
 ### `@reddb-io/toon` — JS/TS package
 
-Dependency-free ESM for parsing, serializing, truncation checks, and TOONL stream helpers in JavaScript, TypeScript, Node, Bun, Deno, and browsers.
+Dependency-free ESM for applications that need TOON in JavaScript, TypeScript, Node, Bun, Deno, or browsers. It parses TOON into plain JSON-shaped values, serializes those values back to canonical TOON, detects common truncation failures before a partial model response is trusted, and includes TOONL helpers for append-only record streams.
+
+Use it when a prompt or pipeline wants compact structured data but the application still needs normal JSON objects at the edges.
 
 ```bash
 pnpm add @reddb-io/toon
@@ -79,17 +81,33 @@ console.log(JSON.stringify(parseRecords(stream)))
 [{"id":1,"name":"Ada"},{"id":2,"name":"Linus"}]
 ```
 
-Details: [`packages/toon`](packages/toon), [TOON spec companion](docs/toon-official-spec.md), [RedDB TOON extensions](docs/toon-reddb-spec.md), and [TOONL spec](docs/toonl-reddb-spec.md).
+Check completeness before accepting generated or streamed data:
+
+```js
+import { detectTruncation } from '@reddb-io/toon'
+
+const report = detectTruncation('items[2]:\n  - one\n')
+console.log(report.complete)
+console.log(report.kind)
+```
+```console
+false
+array_length_mismatch
+```
+
+Details: [`packages/toon`](packages/toon), [TOON spec companion](docs/toon-official-spec.md), [RedDB TOON extensions](docs/toon-reddb-spec.md), [TOONL spec](docs/toonl-reddb-spec.md), and the [truncation report model](docs/proposals/detect-truncation.md).
 
 <img src="docs/rust-crate.svg" alt="reddb-io-toon Rust crate banner" width="100%">
 
 ### `reddb-io-toon` — Rust crate
 
-The parser, serializer, lazy document model, truncation detector, and TOONL reader/writer used by the CLI.
+The Rust library behind the CLI and a standalone crate for services that want TOON without shelling out. It provides the parser, serializer, ordered document model, lazy tabular arrays, truncation detector, JSON bridges, and TOONL reader/writer utilities used by `tq`.
+
+Use it for Rust pipelines that need canonical TOON output, bounded parsing for untrusted input, or append-only TOONL streams that can be checked and resumed.
 
 ```toml
 [dependencies]
-reddb-io-toon = "0.1"
+reddb-io-toon = "0.8"
 ```
 
 ```rust
@@ -102,13 +120,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Details: [`crates/toon`](crates/toon), [decoder and encoder options](docs/toon-official-spec.md), [RedDB extension rules](docs/toon-reddb-spec.md), and [streaming format](docs/toonl-reddb-spec.md).
+Detect a truncated TOON document without losing the structured reason:
+
+```rust
+use reddb_io_toon::detect_truncation;
+
+fn main() {
+    let report = detect_truncation("items[2]:\n  - one\n");
+    assert!(!report.complete);
+    assert_eq!(report.to_json_value()["kind"], "array_length_mismatch");
+}
+```
+
+Write and read a small TOONL stream:
+
+```rust
+use reddb_io_toon::{encode_toonl_values, ToonlReader, Value};
+use std::io::Cursor;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let rows = vec![
+        Value::from_json_str(r#"{"id":1,"name":"Ada"}"#)?,
+        Value::from_json_str(r#"{"id":2,"name":"Linus"}"#)?,
+    ];
+    let stream = encode_toonl_values(&rows)?;
+    let decoded = ToonlReader::new(Cursor::new(stream.as_bytes()))
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(decoded, rows);
+    Ok(())
+}
+```
+
+Details: [`crates/toon`](crates/toon), [decoder and encoder options](docs/toon-official-spec.md), [RedDB extension rules](docs/toon-reddb-spec.md), [TOONL streaming format](docs/toonl-reddb-spec.md), and the [truncation report model](docs/proposals/detect-truncation.md).
 
 <img src="docs/tq-cli.svg" alt="tq CLI banner" width="100%">
 
 ### `tq` — CLI
 
-A jq-style command-line tool for querying TOON, converting between TOON, TOONL, and JSON, checking truncated input, and working with append-only streams.
+A jq-style command-line tool for inspecting data at the terminal. It queries TOON, JSON, YAML input, and TOONL rows with familiar field/index filters; converts between TOON, TOONL, and JSON; checks TOON or TOONL for truncation; and closes or trims append-only streams.
+
+Use it as the fast path for shell pipelines: query a model response, turn JSON/YAML into compact TOON for a prompt, convert record streams to TOONL, or verify that a stream ended cleanly.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/reddb-io/toon/main/install.sh | sh
@@ -119,13 +170,35 @@ printf 'users[2]{id,name}:\n  1,Ada\n  2,Linus\n' \
   | tq '.users[].name'
 ```
 
+Convert JSON records into TOONL for append-only logs:
+
+```bash
+printf '{"id":1,"name":"Ada"}\n{"id":2,"name":"Linus"}\n' \
+  | tq -p json -o toonl .
+```
+
+Query YAML input and emit compact JSON:
+
+```bash
+printf 'users:\n  - id: 1\n    name: Ada\n' \
+  | tq -p yaml -o json -c '.users[0]'
+```
+
+Check truncation before piping a partial document onward:
+
+```bash
+if ! printf 'items[2]:\n  - one\n' | tq check -p toon; then
+  echo 'truncated input'
+fi
+```
+
 Source install:
 
 ```bash
 cargo install reddb-io-tq
 ```
 
-Details: [`crates/tq`](crates/tq), [release assets](https://github.com/reddb-io/toon/releases), and [development commands](#develop).
+Details: [`crates/tq`](crates/tq), [release assets](https://github.com/reddb-io/toon/releases), [TOON format detail](docs/toon-official-spec.md), [RedDB TOON extensions](docs/toon-reddb-spec.md), [TOONL streaming format](docs/toonl-reddb-spec.md), and [development commands](#develop).
 
 ---
 
