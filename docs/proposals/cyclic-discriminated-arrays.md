@@ -1,52 +1,51 @@
 # Proposal — Cyclic discriminated arrays
 
-**Stage:** 1 — measured redesign.
-**Status:** the shipped Extension 5 `@toon-cyclic-discriminated-array/1` wire is
-implemented today, but this proposal now treats it as a design mistake to be
-superseded. The replacement wire below is genuine TOON: nested metadata plus
-tabular sub-tables, with no directive envelope, no embedded JSON object payload
-lines, and no `$` references.
-**Spec section:** [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays) currently documents the shipped wire and is pending re-implementation.
-**Repo issues / PRs:** [#142](https://github.com/reddb-io/toon/issues/142), [#150](https://github.com/reddb-io/toon/issues/150), [#151](https://github.com/reddb-io/toon/issues/151), [#168](https://github.com/reddb-io/toon/issues/168)
+**Stage:** 4 — graduated.
+**Status:** graduated on the tabular TOON wire. The normative behavior is now
+defined in [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays).
+**Spec section:** [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays).
+**Repo issues / PRs:** [#142](https://github.com/reddb-io/toon/issues/142), [#150](https://github.com/reddb-io/toon/issues/150), [#151](https://github.com/reddb-io/toon/issues/151), [#168](https://github.com/reddb-io/toon/issues/168), [#172](https://github.com/reddb-io/toon/issues/172), [#174](https://github.com/reddb-io/toon/issues/174)
 
 ## Motivation
 
-The previous implementation found a real token win for strongly cyclic tagged
-records, but the wire was not TOON. It used an out-of-band directive envelope:
+Strongly cyclic tagged records repeat a discriminator such as `type`, `kind`, or
+`event` in a stable order. Plain TOON v3.3 repeats that discriminator value in
+every row and expands heterogeneous payload fields. The graduated wire keeps the
+same narrow eligibility boundary, but expresses the compression as normal TOON:
+scalar metadata, a common-field table, and one tabular sub-table per
+discriminator label.
 
-```text
-@toon-cyclic-discriminated-array/1
-@root {"events":"$C0"}
-@array $C0 ...
-@group ...
-{"payload":"as JSON object literals"}
-```
-
-That shape betrayed the format. It made the payload rows JSON again and moved
-the structure into ad hoc directives. The measured redesign keeps the same
-eligibility and round-trip contract, but expresses the data as normal TOON
-objects and tabular arrays.
+This design intentionally avoids a separate envelope language. A strict v3.3
+reader sees an ordinary nested TOON object. An extension-aware reader uses the
+metadata to reconstruct the original array.
 
 ## Eligibility
 
-The new wire keeps the same narrow gate:
+The encoder MAY emit the cyclic form only when all of these hold:
 
-- every item is an object;
+- the root value is a non-empty object whose values are arrays;
+- every item in each candidate array is an object;
 - every row has the same scalar string discriminator key, detected from `type`,
-  `kind`, or `event`;
-- the discriminator sequence has a strong repeated cycle of length 2 through 8;
+  `kind`, then `event`;
+- the discriminator sequence is a complete repeated cycle of unique labels with
+  cycle length 2 through 8;
 - the cycle repeats at least three full times;
 - no tail form is emitted or accepted;
 - the compact `cycle(...)*N` order expression remains below the size threshold;
-- ineligible values fall back losslessly to canonical/default output.
+- common fields are the contiguous primitive fields immediately after the
+  discriminator and present as primitive values in every row; and
+- every discriminator-specific payload sub-table has a uniform scalar leaf shape
+  after dotted-path flattening. Nested objects are eligible only when all rows
+  for that discriminator share the same nested object shape; primitive arrays are
+  eligible only when they have a uniform fixed length across all rows for that
+  discriminator.
 
-The encode/decode invariants remain unchanged: encode is opt-in, decode is
-always-on after re-implementation, strict v3 fails closed, round-trip is
-lossless, and default output remains canonical byte-identical TOON v3.3.
+Ineligible values fall back losslessly to canonical/default output. Encoding is
+opt-in; default output remains byte-identical TOON v3.3.
 
-## Genuine TOON wire
+## Tabular TOON wire
 
-The replacement is an ordinary nested TOON object:
+The graduated wire is an ordinary nested TOON object:
 
 ```toon
 events:
@@ -64,13 +63,15 @@ events:
     "comment 3"|1
 ```
 
-The `order`, `discriminator`, and `rows` fields are scalar TOON fields. The
-common fields stay in original row order in `common[N|]{...}:`. Each
-discriminator value owns a real tabular sub-table, so group payload keys appear
-once in the table header instead of being repeated per row. Nested payloads are
-flattened into tabular paths in the prototype, including fixed array positions
-and `.length` guard columns, so the wire still contains scalar cells rather than
-JSON objects.
+The `order`, `discriminator`, and `rows` fields are scalar TOON fields.
+`common[N|]{...}:` stores fields shared by every row in original row order. Each
+discriminator value owns a real tabular sub-table, so payload keys appear once
+in the table header instead of being repeated per row.
+
+Nested payloads are flattened into dotted tabular paths. A nested object path
+uses field names such as `issue.number` and `issue.title`. A fixed primitive
+array uses a `.length` guard plus numeric element paths, such as
+`labels.length`, `labels.0`, and `labels.1`.
 
 ### Complete sample — synthetic cycle2
 
@@ -135,8 +136,7 @@ events:
 ### Complete sample — benchmark group with nested payload
 
 This is the complete `issue_opened` sub-table from the tagged-records large
-benchmark. It demonstrates how nested payloads stay tabular instead of becoming
-JSON object lines:
+benchmark. It demonstrates how nested payloads stay tabular:
 
 ```toon
 issue_opened[30|]{issue.number|issue.title|issue.labels.length|issue.labels.0|issue.labels.1}:
@@ -172,67 +172,46 @@ issue_opened[30|]{issue.number|issue.title|issue.labels.length|issue.labels.0|is
   247|"Validate benchmark harness"|2|"benchmark"|"tokens"
 ```
 
-## Prototype
+## Strict-v3 read behavior
 
-Run:
-
-```sh
-node scripts/cyclic_discriminated_arrays_prototype.mjs --check
-node scripts/cyclic_discriminated_arrays_prototype.mjs --check --samples
-```
-
-The prototype now measures:
-
-- the real tagged-record corpora in `benchmarks/datasets/tagged-records`;
-- deterministic synthetic cyclic corpora with cycle lengths 2, 3, 4, and 5;
-- non-cyclic controls for irregular order, partial cycle, and shuffled labels;
-- minified JSON, canonical TOON v3.3, best current TOON-family output, the
-  shipped directive wire, and the genuine TOON redesign;
-- `o200k_base` tokens and UTF-8 bytes;
-- round-trip losslessness by decoding both cyclic wires back to byte-identical
-  minified JSON.
-
-`--check` also asserts that every eligible genuine wire has no `@toon-`
-directive, no `$C0`-style reference, and no JSON object literal payload lines.
+Because the wire is ordinary TOON, a strict TOON v3.3 decoder reads it literally:
+an object with scalar `order`, `discriminator`, and `rows` fields plus tabular
+fields named `common` and by discriminator labels. It does not reconstruct the
+source array. Consumers that require the reconstructed array must use an
+extension-aware decoder.
 
 ## Measured numbers
 
-Measured with `node scripts/cyclic_discriminated_arrays_prototype.mjs --check`
-using `js-tiktoken` / `o200k_base`:
+Measured with `pnpm benchmark:tokens` and recorded in
+[`benchmarks/results/2026-07-15-token-efficiency.md`](../../benchmarks/results/2026-07-15-token-efficiency.md):
 
-| Corpus | Eligible | Rows | Cycle | Repeats | JSON bytes | TOON bytes | Shipped bytes | Genuine bytes | Genuine bytes vs shipped | JSON tokens | TOON tokens | Shipped tokens | Genuine tokens | Genuine tokens vs shipped |
-| --- | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| tagged-records-small | no | 4 | — | — | 697 | 759 | 697 | 697 | 0.0% | 216 | 258 | 216 | 216 | 0.0% |
-| tagged-records-large | yes | 120 | 4 | 30 | 20,360 | 22,191 | 14,826 | 10,917 | -26.4% | 6,386 | 7,632 | 5,634 | 4,939 | -12.3% |
-| cycle2-24-minimal | yes | 24 | 2 | 12 | 2,387 | 2,531 | 1,940 | 1,585 | -18.3% | 905 | 1,084 | 867 | 800 | -7.7% |
-| cycle3-90-rich | yes | 90 | 3 | 30 | 10,361 | 11,021 | 7,556 | 6,232 | -17.5% | 3,905 | 4,684 | 3,524 | 3,252 | -7.7% |
-| cycle4-240-rich | yes | 240 | 4 | 60 | 27,385 | 29,074 | 19,567 | 16,569 | -15.3% | 10,500 | 12,577 | 9,378 | 8,720 | -7.0% |
-| cycle5-500-rich | yes | 500 | 5 | 100 | 55,386 | 58,895 | 38,840 | 33,546 | -13.6% | 21,435 | 25,645 | 19,022 | 17,826 | -6.3% |
-| control-non-cyclic-irregular | no | 12 | — | — | 1,366 | 1,449 | 1,366 | 1,366 | 0.0% | 525 | 625 | 525 | 525 | 0.0% |
-| control-partial-cycle | no | 9 | — | — | 1,043 | 1,106 | 1,043 | 1,043 | 0.0% | 397 | 473 | 397 | 397 | 0.0% |
-| control-random-types | no | 80 | — | — | 9,155 | 9,715 | 9,155 | 9,155 | 0.0% | 3,509 | 4,193 | 3,509 | 3,509 | 0.0% |
+| Corpus | Rows | JSON tokens | Cyclic tokens | Tokens vs JSON |
+| --- | ---: | ---: | ---: | ---: |
+| cycle2-24-minimal | 24 | 905 | 716 | -20.9% |
+| cycle3-90-rich | 90 | 3,905 | 2,862 | -26.7% |
+| cycle4-240-rich | 240 | 10,500 | 7,640 | -27.2% |
+| cycle5-500-rich | 500 | 21,435 | 15,676 | -26.9% |
 
-The result is stronger than merely "as efficient as the shipped wire": every
-eligible measured corpus improved. The genuine TOON redesign saves **6.3% to
-12.3% tokens** and **13.6% to 26.4% bytes** versus the shipped directive wire,
-while preserving the same lossless fallback for ineligible cases.
+The representative cyclic shape measured a median **26.8% token reduction
+versus minified JSON**, with crossover first observed at 24 records. The JS and
+Rust cyclic implementations produced the same measured cyclic token counts in
+that report.
 
-## Recommendation
+## Graduation
 
-Replace the shipped directive wire with the genuine TOON wire above before
-calling this extension graduated. The redesign is structurally honest TOON,
-keeps the deterministic eligibility boundary, round-trips losslessly in the
-prototype, and is more token-efficient than the current shipped format on every
-eligible measured corpus.
+The proposal is graduated on the tabular wire because the design now satisfies
+the dialect's extension contract:
 
-No normative code should change until the bytes above are accepted. The next
-implementation slice should update the JS package, Rust crate, `tq`, and the
-normative spec together so the public extension surface moves atomically from
-the `@` directive wire to the tabular sub-table wire.
+- encoding remains opt-in;
+- default output remains canonical TOON v3.3;
+- extension-aware decode round-trips losslessly for eligible cyclic arrays;
+- ineligible values fall back losslessly; and
+- strict v3.3 readers see a literal grouped object instead of a silently wrong
+  reconstructed array.
 
 ## Links
 
-- Prototype: `scripts/cyclic_discriminated_arrays_prototype.mjs`
-- Current normative spec section: [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays)
+- Normative spec: [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays)
+- Benchmark report: [`benchmarks/results/2026-07-15-token-efficiency.md`](../../benchmarks/results/2026-07-15-token-efficiency.md)
 - Benchmark datasets: `benchmarks/datasets/tagged-records/`
-- Prior proposal: `docs/proposals/discriminated-heterogeneous-arrays.md`
+- Prior proposal: [`Discriminated / heterogeneous arrays`](discriminated-heterogeneous-arrays.md)

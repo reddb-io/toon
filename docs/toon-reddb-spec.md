@@ -77,19 +77,23 @@ the contract of the reddb-io flavor:
   forms without any flag.
 - **Encoding is opt-in.** An encoder MUST NOT emit an extended form unless the
   caller enabled it. With no options set, output is canonical v3.3.
-- **Fail-closed on strict v3 decoders.** Each extended form is a syntax error for
-  a spec-only v3.3 decoder — a document using them is rejected, never silently
-  decoded into a different shape.
+- **Strict-v3 behavior is explicit.** Extensions 1 through 4 are fail-closed:
+  their extended forms are syntax errors for a spec-only v3.3 decoder, so a
+  document using them is rejected. Extension 5 deliberately uses ordinary TOON
+  syntax; a strict v3.3 decoder reads the literal grouped object and does not
+  reconstruct the source array.
 - **Lossless round-trip, unconditionally.** `decode(encode(x, opts)) == x` for
   every JSON value `x` and every combination of extension options. Values that do
   not fit an extension's eligibility rule fall back to standard v3.3 forms.
 
 The asymmetry is deliberate: turning *decoding* on always costs nothing to a
 producer that never emits the forms, while keeping *encoding* opt-in guarantees
-that a naïve pipeline can never accidentally emit a document a strict v3.3 reader
-would reject. Fail-closed rather than fail-open is the safety property that makes
+that a naïve pipeline can never accidentally emit an extension. For Extensions 1
+through 4, fail-closed rather than fail-open is the safety property that makes
 "decode always-on" tolerable: a strict v3.3 decoder confronted with an extended
-form errors loudly instead of quietly reading a different shape.
+form errors loudly instead of quietly reading a different shape. Extension 5's
+safety property is explicit literal read: the strict reader sees the grouped
+metadata object, not the reconstructed event array.
 
 ### Enabling emission, per surface
 
@@ -370,35 +374,46 @@ decodes back to a row array, not an object wrapper.
 
 Strongly cyclic event streams repeat a discriminator such as `type`, `kind`, or
 `event` in a stable order. TOON v3.3 repeats that discriminator in every row.
-This extension emits a sentinel-framed document that groups payload rows by
-discriminator label, factors scalar common-prefix fields into a shared table,
-and carries the original interleaving as a compact RLE cycle.
+This extension emits an ordinary nested TOON object whose metadata fields carry
+the original interleaving and whose tabular sub-tables group rows by
+discriminator label. Scalar common-prefix fields are factored into a shared
+`common[N|]{...}:` table.
 
-The wire starts with exactly `@toon-cyclic-discriminated-array/1`, followed by a
-JSON root map from top-level object keys to section ids, one or more array
-sections, and a final `@end`:
+For each eligible top-level array field, the emitted object MUST contain these
+leading scalar fields in this order:
+
+1. `order`: a complete-cycle expression `cycle(label[,label...])*repeats`;
+2. `discriminator`: the discriminator key that was factored out of every row;
+   and
+3. `rows`: the original row count.
+
+When common fields exist, the metadata fields are followed by
+`common[N|]{fields}:`, where `N` equals `rows` and the table rows remain in the
+original array order. After that, each discriminator label owns one tabular
+sub-table. The sub-table row order is the encounter order for that label in the
+original array.
 
 ```toon
-@toon-cyclic-discriminated-array/1
-@root {"events":"$C0"}
-@array $C0 discr=type n=6 common=tenant,seq order=cycle(login,purchase,logout)*2
-@common
-"acme"	1
-"acme"	2
-"acme"	3
-"acme"	4
-"acme"	5
-"acme"	6
-@group login n=2
-{"actor":"u1","ok":true}
-{"actor":"u2","ok":true}
-@group purchase n=2
-{"actor":"u1","amount":12.5}
-{"actor":"u2","amount":4}
-@group logout n=2
-{"actor":"u1","durationMs":1200}
-{"actor":"u2","durationMs":900}
-@end
+events:
+  order: cycle(login,purchase,logout)*2
+  discriminator: type
+  rows: 6
+  common[6|]{tenant|seq}:
+    acme|1
+    acme|2
+    acme|3
+    acme|4
+    acme|5
+    acme|6
+  login[2|]{actor|ok}:
+    u1|true
+    u2|true
+  purchase[2|]{actor|amount}:
+    u1|12.5
+    u2|4
+  logout[2|]{actor|durationMs}:
+    u1|1200
+    u2|900
 ```
 
 This decodes to:
@@ -409,31 +424,49 @@ This decodes to:
 
 Grammar:
 
-- `@root` MUST contain a non-empty JSON object whose values are section-id
-  strings.
-- Each `@array` header is `@array <id> discr=<key> n=<rows> common=<fields>
-  order=cycle(<label>[,<label>...])*<repeats>`.
-- `common=` is empty or a comma-separated list of unique field names. When it is
-  non-empty, an `@common` block MUST follow with exactly `n` tab-separated rows,
-  each with exactly the same number of JSON cells as common fields.
-- The only order form is the complete-cycle RLE grammar
+- `order` MUST use the complete-cycle RLE grammar
   `cycle(label[,label...])*repeats`. Tail forms are invalid. The expanded order
-  length MUST equal the declared `n`.
-- Group labels and order labels use percent encoding for bytes outside
-  `A-Z`, `a-z`, `0-9`, `-`, `_`, `.`, and `~`.
-- Each `@group <label> n=<rows>` block carries exactly `rows` JSON object
-  payloads. The decoder consumes one payload from the matching group each time
-  that label appears in the expanded order, and every declared payload MUST be
-  consumed exactly once.
+  length MUST equal `rows`.
+- `discriminator` MUST be a scalar key. The key MUST NOT appear in the common
+  table header or any discriminator sub-table header, because decode restores it
+  from the sub-table label selected by `order`.
+- `rows` MUST be a non-negative integer equal to the expanded `order` length.
+- `common[N|]{...}:` is OPTIONAL. When present, `N` MUST equal `rows`; each
+  row MUST have exactly the declared leaf width; each header leaf MUST be a
+  scalar common field; and each row supplies the common values for the matching
+  original array row.
+- Each discriminator label appearing in `order` MUST have exactly one sub-table
+  named by that label. The sub-table row count MUST equal the number of
+  occurrences of the label in the expanded order.
+- The decoder consumes one row from the matching label sub-table each time that
+  label appears in `order`, combines it with the same-index common row when a
+  common table is present, and MUST consume every declared sub-table row exactly
+  once.
+- Nested object payloads use dotted-path flattening in sub-table headers, such
+  as `issue.number|issue.title`. Array-valued payloads are flattenable only when
+  the array shape is uniform for every row in that discriminator sub-table; the
+  header MUST include a `.length` guard column plus fixed numeric element paths
+  such as `labels.length|labels.0|labels.1`. Non-uniform nested object shapes,
+  non-uniform array lengths, nested arrays, and mixed scalar/object paths are
+  ineligible for this extension and fall back to canonical TOON v3.3.
 
-Decoding is always-on and fail-closed. A malformed sentinel document, missing
-section, duplicate section id, invalid order expression, wrong common-row width,
-common-row count mismatch, missing group, duplicate group, or group length
-mismatch MUST be rejected. The decoder reconstructs each row as:
+Decoding is always-on for the extension grammar. A malformed cyclic object,
+missing metadata field, duplicate metadata field, invalid order expression,
+wrong common-row width, common-row count mismatch, missing discriminator
+sub-table, duplicate discriminator sub-table, sub-table length mismatch, or
+non-uniform flattened nested shape MUST be rejected. The decoder reconstructs
+each row as:
 
 ```js
 { [discriminator]: label, ...commonRow, ...groupPayload }
 ```
+
+A strict TOON v3.3 decoder has no knowledge of this extension and therefore
+MUST read the wire literally as the nested object shown above: scalar `order`,
+`discriminator`, and `rows` fields plus ordinary tabular fields named `common`
+and by discriminator labels. Strict v3.3 read is not an error and does not
+reconstruct the original array. Extension-aware decoders are required when the
+wire is intended to round-trip back to the source array.
 
 Encoder eligibility is deterministic. An encoder with the option enabled emits
 this form only when **all** of the following hold:
@@ -451,7 +484,12 @@ this form only when **all** of the following hold:
    per-row discriminator list; and
 7. common fields, if any, are the contiguous primitive-valued fields immediately
    after the discriminator in the first row and present as primitive values in
-   every row.
+   every row; and
+8. every discriminator-specific payload sub-table has a uniform scalar leaf
+   shape after dotted-path flattening. Nested objects are eligible only when all
+   rows for that discriminator share the same nested object shape; arrays are
+   eligible only when they are primitive arrays with the same fixed length across
+   all rows in that discriminator sub-table.
 
 Any ordinary ineligible value falls back to canonical TOON v3.3. The encoder
 MUST NOT raise an error merely because a value is irregular, too short,
@@ -461,11 +499,11 @@ compression threshold.
 
 The shipped benchmark re-measurement in
 [`benchmarks/results/2026-07-15-token-efficiency.md`](../benchmarks/results/2026-07-15-token-efficiency.md)
-measured the implemented extension through both shipped implementations. On the
-representative cyclic shape, the best TOON-family format was the Rust cyclic
-extension with a median **10.2% token reduction versus minified JSON**. The
-amortization curve crossed over at 24 records and measured 4.2%, 9.8%, 10.7%,
-and 11.3% token reductions for the 24-, 90-, 240-, and 500-row cyclic datasets.
+measured the implemented tabular wire through both shipped implementations. On
+the representative cyclic shape, the best TOON-family format was the cyclic
+extension with a median **26.8% token reduction versus minified JSON**. The
+amortization curve crossed over at 24 records and measured 20.9%, 26.7%, 27.2%,
+and 26.9% token reductions for the 24-, 90-, 240-, and 500-row cyclic datasets.
 
 ## Delimiter choice
 
