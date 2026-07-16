@@ -184,7 +184,7 @@ Spec: [Child tables and matrix](../../docs/proposals/child-tables-and-matrix.md)
 Input:
 
 ```json
-{"events":[{"type":"login","tenant":"acme","seq":1,"ok":true},{"type":"purchase","tenant":"acme","seq":2,"amount":12.5},{"type":"login","tenant":"acme","seq":3,"ok":false},{"type":"purchase","tenant":"acme","seq":4,"amount":4},{"type":"login","tenant":"acme","seq":5,"ok":true},{"type":"purchase","tenant":"acme","seq":6,"amount":7},{"type":"login","tenant":"acme","seq":7,"ok":true},{"type":"purchase","tenant":"acme","seq":8,"amount":1}]}
+{"events":[{"type":"login","tenant":"acme","seq":1,"actor":"u1","ok":true},{"type":"purchase","tenant":"acme","seq":2,"actor":"u1","amount":12.5,"currency":"USD"},{"type":"logout","tenant":"acme","seq":3,"actor":"u1","durationMs":1200},{"type":"login","tenant":"acme","seq":4,"actor":"u2","ok":true},{"type":"purchase","tenant":"acme","seq":5,"actor":"u2","amount":4,"currency":"EUR"},{"type":"logout","tenant":"acme","seq":6,"actor":"u2","durationMs":900},{"type":"login","tenant":"acme","seq":7,"actor":"u3","ok":false},{"type":"purchase","tenant":"acme","seq":8,"actor":"u3","amount":99.95,"currency":"USD"},{"type":"logout","tenant":"acme","seq":9,"actor":"u3","durationMs":1800},{"type":"login","tenant":"acme","seq":10,"actor":"u4","ok":true},{"type":"purchase","tenant":"acme","seq":11,"actor":"u4","amount":1.25,"currency":"BRL"},{"type":"logout","tenant":"acme","seq":12,"actor":"u4","durationMs":600}]}
 ```
 
 Command:
@@ -196,29 +196,38 @@ tq -p json -o toon --cyclic-discriminated-arrays .
 Output:
 
 ```text
-@toon-cyclic-discriminated-array/1
-@root {"events":"$C0"}
-@array $C0 discr=type n=8 common=tenant,seq order=cycle(login,purchase)*4
-@common
-"acme"	1
-"acme"	2
-"acme"	3
-"acme"	4
-"acme"	5
-"acme"	6
-"acme"	7
-"acme"	8
-@group login n=4
-{"ok":true}
-{"ok":false}
-{"ok":true}
-{"ok":true}
-@group purchase n=4
-{"amount":12.5}
-{"amount":4}
-{"amount":7}
-{"amount":1}
-@end
+events:
+  order: cycle(login,purchase,logout)*4
+  discriminator: type
+  rows: 12
+  common[12|]{tenant|seq|actor}:
+    acme|1|u1
+    acme|2|u1
+    acme|3|u1
+    acme|4|u2
+    acme|5|u2
+    acme|6|u2
+    acme|7|u3
+    acme|8|u3
+    acme|9|u3
+    acme|10|u4
+    acme|11|u4
+    acme|12|u4
+  login[4|]{ok}:
+    true
+    true
+    false
+    true
+  purchase[4|]{amount|currency}:
+    12.5|USD
+    4|EUR
+    99.95|USD
+    1.25|BRL
+  logout[4|]{durationMs}:
+    1200
+    900
+    1800
+    600
 ```
 
 Spec: [Cyclic discriminated arrays](../../docs/proposals/cyclic-discriminated-arrays.md).

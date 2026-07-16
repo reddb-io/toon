@@ -333,25 +333,25 @@ events[12]:
     payload:
       id: evt_12
 cyclicDiscriminatedArrays on
-@toon-cyclic-discriminated-array/1
-@root {"events":"$C0"}
-@array $C0 discr=type n=12 common= order=cycle(login,purchase,logout)*4
-@group login n=4
-{"payload":{"id":"evt_1"}}
-{"payload":{"id":"evt_4"}}
-{"payload":{"id":"evt_7"}}
-{"payload":{"id":"evt_10"}}
-@group purchase n=4
-{"payload":{"id":"evt_2"}}
-{"payload":{"id":"evt_5"}}
-{"payload":{"id":"evt_8"}}
-{"payload":{"id":"evt_11"}}
-@group logout n=4
-{"payload":{"id":"evt_3"}}
-{"payload":{"id":"evt_6"}}
-{"payload":{"id":"evt_9"}}
-{"payload":{"id":"evt_12"}}
-@end
+events:
+  order: cycle(login,purchase,logout)*4
+  discriminator: type
+  rows: 12
+  login[4|]{payload.id}:
+    evt_1
+    evt_4
+    evt_7
+    evt_10
+  purchase[4|]{payload.id}:
+    evt_2
+    evt_5
+    evt_8
+    evt_11
+  logout[4|]{payload.id}:
+    evt_3
+    evt_6
+    evt_9
+    evt_12
 ineligible fallback
 events[3]{type,id}:
   login,evt_1

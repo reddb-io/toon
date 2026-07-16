@@ -236,7 +236,7 @@ Use the specialized cyclic wire for eligible top-level event arrays. Eligibility
 use reddb_io_toon::{EncodeOptions, Value};
 
 let value = Value::from_json_str(
-    r#"{"events":[{"type":"login","tenant":"acme","seq":1,"ok":true},{"type":"purchase","tenant":"acme","seq":2,"amount":12.5},{"type":"login","tenant":"acme","seq":3,"ok":false},{"type":"purchase","tenant":"acme","seq":4,"amount":4},{"type":"login","tenant":"acme","seq":5,"ok":true},{"type":"purchase","tenant":"acme","seq":6,"amount":7},{"type":"login","tenant":"acme","seq":7,"ok":true},{"type":"purchase","tenant":"acme","seq":8,"amount":1}]}"#,
+    r#"{"events":[{"type":"login","tenant":"acme","seq":1,"actor":"u1","ok":true},{"type":"purchase","tenant":"acme","seq":2,"actor":"u1","amount":12.5,"currency":"USD"},{"type":"logout","tenant":"acme","seq":3,"actor":"u1","durationMs":1200},{"type":"login","tenant":"acme","seq":4,"actor":"u2","ok":true},{"type":"purchase","tenant":"acme","seq":5,"actor":"u2","amount":4,"currency":"EUR"},{"type":"logout","tenant":"acme","seq":6,"actor":"u2","durationMs":900},{"type":"login","tenant":"acme","seq":7,"actor":"u3","ok":false},{"type":"purchase","tenant":"acme","seq":8,"actor":"u3","amount":99.95,"currency":"USD"},{"type":"logout","tenant":"acme","seq":9,"actor":"u3","durationMs":1800},{"type":"login","tenant":"acme","seq":10,"actor":"u4","ok":true},{"type":"purchase","tenant":"acme","seq":11,"actor":"u4","amount":1.25,"currency":"BRL"},{"type":"logout","tenant":"acme","seq":12,"actor":"u4","durationMs":600}]}"#,
 )?;
 
 let off = value.to_canonical_toon();
@@ -246,8 +246,9 @@ let on = value.to_toon_with_options(EncodeOptions {
 });
 
 assert_ne!(on, off);
-assert!(on.starts_with("@toon-cyclic-discriminated-array/1\n"));
-assert!(on.contains("order=cycle(login,purchase)*4\n"));
+assert!(on.starts_with("events:\n  order: cycle(login,purchase,logout)*4\n"));
+assert!(on.contains("  common[12|]{tenant|seq|actor}:\n"));
+assert!(on.contains("  purchase[4|]{amount|currency}:\n"));
 assert_eq!(Value::parse_toon(&on)?.to_json_value(), value.to_json_value());
 
 let ineligible = Value::from_json_str(
@@ -266,11 +267,16 @@ assert_eq!(
 The expected opt-in output begins:
 
 ```text
-@toon-cyclic-discriminated-array/1
-@root {"events":"$C0"}
-@array $C0 discr=type n=8 common=tenant,seq order=cycle(login,purchase)*4
-@common
-"acme"	1
+events:
+  order: cycle(login,purchase,logout)*4
+  discriminator: type
+  rows: 12
+  common[12|]{tenant|seq|actor}:
+    acme|1|u1
+    acme|2|u1
+    acme|3|u1
+  login[4|]{ok}:
+    true
 ```
 
 ## `delimiter`
