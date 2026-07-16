@@ -1934,3 +1934,362 @@ fn fallible_canonical_encoders_and_error_accessors_round_trip() {
         "line 2: expected end of document"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Cyclic discriminated arrays (tabular wire extension)
+// ---------------------------------------------------------------------------
+
+/// The canonical cyclic tabular wire from the wire-efficiency corpus: a
+/// three-event `login/purchase/logout` cycle repeated four times with a shared
+/// `tenant/seq/actor` common prefix.
+const CYCLIC_WIRE: &str = "events:\n  order: cycle(login,purchase,logout)*4\n  discriminator: type\n  rows: 12\n  common[12|]{tenant|seq|actor}:\n    acme|1|u1\n    acme|2|u1\n    acme|3|u1\n    acme|4|u2\n    acme|5|u2\n    acme|6|u2\n    acme|7|u3\n    acme|8|u3\n    acme|9|u3\n    acme|10|u4\n    acme|11|u4\n    acme|12|u4\n  login[4|]{ok}:\n    true\n    true\n    false\n    true\n  purchase[4|]{amount|currency}:\n    12.5|USD\n    4|EUR\n    99.95|USD\n    1.25|BRL\n  logout[4|]{durationMs}:\n    1200\n    900\n    1800\n    600\n";
+
+fn cyclic_encode() -> EncodeOptions {
+    EncodeOptions {
+        cyclic_discriminated_arrays: true,
+        ..EncodeOptions::default()
+    }
+}
+
+/// Encode with the cyclic extension enabled.
+fn cyclic_toon(value: &Value) -> String {
+    value
+        .try_to_toon_with_options(cyclic_encode())
+        .expect("cyclic encode succeeds")
+}
+
+/// Build a `{ "events": <rows> }` document from a JSON row list.
+fn cyclic_events(rows: serde_json::Value) -> Value {
+    Value::from_json_value(json!({ "events": rows }))
+}
+
+/// Repeat a per-label pattern `repeats` times into a flat row array.
+fn cycle_rows(pattern: &[serde_json::Value], repeats: usize) -> serde_json::Value {
+    let mut out = Vec::new();
+    for _ in 0..repeats {
+        for value in pattern {
+            out.push(value.clone());
+        }
+    }
+    serde_json::Value::Array(out)
+}
+
+/// Assert that encoding with the cyclic extension enabled falls back to the
+/// canonical form (i.e. the tabular wire is *not* emitted) for ineligible input.
+fn assert_cyclic_fallback(value: &Value) {
+    let with = cyclic_toon(value);
+    let canonical = value.try_to_canonical_toon().expect("canonical encode");
+    assert_eq!(with, canonical, "expected fallback to canonical form");
+    assert!(
+        !with.contains("order: cycle("),
+        "cyclic wire should not be emitted: {with}"
+    );
+}
+
+#[test]
+fn cyclic_wire_round_trips_through_decode_and_encode() {
+    // Decode the tabular wire back into the expanded event array.
+    let value = parse(CYCLIC_WIRE);
+    let json = value.to_json_value();
+    assert_eq!(
+        json["events"][0],
+        json!({ "type": "login", "tenant": "acme", "seq": 1, "actor": "u1", "ok": true })
+    );
+    assert_eq!(
+        json["events"][1],
+        json!({
+            "type": "purchase", "tenant": "acme", "seq": 2, "actor": "u1",
+            "amount": 12.5, "currency": "USD"
+        })
+    );
+    assert_eq!(json["events"].as_array().expect("array").len(), 12);
+
+    // Re-encoding with the extension reproduces the byte-identical wire.
+    assert_eq!(cyclic_toon(&value), CYCLIC_WIRE);
+    // And the reproduced wire decodes back to the same value.
+    assert_eq!(parse(CYCLIC_WIRE).to_json_value(), json);
+}
+
+#[test]
+fn cyclic_wire_round_trips_nested_array_and_object_payloads() {
+    // login rows carry a nested array, purchase rows a nested object; both must
+    // survive flatten-on-encode and inflate-on-decode.
+    let value = cyclic_events(cycle_rows(
+        &[
+            json!({ "type": "login", "ok": true, "roles": ["admin", "ops"] }),
+            json!({ "type": "purchase", "amount": 12.5, "meta": { "gift": true } }),
+            json!({ "type": "logout", "durationMs": 1200 }),
+        ],
+        4,
+    ));
+    let json = value.to_json_value();
+
+    let wire = cyclic_toon(&value);
+    assert!(
+        wire.starts_with("events:\n  order: cycle(login,purchase,logout)*4\n"),
+        "nested payloads still emit the cyclic wire: {wire}"
+    );
+    // The flattened dotted columns appear in the tabular headers.
+    assert!(wire.contains("{ok|roles.length|roles.0|roles.1}"));
+    assert!(wire.contains("{amount|meta.gift}"));
+
+    // Decoding inflates the dotted columns back into nested structures.
+    assert_eq!(parse(&wire).to_json_value(), json);
+}
+
+#[test]
+fn cyclic_decode_rejects_missing_or_malformed_section_headers() {
+    // Section-like (has discriminator/rows) but the order field is absent.
+    assert_eq!(
+        error("events:\n  discriminator: type\n  rows: 4\n  a[2|]{x}:\n    1\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // order present, discriminator absent.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  rows: 4\n  a[2|]{x}:\n    1\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // order + discriminator present, rows absent.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  a[2|]{x}:\n    1\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // rows present but not a non-negative integer.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: four\n  a[2|]{x}:\n    1\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+}
+
+#[test]
+fn cyclic_decode_rejects_malformed_common_and_group_columns() {
+    // common is a scalar rather than a table.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  common: 5\n  a[2|]{x}:\n    1\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // common is an array of primitives rather than objects.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  common[4]: 1,2,3,4\n  a[2|]{x}:\n    1\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // common object count disagrees with the declared row count.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  common[2|]{c}:\n    1\n    2\n  a[2|]{x}:\n    1\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: cyclic array length mismatch"
+    );
+    // a group column is a scalar, not an array.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  a: 5\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // a group is an array of primitives rather than objects.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  a[2]: 1,2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // no group columns at all.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+}
+
+#[test]
+fn cyclic_decode_rejects_group_length_disagreements() {
+    // The order names a label that has no group table.
+    assert_eq!(
+        error("events:\n  order: cycle(a,c)*2\n  discriminator: type\n  rows: 4\n  a[2|]{x}:\n    1\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: cyclic array group length mismatch"
+    );
+    // A group runs out of rows before the order is satisfied.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  a[1|]{x}:\n    1\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: cyclic array group length mismatch"
+    );
+    // A group has more rows than the order consumes.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  a[2|]{x}:\n    1\n    2\n  b[3|]{y}:\n    3\n    4\n    5\n"),
+        "line 1: cyclic array group length mismatch"
+    );
+}
+
+#[test]
+fn cyclic_decode_rejects_malformed_order_expressions() {
+    let base = |order: &str| {
+        format!("events:\n  order: {order}\n  discriminator: type\n  rows: 4\n  a[2|]{{x}}:\n    1\n    2\n  b[2|]{{y}}:\n    3\n    4\n")
+    };
+    // Missing the cycle(...) wrapper.
+    assert_eq!(error(&base("foo")), "line 1: invalid cyclic array wire");
+    // Missing the )* separator.
+    assert_eq!(
+        error(&base("cycle(a,b)")),
+        "line 1: invalid cyclic array wire"
+    );
+    // Empty cycle body.
+    assert_eq!(
+        error(&base("cycle()*2")),
+        "line 1: invalid cyclic array wire"
+    );
+    // The rejected +tail(...) suffix.
+    assert_eq!(
+        error(&base("cycle(a,b)*2+tail(c)")),
+        "line 1: invalid cyclic array wire"
+    );
+    // An empty label inside the cycle.
+    assert_eq!(
+        error("events:\n  order: cycle(a,,b)*1\n  discriminator: type\n  rows: 3\n  a[1|]{x}:\n    1\n  b[1|]{y}:\n    2\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // The decoded cycle length disagrees with the declared row count.
+    assert_eq!(
+        error(&base("cycle(a,b)*3")),
+        "line 1: cyclic array length mismatch"
+    );
+}
+
+#[test]
+fn cyclic_decode_rejects_malformed_repeat_counts() {
+    let base = |order: &str| {
+        format!("events:\n  order: {order}\n  discriminator: type\n  rows: 4\n  a[2|]{{x}}:\n    1\n    2\n  b[2|]{{y}}:\n    3\n    4\n")
+    };
+    // Non-numeric repeat count.
+    assert_eq!(
+        error(&base("cycle(a,b)*x")),
+        "line 1: invalid cyclic array wire"
+    );
+    // Empty repeat count.
+    assert_eq!(
+        error(&base("cycle(a,b)*")),
+        "line 1: invalid cyclic array wire"
+    );
+    // Leading-zero repeat count.
+    assert_eq!(
+        error(&base("cycle(a,b)*02")),
+        "line 1: invalid cyclic array wire"
+    );
+}
+
+#[test]
+fn cyclic_decode_rejects_malformed_percent_escapes_in_labels() {
+    let base = |order: &str| {
+        format!("events:\n  order: {order}\n  discriminator: type\n  rows: 2\n  a[1|]{{x}}:\n    1\n  b[1|]{{y}}:\n    2\n")
+    };
+    // A truncated percent escape (not enough hex digits).
+    assert_eq!(
+        error(&base("cycle(a%,b)*1")),
+        "line 1: invalid cyclic array wire"
+    );
+    // Non-hexadecimal escape digits.
+    assert_eq!(
+        error(&base("cycle(a%zz,b)*1")),
+        "line 1: invalid cyclic array wire"
+    );
+    // A well-formed escape that decodes to invalid UTF-8.
+    assert_eq!(
+        error(&base("cycle(%ff,b)*1")),
+        "line 1: invalid cyclic array wire"
+    );
+}
+
+#[test]
+fn cyclic_decode_rejects_discriminator_and_field_collisions() {
+    // A common column collides with the discriminator name.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  common[4|]{type}:\n    x\n    x\n    x\n    x\n  a[2|]{x}:\n    1\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // A payload column collides with the discriminator name.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  a[2|]{type}:\n    x\n    x\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // A payload column collides with a common column.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  common[4|]{c}:\n    1\n    2\n    3\n    4\n  a[2|]{c}:\n    9\n    9\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+}
+
+#[test]
+fn cyclic_decode_rejects_flat_payload_that_inflates_to_a_bad_shape() {
+    // A payload that flattens to a bare array length with no elements.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  a[2|]{length}:\n    0\n    0\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+    // A nested array header ("items.length") with no corresponding elements.
+    assert_eq!(
+        error("events:\n  order: cycle(a,b)*2\n  discriminator: type\n  rows: 4\n  a[2|]{items.length}:\n    2\n    2\n  b[2|]{y}:\n    3\n    4\n"),
+        "line 1: invalid cyclic array wire"
+    );
+}
+
+#[test]
+fn cyclic_decode_leaves_non_section_documents_untouched() {
+    // A plain object whose fields are not section-like passes through unchanged.
+    let value = parse("name: Ada\nage: 3\n");
+    assert_eq!(value.to_json_value(), json!({ "name": "Ada", "age": 3 }));
+    // An empty document is returned as-is.
+    assert_eq!(parse("\n").to_json_value(), json!({}));
+}
+
+#[test]
+fn cyclic_encode_falls_back_for_structurally_ineligible_input() {
+    // A field value that is not an array.
+    assert_cyclic_fallback(&Value::from_json_value(json!({ "events": 5 })));
+    // A top-level key that is not a bare header token.
+    assert_cyclic_fallback(&Value::from_json_value(
+        json!({ "bad-key": [{ "type": "a" }] }),
+    ));
+    // Array rows that are not objects.
+    assert_cyclic_fallback(&cyclic_events(json!([1, 2, 3])));
+    // Objects with no recognised discriminator key.
+    assert_cyclic_fallback(&cyclic_events(json!([{ "a": 1 }, { "a": 2 }, { "a": 3 }])));
+}
+
+#[test]
+fn cyclic_encode_falls_back_when_no_compressible_cycle_exists() {
+    // A discriminator is present but the labels do not form a repeated cycle
+    // with enough repeats to beat the canonical output.
+    assert_cyclic_fallback(&cyclic_events(json!([
+        { "type": "a", "v": 1 },
+        { "type": "b", "v": 2 },
+        { "type": "a", "v": 3 },
+    ])));
+}
+
+#[test]
+fn cyclic_encode_falls_back_for_non_uniform_or_empty_groups() {
+    // A common column whose key is not a bare header token.
+    assert_cyclic_fallback(&cyclic_events(cycle_rows(
+        &[
+            json!({ "type": "login", "bad-key": 1, "ok": true }),
+            json!({ "type": "logout", "bad-key": 1 }),
+        ],
+        5,
+    )));
+    // A payload column whose key is not a bare header token.
+    assert_cyclic_fallback(&cyclic_events(cycle_rows(
+        &[
+            json!({ "type": "login", "bad-key": 1 }),
+            json!({ "type": "logout", "ok": true }),
+        ],
+        5,
+    )));
+    // Rows within a group disagree on their payload fields.
+    let mut rows = cycle_rows(
+        &[
+            json!({ "type": "login", "ok": true }),
+            json!({ "type": "logout", "durationMs": 1 }),
+        ],
+        5,
+    );
+    rows.as_array_mut().expect("array")[0] = json!({ "type": "login", "ok": true, "extra": 9 });
+    assert_cyclic_fallback(&cyclic_events(rows));
+    // A label whose rows carry no payload at all.
+    assert_cyclic_fallback(&cyclic_events(cycle_rows(
+        &[json!({ "type": "login" }), json!({ "type": "logout" })],
+        5,
+    )));
+}
