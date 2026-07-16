@@ -19,6 +19,10 @@ path = "../../tests/runners/rust/tq/golden.rs"
 name = "behavior"
 path = "../../tests/runners/rust/tq/behavior.rs"
 
+[[test]]
+name = "corpus"
+path = "../../tests/runners/rust/tq/corpus.rs"
+
 [dependencies]
 reddb-io-toon = { path = "../toon", version = "0.10.1" }
 regex = "1"
