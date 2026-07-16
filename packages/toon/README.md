@@ -116,39 +116,74 @@ round-trip true
 
 ### Encode Extensions
 
-All reddb-io extensions decode always-on and encode opt-in. With no options, output remains canonical TOON v3.3. The extension model is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md).
+All reddb-io extensions decode always-on and encode opt-in. With no options, output remains canonical TOON v3.3. The file carries only content: an option lives at the call site — `serialize(value, { … })` here, `EncodeOptions` in Rust, a flag on `tq` — never inside the document, and decoders recognize the extended forms from shape alone. The extension model is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md).
+
+In every example below, the `assert` lines are the guarantees — lossless round-trip, and canonical fallback for ineligible data — kept executable without polluting the output, which is always a plain TOON document.
 
 - `nestedTabularHeaders` emits recursive table headers for uniform nested object columns. Spec: [Nested tabular headers](../../docs/proposals/nested-tabular-headers.md).
 
+Default output, canonical v3.3:
+
 ```js
-import { parse, serialize } from '@reddb-io/toon'
+import { serialize } from '@reddb-io/toon'
 
 const value = { orders: [{ id: 1, customer: { name: 'Ada', country: 'UK' }, total: 10.5 }] }
-const enabled = serialize(value, { nestedTabularHeaders: true })
-
-console.log('default canonical v3.3')
 process.stdout.write(serialize(value))
-console.log('nestedTabularHeaders on')
-process.stdout.write(enabled)
-console.log('round-trip', JSON.stringify(parse(enabled)) === JSON.stringify(value))
 ```
 ```console
-default canonical v3.3
 orders[1]:
   - id: 1
     customer:
       name: Ada
       country: UK
     total: 10.5
-nestedTabularHeaders on
+```
+
+The same value with `nestedTabularHeaders: true`:
+
+```js
+import assert from 'node:assert/strict'
+import { parse, serialize } from '@reddb-io/toon'
+
+const value = { orders: [{ id: 1, customer: { name: 'Ada', country: 'UK' }, total: 10.5 }] }
+const enabled = serialize(value, { nestedTabularHeaders: true })
+process.stdout.write(enabled)
+assert.deepEqual(parse(enabled), value)
+```
+```console
 orders[1]{id,customer{name,country},total}:
   1,Ada,UK,10.5
-round-trip true
 ```
 
 - `keyedMapCollapse` emits compact rows for object maps whose values are uniform objects. Spec: [Keyed-map collapse](../../docs/proposals/keyed-map-collapse.md).
 
+Default output, canonical v3.3:
+
 ```js
+import { serialize } from '@reddb-io/toon'
+
+const value = {
+  people: {
+    joe: { first: 'Joe', last: 'Schmoe' },
+    mary: { first: 'Mary', last: 'Jane' },
+  },
+}
+process.stdout.write(serialize(value))
+```
+```console
+people:
+  joe:
+    first: Joe
+    last: Schmoe
+  mary:
+    first: Mary
+    last: Jane
+```
+
+The same value with `keyedMapCollapse: true`:
+
+```js
+import assert from 'node:assert/strict'
 import { parse, serialize } from '@reddb-io/toon'
 
 const value = {
@@ -158,143 +193,107 @@ const value = {
   },
 }
 const enabled = serialize(value, { keyedMapCollapse: true })
-
-console.log('default canonical v3.3')
-process.stdout.write(serialize(value))
-console.log('keyedMapCollapse on')
 process.stdout.write(enabled)
-console.log('round-trip', JSON.stringify(parse(enabled)) === JSON.stringify(value))
+assert.deepEqual(parse(enabled), value)
 ```
 ```console
-default canonical v3.3
-people:
-  joe:
-    first: Joe
-    last: Schmoe
-  mary:
-    first: Mary
-    last: Jane
-keyedMapCollapse on
 people{first,last}:
   joe: Joe,Schmoe
   mary: Mary,Jane
-round-trip true
 ```
 
 - `primitiveArrayColumns` emits primitive list columns such as `tags[;]` inside otherwise tabular object arrays. Spec: [Primitive-array columns](../../docs/proposals/primitive-array-columns.md).
   By default, or when a row is not eligible, output falls back losslessly to canonical TOON v3.3.
 
+Default output, canonical v3.3:
+
 ```js
-import { parse, serialize } from '@reddb-io/toon'
+import { serialize } from '@reddb-io/toon'
 
 const value = { users: [{ id: 1, tags: ['red', 'blue'] }] }
-const ineligible = { users: [{ id: 1, tags: null }, { id: 2, tags: ['ok'] }] }
-const enabled = serialize(value, { primitiveArrayColumns: true })
-const fallback = serialize(ineligible, { primitiveArrayColumns: true })
-
-console.log('default canonical v3.3')
 process.stdout.write(serialize(value))
-console.log('primitiveArrayColumns on')
-process.stdout.write(enabled)
-console.log('ineligible fallback')
-process.stdout.write(fallback)
-console.log('fallback is canonical', fallback === serialize(ineligible))
-console.log('round-trip', JSON.stringify(parse(enabled)) === JSON.stringify(value))
 ```
 ```console
-default canonical v3.3
 users[1]:
   - id: 1
     tags[2]: red,blue
-primitiveArrayColumns on
+```
+
+The same value with `primitiveArrayColumns: true`:
+
+```js
+import assert from 'node:assert/strict'
+import { parse, serialize } from '@reddb-io/toon'
+
+const value = { users: [{ id: 1, tags: ['red', 'blue'] }] }
+const enabled = serialize(value, { primitiveArrayColumns: true })
+process.stdout.write(enabled)
+assert.deepEqual(parse(enabled), value)
+
+const ineligible = { users: [{ id: 1, tags: null }, { id: 2, tags: ['ok'] }] }
+assert.equal(serialize(ineligible, { primitiveArrayColumns: true }), serialize(ineligible))
+```
+```console
 users[1]{id,tags[;]}:
   1,red;blue
-ineligible fallback
-users[2]:
-  - id: 1
-    tags: null
-  - id: 2
-    tags[1]: ok
-fallback is canonical true
-round-trip true
 ```
 
 - `objectArrayColumns` emits child tables for array-valued object columns. Spec: [Child tables and matrix](../../docs/proposals/child-tables-and-matrix.md).
   By default, or when a child array is not eligible, output falls back losslessly to canonical TOON v3.3.
 
+Default output, canonical v3.3:
+
 ```js
-import { parse, serialize } from '@reddb-io/toon'
+import { serialize } from '@reddb-io/toon'
 
 const value = { orders: [{ id: 1, items: [{ sku: 'A', qty: 2 }, { sku: 'B', qty: 1 }] }] }
-const ineligible = { orders: [{ id: 1, items: [{ sku: 'A' }] }, { id: 2, items: [1] }] }
-const enabled = serialize(value, { objectArrayColumns: true })
-const fallback = serialize(ineligible, { objectArrayColumns: true })
-
-console.log('default canonical v3.3')
 process.stdout.write(serialize(value))
-console.log('objectArrayColumns on')
-process.stdout.write(enabled)
-console.log('ineligible fallback')
-process.stdout.write(fallback)
-console.log('fallback is canonical', fallback === serialize(ineligible))
-console.log('round-trip', JSON.stringify(parse(enabled)) === JSON.stringify(value))
 ```
 ```console
-default canonical v3.3
 orders[1]:
   - id: 1
     items[2]{sku,qty}:
       A,2
       B,1
-objectArrayColumns on
+```
+
+The same value with `objectArrayColumns: true`:
+
+```js
+import assert from 'node:assert/strict'
+import { parse, serialize } from '@reddb-io/toon'
+
+const value = { orders: [{ id: 1, items: [{ sku: 'A', qty: 2 }, { sku: 'B', qty: 1 }] }] }
+const enabled = serialize(value, { objectArrayColumns: true })
+process.stdout.write(enabled)
+assert.deepEqual(parse(enabled), value)
+
+const ineligible = { orders: [{ id: 1, items: [{ sku: 'A' }] }, { id: 2, items: [1] }] }
+assert.equal(serialize(ineligible, { objectArrayColumns: true }), serialize(ineligible))
+```
+```console
 orders[1]{id,items{sku,qty}}:
   1,2
     A,2
     B,1
-ineligible fallback
-orders[2]:
-  - id: 1
-    items[1]{sku}:
-      A
-  - id: 2
-    items[1]: 1
-fallback is canonical true
-round-trip true
 ```
 
 - `cyclicDiscriminatedArrays` emits the specialized wire for eligible top-level event arrays whose discriminator values repeat in a stable cycle. Spec: [Cyclic discriminated arrays](../../docs/proposals/cyclic-discriminated-arrays.md).
   By default, or when the discriminator order is not eligible, output falls back losslessly to canonical TOON v3.3.
 
+Default output, canonical v3.3 — the discriminator repeats in every row:
+
 ```js
-import { parse, serialize } from '@reddb-io/toon'
+import { serialize } from '@reddb-io/toon'
 
 const value = { events: [] }
 for (let index = 1; index <= 12; index += 1) {
   const type = ['login', 'purchase', 'logout'][(index - 1) % 3]
   value.events.push({ type, payload: { id: `evt_${index}` } })
 }
-
-const ineligible = {
-  events: [
-    { type: 'login', id: 'evt_1' },
-    { type: 'login', id: 'evt_2' },
-    { type: 'logout', id: 'evt_3' },
-  ],
-}
-const enabled = serialize(value, { cyclicDiscriminatedArrays: true })
-const fallback = serialize(ineligible, { cyclicDiscriminatedArrays: true })
-
-console.log('default canonical v3.3')
 process.stdout.write(serialize(value))
-console.log('cyclicDiscriminatedArrays on')
-process.stdout.write(enabled)
-console.log('ineligible fallback')
-process.stdout.write(fallback)
-console.log('fallback is canonical', fallback === serialize(ineligible))
-console.log('round-trip', JSON.stringify(parse(enabled)) === JSON.stringify(value))
 ```
 ```console
-default canonical v3.3
 events[12]:
   - type: login
     payload:
@@ -332,7 +331,33 @@ events[12]:
   - type: logout
     payload:
       id: evt_12
-cyclicDiscriminatedArrays on
+```
+
+The same value with `cyclicDiscriminatedArrays: true` — the `order`, `discriminator`, and `rows` fields are data (a strict v3.3 decoder reads them as a literal object), not mode flags:
+
+```js
+import assert from 'node:assert/strict'
+import { parse, serialize } from '@reddb-io/toon'
+
+const value = { events: [] }
+for (let index = 1; index <= 12; index += 1) {
+  const type = ['login', 'purchase', 'logout'][(index - 1) % 3]
+  value.events.push({ type, payload: { id: `evt_${index}` } })
+}
+const enabled = serialize(value, { cyclicDiscriminatedArrays: true })
+process.stdout.write(enabled)
+assert.deepEqual(parse(enabled), value)
+
+const ineligible = {
+  events: [
+    { type: 'login', id: 'evt_1' },
+    { type: 'login', id: 'evt_2' },
+    { type: 'logout', id: 'evt_3' },
+  ],
+}
+assert.equal(serialize(ineligible, { cyclicDiscriminatedArrays: true }), serialize(ineligible))
+```
+```console
 events:
   order: cycle(login,purchase,logout)*4
   discriminator: type
@@ -352,37 +377,37 @@ events:
     evt_6
     evt_9
     evt_12
-ineligible fallback
-events[3]{type,id}:
-  login,evt_1
-  login,evt_2
-  logout,evt_3
-fallback is canonical true
-round-trip true
 ```
 
 - `delimiter` selects the active delimiter for array and tabular headers: comma, pipe, or tab. Spec: [Delimiter choice](../../docs/proposals/delimiter-choice.md).
 
+Default output, comma-delimited:
+
 ```js
+import { serialize } from '@reddb-io/toon'
+
+const value = { rows: [{ id: 1, name: 'Ada' }] }
+process.stdout.write(serialize(value))
+```
+```console
+rows[1]{id,name}:
+  1,Ada
+```
+
+The same value with `delimiter: '|'` — the header itself declares the active delimiter, so the document stays self-describing:
+
+```js
+import assert from 'node:assert/strict'
 import { parse, serialize } from '@reddb-io/toon'
 
 const value = { rows: [{ id: 1, name: 'Ada' }] }
 const pipe = serialize(value, { delimiter: '|' })
-
-console.log('default comma delimiter')
-process.stdout.write(serialize(value))
-console.log('pipe delimiter')
 process.stdout.write(pipe)
-console.log('round-trip', JSON.stringify(parse(pipe)) === JSON.stringify(value))
+assert.deepEqual(parse(pipe), value)
 ```
 ```console
-default comma delimiter
-rows[1]{id,name}:
-  1,Ada
-pipe delimiter
 rows[1|]{id|name}:
   1|Ada
-round-trip true
 ```
 
 ## TOONL Streams
@@ -431,67 +456,81 @@ Linus
 
 - `delimiter` selects comma, pipe, or tab for the stream header and rows.
 
+Default output, comma-delimited:
+
 ```js
+import { encodeRecords } from '@reddb-io/toon'
+
+const records = [{ id: 1, name: 'Ada' }]
+process.stdout.write(encodeRecords(records))
+```
+```console
+[]{id,name}:
+1,Ada
+[=1]
+```
+
+The same records with `delimiter: '|'`:
+
+```js
+import assert from 'node:assert/strict'
 import { encodeRecords, parseRecords } from '@reddb-io/toon'
 
 const records = [{ id: 1, name: 'Ada' }]
 const pipe = encodeRecords(records, { delimiter: '|' })
-
-console.log('default delimiter')
-process.stdout.write(encodeRecords(records))
-console.log('pipe delimiter')
 process.stdout.write(pipe)
-console.log('decodes back', JSON.stringify(parseRecords(pipe)) === JSON.stringify(records))
+assert.deepEqual(parseRecords(pipe), records)
 ```
 ```console
-default delimiter
-[]{id,name}:
-1,Ada
-[=1]
-pipe delimiter
 [|]{id|name}:
 1|Ada
 [=1]
-decodes back true
 ```
 
 - `trailer` defaults to `true`; set it to `false` for an append-open stream without a final `[=N]` count.
 
+Default output, closed with a trailer:
+
 ```js
-import { encodeRecords, parseRecords } from '@reddb-io/toon'
+import { encodeRecords } from '@reddb-io/toon'
 
 const records = [{ id: 1 }, { id: 2 }]
-const open = encodeRecords(records, { trailer: false })
-
-console.log('with trailer by default')
 process.stdout.write(encodeRecords(records))
-console.log('without trailer option')
-process.stdout.write(open)
-console.log('decodes back', JSON.stringify(parseRecords(open)) === JSON.stringify(records))
 ```
 ```console
-with trailer by default
 []{id}:
 1
 2
 [=2]
-without trailer option
+```
+
+The same records with `trailer: false` — an append-open stream:
+
+```js
+import assert from 'node:assert/strict'
+import { encodeRecords, parseRecords } from '@reddb-io/toon'
+
+const records = [{ id: 1 }, { id: 2 }]
+const open = encodeRecords(records, { trailer: false })
+process.stdout.write(open)
+assert.deepEqual(parseRecords(open), records)
+```
+```console
 []{id}:
 1
 2
-decodes back true
 ```
 
 - `continuationEveryRows` repeats the active header after a row cadence so a reader can resume from later chunks.
 
 ```js
+import assert from 'node:assert/strict'
 import { encodeRecords, parseRecords } from '@reddb-io/toon'
 
 const records = [{ id: 1 }, { id: 2 }, { id: 3 }]
 const stream = encodeRecords(records, { continuationEveryRows: 2 })
-
 process.stdout.write(stream)
-console.log('decodes back', JSON.stringify(parseRecords(stream)) === JSON.stringify(records))
+assert.deepEqual(parseRecords(stream), records)
 ```
 ```console
 []{id}:
@@ -500,19 +539,18 @@ console.log('decodes back', JSON.stringify(parseRecords(stream)) === JSON.string
 [~]{id}:
 3
 [=3]
-decodes back true
 ```
 
 - `continuationEveryBytes` repeats the active header after a byte cadence; the exact boundary is chosen between rows.
 
 ```js
+import assert from 'node:assert/strict'
 import { encodeRecords, parseRecords } from '@reddb-io/toon'
 
 const records = [{ id: 1, msg: 'alpha' }, { id: 2, msg: 'beta' }]
 const stream = encodeRecords(records, { continuationEveryBytes: 8 })
-
 process.stdout.write(stream)
-console.log('decodes back', JSON.stringify(parseRecords(stream)) === JSON.stringify(records))
+assert.deepEqual(parseRecords(stream), records)
 ```
 ```console
 []{id,msg}:
@@ -520,7 +558,6 @@ console.log('decodes back', JSON.stringify(parseRecords(stream)) === JSON.string
 [~]{id,msg}:
 2,beta
 [=2]
-decodes back true
 ```
 
 ```js

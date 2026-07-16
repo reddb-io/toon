@@ -19,7 +19,10 @@ import test from 'node:test'
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const ENTRY_POINT = fileURLToPath(new URL('../src/index.js', import.meta.url))
-const README = join(REPO_ROOT, 'README.md')
+const READMES = [
+  join(REPO_ROOT, 'README.md'),
+  join(REPO_ROOT, 'packages/toon/README.md'),
+]
 
 /** Pairs each ```js block with the ```console block that follows it. */
 function readmeExamples(markdown) {
@@ -41,19 +44,19 @@ function run(source, directory, index) {
 }
 
 test('README JS examples produce the output they advertise', () => {
-  const examples = readmeExamples(readFileSync(README, 'utf8'))
-  assert.ok(examples.length >= 2, `expected the README's JS examples, found ${examples.length}`)
-
   const directory = mkdtempSync(join(tmpdir(), 'toon-readme-'))
+  let counter = 0
   try {
-    examples.forEach((example, index) => {
-      assert.match(
-        example.source,
-        /@reddb-io\/toon/,
-        `example ${index + 1} imports the published package`,
-      )
-      assert.equal(run(example.source, directory, index), example.expected, `example ${index + 1}`)
-    })
+    for (const readme of READMES) {
+      const examples = readmeExamples(readFileSync(readme, 'utf8'))
+      assert.ok(examples.length >= 2, `expected JS examples in ${readme}, found ${examples.length}`)
+
+      examples.forEach((example, index) => {
+        const label = `${readme} example ${index + 1}`
+        assert.match(example.source, /@reddb-io\/toon/, `${label} imports the published package`)
+        assert.equal(run(example.source, directory, (counter += 1)), example.expected, label)
+      })
+    }
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
