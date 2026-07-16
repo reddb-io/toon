@@ -154,8 +154,11 @@ export function parseHeaderFields(source, delimiter, activeDelimiter) {
         index += 1
       }
 
-      const [key] = parseKey(source.slice(start, index), 0)
-      if (key === '') {
+      const [key, keyQuoted] = parseKey(source.slice(start, index), 0)
+      // An empty field name is only invalid when it is absent (`{a,,b}`). `""`
+      // is a legitimately quoted empty key per SPEC §7.3, and the serializer
+      // emits it, so the parser MUST accept it back.
+      if (key === '' && !keyQuoted) {
         throw toonError(0, 'invalid array header')
       }
 
@@ -291,8 +294,11 @@ export function parseHeaderFieldTree(source, delimiter, activeDelimiter) {
         index += 1
       }
 
-      const [key] = parseKey(source.slice(start, index), 0)
-      if (key === '') {
+      const [key, keyQuoted] = parseKey(source.slice(start, index), 0)
+      // An empty field name is only invalid when it is absent (`{a,,b}`). `""`
+      // is a legitimately quoted empty key per SPEC §7.3, and the serializer
+      // emits it, so the parser MUST accept it back.
+      if (key === '' && !keyQuoted) {
         throw toonError(0, 'invalid array header')
       }
 
