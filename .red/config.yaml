@@ -142,3 +142,15 @@ rsp:
 #                                 # repo to STRICT mode; a ready-for-agent applied by a
 #                                 # non-listed actor is skipped at claim and may be
 #                                 # stripped by a sweep with an audit comment.
+
+# Merge gate (#430) — extra backpressure commands run on every successful AFK
+# and /go iteration, after the built-in feedback gate (which already runs
+# `cargo test --workspace`). These mirror the CI gate so coverage, clippy, and
+# JS regressions are blocked before merge instead of landing red on main — the
+# recurring gap that let three coverage regressions and two MSRV/clippy breaks
+# reach main in one session. Any non-zero exit parks the issue to ready-for-human.
+afk:
+  backpressure:
+    - cargo clippy --workspace -- -D warnings
+    - cargo llvm-cov --workspace --fail-under-lines 95
+    - pnpm -r test
