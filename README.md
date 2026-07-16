@@ -200,6 +200,26 @@ cargo install reddb-io-tq
 
 Details: [`crates/tq`](crates/tq), [release assets](https://github.com/reddb-io/toon/releases), [TOON format detail](docs/toon-official-spec.md), [RedDB TOON extensions](docs/toon-reddb-spec.md), [TOONL streaming format](docs/toonl-reddb-spec.md), and [development commands](#develop).
 
+<img src="docs/vscode-extension.svg" alt="RedDB Toon VS Code extension banner" width="100%">
+
+### RedDB Toon — VS Code extension
+
+Declarative syntax highlighting for `.toon` and `.toonl` files, plus `toon`/`toonl` fenced code blocks in Markdown. The TextMate grammars cover TOON v3.3 with all five RedDB wire extensions, and TOONL v0.1/v0.2 including trailers, continuation headers, named schemas, and tagged rows. Escape mistakes and the reserved TOONL `- ` prefix show up as errors while you type.
+
+Use it when reading or writing TOON documents, TOONL streams, or the spec documents in [`docs/`](docs/) inside VS Code.
+
+Install from source (Marketplace publication is planned; the extension is not listed yet):
+
+```bash
+cd packages/vscode-toon
+pnpm dlx @vscode/vsce package
+code --install-extension reddb-toon-*.vsix
+```
+
+Or open `packages/vscode-toon` in VS Code and press `F5` to try the grammars in an Extension Development Host against `examples/sample.toon` and `examples/sample.toonl`.
+
+Details: [`packages/vscode-toon`](packages/vscode-toon), [TOON spec companion](docs/toon-official-spec.md), [RedDB TOON extensions](docs/toon-reddb-spec.md), and [TOONL streaming format](docs/toonl-reddb-spec.md).
+
 ---
 
 ## Navigation
@@ -213,6 +233,7 @@ Details: [`crates/tq`](crates/tq), [release assets](https://github.com/reddb-io/
 | JavaScript and TypeScript package | [`packages/toon`](packages/toon) |
 | Rust format crate | [`crates/toon`](crates/toon) |
 | CLI crate and binary | [`crates/tq`](crates/tq) |
+| VS Code extension | [`packages/vscode-toon`](packages/vscode-toon) |
 | Releases and binary downloads | [GitHub releases](https://github.com/reddb-io/toon/releases) |
 
 ---
