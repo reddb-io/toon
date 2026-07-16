@@ -1,4 +1,4 @@
-use reddb_io_toon::{EncodeOptions, Value};
+use reddb_io_toon::{EncodeOptions, ParseOptions, Value};
 use serde_json::Value as Json;
 use std::fs;
 use std::path::PathBuf;
@@ -157,11 +157,17 @@ fn object_array_column_corpus_decodes_identically_for_rust() {
             .to_json_value();
         assert_eq!(&decoded, expected, "{name}: decoded value");
 
-        if test_case.get("failClosedV3Strict").and_then(Json::as_bool) == Some(true) {
-            assert!(
-                reject_v3_strict(input).is_err(),
-                "{name}: strict v3 rejects extension form"
-            );
+        if let Some(literal) = test_case.get("strictV3Literal") {
+            let decoded = Value::parse_with_options(
+                input,
+                ParseOptions {
+                    cyclic_discriminated_arrays: false,
+                    ..ParseOptions::default()
+                },
+            )
+            .unwrap_or_else(|error| panic!("{name}: strict v3 parse failed: {error}"))
+            .to_json_value();
+            assert_eq!(&decoded, literal, "{name}: strict v3 literal object");
         }
     }
 
@@ -271,201 +277,53 @@ fn cyclic_discriminated_array_corpus_decodes_identically_for_rust() {
 }
 
 #[test]
-fn cyclic_discriminated_array_decoder_handles_percent_encoded_commonless_cycles_for_rust() {
-    let input = "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(foo%20bar,%7E)*3\n@group foo%20bar n=3\n{\"seq\":1}\n{\"seq\":3}\n{\"seq\":5}\n@group %7E n=3\n{\"seq\":2}\n{\"seq\":4}\n{\"seq\":6}\n@end\n";
+fn cyclic_discriminated_array_decoder_handles_quoted_labels_and_nested_arrays_for_rust() {
+    let input = "events:\n  order: cycle(log%20in,deploy%2Fcheck)*3\n  discriminator: type\n  rows: 6\n  \"log in\"[3|]{seq|tags.length|tags.0}:\n    1|1|auth\n    3|1|auth\n    5|1|auth\n  \"deploy/check\"[3|]{seq|tags.length|tags.0|tags.1}:\n    2|2|deploy|check\n    4|2|deploy|check\n    6|2|deploy|check\n";
     let decoded = Value::parse_toon(input)
-        .expect("decode percent-encoded cyclic labels")
+        .expect("decode tabular cyclic labels")
         .to_json_value();
 
     assert_eq!(
         decoded,
         serde_json::json!({
             "events": [
-                { "type": "foo bar", "seq": 1 },
-                { "type": "~", "seq": 2 },
-                { "type": "foo bar", "seq": 3 },
-                { "type": "~", "seq": 4 },
-                { "type": "foo bar", "seq": 5 },
-                { "type": "~", "seq": 6 }
+                { "type": "log in", "seq": 1, "tags": ["auth"] },
+                { "type": "deploy/check", "seq": 2, "tags": ["deploy", "check"] },
+                { "type": "log in", "seq": 3, "tags": ["auth"] },
+                { "type": "deploy/check", "seq": 4, "tags": ["deploy", "check"] },
+                { "type": "log in", "seq": 5, "tags": ["auth"] },
+                { "type": "deploy/check", "seq": 6, "tags": ["deploy", "check"] }
             ]
         })
     );
-    assert!(
-        reject_v3_strict(input).is_err(),
-        "strict v3 rejects extension form"
+    assert_eq!(
+        Value::parse_with_options(
+            input,
+            ParseOptions {
+                cyclic_discriminated_arrays: false,
+                ..ParseOptions::default()
+            },
+        )
+        .unwrap()
+        .to_json_value(),
+        serde_json::json!({
+            "events": {
+                "order": "cycle(log%20in,deploy%2Fcheck)*3",
+                "discriminator": "type",
+                "rows": 6,
+                "log in": [
+                    { "seq": 1, "tags.length": 1, "tags.0": "auth" },
+                    { "seq": 3, "tags.length": 1, "tags.0": "auth" },
+                    { "seq": 5, "tags.length": 1, "tags.0": "auth" }
+                ],
+                "deploy/check": [
+                    { "seq": 2, "tags.length": 2, "tags.0": "deploy", "tags.1": "check" },
+                    { "seq": 4, "tags.length": 2, "tags.0": "deploy", "tags.1": "check" },
+                    { "seq": 6, "tags.length": 2, "tags.0": "deploy", "tags.1": "check" }
+                ]
+            }
+        })
     );
-}
-
-#[test]
-fn cyclic_discriminated_array_decoder_rejects_malformed_wires_for_rust() {
-    let valid_section = "@array $C0 discr=type n=6 common= order=cycle(a,b)*3\n@group a n=3\n{\"seq\":1}\n{\"seq\":3}\n{\"seq\":5}\n@group b n=3\n{\"seq\":2}\n{\"seq\":4}\n{\"seq\":6}\n";
-
-    for (name, input, line, reason) in [
-        (
-            "root line must be tagged",
-            "@toon-cyclic-discriminated-array/1\n@nope {\"events\":\"$C0\"}\n",
-            2,
-            "invalid cyclic array wire",
-        ),
-        (
-            "root json must be an object",
-            "@toon-cyclic-discriminated-array/1\n@root []\n",
-            2,
-            "invalid cyclic array wire",
-        ),
-        (
-            "root object must not be empty",
-            "@toon-cyclic-discriminated-array/1\n@root {}\n",
-            2,
-            "invalid cyclic array wire",
-        ),
-        (
-            "root values must reference section ids",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":1}\n",
-            2,
-            "invalid cyclic array wire",
-        ),
-        (
-            "body rejects non-array sections",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@group a n=1\n{}\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-        (
-            "duplicate section ids are invalid",
-            &format!(
-                "@toon-cyclic-discriminated-array/1\n@root {{\"events\":\"$C0\"}}\n{valid_section}{valid_section}@end\n"
-            ),
-            12,
-            "invalid cyclic array wire",
-        ),
-        (
-            "trailing bytes after end are invalid",
-            &format!(
-                "@toon-cyclic-discriminated-array/1\n@root {{\"events\":\"$C0\"}}\n{valid_section}@end\njunk\n"
-            ),
-            13,
-            "invalid cyclic array wire",
-        ),
-        (
-            "at least one section is required",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-        (
-            "root references must resolve",
-            &format!(
-                "@toon-cyclic-discriminated-array/1\n@root {{\"events\":\"$C1\"}}\n{valid_section}@end\n"
-            ),
-            2,
-            "invalid cyclic array wire",
-        ),
-        (
-            "array headers require all fields",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common=\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-        (
-            "common fields cannot be duplicated",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common=tenant,tenant order=cycle(a,b)*3\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-        (
-            "common block is rejected when common is empty",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(a,b)*3\n@common\n@end\n",
-            4,
-            "invalid cyclic array wire",
-        ),
-        (
-            "missing common block is invalid",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common=tenant order=cycle(a,b)*3\n@group a n=3\n{}\n{}\n{}\n@end\n",
-            4,
-            "invalid cyclic array wire",
-        ),
-        (
-            "common rows must match declared arity",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common=tenant,seq order=cycle(a,b)*3\n@common\n\"acme\"\n@end\n",
-            5,
-            "cyclic array length mismatch",
-        ),
-        (
-            "common cells must be json",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common=tenant order=cycle(a,b)*3\n@common\nacme\n@end\n",
-            5,
-            "invalid cyclic array wire",
-        ),
-        (
-            "duplicate group labels are invalid",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(a,b)*3\n@group a n=3\n{}\n{}\n{}\n@group b n=3\n{}\n{}\n{}\n@group a n=0\n@end\n",
-            12,
-            "invalid cyclic array wire",
-        ),
-        (
-            "group rows must be objects",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(a,b)*3\n@group a n=3\n1\n@end\n",
-            5,
-            "invalid cyclic array wire",
-        ),
-        (
-            "group row counts are enforced before the next header",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(a,b)*3\n@group a n=1\n{}\n{}\n@end\n",
-            6,
-            "cyclic array group length mismatch",
-        ),
-        (
-            "group labels must be valid percent encoding",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(a,b)*3\n@group %GG n=3\n{}\n{}\n{}\n@end\n",
-            4,
-            "invalid cyclic array wire",
-        ),
-        (
-            "order must use cycle grammar",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=a,b\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-        (
-            "order tails are rejected",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(a,b)*3+tail(c)\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-        (
-            "order labels must not be empty",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(a,)*3\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-        (
-            "order repeats must be canonical integers",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(a,b)*03\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-        (
-            "order length must match the header",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=5 common= order=cycle(a,b)*3\n@end\n",
-            3,
-            "cyclic array length mismatch",
-        ),
-        (
-            "common rows cannot overwrite the discriminator",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common=type order=cycle(a,b)*3\n@common\n\"x\"\n\"x\"\n\"x\"\n\"x\"\n\"x\"\n\"x\"\n@group a n=3\n{}\n{}\n{}\n@group b n=3\n{}\n{}\n{}\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-        (
-            "payload rows cannot overwrite existing fields",
-            "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=6 common= order=cycle(a,b)*3\n@group a n=3\n{\"type\":\"x\"}\n{}\n{}\n@group b n=3\n{}\n{}\n{}\n@end\n",
-            3,
-            "invalid cyclic array wire",
-        ),
-    ] {
-        assert_cyclic_error(name, input, line, reason);
-    }
 }
 
 #[test]
@@ -483,7 +341,7 @@ fn cyclic_discriminated_array_encoding_is_opt_in_and_pins_the_frozen_wire_for_ru
         cyclic_discriminated_arrays: true,
         ..EncodeOptions::default()
     });
-    let expected_wire = "@toon-cyclic-discriminated-array/1\n@root {\"events\":\"$C0\"}\n@array $C0 discr=type n=12 common=tenant,seq,actor order=cycle(login,purchase,logout)*4\n@common\n\"acme\"\t1\t\"u1\"\n\"acme\"\t2\t\"u1\"\n\"acme\"\t3\t\"u1\"\n\"acme\"\t4\t\"u2\"\n\"acme\"\t5\t\"u2\"\n\"acme\"\t6\t\"u2\"\n\"acme\"\t7\t\"u3\"\n\"acme\"\t8\t\"u3\"\n\"acme\"\t9\t\"u3\"\n\"acme\"\t10\t\"u4\"\n\"acme\"\t11\t\"u4\"\n\"acme\"\t12\t\"u4\"\n@group login n=4\n{\"ok\":true}\n{\"ok\":true}\n{\"ok\":false}\n{\"ok\":true}\n@group purchase n=4\n{\"amount\":12.5,\"currency\":\"USD\"}\n{\"amount\":4,\"currency\":\"EUR\"}\n{\"amount\":99.95,\"currency\":\"USD\"}\n{\"amount\":1.25,\"currency\":\"BRL\"}\n@group logout n=4\n{\"durationMs\":1200}\n{\"durationMs\":900}\n{\"durationMs\":1800}\n{\"durationMs\":600}\n@end\n";
+    let expected_wire = test_case.get("input").and_then(Json::as_str).unwrap();
 
     assert_ne!(encoded, default_encoded);
     assert_eq!(encoded, expected_wire);
@@ -495,9 +353,17 @@ fn cyclic_discriminated_array_encoding_is_opt_in_and_pins_the_frozen_wire_for_ru
         Value::parse_toon(&encoded).unwrap().to_json_value(),
         expected_value.clone()
     );
-    assert!(
-        reject_v3_strict(&encoded).is_err(),
-        "strict v3 rejects extension form"
+    assert_eq!(
+        Value::parse_with_options(
+            &encoded,
+            ParseOptions {
+                cyclic_discriminated_arrays: false,
+                ..ParseOptions::default()
+            },
+        )
+        .unwrap()
+        .to_json_value(),
+        test_case.get("strictV3Literal").unwrap().clone()
     );
 }
 
@@ -514,7 +380,11 @@ fn cyclic_discriminated_array_encoding_emits_percent_encoded_multi_section_wire_
                 "type": label,
                 "tenant": "acme",
                 "seq": index + 1,
-                "ok": index % 3 != 0
+                "ok": index % 3 != 0,
+                "detail": {
+                    "bucket": if label == "log in" { "auth" } else { "deploy" },
+                    "attempt": (index / 2) + 1
+                }
             })
         })
         .collect::<Vec<_>>();
@@ -529,7 +399,11 @@ fn cyclic_discriminated_array_encoding_emits_percent_encoded_multi_section_wire_
                 "kind": label,
                 "tenant": "acme",
                 "seq": index + 1,
-                "actor": format!("u{}", (index / 2) + 1)
+                "actor": format!("u{}", (index / 2) + 1),
+                "detail": {
+                    "bucket": if label == "alpha beta" { "alpha" } else { "gamma" },
+                    "attempt": (index / 2) + 1
+                }
             })
         })
         .collect::<Vec<_>>();
@@ -543,11 +417,12 @@ fn cyclic_discriminated_array_encoding_emits_percent_encoded_multi_section_wire_
         ..EncodeOptions::default()
     });
 
-    assert!(encoded.starts_with("@toon-cyclic-discriminated-array/1\n"));
-    assert!(encoded.contains("@root {\"events\":\"$C0\",\"audits\":\"$C1\"}\n"));
-    assert!(encoded.contains("order=cycle(log%20in,deploy%2Fcheck)*6"));
-    assert!(encoded.contains("@group log%20in n=6\n"));
-    assert!(encoded.contains("order=cycle(alpha%20beta,gamma%2Fdelta)*6"));
+    assert!(encoded.starts_with("events:\n"));
+    assert!(encoded.contains("  order: cycle(log%20in,deploy%2Fcheck)*6\n"));
+    assert!(encoded.contains("  \"log in\"[6|]{detail.bucket|detail.attempt}:\n"));
+    assert!(encoded.contains("audits:\n"));
+    assert!(encoded.contains("  order: cycle(alpha%20beta,gamma%2Fdelta)*6\n"));
+    assert!(encoded.contains("  \"alpha beta\"[6|]{detail.bucket|detail.attempt}:\n"));
     assert_eq!(Value::parse_toon(&encoded).unwrap().to_json_value(), input);
 }
 
@@ -644,6 +519,25 @@ fn cyclic_discriminated_array_encoding_falls_back_for_boundary_cases_for_rust() 
                 ]
             }),
         ),
+        (
+            "non-uniform nested payload shape within a group is ineligible",
+            serde_json::json!({
+                "events": [
+                    { "type": "login", "seq": 1, "payload": { "ok": true, "ip": "127.0.0.1" } },
+                    { "type": "purchase", "seq": 2, "payload": { "amount": 2 } },
+                    { "type": "login", "seq": 3, "payload": { "ok": true } },
+                    { "type": "purchase", "seq": 4, "payload": { "amount": 4 } },
+                    { "type": "login", "seq": 5, "payload": { "ok": true } },
+                    { "type": "purchase", "seq": 6, "payload": { "amount": 6 } },
+                    { "type": "login", "seq": 7, "payload": { "ok": true } },
+                    { "type": "purchase", "seq": 8, "payload": { "amount": 8 } },
+                    { "type": "login", "seq": 9, "payload": { "ok": true } },
+                    { "type": "purchase", "seq": 10, "payload": { "amount": 10 } },
+                    { "type": "login", "seq": 11, "payload": { "ok": true } },
+                    { "type": "purchase", "seq": 12, "payload": { "amount": 12 } }
+                ]
+            }),
+        ),
     ] {
         let value = Value::from_json_value(input.clone());
         let encoded = value.to_toon_with_options(EncodeOptions {
@@ -653,13 +547,6 @@ fn cyclic_discriminated_array_encoding_falls_back_for_boundary_cases_for_rust() 
         assert_eq!(encoded, value.to_canonical_toon(), "{name}");
         assert_eq!(Value::parse_toon(&encoded).unwrap().to_json_value(), input);
     }
-}
-
-fn assert_cyclic_error(name: &str, input: &str, line: usize, reason: &str) {
-    let error = Value::parse_toon(input).unwrap_err();
-    assert_eq!(error.line(), line, "{name}: line");
-    assert_eq!(error.message(), reason, "{name}: reason");
-    assert_eq!(error.to_string(), format!("line {line}: {reason}"));
 }
 
 #[test]
@@ -834,9 +721,6 @@ fn encode_options(options: &Json) -> EncodeOptions {
 }
 
 fn reject_v3_strict(input: &str) -> Result<(), String> {
-    if input.starts_with("@toon-cyclic-discriminated-array/1\n") {
-        return Err("line 1: invalid root form".to_owned());
-    }
     for (index, line) in input.lines().enumerate() {
         let trimmed = line.trim_start();
         let Some(colon) = trimmed.find(':') else {
