@@ -149,9 +149,12 @@ fn parse_header_fields(
                     self.index += 1;
                 }
 
-                let (key, _) = parse_key(&self.source[start..self.index], 0)
+                let (key, key_quoted) = parse_key(&self.source[start..self.index], 0)
                     .map_err(|_| HeaderError("invalid array header"))?;
-                if key.is_empty() {
+                // An empty field name is only invalid when it is absent (`{a,,b}`).
+                // `""` is a legitimately quoted empty key per SPEC §7.3, and the
+                // encoder emits it, so the decoder MUST accept it back.
+                if key.is_empty() && !key_quoted {
                     return Err(HeaderError("invalid array header"));
                 }
 
@@ -327,9 +330,12 @@ fn parse_header_field_tree(
                     self.index += 1;
                 }
 
-                let (key, _) = parse_key(&self.source[start..self.index], 0)
+                let (key, key_quoted) = parse_key(&self.source[start..self.index], 0)
                     .map_err(|_| HeaderError("invalid array header"))?;
-                if key.is_empty() {
+                // An empty field name is only invalid when it is absent (`{a,,b}`).
+                // `""` is a legitimately quoted empty key per SPEC §7.3, and the
+                // encoder emits it, so the decoder MUST accept it back.
+                if key.is_empty() && !key_quoted {
                     return Err(HeaderError("invalid array header"));
                 }
 

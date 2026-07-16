@@ -1,0 +1,52 @@
+{
+  "pages": [
+    {
+      "id": "page_0001",
+      "url": "https://example.com/reference/page-1",
+      "title": "Attributes, delimiters: a \"field\" guide",
+      "section": "reference",
+      "renderedAt": "2026-07-01T09:00:00Z",
+      "body": "<!DOCTYPE html><html><head>\n<title>Escaping <em>markup</em> in \"strings\"</title>\n<meta name=\"description\" content=\"A page whose &quot;body&quot; is markup, not prose.\">\n</head><body class=\"card shadow-sm\">\n<section class=\"card shadow-sm\" data-index=\"0\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-0\">Q&amp;A: \"quotes\", commas &amp; escapes</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n<section class=\"main narrow\" data-index=\"1\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-1\">Attributes, delimiters: a \"field\" guide</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n</body></html>"
+    },
+    {
+      "id": "page_0002",
+      "url": "https://example.com/reference/page-2",
+      "title": "Q&amp;A: \"quotes\", commas &amp; escapes",
+      "section": "docs",
+      "renderedAt": "2026-07-02T09:00:00Z",
+      "body": "<!DOCTYPE html><html><head>\n<title>Q&amp;A: \"quotes\", commas &amp; escapes</title>\n<meta name=\"description\" content=\"A page whose &quot;body&quot; is markup, not prose.\">\n</head><body class=\"layout grid\">\n<section class=\"layout grid\" data-index=\"0\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-0\">Q&amp;A: \"quotes\", commas &amp; escapes</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n<section class=\"main narrow\" data-index=\"1\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-1\">Q&amp;A: \"quotes\", commas &amp; escapes</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n</body></html>"
+    },
+    {
+      "id": "page_0003",
+      "url": "https://example.com/reference/page-3",
+      "title": "Q&amp;A: \"quotes\", commas &amp; escapes",
+      "section": "guides",
+      "renderedAt": "2026-07-03T09:00:00Z",
+      "body": "<!DOCTYPE html><html><head>\n<title>Escaping <em>markup</em> in \"strings\"</title>\n<meta name=\"description\" content=\"A page whose &quot;body&quot; is markup, not prose.\">\n</head><body class=\"card shadow-sm\">\n<section class=\"card shadow-sm\" data-index=\"0\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-0\">Why \"\\\" and \",\" fight the encoder</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n<section class=\"layout grid\" data-index=\"1\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-1\">Escaping <em>markup</em> in \"strings\"</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n</body></html>"
+    },
+    {
+      "id": "page_0004",
+      "url": "https://example.com/reference/page-4",
+      "title": "Escaping <em>markup</em> in \"strings\"",
+      "section": "reference",
+      "renderedAt": "2026-07-04T09:00:00Z",
+      "body": "<!DOCTYPE html><html><head>\n<title>Attributes, delimiters: a \"field\" guide</title>\n<meta name=\"description\" content=\"A page whose &quot;body&quot; is markup, not prose.\">\n</head><body class=\"layout grid\">\n<section class=\"card shadow-sm\" data-index=\"0\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-0\">Why \"\\\" and \",\" fight the encoder</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n<section class=\"prose dark\" data-index=\"1\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-1\">Q&amp;A: \"quotes\", commas &amp; escapes</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n</body></html>"
+    },
+    {
+      "id": "page_0005",
+      "url": "https://example.com/reference/page-5",
+      "title": "Q&amp;A: \"quotes\", commas &amp; escapes",
+      "section": "changelog",
+      "renderedAt": "2026-07-05T09:00:00Z",
+      "body": "<!DOCTYPE html><html><head>\n<title>Q&amp;A: \"quotes\", commas &amp; escapes</title>\n<meta name=\"description\" content=\"A page whose &quot;body&quot; is markup, not prose.\">\n</head><body class=\"card shadow-sm\">\n<section class=\"layout grid\" data-index=\"0\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-0\">Why \"\\\" and \",\" fight the encoder</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n<section class=\"card shadow-sm\" data-index=\"1\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-1\">Q&amp;A: \"quotes\", commas &amp; escapes</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n</body></html>"
+    },
+    {
+      "id": "page_0006",
+      "url": "https://example.com/reference/page-6",
+      "title": "Q&amp;A: \"quotes\", commas &amp; escapes",
+      "section": "blog",
+      "renderedAt": "2026-07-06T09:00:00Z",
+      "body": "<!DOCTYPE html><html><head>\n<title>Q&amp;A: \"quotes\", commas &amp; escapes</title>\n<meta name=\"description\" content=\"A page whose &quot;body&quot; is markup, not prose.\">\n</head><body class=\"main narrow\">\n<section class=\"layout grid\" data-index=\"0\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-0\">Q&amp;A: \"quotes\", commas &amp; escapes</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n<section class=\"main narrow\" data-index=\"1\" data-config='{\"key\": [1, 2], \"path\": \"C:\\\\tmp\\\\f.txt\"}'>\n  <h2 id=\"h-1\">Escaping <em>markup</em> in \"strings\"</h2>\n  <script>if (a < b && c > d) { log(\"x, y: z\", '\\\\srv\\\\share'); }</script>\n  <p>Inline \"quoted\" text, with commas: colons; and <a href=\"https://example.com/p?a=1&b=2\">a link</a>.</p>\n  <pre><code>{\"nested\": \"json\", \"in\": [\"a\", \"b\"], \"esc\": \"\\\"done\\\"\"}</code></pre>\n</section>\n</body></html>"
+    }
+  ]
+}
