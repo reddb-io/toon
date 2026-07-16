@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -11,6 +11,7 @@ import { serialize } from '../packages/toon/src/index.js'
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const TOKENIZER_DIR = join(REPO_ROOT, '.red/tmp/wire-efficiency-tokenizer')
 const TOKENIZER_PACKAGE = 'js-tiktoken'
+const TABLE_DELIMITER = '|'
 const EXT_OPTIONS = {
   nestedTabularHeaders: true,
   keyedMapCollapse: true,
@@ -68,6 +69,90 @@ function encodeCell(value) {
 
 function decodeCell(value) {
   return JSON.parse(value)
+}
+
+function encodeKey(key) {
+  return encodeURIComponent(key)
+}
+
+function decodeKey(key) {
+  return decodeURIComponent(key)
+}
+
+function flattenValue(value, prefix = '', out = {}) {
+  if (Array.isArray(value)) {
+    out[`${prefix}.length`] = value.length
+    value.forEach((item, index) => flattenValue(item, `${prefix}.${index}`, out))
+    return out
+  }
+  if (isObject(value)) {
+    for (const [key, child] of Object.entries(value)) {
+      flattenValue(child, prefix ? `${prefix}.${key}` : key, out)
+    }
+    return out
+  }
+  out[prefix] = value
+  return out
+}
+
+function setPath(target, path, value) {
+  const parts = path.split('.')
+  let cursor = target
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]
+    const next = parts[index + 1]
+    if (index === parts.length - 1) {
+      cursor[part] = value
+      continue
+    }
+    cursor[part] ??= /^\d+$/.test(next) ? [] : {}
+    cursor = cursor[part]
+  }
+}
+
+function inflateValue(flat) {
+  const root = {}
+  const lengths = []
+  for (const [path, value] of Object.entries(flat)) {
+    if (path.endsWith('.length')) {
+      lengths.push([path.slice(0, -'.length'.length), value])
+    } else {
+      setPath(root, path, value)
+    }
+  }
+  for (const [path, length] of lengths) {
+    const parts = path.split('.')
+    let parent = root
+    for (let index = 0; index < parts.length - 1; index += 1) parent = parent[parts[index]]
+    const key = parts.at(-1)
+    const array = Array.from({ length }, (_, index) => parent?.[key]?.[index])
+    parent[key] = array
+  }
+  return root
+}
+
+function fieldUnion(rows) {
+  const fields = []
+  const seen = new Set()
+  for (const row of rows) {
+    for (const key of Object.keys(flattenValue(row))) {
+      if (seen.has(key)) continue
+      seen.add(key)
+      fields.push(key)
+    }
+  }
+  return fields
+}
+
+function tableHeader(name, rows, fields) {
+  return `${encodeKey(name)}[${rows.length}${TABLE_DELIMITER}]{${fields.map(encodeKey).join(TABLE_DELIMITER)}}:`
+}
+
+function tableRows(rows, fields) {
+  return rows.map((row) => {
+    const flat = flattenValue(row)
+    return `    ${fields.map((field) => encodeCell(flat[field] ?? null)).join(TABLE_DELIMITER)}`
+  })
 }
 
 function commonPrefixKeys(rows, discriminator) {
@@ -145,7 +230,7 @@ function eligibleSection(rows) {
   return { discriminator, common, order, groups }
 }
 
-function cyclicWire(value) {
+function shippedCyclicWire(value) {
   const section = eligibleSection(value.events)
   if (!section) return JSON.stringify(value)
 
@@ -166,7 +251,7 @@ function cyclicWire(value) {
   return `${lines.join('\n')}\n`
 }
 
-function decodeCyclicWire(wire) {
+function decodeShippedCyclicWire(wire) {
   if (!wire.startsWith('@toon-cyclic-discriminated-array/1\n')) return JSON.parse(wire)
   const lines = wire.trimEnd().split('\n')
   assert.equal(lines.shift(), '@toon-cyclic-discriminated-array/1')
@@ -198,6 +283,78 @@ function decodeCyclicWire(wire) {
   assert.equal(lines.shift(), '@end')
   const cursors = new Map([...groups.keys()].map((label) => [label, 0]))
   const events = decodeOrder(orderText).map((label, index) => {
+    const group = groups.get(label)
+    assert(group, `missing group for ${label}`)
+    const cursor = cursors.get(label)
+    cursors.set(label, cursor + 1)
+    return { [discriminator]: label, ...commonRows[index], ...group[cursor] }
+  })
+  return { events }
+}
+
+function genuineToonWire(value) {
+  const section = eligibleSection(value.events)
+  if (!section) return JSON.stringify(value)
+
+  const commonRows = value.events.map((row) => Object.fromEntries(section.common.map((key) => [key, row[key]])))
+  const commonFields = fieldUnion(commonRows)
+  const lines = [
+    'events:',
+    `  order: ${section.order.encoded}`,
+    `  discriminator: ${section.discriminator}`,
+    `  rows: ${value.events.length}`,
+  ]
+  if (commonFields.length > 0) {
+    lines.push(`  ${tableHeader('common', commonRows, commonFields)}`)
+    lines.push(...tableRows(commonRows, commonFields))
+  }
+  for (const [label, rows] of section.groups) {
+    const fields = fieldUnion(rows)
+    lines.push(`  ${tableHeader(label, rows, fields)}`)
+    lines.push(...tableRows(rows, fields))
+  }
+  return `${lines.join('\n')}\n`
+}
+
+function parseTableHeader(line) {
+  const match = line.match(/^  ([^\[]+)\[(\d+)\|\]\{([^}]*)\}:$/)
+  assert(match, `bad TOON table header: ${line}`)
+  const [, labelText, countText, fieldsText] = match
+  return {
+    label: decodeKey(labelText),
+    count: Number(countText),
+    fields: fieldsText ? fieldsText.split(TABLE_DELIMITER).map(decodeKey) : [],
+  }
+}
+
+function decodeGenuineToonWire(wire) {
+  if (!wire.startsWith('events:\n')) return JSON.parse(wire)
+  const lines = wire.trimEnd().split('\n')
+  assert.equal(lines.shift(), 'events:')
+  const order = lines.shift().match(/^  order: (.*)$/)?.[1]
+  const discriminator = lines.shift().match(/^  discriminator: (.*)$/)?.[1]
+  const rows = Number(lines.shift().match(/^  rows: (\d+)$/)?.[1])
+  assert(order, 'missing order')
+  assert(discriminator, 'missing discriminator')
+  assert(Number.isSafeInteger(rows), 'bad row count')
+
+  let commonRows = []
+  const groups = new Map()
+  while (lines.length > 0) {
+    const header = parseTableHeader(lines.shift())
+    const tableRows = []
+    for (let index = 0; index < header.count; index += 1) {
+      const cells = lines.shift().trimStart().split(TABLE_DELIMITER).map(decodeCell)
+      const flat = Object.fromEntries(header.fields.map((field, fieldIndex) => [field, cells[fieldIndex]]))
+      tableRows.push(inflateValue(flat))
+    }
+    if (header.label === 'common') commonRows = tableRows
+    else groups.set(header.label, tableRows)
+  }
+
+  assert.equal(decodeOrder(order).length, rows)
+  const cursors = new Map([...groups.keys()].map((label) => [label, 0]))
+  const events = decodeOrder(order).map((label, index) => {
     const group = groups.get(label)
     assert(group, `missing group for ${label}`)
     const cursor = cursors.get(label)
@@ -239,6 +396,14 @@ function controlCase(name, labels, seed) {
   }
 }
 
+function datasetCase(name, path, expectedEligible) {
+  return {
+    name,
+    expectedEligible,
+    value: JSON.parse(readFileSync(join(REPO_ROOT, path), 'utf8')),
+  }
+}
+
 function shuffle(labels, seed) {
   const rand = lcg(seed)
   const out = [...labels]
@@ -250,6 +415,8 @@ function shuffle(labels, seed) {
 }
 
 const CASES = [
+  datasetCase('tagged-records-small', 'benchmarks/datasets/tagged-records/activity-events-small.json', false),
+  datasetCase('tagged-records-large', 'benchmarks/datasets/tagged-records/activity-events-large.json', true),
   cyclicCase('cycle2-24-minimal', ['open', 'comment'], 24, 'minimal', 11),
   cyclicCase('cycle3-90-rich', ['open', 'comment', 'check'], 90, 'rich', 17),
   cyclicCase('cycle4-240-rich', ['open', 'comment', 'check', 'deploy'], 240, 'rich', 23),
@@ -265,11 +432,21 @@ function measure(encoding, testCase) {
   const toonExt = serialize(testCase.value, EXT_OPTIONS)
   const bestCurrent = bytes(toonExt) < bytes(toonV33) ? toonExt : toonV33
   const section = eligibleSection(testCase.value.events)
-  const wire = cyclicWire(testCase.value)
-  const decoded = decodeCyclicWire(wire)
+  const shippedWire = shippedCyclicWire(testCase.value)
+  const genuineWire = genuineToonWire(testCase.value)
+  const shippedDecoded = decodeShippedCyclicWire(shippedWire)
+  const genuineDecoded = decodeGenuineToonWire(genuineWire)
   assert.equal(Boolean(section), testCase.expectedEligible, `${testCase.name}: eligibility mismatch`)
-  assert.equal(JSON.stringify(decoded), jsonMin, `${testCase.name}: round trip`)
-  if (!section) assert.equal(wire, jsonMin, `${testCase.name}: ineligible control must use JSON fallback`)
+  assert.equal(JSON.stringify(shippedDecoded), jsonMin, `${testCase.name}: shipped round trip`)
+  assert.equal(JSON.stringify(genuineDecoded), jsonMin, `${testCase.name}: genuine TOON round trip`)
+  if (!section) {
+    assert.equal(shippedWire, jsonMin, `${testCase.name}: ineligible shipped control must use JSON fallback`)
+    assert.equal(genuineWire, jsonMin, `${testCase.name}: ineligible genuine control must use JSON fallback`)
+  } else {
+    assert(!genuineWire.includes('@toon-'), `${testCase.name}: genuine TOON wire must not use @toon directive`)
+    assert(!genuineWire.includes('$C0'), `${testCase.name}: genuine TOON wire must not use $ references`)
+    assert(!genuineWire.split('\n').some((line) => line.trimStart().startsWith('{')), `${testCase.name}: genuine TOON wire must not use JSON object payload lines`)
+  }
 
   return {
     name: testCase.name,
@@ -281,19 +458,22 @@ function measure(encoding, testCase) {
       jsonMin: bytes(jsonMin),
       toonV33: bytes(toonV33),
       bestCurrent: bytes(bestCurrent),
-      cyclic: bytes(wire),
+      shipped: bytes(shippedWire),
+      genuine: bytes(genuineWire),
     },
     tokens: {
       jsonMin: encoding.encode(jsonMin).length,
       toonV33: encoding.encode(toonV33).length,
       bestCurrent: encoding.encode(bestCurrent).length,
-      cyclic: encoding.encode(wire).length,
+      shipped: encoding.encode(shippedWire).length,
+      genuine: encoding.encode(genuineWire).length,
     },
+    sample: section ? genuineWire : null,
   }
 }
 
 function printReport(results) {
-  console.log('Cyclic discriminated arrays prototype (o200k_base)')
+  console.log('Cyclic discriminated arrays genuine-TOON prototype (o200k_base)')
   console.log('')
   console.log(
     [
@@ -305,16 +485,18 @@ function printReport(results) {
       pad('JSON b', 8),
       pad('TOON b', 8),
       pad('Best b', 8),
-      pad('Cyc b', 8),
-      pad('Cyc vs JSON', 11),
+      pad('Ship b', 8),
+      pad('Genu b', 8),
+      pad('Genu vs ship', 12),
       pad('JSON tok', 9),
       pad('TOON tok', 9),
       pad('Best tok', 9),
-      pad('Cyc tok', 9),
-      pad('Cyc vs JSON', 11),
+      pad('Ship tok', 9),
+      pad('Genu tok', 9),
+      pad('Genu vs ship', 12),
     ].join('  '),
   )
-  console.log('-'.repeat(158))
+  console.log('-'.repeat(175))
   for (const result of results) {
     console.log(
       [
@@ -326,19 +508,30 @@ function printReport(results) {
         pad(result.bytes.jsonMin, 8),
         pad(result.bytes.toonV33, 8),
         pad(result.bytes.bestCurrent, 8),
-        pad(result.bytes.cyclic, 8),
-        pad(pct(result.bytes.cyclic - result.bytes.jsonMin, result.bytes.jsonMin), 11),
+        pad(result.bytes.shipped, 8),
+        pad(result.bytes.genuine, 8),
+        pad(pct(result.bytes.genuine - result.bytes.shipped, result.bytes.shipped), 12),
         pad(result.tokens.jsonMin, 9),
         pad(result.tokens.toonV33, 9),
         pad(result.tokens.bestCurrent, 9),
-        pad(result.tokens.cyclic, 9),
-        pad(pct(result.tokens.cyclic - result.tokens.jsonMin, result.tokens.jsonMin), 11),
+        pad(result.tokens.shipped, 9),
+        pad(result.tokens.genuine, 9),
+        pad(pct(result.tokens.genuine - result.tokens.shipped, result.tokens.shipped), 12),
       ].join('  '),
     )
   }
   console.log('')
-  console.log('Round trip: every eligible wire decodes to byte-identical minified JSON.')
+  console.log('Round trip: every eligible shipped and genuine-TOON wire decodes to byte-identical minified JSON.')
   console.log('Controls: non-cyclic irregular, partial-cycle, and random sequences are ineligible and use lossless JSON fallback.')
+  console.log('Genuine TOON: eligible wires use nested metadata plus tabular common/group sub-tables; no @ directives, JSON object payload lines, or $ references.')
+
+  if (process.argv.includes('--samples')) {
+    for (const result of results.filter((item) => item.sample).slice(0, 2)) {
+      console.log('')
+      console.log(`Sample — ${result.name}`)
+      console.log(result.sample.trimEnd())
+    }
+  }
 }
 
 const { getEncoding } = await ensureTokenizer()
