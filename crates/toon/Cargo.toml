@@ -27,5 +27,25 @@ path = "../../tests/runners/rust/toon/wire_efficiency.rs"
 name = "api"
 path = "../../tests/runners/rust/toon/api.rs"
 
+[[test]]
+name = "perf_smoke"
+path = "../../tests/runners/rust/toon/perf_smoke.rs"
+
+[[test]]
+name = "roundtrip_props"
+path = "../../tests/runners/rust/toon/roundtrip_props.rs"
+
+# Criterion drives its own argv, so the libtest harness must stay out of the
+# way. Benchmarks are not part of `cargo test`'s default target set, so this
+# target only builds under `cargo bench`.
+[[bench]]
+name = "codec"
+path = "benches/codec.rs"
+harness = false
+
 [dependencies]
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+
+[dev-dependencies]
+criterion = { version = "0.5.1", default-features = false, features = ["cargo_bench_support"] }
+proptest = "1.8.0"
