@@ -36,6 +36,7 @@ point to the same `tests/corpus/` files.
 | `corpus/json-limits.json` | numbers, unicode strings, depth limits, adversarial round-trip | `runners/rust/toon/json_limits.rs` | `packages/toon/test/json-limits.test.mjs` | ours |
 | `corpus/wire-efficiency/` | encoded byte sizes for tabular and map-collapse modes | `runners/rust/toon/wire_efficiency.rs` | `packages/toon/test/wire-efficiency.test.mjs` | ours |
 | `golden/tq/` | CLI argument handling, filter pipeline, output modes | `runners/rust/tq/golden.rs` | — | ours |
+| _every file above_ | the `tq` binary never hangs, panics or dies on a signal on any corpus file, and valid documents survive a round trip | `runners/rust/tq/corpus.rs` | — | ours |
 
 ## Expected-failure ledgers
 
@@ -43,6 +44,7 @@ point to the same `tests/corpus/` files.
 |---|---|
 | `runners/rust/toon/expected-failures.txt` | Official spec fixtures (vendor/toon-spec) that this implementation does not yet satisfy. Ratchet — entries may only be removed. |
 | `runners/rust/toon/vendor-toon-expected-failures.txt` | Behavioral divergences from the reference TypeScript implementation (vendor/toon). Currently empty. |
+| `runners/rust/tq/corpus.rs` → `YAML_READER_DIVERGENCES` | Corpus files the `tq` YAML reader rejects but its JSON reader accepts. Ratchet — an entry that starts passing fails the suite as stale. |
 
 ## Vendor submodules
 
