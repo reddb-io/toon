@@ -57,6 +57,8 @@ process.stdout.write(serialize(document))
 ```
 ```console
 Ada
+```
+```console
 users[2]{id,name}:
   1,Ada
   2,Linus
@@ -78,6 +80,8 @@ console.log(JSON.stringify(parseRecords(stream)))
 1,Ada
 2,Linus
 [=2]
+```
+```console
 [{"id":1,"name":"Ada"},{"id":2,"name":"Linus"}]
 ```
 
@@ -92,6 +96,8 @@ console.log(report.kind)
 ```
 ```console
 false
+```
+```console
 array_length_mismatch
 ```
 

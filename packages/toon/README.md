@@ -25,9 +25,13 @@ console.log('round-trip', JSON.stringify(parse(serialize(document))) === JSON.st
 ```
 ```console
 {"users":[{"id":1,"name":"Ada"},{"id":2,"name":"Linus"}]}
+```
+```console
 users[2]{id,name}:
   1,Ada
   2,Linus
+```
+```console
 round-trip true
 ```
 
@@ -61,9 +65,15 @@ console.log('round-trip', JSON.stringify(parse(serialize(document))) === JSON.st
 ```
 ```console
 default indent line 2: invalid indentation
+```
+```console
 indent 4 {"person":{"city":"London"}}
+```
+```console
 person:
   city: London
+```
+```console
 round-trip true
 ```
 
@@ -84,6 +94,8 @@ console.log('strict false', JSON.stringify(parse(input, { strict: false })))
 ```
 ```console
 strict default line 2: duplicate key
+```
+```console
 strict false {"a":2}
 ```
 
@@ -107,10 +119,16 @@ console.log('round-trip', JSON.stringify(parse(serialize(document))) === JSON.st
 ```
 ```console
 maxDepth 1 line 3: maximum nesting depth exceeded (maxDepth 1)
+```
+```console
 maxDepth 0 {"a":{"b":{"c":1}}}
+```
+```console
 a:
   b:
     c: 1
+```
+```console
 round-trip true
 ```
 
@@ -432,6 +450,8 @@ console.log(JSON.stringify(closeTransform(stream)))
 ```console
 Ada
 Linus
+```
+```console
 ["[2]{id,name}:\n  1,Ada\n  2,Linus\n"]
 ```
 

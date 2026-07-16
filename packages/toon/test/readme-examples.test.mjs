@@ -24,15 +24,31 @@ const READMES = [
   join(REPO_ROOT, 'packages/toon/README.md'),
 ]
 
-/** Pairs each ```js block with the ```console block that follows it. */
+/**
+ * Groups each ```js block with every ```console block that follows it in
+ * fence order — one console block per print statement, so mixed outputs
+ * never share a block. The bodies concatenate into the expected stdout;
+ * a fence of any other language ends the group.
+ */
 function readmeExamples(markdown) {
-  const examples = []
-  const block = /```js\n([\s\S]*?)```\n+```console\n([\s\S]*?)```/g
-
-  let match = block.exec(markdown)
+  const fence = /```(\w*)\n([\s\S]*?)```/g
+  const blocks = []
+  let match = fence.exec(markdown)
   while (match !== null) {
-    examples.push({ source: match[1], expected: match[2] })
-    match = block.exec(markdown)
+    blocks.push({ lang: match[1], body: match[2] })
+    match = fence.exec(markdown)
+  }
+
+  const examples = []
+  for (let index = 0; index < blocks.length; index += 1) {
+    if (blocks[index].lang !== 'js') continue
+    let expected = ''
+    let next = index + 1
+    while (next < blocks.length && blocks[next].lang === 'console') {
+      expected += blocks[next].body
+      next += 1
+    }
+    if (next > index + 1) examples.push({ source: blocks[index].body, expected })
   }
   return examples
 }
