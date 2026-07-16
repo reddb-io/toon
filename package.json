@@ -9,6 +9,7 @@
   },
   "scripts": {
     "benchmark:accuracy": "node benchmarks/accuracy/run.mjs",
+    "benchmark:performance": "node benchmarks/performance/run.mjs",
     "benchmark:tokens": "node benchmarks/tokens/run.mjs",
     "wire:corpora": "node scripts/generate_wire_efficiency_corpora.mjs",
     "wire:tokens": "node scripts/wire_efficiency_token_report.mjs",
