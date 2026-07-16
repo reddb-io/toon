@@ -198,6 +198,16 @@ if ! printf 'items[2]:\n  - one\n' | tq check -p toon; then
 fi
 ```
 
+Update in place — `tq upgrade` resolves the latest release, verifies the download against the release checksums, and replaces its own binary. `--check` only reports, exiting non-zero when an update is waiting, so it fits in a script:
+
+```bash
+tq upgrade            # no-op when already current
+tq upgrade --check    # exit 0 up to date, exit 1 update available
+tq upgrade 0.12.0     # pin a version
+```
+
+It honours the same knobs as the installer: `TQ_CHANNEL` (`stable`/`next`), `TQ_VERSION` (a pin, which the positional argument overrides), and `GITHUB_TOKEN`. Upgrading needs write permission on the directory holding the binary; without it, `tq` says so and points at the installer. On Windows a running `tq.exe` cannot be overwritten, so upgrade renames it aside before writing the new one and cleans the leftover up on the next run.
+
 Source install:
 
 ```bash
@@ -257,6 +267,8 @@ Each release publishes `tq` binaries for Linux, macOS, and Windows, plus checksu
 ```bash
 curl -fsSL https://raw.githubusercontent.com/reddb-io/toon/main/install.sh | sh
 ```
+
+An installed `tq` updates itself with [`tq upgrade`](#tq--cli), which resolves and verifies the same assets.
 
 Useful installer knobs:
 
