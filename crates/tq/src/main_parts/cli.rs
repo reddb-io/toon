@@ -10,8 +10,10 @@ use reddb_io_toon::{
     ToonlReader, Value,
 };
 
-const USAGE: &str =
-    "usage: tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--delimiter comma|tab|pipe] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]";
+const USAGE: &str = concat!(
+    "usage: tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--delimiter comma|tab|pipe] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
+    "subcommands: trim, close, check, upgrade"
+);
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
 const CLOSE_USAGE: &str = "usage: tq close [--per-lane|--interleaved] [FILE]";
 const CHECK_USAGE: &str = "usage: tq check [-p toon|toonl] [FILE]";
@@ -113,6 +115,9 @@ fn run() -> Result<(String, ExitCode), String> {
     }
     if args.first().is_some_and(|arg| arg == "check") {
         return run_check(parse_check_args(args.into_iter().skip(1))?);
+    }
+    if args.first().is_some_and(|arg| arg == "upgrade") {
+        return run_upgrade(parse_upgrade_args(args.into_iter().skip(1))?);
     }
 
     let options = parse_args(args.into_iter())?;
