@@ -1,0 +1,46 @@
+# Decode fixture cases whose spec expectation the current v3.3-era decoder does
+# not yet match through the `tq` CLI. Format: <label>::<test name>, matching
+# `official_decode_fixture_cases_survive_the_cli` in corpus.rs.
+#
+# vendor/toon-spec is pinned at v4.1.1 (62f16b3). The renormalized v4 corpus
+# introduces decode cases the lenient v3.3 decoder accepts when the spec now
+# rejects them (comments, blank lines, keyed maps) or valid v4 forms it cannot
+# yet read. Recorded here as an explicit expected-failure baseline — not skipped
+# silently — so the pre-rebase gap is demonstrable and CI stays green until the
+# decoder rewrites land (Spec #203, issue #204).
+#
+# This ledger is a ratchet, not a target: entries may only be removed.
+vendor/toon-spec/tests/fixtures/decode/blank-lines.json::throws on blank line between a list item's fields
+vendor/toon-spec/tests/fixtures/decode/blank-lines.json::throws on blank line inside the last list item's fields
+vendor/toon-spec/tests/fixtures/decode/blank-lines.json::accepts blank line between header and first list item
+vendor/toon-spec/tests/fixtures/decode/blank-lines.json::accepts blank line between header and first tabular row
+vendor/toon-spec/tests/fixtures/decode/blank-lines.json::accepts blank line between header and first entry row
+vendor/toon-spec/tests/fixtures/decode/comments.json::strips comment line between tabular rows without terminating rows
+vendor/toon-spec/tests/fixtures/decode/comments.json::strips comment line between header and first row
+vendor/toon-spec/tests/fixtures/decode/comments.json::strips comment line whose indentation is not a multiple of indentSize
+vendor/toon-spec/tests/fixtures/decode/comments.json::strips outdented comment inside nested object scope without closing it
+vendor/toon-spec/tests/fixtures/decode/comments.json::strips comment inside list array without counting as item
+vendor/toon-spec/tests/fixtures/decode/comments.json::strips comment before root array header
+vendor/toon-spec/tests/fixtures/decode/comments.json::strips comment containing an unterminated quote without unescaping
+vendor/toon-spec/tests/fixtures/decode/comments.json::decodes document of only comments to empty object
+vendor/toon-spec/tests/fixtures/decode/comments.json::decodes comments and blank lines only to empty object
+vendor/toon-spec/tests/fixtures/decode/comments.json::throws when a stripped hash-leading row breaks the declared count
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::parses keyed tabular objects
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::parses a keyless keyed header as a root object
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::parses nested field groups in keyed headers
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::parses keyed headers with the pipe delimiter
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::parses keyed headers with the tab delimiter
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::parses quoted entry keys
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::parses a quoted entry key containing a colon
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::treats a key-value line at the header's depth as a sibling after entries end
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::treats key-value-shaped lines at entry depth as entry rows
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::splits an entry row at its first unquoted colon before delimiter splitting
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::decodes the cell token [] as a string, not an empty array
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::accepts a declared entry count of zero
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::accepts a single entry row
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::parses quoted cells containing the active delimiter
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::parses a keyed header on a hyphen line
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::ignores comment lines between entry rows
+vendor/toon-spec/tests/fixtures/decode/objects-keyed.json::accepts entry keys outside the encoder unquoted-key pattern
+vendor/toon-spec/tests/fixtures/decode/validation-errors.json::throws on keyless fields-bearing header as list item
+vendor/toon-spec/tests/fixtures/decode/validation-errors.json::throws on whitespace between a key and its bracket segment
