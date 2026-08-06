@@ -360,7 +360,11 @@ fn canonical_string(value: &str, delimiter: char) -> String {
     }
 }
 
-/// The §7.2 quoting checklist.
+/// The §7.2 quoting checklist. A leading `#` is quoted so the value never
+/// decodes as a comment line (v4.1). This legacy path trims via [`str::trim`]
+/// to stay a fixed point with the legacy decoder, which also trims Unicode
+/// whitespace; the canonical v4.1 encoder uses the stricter ASCII-only rule in
+/// [`needs_quotes_v4`].
 fn needs_quotes(value: &str, delimiter: char) -> bool {
     value.is_empty()
         || value.trim() != value
@@ -370,6 +374,7 @@ fn needs_quotes(value: &str, delimiter: char) -> bool {
         || value.chars().any(|character| (character as u32) < 0x20)
         || value.contains(delimiter)
         || value.starts_with('-')
+        || value.starts_with('#')
 }
 
 fn quote_string(value: &str) -> String {

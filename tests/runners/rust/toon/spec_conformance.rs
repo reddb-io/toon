@@ -1,6 +1,6 @@
 use reddb_io_toon::{
-    decode_value_v4, encode_toonl_values, DecodeStreamOptions, ParseOptions, ToonlEncoder,
-    ToonlStream, ToonlWriter, Value,
+    decode_value_v4, encode_toonl_values, encode_v4, DecodeStreamOptions, EncodeV4Options,
+    ParseOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
 };
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
@@ -124,7 +124,36 @@ fn official_toon_spec_fixtures_do_not_regress() {
                     }
                 }
                 "encode" => {
-                    if test
+                    // Official v4 encode fixtures exercise the canonical v4.1
+                    // encoder directly: the input must serialize byte-for-byte to
+                    // the expected TOON, and that output must decode back through
+                    // the v4 event decoder to the input value.
+                    let official = fixture_path.starts_with(&fixture_root);
+                    if official {
+                        let input = test.get("input").expect("encode input");
+                        let expected = test
+                            .get("expected")
+                            .and_then(Json::as_str)
+                            .expect("encode expected TOON");
+                        let value = Value::from_json_value(input.clone());
+                        match encode_v4(&value, encode_v4_options(test.get("options"))) {
+                            Ok(encoded) => {
+                                // The round-trip fixpoint is against the encoder's
+                                // own canonical value, not the raw fixture JSON, so
+                                // canonicalizations such as -0 -> 0 do not read as
+                                // a decode mismatch.
+                                encoded == expected
+                                    && decode_value_v4(
+                                        &encoded,
+                                        &stream_decoder_options(test.get("options")),
+                                    )
+                                    .is_ok_and(|actual| {
+                                        actual.to_json_value() == value.to_json_value()
+                                    })
+                            }
+                            Err(_) => false,
+                        }
+                    } else if test
                         .get("options")
                         .and_then(|options| options.get("keyedMapCollapse"))
                         .and_then(Json::as_bool)
@@ -367,6 +396,27 @@ fn decoder_options(options: Option<&Json>) -> ParseOptions {
             .and_then(Json::as_str)
             .is_some_and(|mode| mode == "safe"),
         ..defaults
+    }
+}
+
+/// Maps a fixture's `options` onto the canonical v4.1 encoder: only the active
+/// delimiter and indentation are tunable, since the v4.1 forms are unconditional.
+fn encode_v4_options(options: Option<&Json>) -> EncodeV4Options {
+    let defaults = EncodeV4Options::default();
+    let Some(options) = options.and_then(Json::as_object) else {
+        return defaults;
+    };
+    EncodeV4Options {
+        delimiter: options
+            .get("delimiter")
+            .and_then(Json::as_str)
+            .and_then(|delimiter| delimiter.chars().next())
+            .unwrap_or(defaults.delimiter),
+        indent_size: options
+            .get("indentSize")
+            .or_else(|| options.get("indent"))
+            .and_then(Json::as_u64)
+            .map_or(defaults.indent_size, |indent| indent as usize),
     }
 }
 

@@ -12,4 +12,5 @@ include!("lib_parts/header_and_scalar.rs");
 include!("lib_parts/stream.rs");
 include!("lib_parts/encoder.rs");
 include!("lib_parts/tabular_encoder.rs");
+include!("lib_parts/encode_v4.rs");
 include!("lib_parts/tests.rs");
