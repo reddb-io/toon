@@ -1,5 +1,6 @@
 use reddb_io_toon::{
-    encode_toonl_values, ParseOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
+    decode_value_v4, encode_toonl_values, DecodeStreamOptions, ParseOptions, ToonlEncoder,
+    ToonlStream, ToonlWriter, Value,
 };
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
@@ -69,32 +70,56 @@ fn official_toon_spec_fixtures_do_not_regress() {
                         .and_then(Json::as_bool)
                         .unwrap_or(false);
 
-                    match (Value::parse_with_options(input, options), should_error) {
-                        // A rejection the spec asked for.
-                        (Err(_), true) => true,
-                        (Ok(_), true) | (Err(_), false) => false,
-                        // Parsing without an error is not enough. The decoded
-                        // value has to be the one the spec says it is, and our
-                        // own canonical output has to decode back to that same
-                        // value — otherwise either the parser returns wrong data
-                        // silently, or the serializer emits TOON we cannot read.
-                        (Ok(value), false) => {
-                            let decoded = value.to_json_value();
-                            let matches_spec = test
-                                .get("expected")
-                                .is_some_and(|expected| decoded == *expected);
-                            if matches_spec
-                                && test
-                                    .get("failClosedV3Strict")
-                                    .and_then(Json::as_bool)
-                                    .unwrap_or(false)
-                            {
-                                assert!(
-                                    reject_v3_strict(input).is_err(),
-                                    "{id}: strict v3 decoder must reject extension header"
-                                );
+                    // Official v4 fixtures exercise the event decoder; the
+                    // local extension fixtures stay on the legacy parser until
+                    // the extensions are re-expressed on the v4.1 base (#215).
+                    let official = fixture_path.starts_with(&fixture_root);
+                    if official {
+                        let stream_options = stream_decoder_options(test.get("options"));
+                        match (decode_value_v4(input, &stream_options), should_error) {
+                            (Err(_), true) => true,
+                            (Ok(_), true) | (Err(_), false) => false,
+                            (Ok(value), false) => {
+                                let decoded = value.to_json_value();
+                                let matches_spec = test
+                                    .get("expected")
+                                    .is_some_and(|expected| decoded == *expected);
+                                matches_spec
+                                    && decode_value_v4(
+                                        &value.to_canonical_toon(),
+                                        &DecodeStreamOptions::default(),
+                                    )
+                                    .is_ok_and(|reparsed| reparsed.to_json_value() == decoded)
                             }
-                            matches_spec && round_trips_to(&value, &decoded)
+                        }
+                    } else {
+                        match (Value::parse_with_options(input, options), should_error) {
+                            // A rejection the spec asked for.
+                            (Err(_), true) => true,
+                            (Ok(_), true) | (Err(_), false) => false,
+                            // Parsing without an error is not enough. The decoded
+                            // value has to be the one the spec says it is, and our
+                            // own canonical output has to decode back to that same
+                            // value — otherwise either the parser returns wrong data
+                            // silently, or the serializer emits TOON we cannot read.
+                            (Ok(value), false) => {
+                                let decoded = value.to_json_value();
+                                let matches_spec = test
+                                    .get("expected")
+                                    .is_some_and(|expected| decoded == *expected);
+                                if matches_spec
+                                    && test
+                                        .get("failClosedV3Strict")
+                                        .and_then(Json::as_bool)
+                                        .unwrap_or(false)
+                                {
+                                    assert!(
+                                        reject_v3_strict(input).is_err(),
+                                        "{id}: strict v3 decoder must reject extension header"
+                                    );
+                                }
+                                matches_spec && round_trips_to(&value, &decoded)
+                            }
                         }
                     }
                 }
@@ -576,6 +601,24 @@ fn fixture_id(root: &Path, path: &Path, name: &str) -> String {
 }
 
 /// Our canonical output has to decode back to the value we started from.
+fn stream_decoder_options(options: Option<&Json>) -> DecodeStreamOptions {
+    let defaults = DecodeStreamOptions::default();
+    let Some(options) = options.and_then(Json::as_object) else {
+        return defaults;
+    };
+    DecodeStreamOptions {
+        indent: options
+            .get("indentSize")
+            .or_else(|| options.get("indent"))
+            .and_then(Json::as_u64)
+            .map_or(defaults.indent, |indent| indent as usize),
+        strict: options
+            .get("strict")
+            .and_then(Json::as_bool)
+            .unwrap_or(defaults.strict),
+    }
+}
+
 fn round_trips_to(value: &Value, decoded: &Json) -> bool {
     Value::parse_with_options(&value.to_canonical_toon(), canonical_options())
         .is_ok_and(|reparsed| reparsed.to_json_value() == *decoded)
