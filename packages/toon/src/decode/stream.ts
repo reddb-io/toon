@@ -700,3 +700,17 @@ function assertCount(got: number, expected: number, line: number, what: string, 
 }
 
 export { ToonError }
+
+/**
+ * Asynchronously decodes TOON lines into positioned events. Buffers the
+ * source lines, then delegates to the sync core — incremental pull-based
+ * classification is tracked for the cross-language fixture slice.
+ */
+export async function* decodeStream(
+  source: AsyncIterable<string> | Iterable<string>,
+  options?: DecodeStreamOptions,
+): AsyncGenerator<ToonEvent> {
+  const lines: string[] = []
+  for await (const line of source) lines.push(line)
+  yield* decodeStreamSync(lines, options)
+}
