@@ -11,6 +11,34 @@ plugins:
     lock:
       primary-branch: true
     enabled: true                 # the engineering stack (/afk, /triage, /retake, …)
+    afk:
+      default_runner: codex       # maintainer decision: AFK inner agents run gpt-5.6-sol
+      models:                     # per-runner AFK tier table (ADR 0049)
+        codex:
+          validate:
+            model: gpt-5.6-sol
+            effort: high
+          simple:
+            model: gpt-5.6-sol
+            effort: high
+          complex:
+            model: gpt-5.6-sol
+            effort: high
+          think:
+            model: gpt-5.6-sol
+            effort: high
+      validation:                 # sole local validation authority (declared moments)
+        iteration:                # handed to the inner agent while it writes (fast)
+          - pnpm -r test
+          - cargo test --workspace
+        post_done:                # at the branch fork point after DONE (full CI mirror)
+          - scripts/check-file-length.sh
+          - cargo clippy --workspace -- -D warnings
+          - cargo llvm-cov --workspace --fail-under-lines 95
+          - pnpm -r test
+        landing:                  # before push/PR/queue
+          - cargo clippy --workspace -- -D warnings
+          - pnpm -r test
   #   trunk: main                 # the Trunk (ADR 0083): the focal branch agent work
   #                               # bases on and lands to when no lock/pin names one
   #                               # (precedence lock > pin > trunk). Always consumed
@@ -143,15 +171,6 @@ rsp:
 #                                 # non-listed actor is skipped at claim and may be
 #                                 # stripped by a sweep with an audit comment.
 
-# Merge gate (#430) — extra backpressure commands run on every successful AFK
-# and /go iteration, after the built-in feedback gate (which already runs
-# `cargo test --workspace`). These mirror the CI gate so coverage, clippy, and
-# JS regressions are blocked before merge instead of landing red on main — the
-# recurring gap that let three coverage regressions and two MSRV/clippy breaks
-# reach main in one session. Any non-zero exit parks the issue to ready-for-human.
-afk:
-  backpressure:
-    - scripts/check-file-length.sh
-    - cargo clippy --workspace -- -D warnings
-    - cargo llvm-cov --workspace --fail-under-lines 95
-    - pnpm -r test
+# Merge-gate commands migrated to `plugins.dev.afk.validation` above (declared
+# Validation moments — iteration/post_done/landing); the legacy top-level
+# `afk.backpressure` form was removed to keep a single source of truth.
