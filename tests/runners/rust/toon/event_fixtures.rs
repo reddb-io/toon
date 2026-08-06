@@ -71,5 +71,8 @@ fn event_sequences_match_the_shared_fixtures() {
             checked += 1;
         }
     }
-    assert!(checked >= 70, "fixture corpus unexpectedly small: {checked}");
+    assert!(
+        checked >= 70,
+        "fixture corpus unexpectedly small: {checked}"
+    );
 }
