@@ -14,7 +14,7 @@ Representative datasets are vendored under `benchmarks/datasets/` and are read o
 | deep-tree | 2 | toon-ext-all (-35.1%) | yaml (37.9%) |
 | flat-tabular | 2 | toonl (-48.1%) | csv (-47.7%) |
 | nested-heterogeneous | 2 | toon-ext-all (12.5%) | yaml (44.2%) |
-| nested-uniform | 2 | toon-ext-all (-32.3%) | yaml (40.5%) |
+| nested-uniform | 2 | toon-ext-all (-31.1%) | yaml (40.5%) |
 | streaming-append | 2 | toonl (-32.8%) | csv (-33.9%) |
 | tagged-records | 2 | toon-ext-all (19.5%) | yaml (38.8%) |
 | wide-sparse | 2 | toonl (-7.4%) | jsonl (0.8%) |
@@ -33,14 +33,14 @@ The crossover point is the first measured record count where the best TOON-famil
 | deep-tree | large | 109 | 2505 | toon-ext-all | 1313 | -47.6% | 7 |
 | flat-tabular | small | 6 | 250 | toonl | 141 | -43.6% | 6 |
 | flat-tabular | large | 48 | 1941 | toonl | 919 | -52.7% | 6 |
-| nested-heterogeneous | small | 2 | 447 | toon-v3.3-canonical | 509 | 13.9% | not observed |
-| nested-heterogeneous | large | 80 | 8459 | toon-v3.3-canonical | 9405 | 11.2% | not observed |
-| nested-uniform | small | 3 | 268 | toon-ext-child-tables | 199 | -25.7% | 3 |
-| nested-uniform | large | 96 | 8345 | toon-ext-child-tables | 5106 | -38.8% | 3 |
+| nested-heterogeneous | small | 2 | 447 | toon-v4.1-canonical | 509 | 13.9% | not observed |
+| nested-heterogeneous | large | 80 | 8459 | toon-v4.1-canonical | 9405 | 11.2% | not observed |
+| nested-uniform | small | 3 | 268 | toon-ext-child-tables | 202 | -24.6% | 3 |
+| nested-uniform | large | 96 | 8345 | toon-ext-child-tables | 5202 | -37.7% | 3 |
 | streaming-append | small | 6 | 286 | toonl | 201 | -29.7% | 6 |
 | streaming-append | large | 160 | 7542 | toonl | 4829 | -36.0% | 6 |
-| tagged-records | small | 4 | 216 | toon-v3.3-canonical | 258 | 19.4% | not observed |
-| tagged-records | large | 120 | 6386 | toon-v3.3-canonical | 7632 | 19.5% | not observed |
+| tagged-records | small | 4 | 216 | toon-v4.1-canonical | 258 | 19.4% | not observed |
+| tagged-records | large | 120 | 6386 | toon-v4.1-canonical | 7632 | 19.5% | not observed |
 | wide-sparse | small | 5 | 286 | toonl | 262 | -8.4% | 5 |
 | wide-sparse | large | 96 | 5468 | toonl | 5118 | -6.4% | 5 |
 
@@ -48,21 +48,21 @@ The crossover point is the first measured record count where the best TOON-famil
 
 | Shape | Dataset | Format | Tokens vs minified JSON |
 | --- | --- | --- | ---: |
-| deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-v3.3-canonical | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-v4.1-canonical | 15.9% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-rust-crate-canonical | 15.9% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-ext-primitive-array-columns | 15.9% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-ext-child-tables | 15.9% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-ext-delimiter-pipe | 18.1% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-ext-keyed-map-collapse | 15.9% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | toon-ext-cyclic-discriminated-arrays | 15.9% |
-| deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-v3.3-canonical | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-v4.1-canonical | 12.3% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-rust-crate-canonical | 12.3% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-ext-primitive-array-columns | 12.3% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-ext-child-tables | 12.3% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-ext-delimiter-pipe | 15.3% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-ext-keyed-map-collapse | 12.3% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | toon-ext-cyclic-discriminated-arrays | 12.3% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-v3.3-canonical | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-v4.1-canonical | 11.2% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-rust-crate-canonical | 11.2% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-primitive-array-columns | 11.2% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-child-tables | 11.2% |
@@ -70,7 +70,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-keyed-map-collapse | 11.2% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-cyclic-discriminated-arrays | 11.2% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | toon-ext-all | 11.2% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-v3.3-canonical | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-v4.1-canonical | 13.9% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-rust-crate-canonical | 13.9% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-primitive-array-columns | 13.9% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-child-tables | 13.9% |
@@ -78,19 +78,19 @@ The crossover point is the first measured record count where the best TOON-famil
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-keyed-map-collapse | 13.9% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-cyclic-discriminated-arrays | 13.9% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | toon-ext-all | 13.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-v3.3-canonical | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-v4.1-canonical | 9.9% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-rust-crate-canonical | 9.9% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-ext-primitive-array-columns | 9.9% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-ext-delimiter-pipe | 12.2% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-ext-keyed-map-collapse | 9.9% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-large | toon-ext-cyclic-discriminated-arrays | 9.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-v3.3-canonical | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-v4.1-canonical | 10.1% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-rust-crate-canonical | 10.1% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-ext-primitive-array-columns | 10.1% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-ext-delimiter-pipe | 12.7% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-ext-keyed-map-collapse | 10.1% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-small | toon-ext-cyclic-discriminated-arrays | 10.1% |
-| tagged-records | tagged-records/activity-events-large | toon-v3.3-canonical | 19.5% |
+| tagged-records | tagged-records/activity-events-large | toon-v4.1-canonical | 19.5% |
 | tagged-records | tagged-records/activity-events-large | toon-rust-crate-canonical | 19.5% |
 | tagged-records | tagged-records/activity-events-large | toon-ext-primitive-array-columns | 19.5% |
 | tagged-records | tagged-records/activity-events-large | toon-ext-child-tables | 19.5% |
@@ -98,7 +98,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | tagged-records | tagged-records/activity-events-large | toon-ext-keyed-map-collapse | 19.5% |
 | tagged-records | tagged-records/activity-events-large | toon-ext-cyclic-discriminated-arrays | 19.5% |
 | tagged-records | tagged-records/activity-events-large | toon-ext-all | 19.5% |
-| tagged-records | tagged-records/activity-events-small | toon-v3.3-canonical | 19.4% |
+| tagged-records | tagged-records/activity-events-small | toon-v4.1-canonical | 19.4% |
 | tagged-records | tagged-records/activity-events-small | toon-rust-crate-canonical | 19.4% |
 | tagged-records | tagged-records/activity-events-small | toon-ext-primitive-array-columns | 19.4% |
 | tagged-records | tagged-records/activity-events-small | toon-ext-child-tables | 19.4% |
@@ -106,7 +106,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | tagged-records | tagged-records/activity-events-small | toon-ext-keyed-map-collapse | 19.4% |
 | tagged-records | tagged-records/activity-events-small | toon-ext-cyclic-discriminated-arrays | 19.4% |
 | tagged-records | tagged-records/activity-events-small | toon-ext-all | 19.4% |
-| wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-v3.3-canonical | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-v4.1-canonical | 19.5% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-rust-crate-canonical | 19.5% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-primitive-array-columns | 19.5% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-child-tables | 19.5% |
@@ -114,7 +114,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-keyed-map-collapse | 19.5% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-cyclic-discriminated-arrays | 19.5% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | toon-ext-all | 19.5% |
-| wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-v3.3-canonical | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-v4.1-canonical | 19.2% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-rust-crate-canonical | 19.2% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-primitive-array-columns | 19.2% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-child-tables | 19.2% |
@@ -122,25 +122,25 @@ The crossover point is the first measured record count where the best TOON-famil
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-keyed-map-collapse | 19.2% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-cyclic-discriminated-arrays | 19.2% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | toon-ext-all | 19.2% |
-| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | toon-v3.3-canonical | 19.8% |
+| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | toon-v4.1-canonical | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | toon-ext-primitive-array-columns | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | toon-ext-child-tables | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | toon-ext-delimiter-pipe | 19.9% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | toon-ext-keyed-map-collapse | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | toonl | 12.7% |
-| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | toon-v3.3-canonical | 19.9% |
+| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | toon-v4.1-canonical | 19.9% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | toon-ext-primitive-array-columns | 19.9% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | toon-ext-child-tables | 19.9% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | toon-ext-delimiter-pipe | 20.0% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | toon-ext-keyed-map-collapse | 19.9% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | toonl | 11.4% |
-| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | toon-v3.3-canonical | 19.8% |
+| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | toon-v4.1-canonical | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | toon-ext-primitive-array-columns | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | toon-ext-child-tables | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | toon-ext-delimiter-pipe | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | toon-ext-keyed-map-collapse | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | toonl | 11.0% |
-| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | toon-v3.3-canonical | 19.6% |
+| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | toon-v4.1-canonical | 19.6% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | toon-ext-primitive-array-columns | 19.6% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | toon-ext-child-tables | 19.6% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | toon-ext-delimiter-pipe | 19.6% |
@@ -155,7 +155,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | json-pretty | 40756 | 4658 | 85.9% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | yaml | 28799 | 3513 | 40.2% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | xml | 13264 | 3900 | 55.7% |
-| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-v3.3-canonical | 24879 | 2904 | 15.9% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-v4.1-canonical | 24879 | 2904 | 15.9% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-rust-crate-canonical | 24879 | 2904 | 15.9% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-ext-primitive-array-columns | 24879 | 2904 | 15.9% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-large | large | 109 | toon-ext-child-tables | 24879 | 2904 | 15.9% |
@@ -167,7 +167,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | json-pretty | 1460 | 297 | 82.2% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | yaml | 1008 | 221 | 35.6% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | xml | 816 | 249 | 52.8% |
-| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-v3.3-canonical | 893 | 183 | 12.3% |
+| deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-v4.1-canonical | 893 | 183 | 12.3% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-rust-crate-canonical | 893 | 183 | 12.3% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-ext-primitive-array-columns | 893 | 183 | 12.3% |
 | deep-tree | deep-tree/wikidata-knowledge-tree-small | small | 7 | toon-ext-child-tables | 893 | 183 | 12.3% |
@@ -179,7 +179,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | flat-tabular | flat-tabular/public-repositories-large | large | 48 | json-pretty | 11395 | 3193 | 64.5% |
 | flat-tabular | flat-tabular/public-repositories-large | large | 48 | yaml | 9128 | 2707 | 39.5% |
 | flat-tabular | flat-tabular/public-repositories-large | large | 48 | xml | 11507 | 2934 | 51.2% |
-| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-v3.3-canonical | 2873 | 963 | -50.4% |
+| flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-v4.1-canonical | 2873 | 963 | -50.4% |
 | flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-rust-crate-canonical | 2873 | 963 | -50.4% |
 | flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-ext-primitive-array-columns | 2873 | 963 | -50.4% |
 | flat-tabular | flat-tabular/public-repositories-large | large | 48 | toon-ext-child-tables | 2873 | 963 | -50.4% |
@@ -194,7 +194,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | flat-tabular | flat-tabular/public-repositories-small | small | 6 | json-pretty | 1461 | 410 | 64.0% |
 | flat-tabular | flat-tabular/public-repositories-small | small | 6 | yaml | 1168 | 344 | 37.6% |
 | flat-tabular | flat-tabular/public-repositories-small | small | 6 | xml | 1489 | 379 | 51.6% |
-| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-v3.3-canonical | 456 | 146 | -41.6% |
+| flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-v4.1-canonical | 456 | 146 | -41.6% |
 | flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-rust-crate-canonical | 456 | 146 | -41.6% |
 | flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-ext-primitive-array-columns | 456 | 146 | -41.6% |
 | flat-tabular | flat-tabular/public-repositories-small | small | 6 | toon-ext-child-tables | 456 | 146 | -41.6% |
@@ -209,7 +209,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | json-pretty | 50931 | 14349 | 69.6% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | yaml | 37969 | 11884 | 40.5% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | xml | 38887 | 12506 | 47.8% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-v3.3-canonical | 29963 | 9405 | 11.2% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-v4.1-canonical | 29963 | 9405 | 11.2% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-rust-crate-canonical | 29963 | 9405 | 11.2% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-ext-primitive-array-columns | 29963 | 9405 | 11.2% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-large | large | 80 | toon-ext-child-tables | 29963 | 9405 | 11.2% |
@@ -221,7 +221,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | json-pretty | 3404 | 827 | 85.0% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | yaml | 2417 | 661 | 47.9% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | xml | 2374 | 711 | 59.1% |
-| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-v3.3-canonical | 1966 | 509 | 13.9% |
+| nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-v4.1-canonical | 1966 | 509 | 13.9% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-rust-crate-canonical | 1966 | 509 | 13.9% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-ext-primitive-array-columns | 1966 | 509 | 13.9% |
 | nested-heterogeneous | nested-heterogeneous/json-schema-event-small | small | 2 | toon-ext-child-tables | 1966 | 509 | 13.9% |
@@ -233,31 +233,31 @@ The crossover point is the first measured record count where the best TOON-famil
 | nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | json-pretty | 59717 | 13982 | 67.5% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | yaml | 47322 | 11768 | 41.0% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | xml | 53294 | 12638 | 51.4% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-v3.3-canonical | 35965 | 9174 | 9.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-rust-crate-canonical | 35965 | 9174 | 9.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-primitive-array-columns | 35965 | 9174 | 9.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-child-tables | 19858 | 5106 | -38.8% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-delimiter-pipe | 36158 | 9367 | 12.2% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-keyed-map-collapse | 35965 | 9174 | 9.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-cyclic-discriminated-arrays | 35965 | 9174 | 9.9% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-all | 19858 | 5106 | -38.8% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-v4.1-canonical | 36541 | 9174 | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-rust-crate-canonical | 36541 | 9174 | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-primitive-array-columns | 36541 | 9174 | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-child-tables | 20434 | 5202 | -37.7% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-delimiter-pipe | 36734 | 9367 | 12.2% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-keyed-map-collapse | 36541 | 9174 | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-cyclic-discriminated-arrays | 36541 | 9174 | 9.9% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-large | large | 96 | toon-ext-all | 20434 | 5202 | -37.7% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | json-minified | 1185 | 268 | 0.0% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | json-pretty | 1871 | 450 | 67.9% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | yaml | 1473 | 375 | 39.9% |
 | nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | xml | 1679 | 408 | 52.2% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-v3.3-canonical | 1118 | 295 | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-rust-crate-canonical | 1118 | 295 | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-primitive-array-columns | 1118 | 295 | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-child-tables | 728 | 199 | -25.7% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-delimiter-pipe | 1125 | 302 | 12.7% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-keyed-map-collapse | 1118 | 295 | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-cyclic-discriminated-arrays | 1118 | 295 | 10.1% |
-| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-all | 728 | 199 | -25.7% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-v4.1-canonical | 1136 | 295 | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-rust-crate-canonical | 1136 | 295 | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-primitive-array-columns | 1136 | 295 | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-child-tables | 746 | 202 | -24.6% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-delimiter-pipe | 1143 | 302 | 12.7% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-keyed-map-collapse | 1136 | 295 | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-cyclic-discriminated-arrays | 1136 | 295 | 10.1% |
+| nested-uniform | nested-uniform/openapi-petstore-paths-small | small | 3 | toon-ext-all | 746 | 202 | -24.6% |
 | streaming-append | streaming-append/append-only-logs-large | large | 160 | json-minified | 22874 | 7542 | 0.0% |
 | streaming-append | streaming-append/append-only-logs-large | large | 160 | json-pretty | 33442 | 11546 | 53.1% |
 | streaming-append | streaming-append/append-only-logs-large | large | 160 | yaml | 26711 | 10100 | 33.9% |
 | streaming-append | streaming-append/append-only-logs-large | large | 160 | xml | 31213 | 10906 | 44.6% |
-| streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-v3.3-canonical | 11247 | 5148 | -31.7% |
+| streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-v4.1-canonical | 11247 | 5148 | -31.7% |
 | streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-rust-crate-canonical | 11247 | 5148 | -31.7% |
 | streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-ext-primitive-array-columns | 11247 | 5148 | -31.7% |
 | streaming-append | streaming-append/append-only-logs-large | large | 160 | toon-ext-child-tables | 11247 | 5148 | -31.7% |
@@ -272,7 +272,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | streaming-append | streaming-append/append-only-logs-small | small | 6 | json-pretty | 1256 | 440 | 53.8% |
 | streaming-append | streaming-append/append-only-logs-small | small | 6 | yaml | 993 | 380 | 32.9% |
 | streaming-append | streaming-append/append-only-logs-small | small | 6 | xml | 1183 | 416 | 45.5% |
-| streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-v3.3-canonical | 465 | 212 | -25.9% |
+| streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-v4.1-canonical | 465 | 212 | -25.9% |
 | streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-rust-crate-canonical | 465 | 212 | -25.9% |
 | streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-ext-primitive-array-columns | 465 | 212 | -25.9% |
 | streaming-append | streaming-append/append-only-logs-small | small | 6 | toon-ext-child-tables | 465 | 212 | -25.9% |
@@ -287,7 +287,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | tagged-records | tagged-records/activity-events-large | large | 120 | json-pretty | 33308 | 10261 | 60.7% |
 | tagged-records | tagged-records/activity-events-large | large | 120 | yaml | 25767 | 8915 | 39.6% |
 | tagged-records | tagged-records/activity-events-large | large | 120 | xml | 28808 | 9471 | 48.3% |
-| tagged-records | tagged-records/activity-events-large | large | 120 | toon-v3.3-canonical | 22191 | 7632 | 19.5% |
+| tagged-records | tagged-records/activity-events-large | large | 120 | toon-v4.1-canonical | 22191 | 7632 | 19.5% |
 | tagged-records | tagged-records/activity-events-large | large | 120 | toon-rust-crate-canonical | 22191 | 7632 | 19.5% |
 | tagged-records | tagged-records/activity-events-large | large | 120 | toon-ext-primitive-array-columns | 22191 | 7632 | 19.5% |
 | tagged-records | tagged-records/activity-events-large | large | 120 | toon-ext-child-tables | 22191 | 7632 | 19.5% |
@@ -299,7 +299,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | tagged-records | tagged-records/activity-events-small | small | 4 | json-pretty | 1135 | 350 | 62.0% |
 | tagged-records | tagged-records/activity-events-small | small | 4 | yaml | 869 | 298 | 38.0% |
 | tagged-records | tagged-records/activity-events-small | small | 4 | xml | 990 | 321 | 48.6% |
-| tagged-records | tagged-records/activity-events-small | small | 4 | toon-v3.3-canonical | 759 | 258 | 19.4% |
+| tagged-records | tagged-records/activity-events-small | small | 4 | toon-v4.1-canonical | 759 | 258 | 19.4% |
 | tagged-records | tagged-records/activity-events-small | small | 4 | toon-rust-crate-canonical | 759 | 258 | 19.4% |
 | tagged-records | tagged-records/activity-events-small | small | 4 | toon-ext-primitive-array-columns | 759 | 258 | 19.4% |
 | tagged-records | tagged-records/activity-events-small | small | 4 | toon-ext-child-tables | 759 | 258 | 19.4% |
@@ -311,7 +311,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | json-pretty | 24076 | 8040 | 47.0% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | yaml | 19553 | 7170 | 31.1% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | xml | 27518 | 9089 | 66.2% |
-| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-v3.3-canonical | 18186 | 6533 | 19.5% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-v4.1-canonical | 18186 | 6533 | 19.5% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-rust-crate-canonical | 18186 | 6533 | 19.5% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-ext-primitive-array-columns | 18186 | 6533 | 19.5% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-large | large | 96 | toon-ext-child-tables | 18186 | 6533 | 19.5% |
@@ -326,7 +326,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | json-pretty | 1255 | 423 | 47.9% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | yaml | 1009 | 372 | 30.1% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | xml | 1436 | 476 | 66.4% |
-| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-v3.3-canonical | 942 | 341 | 19.2% |
+| wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-v4.1-canonical | 942 | 341 | 19.2% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-rust-crate-canonical | 942 | 341 | 19.2% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-ext-primitive-array-columns | 942 | 341 | 19.2% |
 | wide-sparse | wide-sparse/sparse-feature-vectors-small | small | 5 | toon-ext-child-tables | 942 | 341 | 19.2% |
@@ -341,7 +341,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | 24-minimal | 24 | json-pretty | 3595 | 1365 | 50.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | 24-minimal | 24 | yaml | 2816 | 1215 | 34.3% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | 24-minimal | 24 | xml | 3101 | 1245 | 37.6% |
-| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | 24-minimal | 24 | toon-v3.3-canonical | 2531 | 1084 | 19.8% |
+| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | 24-minimal | 24 | toon-v4.1-canonical | 2531 | 1084 | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | 24-minimal | 24 | toon-ext-primitive-array-columns | 2531 | 1084 | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | 24-minimal | 24 | toon-ext-child-tables | 2531 | 1084 | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle2-24-minimal | 24-minimal | 24 | toon-ext-delimiter-pipe | 2532 | 1085 | 19.9% |
@@ -356,7 +356,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | 90-rich | 90 | json-pretty | 15589 | 5889 | 50.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | 90-rich | 90 | yaml | 12248 | 5253 | 34.5% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | 90-rich | 90 | xml | 13439 | 5379 | 37.7% |
-| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | 90-rich | 90 | toon-v3.3-canonical | 11021 | 4684 | 19.9% |
+| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | 90-rich | 90 | toon-v4.1-canonical | 11021 | 4684 | 19.9% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | 90-rich | 90 | toon-ext-primitive-array-columns | 11021 | 4684 | 19.9% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | 90-rich | 90 | toon-ext-child-tables | 11021 | 4684 | 19.9% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle3-90-rich | 90-rich | 90 | toon-ext-delimiter-pipe | 11022 | 4685 | 20.0% |
@@ -371,7 +371,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | 240-rich | 240 | json-pretty | 41313 | 15784 | 50.3% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | 240-rich | 240 | yaml | 32422 | 14098 | 34.3% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | 240-rich | 240 | xml | 34963 | 14396 | 37.1% |
-| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | 240-rich | 240 | toon-v3.3-canonical | 29074 | 12577 | 19.8% |
+| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | 240-rich | 240 | toon-v4.1-canonical | 29074 | 12577 | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | 240-rich | 240 | toon-ext-primitive-array-columns | 29074 | 12577 | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | 240-rich | 240 | toon-ext-child-tables | 29074 | 12577 | 19.8% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle4-240-rich | 240-rich | 240 | toon-ext-delimiter-pipe | 29075 | 12578 | 19.8% |
@@ -386,7 +386,7 @@ The crossover point is the first measured record count where the best TOON-famil
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | 500-rich | 500 | json-pretty | 83594 | 32139 | 49.9% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | 500-rich | 500 | yaml | 65583 | 28733 | 34.0% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | 500-rich | 500 | xml | 70704 | 29330 | 36.8% |
-| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | 500-rich | 500 | toon-v3.3-canonical | 58895 | 25645 | 19.6% |
+| cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | 500-rich | 500 | toon-v4.1-canonical | 58895 | 25645 | 19.6% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | 500-rich | 500 | toon-ext-primitive-array-columns | 58895 | 25645 | 19.6% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | 500-rich | 500 | toon-ext-child-tables | 58895 | 25645 | 19.6% |
 | cyclic-discriminated-arrays | cyclic-discriminated-arrays/cycle5-500-rich | 500-rich | 500 | toon-ext-delimiter-pipe | 58896 | 25646 | 19.6% |
@@ -408,7 +408,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-shipments-500 | json-pretty | 83172 | 26916 | 64.0% |
 | wire-shipments-500 | yaml | 64661 | 23410 | 42.6% |
 | wire-shipments-500 | xml | 79685 | 23995 | 46.2% |
-| wire-shipments-500 | toon-v3.3-canonical | 20214 | 8758 | -46.6% |
+| wire-shipments-500 | toon-v4.1-canonical | 20214 | 8758 | -46.6% |
 | wire-shipments-500 | toon-ext-primitive-array-columns | 20214 | 8758 | -46.6% |
 | wire-shipments-500 | toon-ext-child-tables | 20214 | 8758 | -46.6% |
 | wire-shipments-500 | toon-ext-delimiter-pipe | 20215 | 9926 | -39.5% |
@@ -422,7 +422,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-accounts-300 | json-pretty | 62649 | 19655 | 84.5% |
 | wire-accounts-300 | yaml | 43738 | 15449 | 45.0% |
 | wire-accounts-300 | xml | 47361 | 16355 | 53.6% |
-| wire-accounts-300 | toon-v3.3-canonical | 39242 | 13050 | 22.5% |
+| wire-accounts-300 | toon-v4.1-canonical | 39242 | 13050 | 22.5% |
 | wire-accounts-300 | toon-ext-primitive-array-columns | 39242 | 13050 | 22.5% |
 | wire-accounts-300 | toon-ext-child-tables | 12289 | 5266 | -50.6% |
 | wire-accounts-300 | toon-ext-delimiter-pipe | 39243 | 13051 | 22.5% |
@@ -433,7 +433,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-registry-200 | json-pretty | 27383 | 9209 | 53.4% |
 | wire-registry-200 | yaml | 21172 | 7603 | 26.6% |
 | wire-registry-200 | xml | 25795 | 8609 | 43.4% |
-| wire-registry-200 | toon-v3.3-canonical | 20571 | 7402 | 23.3% |
+| wire-registry-200 | toon-v4.1-canonical | 20571 | 7402 | 23.3% |
 | wire-registry-200 | toon-ext-primitive-array-columns | 20571 | 7402 | 23.3% |
 | wire-registry-200 | toon-ext-child-tables | 20571 | 7402 | 23.3% |
 | wire-registry-200 | toon-ext-delimiter-pipe | 20571 | 7402 | 23.3% |
@@ -444,7 +444,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-services-250 | json-pretty | 57550 | 17373 | 80.6% |
 | wire-services-250 | yaml | 41789 | 14117 | 46.8% |
 | wire-services-250 | xml | 48062 | 14873 | 54.6% |
-| wire-services-250 | toon-v3.3-canonical | 39043 | 12618 | 31.2% |
+| wire-services-250 | toon-v4.1-canonical | 39043 | 12618 | 31.2% |
 | wire-services-250 | toon-ext-primitive-array-columns | 39043 | 12618 | 31.2% |
 | wire-services-250 | toon-ext-child-tables | 14349 | 5137 | -46.6% |
 | wire-services-250 | toon-ext-delimiter-pipe | 39044 | 12619 | 31.2% |
@@ -455,7 +455,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-tagged-300 | json-pretty | 46414 | 14753 | 81.8% |
 | wire-tagged-300 | yaml | 35135 | 13415 | 65.4% |
 | wire-tagged-300 | xml | 40591 | 14489 | 78.6% |
-| wire-tagged-300 | toon-v3.3-canonical | 25359 | 10181 | 25.5% |
+| wire-tagged-300 | toon-v4.1-canonical | 25359 | 10181 | 25.5% |
 | wire-tagged-300 | toon-ext-primitive-array-columns | 12784 | 5723 | -29.5% |
 | wire-tagged-300 | toon-ext-child-tables | 25359 | 10181 | 25.5% |
 | wire-tagged-300 | toon-ext-delimiter-pipe | 25660 | 10482 | 29.2% |
@@ -466,7 +466,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-matrix-150x8 | json-pretty | 17524 | 7807 | 62.5% |
 | wire-matrix-150x8 | yaml | 15263 | 8851 | 84.3% |
 | wire-matrix-150x8 | xml | 23684 | 10207 | 112.5% |
-| wire-matrix-150x8 | toon-v3.3-canonical | 8667 | 5702 | 18.7% |
+| wire-matrix-150x8 | toon-v4.1-canonical | 8667 | 5702 | 18.7% |
 | wire-matrix-150x8 | toon-ext-primitive-array-columns | 8667 | 5702 | 18.7% |
 | wire-matrix-150x8 | toon-ext-child-tables | 7628 | 5107 | 6.3% |
 | wire-matrix-150x8 | toon-ext-delimiter-pipe | 8818 | 5853 | 21.9% |
@@ -477,7 +477,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-tree3-100 | json-pretty | 90728 | 23165 | 73.3% |
 | wire-tree3-100 | yaml | 64999 | 19319 | 44.5% |
 | wire-tree3-100 | xml | 55675 | 20122 | 50.5% |
-| wire-tree3-100 | toon-v3.3-canonical | 37889 | 13556 | 1.4% |
+| wire-tree3-100 | toon-v4.1-canonical | 37889 | 13556 | 1.4% |
 | wire-tree3-100 | toon-ext-primitive-array-columns | 37889 | 13556 | 1.4% |
 | wire-tree3-100 | toon-ext-child-tables | 19076 | 8834 | -33.9% |
 | wire-tree3-100 | toon-ext-delimiter-pipe | 38216 | 14354 | 7.4% |
@@ -488,7 +488,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-honesty-non-uniform-rows | json-pretty | 186 | 73 | 114.7% |
 | wire-honesty-non-uniform-rows | yaml | 105 | 53 | 55.9% |
 | wire-honesty-non-uniform-rows | xml | 134 | 61 | 79.4% |
-| wire-honesty-non-uniform-rows | toon-v3.3-canonical | 95 | 48 | 41.2% |
+| wire-honesty-non-uniform-rows | toon-v4.1-canonical | 95 | 48 | 41.2% |
 | wire-honesty-non-uniform-rows | toon-ext-primitive-array-columns | 95 | 48 | 41.2% |
 | wire-honesty-non-uniform-rows | toon-ext-child-tables | 95 | 48 | 41.2% |
 | wire-honesty-non-uniform-rows | toon-ext-delimiter-pipe | 96 | 49 | 44.1% |
@@ -499,7 +499,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-honesty-non-uniform-map | json-pretty | 154 | 53 | 89.3% |
 | wire-honesty-non-uniform-map | yaml | 101 | 36 | 28.6% |
 | wire-honesty-non-uniform-map | xml | 136 | 43 | 53.6% |
-| wire-honesty-non-uniform-map | toon-v3.3-canonical | 92 | 30 | 7.1% |
+| wire-honesty-non-uniform-map | toon-v4.1-canonical | 92 | 30 | 7.1% |
 | wire-honesty-non-uniform-map | toon-ext-primitive-array-columns | 92 | 30 | 7.1% |
 | wire-honesty-non-uniform-map | toon-ext-child-tables | 92 | 30 | 7.1% |
 | wire-honesty-non-uniform-map | toon-ext-delimiter-pipe | 92 | 30 | 7.1% |
@@ -510,7 +510,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-extension-primitive-list-columns-decode-empty-lists-and-quoted-sub-delimiters | json-pretty | 343 | 110 | 96.4% |
 | wire-extension-primitive-list-columns-decode-empty-lists-and-quoted-sub-delimiters | yaml | 244 | 93 | 66.1% |
 | wire-extension-primitive-list-columns-decode-empty-lists-and-quoted-sub-delimiters | xml | 319 | 107 | 91.1% |
-| wire-extension-primitive-list-columns-decode-empty-lists-and-quoted-sub-delimiters | toon-v3.3-canonical | 184 | 72 | 28.6% |
+| wire-extension-primitive-list-columns-decode-empty-lists-and-quoted-sub-delimiters | toon-v4.1-canonical | 184 | 72 | 28.6% |
 | wire-extension-primitive-list-columns-decode-empty-lists-and-quoted-sub-delimiters | toon-ext-primitive-array-columns | 109 | 48 | -14.3% |
 | wire-extension-primitive-list-columns-decode-empty-lists-and-quoted-sub-delimiters | toon-ext-child-tables | 184 | 72 | 28.6% |
 | wire-extension-primitive-list-columns-decode-empty-lists-and-quoted-sub-delimiters | toon-ext-delimiter-pipe | 187 | 76 | 35.7% |
@@ -521,7 +521,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-extension-recursive-child-tables-decode-per-row-child-counts | json-pretty | 757 | 198 | 83.3% |
 | wire-extension-recursive-child-tables-decode-per-row-child-counts | yaml | 525 | 157 | 45.4% |
 | wire-extension-recursive-child-tables-decode-per-row-child-counts | xml | 508 | 171 | 58.3% |
-| wire-extension-recursive-child-tables-decode-per-row-child-counts | toon-v3.3-canonical | 348 | 120 | 11.1% |
+| wire-extension-recursive-child-tables-decode-per-row-child-counts | toon-v4.1-canonical | 348 | 120 | 11.1% |
 | wire-extension-recursive-child-tables-decode-per-row-child-counts | toon-ext-primitive-array-columns | 348 | 120 | 11.1% |
 | wire-extension-recursive-child-tables-decode-per-row-child-counts | toon-ext-child-tables | 207 | 89 | -17.6% |
 | wire-extension-recursive-child-tables-decode-per-row-child-counts | toon-ext-delimiter-pipe | 352 | 127 | 17.6% |
@@ -532,7 +532,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-extension-mixed-empty-child-arrays-decode-zero-as-child-count | json-pretty | 151 | 54 | 125.0% |
 | wire-extension-mixed-empty-child-arrays-decode-zero-as-child-count | yaml | 79 | 37 | 54.2% |
 | wire-extension-mixed-empty-child-arrays-decode-zero-as-child-count | xml | 117 | 47 | 95.8% |
-| wire-extension-mixed-empty-child-arrays-decode-zero-as-child-count | toon-v3.3-canonical | 65 | 34 | 41.7% |
+| wire-extension-mixed-empty-child-arrays-decode-zero-as-child-count | toon-v4.1-canonical | 65 | 34 | 41.7% |
 | wire-extension-mixed-empty-child-arrays-decode-zero-as-child-count | toon-ext-primitive-array-columns | 65 | 34 | 41.7% |
 | wire-extension-mixed-empty-child-arrays-decode-zero-as-child-count | toon-ext-child-tables | 39 | 26 | 8.3% |
 | wire-extension-mixed-empty-child-arrays-decode-zero-as-child-count | toon-ext-delimiter-pipe | 67 | 36 | 50.0% |
@@ -543,7 +543,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-extension-matrix-rows-decode-as-uniform-fixed-width-lists | json-pretty | 98 | 41 | 141.2% |
 | wire-extension-matrix-rows-decode-as-uniform-fixed-width-lists | yaml | 67 | 39 | 129.4% |
 | wire-extension-matrix-rows-decode-as-uniform-fixed-width-lists | xml | 140 | 53 | 211.8% |
-| wire-extension-matrix-rows-decode-as-uniform-fixed-width-lists | toon-v3.3-canonical | 41 | 28 | 64.7% |
+| wire-extension-matrix-rows-decode-as-uniform-fixed-width-lists | toon-v4.1-canonical | 41 | 28 | 64.7% |
 | wire-extension-matrix-rows-decode-as-uniform-fixed-width-lists | toon-ext-primitive-array-columns | 41 | 28 | 64.7% |
 | wire-extension-matrix-rows-decode-as-uniform-fixed-width-lists | toon-ext-child-tables | 38 | 25 | 47.1% |
 | wire-extension-matrix-rows-decode-as-uniform-fixed-width-lists | toon-ext-delimiter-pipe | 44 | 31 | 82.4% |
@@ -554,7 +554,7 @@ These `wire-*` fixtures exercise opt-in extension behavior and edge cases. They 
 | wire-extension-cyclic-three-event-cycle-with-common-prefix | json-pretty | 1552 | 538 | 80.5% |
 | wire-extension-cyclic-three-event-cycle-with-common-prefix | yaml | 1137 | 456 | 53.0% |
 | wire-extension-cyclic-three-event-cycle-with-common-prefix | xml | 1366 | 478 | 60.4% |
-| wire-extension-cyclic-three-event-cycle-with-common-prefix | toon-v3.3-canonical | 1000 | 393 | 31.9% |
+| wire-extension-cyclic-three-event-cycle-with-common-prefix | toon-v4.1-canonical | 1000 | 393 | 31.9% |
 | wire-extension-cyclic-three-event-cycle-with-common-prefix | toon-ext-primitive-array-columns | 1000 | 393 | 31.9% |
 | wire-extension-cyclic-three-event-cycle-with-common-prefix | toon-ext-child-tables | 1000 | 393 | 31.9% |
 | wire-extension-cyclic-three-event-cycle-with-common-prefix | toon-ext-delimiter-pipe | 1001 | 394 | 32.2% |

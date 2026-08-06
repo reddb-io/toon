@@ -507,7 +507,7 @@ discriminator, contains a tail after the last complete cycle, or fails the order
 compression threshold.
 
 The shipped benchmark re-measurement in
-[`benchmarks/results/2026-07-15-token-efficiency.md`](../benchmarks/results/2026-07-15-token-efficiency.md)
+[`benchmarks/results/2026-08-06-token-efficiency.md`](../benchmarks/results/2026-08-06-token-efficiency.md)
 measured the implemented tabular wire through both shipped implementations. On
 the representative cyclic shape, the best TOON-family format was the cyclic
 extension with a median **26.8% token reduction versus minified JSON**. The

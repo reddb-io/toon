@@ -184,7 +184,7 @@ extension-aware decoder.
 ## Measured numbers
 
 Measured with `pnpm benchmark:tokens` and recorded in
-[`benchmarks/results/2026-07-15-token-efficiency.md`](../../benchmarks/results/2026-07-15-token-efficiency.md):
+[`benchmarks/results/2026-08-06-token-efficiency.md`](../../benchmarks/results/2026-08-06-token-efficiency.md):
 
 | Corpus | Rows | JSON tokens | Cyclic tokens | Tokens vs JSON |
 | --- | ---: | ---: | ---: | ---: |
@@ -213,6 +213,6 @@ the dialect's extension contract:
 ## Links
 
 - Normative spec: [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays)
-- Benchmark report: [`benchmarks/results/2026-07-15-token-efficiency.md`](../../benchmarks/results/2026-07-15-token-efficiency.md)
+- Benchmark report: [`benchmarks/results/2026-08-06-token-efficiency.md`](../../benchmarks/results/2026-08-06-token-efficiency.md)
 - Benchmark datasets: `benchmarks/datasets/tagged-records/`
 - Prior proposal: [`Discriminated / heterogeneous arrays`](discriminated-heterogeneous-arrays.md)
