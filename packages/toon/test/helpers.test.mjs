@@ -50,7 +50,10 @@ test('projectFields leaves absent fields absent instead of null-filling', () => 
   assert.equal(Object.prototype.hasOwnProperty.call(projected[0], 'missing'), false)
 })
 
-test('encode/decode are exact aliases of serialize/parse', () => {
-  assert.equal(encode, serialize)
-  assert.equal(decode, parse)
+test('encode/decode expose v4.1 while serialize/parse retain extension behavior', () => {
+  assert.notEqual(encode, serialize)
+  assert.notEqual(decode, parse)
+  assert.equal(encode({ value: 1 }), 'value: 1')
+  assert.equal(serialize({ value: 1 }), 'value: 1\n')
+  assert.deepEqual(decode('# comment\nvalue: 1'), { value: 1 })
 })
