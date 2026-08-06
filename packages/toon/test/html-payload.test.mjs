@@ -11,7 +11,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { encode, decode } from '../src/index.js'
+import { encode, decode } from '../dist/index.js'
 
 const HTML_SNIPPET = [
   '<!DOCTYPE html><html><head><title>Q&amp;A: "quotes", commas</title>',

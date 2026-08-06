@@ -1,7 +1,7 @@
 import { toonError } from '../errors.js'
 import { splitLines } from '../lexical.js'
 import { DEFAULT_INDENT, DEFAULT_MAX_DEPTH } from './constants.js'
-export function resolveOptions(options = {}) {
+export function resolveOptions(options: any = {}) {
   const rawMaxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
   const maxDepth = rawMaxDepth === Number.POSITIVE_INFINITY ? 0 : Math.max(0, Math.floor(rawMaxDepth))
   return {

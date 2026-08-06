@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { parse, serialize } from '../src/index.js'
+import { parse, serialize } from '../dist/index.js'
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..')
 const FIXTURE_PATH = join(REPO_ROOT, 'tests/corpus/wire-efficiency/corpora.json')
@@ -199,7 +199,7 @@ test('cyclic discriminated-array encoding is opt-in and falls back losslessly fo
 
 test('cyclic discriminated-array wire has no directive references in shipped JS/corpus/goldens', () => {
   for (const relative of [
-    'packages/toon/src/toon.js',
+    'packages/toon/src/toon.ts',
     'crates/toon/src/lib.rs',
     'tests/corpus/wire-efficiency/cyclic-discriminated-arrays.json',
     'tests/golden/tq/cyclic-discriminated-arrays-output/stdout.toon',

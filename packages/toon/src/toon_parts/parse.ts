@@ -5,7 +5,7 @@ import { isPlainObject } from './common.js'
 import { collectLines, checkDepth, checkHeaderDepth, resolveOptions } from './options.js'
 import { expandCyclicDiscriminatedArrays } from './cyclic.js'
 import { atLine, flattenHeaderFieldTree, lengthMismatch, parseArrayHeaderFieldTree, parseHeader, parseMapHeader, parseTabularCell } from './parse_headers.js'
-export function parse(input, options) {
+export function parse(input, options?: any) {
   const resolved = resolveOptions(options)
   const lines = collectLines(input, resolved)
   const first = lines[0]
@@ -50,7 +50,7 @@ export function parse(input, options) {
   return resolved.cyclicDiscriminatedArrays ? expandCyclicDiscriminatedArrays(document) : document
 }
 
-export function detectTruncation(input, options = {}) {
+export function detectTruncation(input, options: any = {}) {
   const format = options.format ?? 'toon'
   if (format === 'toonl') {
     return detectToonlTruncation(input)

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { parse, serialize } from '../src/index.js'
+import { parse, serialize } from '../dist/index.js'
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const FIXTURE_PATH = join(REPO_ROOT, 'tests/corpus/json-limits.json')

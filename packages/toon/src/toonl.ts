@@ -230,7 +230,7 @@ function classifyLine(line, lineNumber, open) {
  * A segment left open at EOF is still returned — TOONL is append-only, and an
  * unterminated tail is the normal shape of a stream someone is still writing.
  */
-function parseStreamInternal(input, options = {}) {
+function parseStreamInternal(input, options: any = {}) {
   const laneOrder = []
   const lanes = new Map()
   const anonymousSegments = []
@@ -642,7 +642,7 @@ export class ToonlReader {
   #cursor
   #state
 
-  constructor(source, options = {}) {
+  constructor(source, options: any = {}) {
     this.#source = source
     this.#cursor = options.cursor ?? null
     this.#state = createDecodeState(this.#cursor)
@@ -958,7 +958,7 @@ export class ToonlEncoder {
   #bytesSinceContinuation = 0
   #options
 
-  constructor(delimiter, fields, options = {}) {
+  constructor(delimiter, fields, options: any = {}) {
     validateDelimiter(delimiter)
     validateCadence(options.continuationEveryRows)
     validateCadence(options.continuationEveryBytes)
@@ -1058,7 +1058,7 @@ export function encodeLines({
   trailer = true,
   continuationEveryRows,
   continuationEveryBytes,
-} = {}) {
+}: any = {}) {
   validateDelimiter(delimiter)
   validateCadence(continuationEveryRows)
   validateCadence(continuationEveryBytes)

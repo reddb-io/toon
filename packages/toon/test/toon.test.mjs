@@ -4,7 +4,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { ToonError, detectTruncation, parse, parseDocument, serialize } from '../src/index.js'
+import { ToonError, detectTruncation, parse, parseDocument, serialize } from '../dist/index.js'
 
 /** `assert.throws` returns nothing, so capture the error to inspect its line. */
 function caught(fn) {

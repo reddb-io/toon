@@ -23,8 +23,8 @@ import {
   parseStream,
   recordTransform,
   toonToJson,
-} from '../src/index.js'
-import { readToonlFile, writeToonlFile } from '../src/node.js'
+} from '../dist/index.js'
+import { readToonlFile, writeToonlFile } from '../dist/node.js'
 
 async function collect(source) {
   const records = []
