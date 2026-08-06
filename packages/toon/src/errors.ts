@@ -4,7 +4,9 @@
  */
 
 export class ToonError extends Error {
-  constructor(line, message) {
+  line: number
+  reason: string
+  constructor(line: number, message: string) {
     super(line === 0 ? message : `line ${line}: ${message}`)
     this.name = 'ToonError'
     this.line = line
@@ -13,7 +15,9 @@ export class ToonError extends Error {
 }
 
 export class ToonlError extends Error {
-  constructor(line, message) {
+  line: number
+  reason: string
+  constructor(line: number, message: string) {
     super(line === 0 ? message : `line ${line}: ${message}`)
     this.name = 'ToonlError'
     this.line = line
@@ -22,7 +26,9 @@ export class ToonlError extends Error {
 }
 
 export class ToonlCursorInvalidationError extends ToonlError {
-  constructor(condition, message, details = {}) {
+  condition: string
+  details: Record<string, unknown>
+  constructor(condition: string, message: string, details: Record<string, unknown> = {}) {
     super(0, message)
     this.name = 'ToonlCursorInvalidationError'
     this.condition = condition
@@ -30,16 +36,16 @@ export class ToonlCursorInvalidationError extends ToonlError {
   }
 }
 
-export function toonError(line, message) {
+export function toonError(line: number, message: string) {
   return new ToonError(line, message)
 }
 
-export function toonlError(line, message) {
+export function toonlError(line: number, message: string) {
   return new ToonlError(line, message)
 }
 
 /** Re-raises a decoder error as a TOONL error, keeping line and reason. */
-export function asToonlError(error) {
+export function asToonlError(error: any) {
   if (error instanceof ToonlError) {
     return error
   }

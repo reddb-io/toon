@@ -4,7 +4,7 @@ import { DEFAULT_INDENT, DEFAULT_MAX_DEPTH } from './constants.js'
 import { isPlainObject } from './common.js'
 import { checkDepth } from './options.js'
 import { cyclicDiscriminatedArrayWire } from './cyclic.js'
-export function serialize(value, options = {}) {
+export function serialize(value, options: any = {}) {
   const rawMaxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
   const delimiter = options.delimiter ?? DOCUMENT_DELIMITER
   if (![DOCUMENT_DELIMITER, '|', '\t'].includes(delimiter)) {
@@ -211,7 +211,7 @@ function objectShape(records, options, depth) {
   if (!isPlainObject(first)) {
     return undefined
   }
-  const fields = Object.keys(first).map((key) => ({ key }))
+  const fields: any[] = Object.keys(first).map((key) => ({ key }))
 
   if (fields.length === 0) {
     return undefined

@@ -302,7 +302,7 @@ export function parseHeaderFieldTree(source, delimiter, activeDelimiter) {
         throw toonError(0, 'invalid array header')
       }
 
-      const field = { key }
+      const field: any = { key }
       if (source[index] === '[') {
         index += 1
         const bracketStart = index
