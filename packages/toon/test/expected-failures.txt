@@ -1,0 +1,79 @@
+# Official TOON spec fixtures the JS implementation does not yet satisfy.
+# Format: <decode|encode>/<fixture-file>.json::<test name>
+#
+# Fixtures are read live from the `vendor/toon-spec` submodule, so the corpus
+# tracks upstream instead of drifting from a vendored copy.
+#
+# A decode case counts as passing only when it parses, the decoded value equals
+# the fixture's `expected` JSON, and our own canonical output decodes back to
+# that same value. Parsing without an error is not enough — returning the wrong
+# value silently is the failure mode that matters most.
+#
+# This ledger is a ratchet, not a target: entries may only be removed.
+#
+# --- v4.1.1 renormalization baseline (Spec #203, issue #204) ---
+#
+# vendor/toon-spec is pinned at v4.1.1 (62f16b3). The renormalized v4 corpus
+# introduces fixtures the current v3.3-era decoder/encoder does not yet
+# satisfy. They are recorded here as an explicit expected-failure baseline —
+# not skipped silently — so the pre-rebase gap is demonstrable and CI stays
+# green until the decoder rewrites land. Each entry is removed as the
+# corresponding v4 behavior is implemented (the ledger is a ratchet).
+decode/arrays-nested.json::accepts bare bracket pair as empty inner array list item
+decode/arrays-nested.json::keeps every list item when the count mismatches in non-strict mode
+decode/arrays-tabular.json::applies LWW for duplicate field names in non-strict mode
+decode/arrays-tabular.json::applies LWW when a bare field and a nested group share a name in non-strict mode
+decode/arrays-tabular.json::keeps every row when the count mismatches in non-strict mode
+decode/blank-lines.json::accepts blank line between header and first entry row
+decode/blank-lines.json::accepts blank line between header and first list item
+decode/blank-lines.json::accepts blank line between header and first tabular row
+decode/blank-lines.json::throws on blank line between a list item's fields
+decode/blank-lines.json::throws on blank line inside the last list item's fields
+decode/comments.json::decodes a hash-leading root line as a comment, yielding an empty object
+decode/comments.json::decodes comments and blank lines only to empty object
+decode/comments.json::decodes document of only comments to empty object
+decode/comments.json::decodes tab-indented hash row as data in non-strict mode
+decode/comments.json::drops hash-leading row silently in non-strict mode
+decode/comments.json::strips comment before root array header
+decode/comments.json::strips comment containing an unterminated quote without unescaping
+decode/comments.json::strips comment inside list array without counting as item
+decode/comments.json::strips comment line between header and first row
+decode/comments.json::strips comment line between tabular rows without terminating rows
+decode/comments.json::strips comment line whose indentation is not a multiple of indentSize
+decode/comments.json::strips outdented comment inside nested object scope without closing it
+decode/comments.json::throws when a stripped hash-leading row breaks the declared count
+decode/delimiters.json::falls through to a key-value line on a header delimiter mismatch
+decode/indentation-errors.json::accepts correct indentation with custom indentSize (4 spaces with indentSize 4)
+decode/objects-keyed.json::accepts a declared entry count of zero
+decode/objects-keyed.json::accepts a single entry row
+decode/objects-keyed.json::accepts entry keys outside the encoder unquoted-key pattern
+decode/objects-keyed.json::applies LWW for duplicate entry keys in non-strict mode
+decode/objects-keyed.json::decodes the cell token [] as a string, not an empty array
+decode/objects-keyed.json::ignores comment lines between entry rows
+decode/objects-keyed.json::parses a keyed header on a hyphen line
+decode/objects-keyed.json::parses a keyless keyed header as a root object
+decode/objects-keyed.json::parses a quoted entry key containing a colon
+decode/objects-keyed.json::parses keyed headers with the pipe delimiter
+decode/objects-keyed.json::parses keyed headers with the tab delimiter
+decode/objects-keyed.json::parses keyed tabular objects
+decode/objects-keyed.json::parses nested field groups in keyed headers
+decode/objects-keyed.json::parses quoted cells containing the active delimiter
+decode/objects-keyed.json::parses quoted entry keys
+decode/objects-keyed.json::skips an entry-depth line without a colon in non-strict mode
+decode/objects-keyed.json::splits an entry row at its first unquoted colon before delimiter splitting
+decode/objects-keyed.json::treats a key-value line at the header's depth as a sibling after entries end
+decode/objects-keyed.json::treats key-value-shaped lines at entry depth as entry rows
+decode/objects.json::falls through to a key-value line when whitespace precedes the bracket segment
+decode/validation-errors.json::throws on keyless fields-bearing header as list item
+decode/validation-errors.json::throws on whitespace between a key and its bracket segment
+decode/whitespace.json::preserves NBSP around inline array tokens
+decode/whitespace.json::preserves NBSP-leading unquoted value
+encode/objects-keyed.json::collapses uniform nested object columns inside keyed headers
+encode/objects-keyed.json::emits a keyed header on the hyphen line when it is the first field of a list item
+encode/objects-keyed.json::encodes an eligible root object with a keyless keyed header
+encode/objects-keyed.json::encodes objects of uniform objects in keyed tabular form
+encode/objects-keyed.json::orders fields by the first entry value's encounter order
+encode/objects-keyed.json::quotes entry keys per key encoding
+encode/objects-keyed.json::quotes entry-row cells containing the active delimiter
+encode/objects-keyed.json::uses the active delimiter in keyed headers and entry-row cells
+encode/whitespace.json::respects custom indentSize option
