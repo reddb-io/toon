@@ -101,10 +101,7 @@ fn replacer_receives_root_object_and_array_paths_with_json_style_keys() {
             ("rows".to_owned(), vec![PathSegment::Key("rows".to_owned())]),
             (
                 "0".to_owned(),
-                vec![
-                    PathSegment::Key("rows".to_owned()),
-                    PathSegment::Index(0)
-                ]
+                vec![PathSegment::Key("rows".to_owned()), PathSegment::Index(0)]
             ),
             (
                 "value".to_owned(),
@@ -210,10 +207,19 @@ fn custom_indent_size_round_trips_through_the_v4_decoder() {
     let value = Value::from_json_value(json!({ "user": { "name": "Ada", "role": "admin" } }));
     let wire = encode_v4(&value, options).expect("v4 encode");
     assert_eq!(wire, "user:\n    name: Ada\n    role: admin");
-    let decoded = decode_value_v4(&wire, &DecodeStreamOptions { indent: 4, strict: false })
-        .expect("v4 decode")
-        .to_json_value();
-    assert_eq!(decoded, json!({ "user": { "name": "Ada", "role": "admin" } }));
+    let decoded = decode_value_v4(
+        &wire,
+        &DecodeStreamOptions {
+            indent: 4,
+            strict: false,
+        },
+    )
+    .expect("v4 decode")
+    .to_json_value();
+    assert_eq!(
+        decoded,
+        json!({ "user": { "name": "Ada", "role": "admin" } })
+    );
 }
 
 // JSON-model equality (SPEC §2): numbers compare by value after normalization,
@@ -223,14 +229,14 @@ fn json_model_eq(left: &serde_json::Value, right: &serde_json::Value) -> bool {
     match (left, right) {
         (J::Number(left), J::Number(right)) => number_eq(left, right),
         (J::Array(left), J::Array(right)) => {
-            left.len() == right.len()
-                && left.iter().zip(right).all(|(l, r)| json_model_eq(l, r))
+            left.len() == right.len() && left.iter().zip(right).all(|(l, r)| json_model_eq(l, r))
         }
         (J::Object(left), J::Object(right)) => {
             left.len() == right.len()
-                && left.iter().zip(right).all(|((lk, lv), (rk, rv))| {
-                    lk == rk && json_model_eq(lv, rv)
-                })
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|((lk, lv), (rk, rv))| lk == rk && json_model_eq(lv, rv))
         }
         _ => left == right,
     }
@@ -254,8 +260,11 @@ const SPICY: &str = "\"'\\,:[]{}# \t\n\r\u{0}\u{1f}\u{7f}áé中🙂";
 fn key_strategy() -> impl Strategy<Value = String> {
     prop_oneof![
         "[a-zA-Z_][a-zA-Z0-9_]{0,12}",
-        prop::collection::vec(prop::sample::select(SPICY.chars().collect::<Vec<_>>()), 1..6)
-            .prop_map(|chars| chars.into_iter().collect()),
+        prop::collection::vec(
+            prop::sample::select(SPICY.chars().collect::<Vec<_>>()),
+            1..6
+        )
+        .prop_map(|chars| chars.into_iter().collect()),
         Just(String::new()),
     ]
 }
@@ -263,10 +272,23 @@ fn key_strategy() -> impl Strategy<Value = String> {
 fn string_strategy() -> impl Strategy<Value = String> {
     prop_oneof![
         any::<String>(),
-        prop::collection::vec(prop::sample::select(SPICY.chars().collect::<Vec<_>>()), 0..24)
-            .prop_map(|chars| chars.into_iter().collect()),
+        prop::collection::vec(
+            prop::sample::select(SPICY.chars().collect::<Vec<_>>()),
+            0..24
+        )
+        .prop_map(|chars| chars.into_iter().collect()),
         prop::sample::select(vec![
-            "", "true", "false", "null", "42", "-0", "1e10", "  padded  ", "a,b", "[1,2]", "#hash",
+            "",
+            "true",
+            "false",
+            "null",
+            "42",
+            "-0",
+            "1e10",
+            "  padded  ",
+            "a,b",
+            "[1,2]",
+            "#hash",
             "+1",
         ])
         .prop_map(str::to_owned),
