@@ -13,7 +13,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -138,6 +138,11 @@ function roundTripsTo(value) {
 }
 
 test('official TOON spec fixtures do not regress', () => {
+  assert.equal(
+    existsSync(EXPECTED_FAILURE_LEDGER),
+    false,
+    'the TS expected-failure baseline must remain deleted',
+  )
   const expectedFailures = readExpectedFailures()
   const seen = new Set()
   const failedIds = new Set()
