@@ -1,3 +1,5 @@
+# TOON v4.1 sample — full-line comment lines (§5.1) are stripped by decoders
+# and never emitted by encoders; only spaces may precede the leading '#'.
 id: 123
 name: Ada Lovelace
 active: true
@@ -49,6 +51,14 @@ nested_headers[2]{id,customer{name,country},total}:
 people{first,last}:
   joe: Joe,Schmoe
   mary: Mary,Jane
+# v4.1 keyed tabular form (§9.5): [N:] marks a keyed object, one entry row each
+users_by_id[2:]{name,active}:
+  u1: Alice,true
+  u2: Bob,false
+# a nested field group inside a keyed tabular header (§9.3 + §9.5)
+accounts_by_id[2:|]{name|owner{first|last}}:
+  a1: Acme|Ada|Lovelace
+  a2: Globex|Bob|Bloom
 shipment[2]{id,tags[;],quantity}:
   item_0001,hazmat;oversize,60
   item_0002,oversize,11

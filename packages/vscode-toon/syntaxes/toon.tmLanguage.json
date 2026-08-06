@@ -3,7 +3,9 @@
   "name": "TOON",
   "scopeName": "source.toon",
   "patterns": [
+    { "include": "#comment" },
     { "include": "#array-header" },
+    { "include": "#keyed-tabular-header" },
     { "include": "#keyed-map-header" },
     { "include": "#key-value" },
     { "include": "#list-item" },
@@ -15,6 +17,13 @@
     { "include": "#unquoted-cell" }
   ],
   "repository": {
+    "comment": {
+      "comment": "TOON v4.1 §5.1 full-line comment. The first character after zero or more leading spaces (U+0020) is `#`; only spaces may precede it, so a tab-indented line is not a comment. Full-line only — a `#` anywhere else on a line is ordinary content. Decoders strip these in a lexical pre-pass; conforming encoder output never emits them.",
+      "match": "^ *(#.*)$",
+      "captures": {
+        "1": { "name": "comment.line.number-sign.toon" }
+      }
+    },
     "array-header": {
       "comment": "TOON v3.3 array header `key[N]{fields}:` — key optional at root, delimiter symbol optional inside the bracket ([N|], [N<TAB>]), field list optional. Not anchored to line start so it also matches after a `- ` list-item prefix. TOON quoting rules keep `[]{}:` out of unquoted text, so a mid-line match can only be a real header.",
       "match": "(?:(\"(?:[^\"\\\\]|\\\\.)*\")|([A-Za-z_][A-Za-z0-9_.]*))?(\\[)([0-9]+)?([|;\\t])?(\\])(\\{.*\\})?(:)(?=[ \\t]|$)",
@@ -27,6 +36,21 @@
         "6": { "name": "punctuation.section.brackets.end.toon" },
         "7": { "patterns": [{ "include": "#field-list" }] },
         "8": { "name": "punctuation.separator.key-value.toon" }
+      }
+    },
+    "keyed-tabular-header": {
+      "comment": "TOON v4.1 §9.5 keyed tabular header `key[N:<delim?>]{fields}:` — a colon immediately after the length marks a keyed tabular object (one `entrykey: cells` row per entry). N declares the entry count and the braced field list is REQUIRED. The optional delimiter symbol after the colon selects the active delimiter (`[N:|]` pipe, `[N:<TAB>]` tab); its absence means comma. Key optional so the keyless root form `[N:]{…}:` also matches. Not anchored to line start so it also matches after a `- ` list-item prefix.",
+      "match": "(?:(\"(?:[^\"\\\\]|\\\\.)*\")|([A-Za-z_][A-Za-z0-9_.]*))?(\\[)(0|[1-9][0-9]*)(:)([|\\t])?(\\])(\\{.*\\})(:)(?=[ \\t]*$)",
+      "captures": {
+        "1": { "name": "entity.name.tag.key.quoted.toon" },
+        "2": { "name": "entity.name.tag.key.toon" },
+        "3": { "name": "punctuation.section.brackets.begin.toon" },
+        "4": { "name": "constant.numeric.array-length.toon" },
+        "5": { "name": "keyword.operator.keyed.toon" },
+        "6": { "name": "keyword.operator.delimiter.toon" },
+        "7": { "name": "punctuation.section.brackets.end.toon" },
+        "8": { "patterns": [{ "include": "#field-list" }] },
+        "9": { "name": "punctuation.separator.key-value.toon" }
       }
     },
     "keyed-map-header": {
