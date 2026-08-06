@@ -53,3 +53,7 @@ proptest = "1.8.0"
 [[test]]
 name = "event_fixtures"
 path = "../../tests/runners/rust/toon/event_fixtures.rs"
+
+[[test]]
+name = "encode_v4"
+path = "../../tests/runners/rust/toon/encode_v4.rs"

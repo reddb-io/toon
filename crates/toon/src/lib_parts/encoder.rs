@@ -47,7 +47,7 @@ fn is_numeric_like(value: &str) -> bool {
     let bytes = value.as_bytes();
     let mut index = 0;
 
-    if bytes.get(index) == Some(&b'-') {
+    if matches!(bytes.get(index), Some(b'+' | b'-')) {
         index += 1;
     }
     if !consume_digits(bytes, &mut index) {
