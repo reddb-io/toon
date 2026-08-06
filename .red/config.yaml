@@ -12,6 +12,9 @@ plugins:
       primary-branch: true
     enabled: true                 # the engineering stack (/afk, /triage, /retake, …)
     afk:
+      setup:                      # fresh-worktree dependency install (mirrors ci.yml)
+        - git submodule update --init vendor/toon vendor/toon-spec
+        - LEFTHOOK=0 HUSKY=0 pnpm install --frozen-lockfile
       default_runner: codex       # maintainer decision: AFK inner agents run gpt-5.6-sol
       models:                     # per-runner AFK tier table (ADR 0049)
         codex:
