@@ -15,7 +15,20 @@ by the repository tests.
 
 ## Token efficiency
 
-Run:
+Verify dataset generation, generated answers and post-encode structural
+corruption without API credentials:
+
+```bash
+pnpm benchmark:accuracy:verify
+```
+
+The deterministic suite uses seed `218`. It generates employee records and
+questions in the field-retrieval, aggregation, filtering and structure-awareness
+categories. A second track applies truncation, extra-row and width-mismatch
+damage *after* each document is encoded, preserving TOON's declared row count
+and field list in the same way as the upstream structural-validation track.
+
+Run the LLM comparison with an OpenAI API key:
 
 ```bash
 pnpm benchmark:tokens
@@ -50,10 +63,16 @@ Run:
 pnpm benchmark:accuracy
 ```
 
-Accuracy is intentionally deterministic after model output: each question has a
-type-aware expected value, and the validator does not use an LLM judge. API keys
-are read from the environment. Copy `.env.example` for the expected variables.
-Without keys, the command exits gracefully with setup instructions.
+The run compares compact JSON with both shipped TOON encoders: the TypeScript
+package and the Rust crate through `tq`. Its report at
+`benchmarks/results/retrieval-accuracy.md` includes per-encoder accuracy,
+separate scores for structured questions and structural corruption, and a
+byte-for-byte TypeScript/Rust output comparison for every scenario. Answers are
+validated deterministically by type; no LLM judge is used. Set
+`BENCHMARK_ACCURACY_MODEL` to select a model or
+`BENCHMARK_ACCURACY_LIMIT` to make a smaller reporting run. Without
+`OPENAI_API_KEY`, the reporting command exits with setup instructions; the
+verification command remains fully offline.
 
 ## Runtime performance
 

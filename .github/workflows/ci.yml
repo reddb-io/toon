@@ -49,5 +49,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check source file length
         run: scripts/check-file-length.sh
+      - name: Verify deterministic accuracy benchmark
+        run: pnpm benchmark:accuracy:verify
       - name: Test
         run: pnpm -r test
