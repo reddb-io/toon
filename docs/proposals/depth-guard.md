@@ -1,7 +1,7 @@
 # Proposal — Depth guard
 
 **Stage:** 4 — graduated
-**Status:** graduated into `toon-reddb-spec.md`. Robustness feature; changes no decoded value.
+**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; decode always-on, fail-closed; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md). Robustness feature; changes no decoded value.
 **Spec section:** [Depth guard](../toon-reddb-spec.md#depth-guard)
 **Upstream RFC:** —
 **Repo issues / PRs:** —

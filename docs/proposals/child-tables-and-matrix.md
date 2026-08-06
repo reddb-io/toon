@@ -1,7 +1,7 @@
 # Proposal — Child tables + matrix (object-array columns)
 
 **Stage:** 4 — graduated (landed via [#102](https://github.com/reddb-io/toon/pull/102) / [#103](https://github.com/reddb-io/toon/pull/103))
-**Status:** graduated into `toon-reddb-spec.md` as Extension 4; decode always-on, encode opt-in, fail-closed. The matrix form is documented as **not recommended** for a token win.
+**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; decode always-on, encode opt-in, fail-closed; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md) as Extension 4. The matrix form is documented as **not recommended** for a token win.
 **Spec section:** [Extension 4 — Object-array columns](../toon-reddb-spec.md#extension-4--object-array-columns)
 **Upstream RFC:** —
 **Repo issues / PRs:** [#99](https://github.com/reddb-io/toon/issues/99) (grammar freeze), [#102](https://github.com/reddb-io/toon/pull/102), [#103](https://github.com/reddb-io/toon/pull/103); spec [#93](https://github.com/reddb-io/toon/issues/93)
@@ -9,7 +9,7 @@
 ## Motivation
 
 Uniform object arrays often carry a field that is itself an **array of uniform
-objects** — `orders[].items[]`, and `items[].components[]` below that. TOON v3.3
+objects** — `orders[].items[]`, and `items[].components[]` below that. TOON v4.1
 must expand the parent rows because the child array is not primitive, which
 destroys the parent table's amortization for deeply structured, repetitive data
 (the shape where TOON should win most).
@@ -29,7 +29,7 @@ orders[2|]{id|customer|items{sku|quantity|components{part|lot|ok}}}:
   ord_002|cust_b|0
 ```
 
-This decodes to the same JSON shape as the expanded v3.3 list form. The grammar
+This decodes to the same JSON shape as the expanded v4.1 list form. The grammar
 is **recursive**:
 
 - `field{child,fields}` in a tabular header MAY denote a nested object column or
@@ -44,7 +44,7 @@ object array; (2) each child-table field value is an array; (3) across all rows,
 every element of that child array is a non-empty object with the same key set;
 and (4) nested child-table fields satisfy the same rules recursively. A scalar
 child value, a mixed object/scalar child array, a heterogeneous child object
-shape, or a depth violation falls back losslessly to ordinary TOON v3.3.
+shape, or a depth violation falls back losslessly to ordinary TOON v4.1.
 
 ### Matrix form — same grammar, *not recommended for a token win*
 
@@ -128,12 +128,12 @@ checks that [detectTruncation](detect-truncation.md) exposes as an API.
 ## Why it is a good decision
 
 For the deeply structured, repetitive data where TOON should win most, child
-tables recover the amortization that v3.3 expansion throws away, at a large
+tables recover the amortization that v4.1 expansion throws away, at a large
 measured saving, with a **stronger** guardrail than primitive-list cells (every
 child count is checked). The matrix form is included honestly: it rides the same
 opt-in surface and round-trips, but it is a token *loss*, so the docs mark it
 not-recommended rather than pretending otherwise. Every ineligible shape falls
-back losslessly to v3.3.
+back losslessly to v4.1.
 
 ## Stage transitions
 

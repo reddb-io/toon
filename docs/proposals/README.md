@@ -1,12 +1,21 @@
 # TOON proposals
 
-**tl;dr.** This directory is the design history of the reddb-io TOON dialect,
-organized like the [TC39 process](https://tc39.es/process-document/): each
-extension or robustness feature is a *proposal* that advances through numbered
-stages until it graduates into the normative spec. Every graduated proposal
-links to its section in [`toon-reddb-spec.md`](../toon-reddb-spec.md), and that
-section links back here, so you can always trace a wire feature to the
-motivation, measurements, and decisions that produced it.
+**tl;dr.** This directory is design history, organized like the
+[TC39 process](https://tc39.es/process-document/): each extension or robustness
+feature is a *proposal* that advanced through numbered stages. It now spans two
+kinds of outcome, both measured against the **TOON v4.1** baseline
+([ADR 0005](../../.red/adr/0005-rebase-on-spec-v4-1-with-event-based-decoders.md)):
+
+- **Absorbed into the official spec.** Some proposals were adopted upstream and
+  are now part of the official TOON specification at v4.1 (nested tabular
+  headers via spec#46, keyed-map collapse via spec#57). The official syntax and
+  semantics govern; the proposal here is retained as design history only, with
+  no independent normative weight.
+- **Surviving reddb-io opt-in extensions.** The rest remain live reddb-io
+  extensions, re-expressed on the v4.1 base: decode always-on and fail-closed,
+  encode opt-in, defined normatively in
+  [`toon-reddb-spec.md`](../toon-reddb-spec.md). Each links to its reddb
+  extension section, and that section links back here.
 
 The normative behavior lives in the specs — [official companion](../toon-official-spec.md),
 [reddb flavor](../toon-reddb-spec.md), [TOONL streaming](../toonl-reddb-spec.md).
@@ -22,14 +31,14 @@ Mapped onto the TC39 process:
 | **1** | Measured proposal | A concrete design with a prototype and first token/byte measurements. |
 | **2** | Frozen grammar | The wire grammar is locked; implementation slices may begin. JS and Rust never design independently. |
 | **3** | Implemented opt-in | Shipped behind an encoder opt-in flag; decoding is always-on and fail-closed. |
-| **4** | Graduated | Documented as normative in [`toon-reddb-spec.md`](../toon-reddb-spec.md); covered by the shared conformance corpus. |
+| **4** | Graduated | Either **absorbed into the official spec** (now governed by the official TOON v4.1 specification) or shipped as a **live reddb-io extension**, documented as normative in [`toon-reddb-spec.md`](../toon-reddb-spec.md); covered by the shared conformance corpus. |
 
 ## Proposals
 
 | Proposal | Stage | Status | Spec section | Upstream RFC | Repo issues / PRs |
 | --- | :---: | --- | --- | --- | --- |
-| [Nested tabular headers](nested-tabular-headers.md) | 4 | Graduated | [Extension 1](../toon-reddb-spec.md#extension-1--nested-tabular-headers) | [spec#46](https://github.com/toon-format/spec/issues/46) | — |
-| [Keyed-map collapse](keyed-map-collapse.md) | 4 | Graduated | [Extension 2](../toon-reddb-spec.md#extension-2--keyed-map-collapse) | [spec#57](https://github.com/toon-format/spec/issues/57) | — |
+| [Nested tabular headers](nested-tabular-headers.md) | 4 | Absorbed into official spec v4.1 | [official spec](../toon-official-spec.md) | [spec#46](https://github.com/toon-format/spec/issues/46) | — |
+| [Keyed-map collapse](keyed-map-collapse.md) | 4 | Absorbed into official spec v4.1 | [official spec](../toon-official-spec.md) | [spec#57](https://github.com/toon-format/spec/issues/57) | — |
 | [Delimiter choice](delimiter-choice.md) | 4 | Graduated | [Delimiter choice](../toon-reddb-spec.md#delimiter-choice) | [spec#48](https://github.com/toon-format/spec/issues/48) | — |
 | [Depth guard](depth-guard.md) | 4 | Graduated | [Depth guard](../toon-reddb-spec.md#depth-guard) | — | — |
 | [detectTruncation](detect-truncation.md) | 4 | Graduated | [detectTruncation](../toon-reddb-spec.md#detecttruncation--structured-completeness-reports) | — | — |
@@ -44,6 +53,12 @@ Mapped onto the TC39 process:
 2. Fill every section — motivation, design/grammar, how to test, measured
    numbers, why it is a good decision, stage transitions, links.
 3. Add a row to the table above at the stage it currently sits.
-4. When it graduates, add a normative section to
-   [`toon-reddb-spec.md`](../toon-reddb-spec.md), a `> **Proposal history:**`
-   backlink in that section, and flip the stage here to **4**.
+4. When it graduates, flip the stage here to **4** and record the outcome:
+   - **Absorbed into the official spec** — the mechanism is adopted upstream and
+     governed by the official TOON specification. Mark the Status column
+     "Absorbed into official spec vN", add a design-history banner at the top of
+     the proposal, and note it carries no independent normative weight.
+   - **Live reddb-io extension** — add a normative reddb extension section to
+     [`toon-reddb-spec.md`](../toon-reddb-spec.md), a `> **Proposal history:**`
+     backlink in that section, and mark the Status column as a live reddb-io
+     opt-in extension on the current TOON baseline.

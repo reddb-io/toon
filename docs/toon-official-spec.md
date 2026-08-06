@@ -1,5 +1,15 @@
 # TOON v3.3 — Annotated Specification & Implementation Companion
 
+> **Design history — annotates the superseded v3.3 draft.** This repository has
+> rebased its baseline on the official **TOON v4.1** specification (see
+> [ADR 0005](../.red/adr/0005-rebase-on-spec-v4-1-with-event-based-decoders.md)).
+> This companion annotates the earlier **v3.3** working draft and is retained as
+> a historical, section-by-section reference. Where v4.1 changed behavior — key
+> folding and path expansion removed (§13.4 below), strict mode hardened (§14
+> below) — the v4.1 rules govern. For the current baseline and the breaking
+> changes, see the [v4.1 migration notes](migration-v4.md) and the
+> [reddb extensions spec](toon-reddb-spec.md).
+
 **tl;dr.** This document annotates the official TOON v3.3 specification with implementation notes, corner cases, and executable examples for the two reddb-io runtimes (Rust and JavaScript). We are grateful to the [toon-format](https://github.com/toon-format/spec) team and author Johann Schopplich for the clean, deterministic format that enables 100% conformance across independent implementations.
 
 ## Acknowledgment

@@ -1,21 +1,22 @@
 # Proposal — Cyclic discriminated arrays
 
 **Stage:** 4 — graduated.
-**Status:** graduated on the tabular TOON wire. The normative behavior is now
-defined in [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays).
+**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; decode
+always-on, encode opt-in, fail-closed. The normative behavior is defined in
+[Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays).
 **Spec section:** [Extension 5 — Cyclic discriminated arrays](../toon-reddb-spec.md#extension-5--cyclic-discriminated-arrays).
 **Repo issues / PRs:** [#142](https://github.com/reddb-io/toon/issues/142), [#150](https://github.com/reddb-io/toon/issues/150), [#151](https://github.com/reddb-io/toon/issues/151), [#168](https://github.com/reddb-io/toon/issues/168), [#172](https://github.com/reddb-io/toon/issues/172), [#174](https://github.com/reddb-io/toon/issues/174)
 
 ## Motivation
 
 Strongly cyclic tagged records repeat a discriminator such as `type`, `kind`, or
-`event` in a stable order. Plain TOON v3.3 repeats that discriminator value in
+`event` in a stable order. Plain TOON v4.1 repeats that discriminator value in
 every row and expands heterogeneous payload fields. The graduated wire keeps the
 same narrow eligibility boundary, but expresses the compression as normal TOON:
 scalar metadata, a common-field table, and one tabular sub-table per
 discriminator label.
 
-This design intentionally avoids a separate envelope language. A strict v3.3
+This design intentionally avoids a separate envelope language. A strict v4.1
 reader sees an ordinary nested TOON object. An extension-aware reader uses the
 metadata to reconstruct the original array.
 
@@ -41,7 +42,7 @@ The encoder MAY emit the cyclic form only when all of these hold:
   discriminator.
 
 Ineligible values fall back losslessly to canonical/default output. Encoding is
-opt-in; default output remains byte-identical TOON v3.3.
+opt-in; default output remains byte-identical TOON v4.1.
 
 ## Tabular TOON wire
 
@@ -174,7 +175,7 @@ issue_opened[30|]{issue.number|issue.title|issue.labels.length|issue.labels.0|is
 
 ## Strict-v3 read behavior
 
-Because the wire is ordinary TOON, a strict TOON v3.3 decoder reads it literally:
+Because the wire is ordinary TOON, a strict TOON v4.1 decoder reads it literally:
 an object with scalar `order`, `discriminator`, and `rows` fields plus tabular
 fields named `common` and by discriminator labels. It does not reconstruct the
 source array. Consumers that require the reconstructed array must use an
@@ -203,10 +204,10 @@ The proposal is graduated on the tabular wire because the design now satisfies
 the dialect's extension contract:
 
 - encoding remains opt-in;
-- default output remains canonical TOON v3.3;
+- default output remains canonical TOON v4.1;
 - extension-aware decode round-trips losslessly for eligible cyclic arrays;
 - ineligible values fall back losslessly; and
-- strict v3.3 readers see a literal grouped object instead of a silently wrong
+- strict v4.1 readers see a literal grouped object instead of a silently wrong
   reconstructed array.
 
 ## Links

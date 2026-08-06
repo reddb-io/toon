@@ -79,7 +79,7 @@ Useful query flags:
 
 ## TOON Output Extensions
 
-TOON output is canonical v3.3 unless an extension flag is enabled. These flags map directly to `reddb_io_toon::EncodeOptions`.
+TOON output is canonical v4.1 unless an extension flag is enabled. These flags map directly to `reddb_io_toon::EncodeOptions`.
 
 ## `--nested-tabular-headers`
 

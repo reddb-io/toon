@@ -18,7 +18,7 @@ TOONL) and deliberately does not claim the plain "toon" name.
 - Array headers `key[N]{fields}:` with the length marker, the active-delimiter
   symbol (`[N|]`, tab), and the field list.
 - Key-value lines, dotted keys, quoted keys, list items (`- `), quoted strings
-  with the closed v3.3 escape repertoire (unknown escapes flag as invalid),
+  with the closed TOON v4.1 escape repertoire (unknown escapes flag as invalid),
   canonical numbers (leading-zero tokens like `05` stay string-colored, as they
   decode), `true`/`false`/`null`, and the empty array `[]`.
 - All five [reddb-io wire extensions](../../docs/toon-reddb-spec.md): nested

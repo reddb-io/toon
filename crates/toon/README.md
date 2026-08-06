@@ -2,9 +2,9 @@
 
 > **Attribution:** This is RedDB's Rust implementation of TOON - not the original project. The TOON format was created by Johann Schopplich; see the [official repo](https://github.com/toon-format/toon), [toon-format/spec](https://github.com/toon-format/spec), and [toonformat.dev](https://toonformat.dev) for the format spec and original project.
 
-Rust parser, serializer, document model, encode extensions, and TOONL v0.2 stream utilities for TOON v3.3.
+Rust parser, serializer, document model, encode extensions, and TOONL v0.2 stream utilities for TOON v4.1.
 
-The crate emits canonical TOON v3.3 by default. The reddb-io encode extensions are always decoded but only encoded when requested with [`EncodeOptions`]. The extension specs live in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md), and TOONL is specified in [`docs/toonl-reddb-spec.md`](../../docs/toonl-reddb-spec.md).
+The crate emits canonical TOON v4.1 by default. The reddb-io encode extensions are always decoded but only encoded when requested with [`EncodeOptions`]. The extension specs live in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md), and TOONL is specified in [`docs/toonl-reddb-spec.md`](../../docs/toonl-reddb-spec.md).
 
 ```toml
 [dependencies]
@@ -46,14 +46,14 @@ Main entry points:
 - `Value::parse_with_options(input, options)` accepts `indent`, `strict`, `expand_paths`, and `max_depth`.
 - `Document::parse(input)` and `Document::parse_with_options(input, options)` require an object root.
 - `Value::from_json_str(input)` and `Value::from_json_value(value)` convert JSON into the same model.
-- `to_canonical_toon()` emits canonical v3.3.
-- `to_toon_with_options(options)` emits canonical v3.3 plus any requested extensions.
+- `to_canonical_toon()` emits canonical v4.1.
+- `to_toon_with_options(options)` emits canonical v4.1 plus any requested extensions.
 - `try_to_canonical_toon()` and `try_to_toon_with_options(options)` return `EncodeError`.
 - `to_json_value()` and `to_json_string(compact)` convert back to `serde_json`.
 
 ## Parse Options
 
-Strict mode is on by default and enforces the v3.3 error checklist. Set `strict: false` only when accepting legacy recovery behavior is intentional.
+Strict mode is on by default and enforces the hardened v4.1 error checklist. Set `strict: false` only when accepting legacy recovery behavior is intentional. See the [v4.1 migration notes](../../docs/migration-v4.md) for what strict mode now rejects that v3.3 tolerated.
 
 ```rust
 use reddb_io_toon::{ParseOptions, Value};
@@ -93,7 +93,7 @@ assert!(error.to_string().contains("maxDepth 1"));
 
 ## EncodeOptions
 
-`EncodeOptions::default()` preserves canonical TOON v3.3. Each extension below contrasts default-off output with opt-in output and round-trips through `parse_toon`. Fallbacks are lossless: when an opt-in extension is not eligible, the encoder emits the canonical shape instead of changing the value.
+`EncodeOptions::default()` preserves canonical TOON v4.1. Each extension below contrasts default-off output with opt-in output and round-trips through `parse_toon`. Fallbacks are lossless: when an opt-in extension is not eligible, the encoder emits the canonical shape instead of changing the value.
 
 ## `nested_tabular_headers`
 

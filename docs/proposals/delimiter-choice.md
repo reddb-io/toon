@@ -1,16 +1,16 @@
 # Proposal — Delimiter choice
 
 **Stage:** 4 — graduated
-**Status:** graduated into `toon-reddb-spec.md`. This is a *defaults and guidance* decision on top of a pure v3.3 mechanism — no grammar change, no fourth delimiter.
+**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md). This is a *defaults and guidance* decision on top of a pure v4.1 mechanism — no grammar change, no fourth delimiter. Upstream RFC [spec#48](https://github.com/toon-format/spec/issues/48) is still OPEN upstream (not absorbed into the official spec).
 **Spec section:** [Delimiter choice](../toon-reddb-spec.md#delimiter-choice)
 **Upstream RFC:** [toon-format/spec#48](https://github.com/toon-format/spec/issues/48)
 **Repo issues / PRs:** —
 
 ## Motivation
 
-TOON v3.3 already supports three delimiters — comma (default), tab (HTAB), and
+TOON v4.1 already supports three delimiters — comma (default), tab (HTAB), and
 pipe (`|`) — selected by the encoder as the *document delimiter* and declared
-per array header as the *active delimiter*. What v3.3 does not settle is *when
+per array header as the *active delimiter*. What v4.1 does not settle is *when
 to reach for a non-default*. Choosing badly leaves tokens on the table: a
 comma-delimited table full of free-text cells pays per-cell quoting that a
 tab-delimited table would avoid entirely.
@@ -79,7 +79,7 @@ advice is to measure your own payload before quoting a number.
 
 Because delimiter choice never changes the decoded value, it is a free
 efficiency/readability knob with zero compatibility risk: any delimiter is
-already valid v3.3. Adding *guidance and defaults* rather than a new delimiter
+already valid v4.1. Adding *guidance and defaults* rather than a new delimiter
 keeps the flavor a strict subset-of-mechanism, so no reader anywhere needs new
 capability. The one thing to avoid is treating it as magic: it only helps when
 the delimiter you pick is genuinely rarer in the data than the one you replaced.
@@ -87,7 +87,7 @@ the delimiter you pick is genuinely rarer in the data than the one you replaced.
 ## Stage transitions
 
 - **Stage 0–1 — idea / measured proposal:** delimiter mechanism from upstream RFC [toon-format/spec#48](https://github.com/toon-format/spec/issues/48).
-- **Stage 2 — frozen grammar:** unchanged v3.3 delimiter mechanism; defaults fixed.
+- **Stage 2 — frozen grammar:** unchanged v4.1 delimiter mechanism; defaults fixed.
 - **Stage 3 — implemented opt-in:** `delimiter` option / `--delimiter`.
 - **Stage 4 — graduated:** [Delimiter choice](../toon-reddb-spec.md#delimiter-choice).
 

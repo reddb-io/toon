@@ -14,14 +14,14 @@
 
 ## Motivation
 
-<What problem in TOON v3.3 does this solve? What can't be expressed or checked
+<What problem in TOON v4.1 does this solve? What can't be expressed or checked
 without it? Who feels the pain?>
 
 ## Design / grammar
 
 <The exact wire grammar, with a worked TOON example and the JSON it decodes to.
 State the eligibility rules an encoder uses, and the fail-closed behavior
-against a strict v3.3 decoder. Include the expanded v3.3-equivalent form.>
+against a strict v4.1 decoder. Include the expanded baseline form.>
 
 ## How to test it
 
@@ -30,7 +30,7 @@ fixtures / golden tests / commands that exercise it. Give a runnable command.>
 
 ## Measured numbers
 
-<Tokens and bytes versus JSON and plain TOON v3.3, with the corpus and
+<Tokens and bytes versus JSON and plain TOON v4.1, with the corpus and
 tokenizer named. Numbers must be reproducible from the repo's harness.>
 
 ## Why it is a good decision

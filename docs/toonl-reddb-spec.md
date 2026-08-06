@@ -1,6 +1,6 @@
 # TOONL — Token-Oriented Object Notation, Lines
 
-**TL;DR:** TOONL is a line-oriented streaming format for appending flat records to logs, one per line, with a header that defines the schema. Segments can be closed deterministically into TOON v3.3 documents, and v0.2 adds resumable readers, header-preserving trimming, multi-schema multiplexing, and append-safe patterns. TOONL is to TOON what JSONL is to JSON.
+**TL;DR:** TOONL is a line-oriented streaming format for appending flat records to logs, one per line, with a header that defines the schema. Segments can be closed deterministically into TOON v4.1 documents, and v0.2 adds resumable readers, header-preserving trimming, multi-schema multiplexing, and append-safe patterns. TOONL is to TOON what JSONL is to JSON.
 
 ## Table of Contents
 
@@ -41,7 +41,7 @@
   - [The side-journal pattern (blessed retry / re-queue)](#the-side-journal-pattern-blessed-retry--re-queue)
 - [Versioning And Compatibility](#versioning-and-compatibility)
   - [Structural version signaling](#structural-version-signaling)
-- [Relationship To TOON v3.3](#relationship-to-toon-v33)
+- [Relationship To TOON v4.1](#relationship-to-toon-v41)
 - [Conformance](#conformance)
 
 ## Acknowledgment
@@ -51,17 +51,17 @@ created and stewarded by the [toon-format](https://github.com/toon-format/spec)
 team and its author, Johann Schopplich. TOON gave the world a deterministic,
 minimally-quoted, token-efficient encoding of the JSON data model; TOONL is our
 grateful, optimistic extension of that idea into *streams* — appendable logs of
-flat records that close back into valid TOON v3.3 documents. Everything TOONL
+flat records that close back into valid TOON v4.1 documents. Everything TOONL
 does rests on TOON's design, and we thank the toon-format team for setting a
-standard clean enough to build a streaming layer on top of. TOON v3.3 is
+standard clean enough to build a streaming layer on top of. TOON v4.1 is
 released under the MIT License; TOONL is a reddb-io extension with its own
-versioning and does not modify the TOON v3.3 specification.
+versioning and does not modify the TOON v4.1 specification.
 
 ## Introduction
 
 This document is the single normative specification of **TOONL**, a
 line-oriented extension format for appendable streams of flat records that can
-be closed into TOON v3.3 documents. **TOONL is to TOON what JSONL is to JSON**:
+be closed into TOON v4.1 documents. **TOONL is to TOON what JSONL is to JSON**:
 one record per line, header once, append forever — a log you can `>>` into and
 `tail -f` out of.
 
@@ -96,7 +96,7 @@ SHOULD use `application/toonl`. There is no separate media type or extension per
 version; the version is a property of the content, signaled as described in
 [Versioning And Compatibility](#versioning-and-compatibility).
 
-TOONL is **not** open-phase TOON v3.3. A TOONL decoder MUST parse TOONL with the
+TOONL is **not** open-phase TOON v4.1. A TOONL decoder MUST parse TOONL with the
 grammar in this document, and a TOON decoder is expected to reject TOONL
 open-phase syntax. Compatibility is provided by the [close-transform](#close-transform),
 not by making every open stream a valid TOON document.
@@ -249,7 +249,7 @@ decoder MUST reject any non-blank line whose first two bytes are `- `.
 ## Grammar
 
 The following ABNF is normative except where it delegates cell parsing to TOON
-v3.3. The v0.1 base grammar is given first; the v0.2 additions follow. Constructs
+v4.1. The v0.1 base grammar is given first; the v0.2 additions follow. Constructs
 not shown in the additions are unchanged from the base.
 
 ```abnf
@@ -291,7 +291,7 @@ active delimiter applies to the field list and every row in the segment.
 1	2	3
 ```
 
-Field names and cell tokens MUST follow TOON v3.3 key, scalar, and cell quoting
+Field names and cell tokens MUST follow TOON v4.1 key, scalar, and cell quoting
 rules for the active delimiter. A cell containing the active delimiter MUST be
 quoted as TOON requires.
 
@@ -405,7 +405,7 @@ This stream has no trailer. It is valid TOONL but unverified; a reader knows the
 
 ## Close-Transform
 
-The close-transform maps closed TOONL segments to TOON v3.3 documents. It is
+The close-transform maps closed TOONL segments to TOON v4.1 documents. It is
 deterministic, order-preserving, and requires one O(n) pass over the input.
 
 For each segment, the close-transform MUST:
@@ -1420,16 +1420,16 @@ OPTIONAL and MUST NOT be required for correctness; the structural rule above is
 authoritative. A decoder MUST NOT depend on an out-of-band signal to decide
 whether to accept v0.2 constructs — it accepts them iff it is a v0.2 decoder.
 
-## Relationship To TOON v3.3
+## Relationship To TOON v4.1
 
-- TOONL does not change the TOON v3.3 document specification. The close-transform
-  continues to map closed TOONL segments to valid TOON v3.3 documents.
+- TOONL does not change the TOON v4.1 document specification. The close-transform
+  continues to map closed TOONL segments to valid TOON v4.1 documents.
 - The reserved `- ` line prefix stays reserved for a future nested-frame syntax.
 - The reddb-io TOON extensions (nested tabular headers, keyed-map collapse) are an
   independent concern; see
   [`toon-reddb-spec.md`](toon-reddb-spec.md). The close-transform
-  targets canonical TOON v3.3 and does not emit those forms.
-- For an annotated walk through the official TOON v3.3 specification and how our
+  targets canonical TOON v4.1 and does not emit those forms.
+- For an annotated walk through the official TOON v4.1 specification and how our
   implementations conform to it, see [`toon-official-spec.md`](toon-official-spec.md).
 
 ## Conformance

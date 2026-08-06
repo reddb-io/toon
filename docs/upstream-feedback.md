@@ -1,5 +1,15 @@
 # Upstream feedback — toon-format/spec#48 and spec#49
 
+> **Superseded draft — retained as a historical record.** This feedback package
+> was written while the repository tracked the **v3.3** baseline. The repository
+> has since rebased on the official **TOON v4.1** specification (see
+> [ADR 0005](../.red/adr/0005-rebase-on-spec-v4-1-with-event-based-decoders.md)):
+> the related RFCs spec#46 and spec#57 were absorbed into v4.1, while spec#48
+> (delimiter choice) and spec#49 (array-valued fields) discussed here remain
+> **open** upstream and are still carried as reddb-io opt-in extensions on the
+> v4.1 base. The draft comment texts and measurements below are preserved as the
+> in-repo record of what was reported; they are not updated for v4.1.
+
 **tl;dr.** We implemented the mechanisms discussed in the official RFCs
 [toon-format/spec#48](https://github.com/toon-format/spec/issues/48) (delimiter
 choice) and [toon-format/spec#49](https://github.com/toon-format/spec/issues/49)
