@@ -20,6 +20,7 @@ import test from 'node:test'
 
 import {
   ToonlEncoder,
+  decodeValue,
   closeTransform,
   closeTransformInterleaved,
   encodeLines,
@@ -110,7 +111,7 @@ function decoderOptions(options) {
     return {}
   }
   return {
-    indent: options.indent,
+    indent: options.indent ?? options.indentSize,
     strict: options.strict,
     expandPaths: options.expandPaths === 'safe',
   }
@@ -143,10 +144,10 @@ test('official TOON spec fixtures do not regress', () => {
 
   for (const category of ['decode', 'encode']) {
     const fixtures = [
-      ...readFixtures(join(FIXTURE_ROOT, category)),
-      ...readFixtures(join(LOCAL_FIXTURE_ROOT, category)),
+      ...readFixtures(join(FIXTURE_ROOT, category)).map((f) => ({ ...f, official: true })),
+      ...readFixtures(join(LOCAL_FIXTURE_ROOT, category)).map((f) => ({ ...f, official: false })),
     ]
-    for (const { file, fixture } of fixtures) {
+    for (const { file, fixture, official } of fixtures) {
       for (const testCase of fixture.tests) {
         const id = `${category}/${file}::${testCase.name}`
         executed += 1
@@ -156,10 +157,14 @@ test('official TOON spec fixtures do not regress', () => {
         let passed = false
         try {
           if (category === 'decode') {
+            // Official v4 fixtures exercise the event decoder; the local
+            // extension fixtures stay on the legacy parser until the
+            // extensions are re-expressed on the v4.1 base (#214).
+            const decodeFn = official ? decodeValue : parse
             if (testCase.shouldError === true) {
               // A rejection the spec asked for.
               try {
-                parse(testCase.input, options)
+                decodeFn(testCase.input, options)
                 passed = false
               } catch {
                 passed = true
@@ -170,8 +175,10 @@ test('official TOON spec fixtures do not regress', () => {
               // to decode back to that same value — otherwise either the parser
               // returns wrong data silently, or the serializer emits TOON we
               // cannot read.
-              const value = parse(testCase.input, options)
-              passed = jsonEqual(value, testCase.expected) && roundTripsTo(value)
+              const value = decodeFn(testCase.input, options)
+              passed =
+                jsonEqual(value, testCase.expected) &&
+                jsonEqual(decodeFn(serialize(value)), value)
               if (passed && testCase.failClosedV3Strict === true) {
                 assert.throws(() => rejectV3Strict(testCase.input), /invalid .* header/)
               }

@@ -702,8 +702,7 @@ impl Scratch {
             match command.output() {
                 Ok(output) => return output,
                 Err(error)
-                    if error.raw_os_error() == Some(ETXTBSY)
-                        && Instant::now() < retry_deadline =>
+                    if error.raw_os_error() == Some(ETXTBSY) && Instant::now() < retry_deadline =>
                 {
                     thread::sleep(Duration::from_millis(10));
                 }

@@ -15,6 +15,10 @@ export {
   serialize,
 } from './toon.js'
 export { parse as decode, serialize as encode } from './toon.js'
+export { decodeStream, decodeStreamSync } from './decode/stream.js'
+export type { DecodeStreamOptions, FieldNode } from './decode/stream.js'
+export { buildValueFromEvents, decodeValue } from './decode/build.js'
+export type { ToonEvent, ToonEventType } from './events.js'
 export { appendSummaryField, projectFields } from './helpers.js'
 export {
   JsonlToToonl,

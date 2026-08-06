@@ -7,5 +7,7 @@ export { VERSION } from './version.js';
 export { ToonError, ToonlCursorInvalidationError, ToonlError } from './errors.js';
 export { DEFAULT_INDENT, DEFAULT_MAX_DEPTH, detectTruncation, parse, parseDocument, serialize, } from './toon.js';
 export { parse as decode, serialize as encode } from './toon.js';
+export { decodeStream, decodeStreamSync } from './decode/stream.js';
+export { buildValueFromEvents, decodeValue } from './decode/build.js';
 export { appendSummaryField, projectFields } from './helpers.js';
 export { JsonlToToonl, ToonlDecodeStream, ToonlEncodeStream, ToonlToJsonl, ToonlEncoder, ToonlReader, closeTransform, closeTransformInterleaved, decodeLines, encodeLines, encodeRecords, jsonToToon, parseRecords, parseStream, recordTransform, toonToJson, } from './toonl.js';
