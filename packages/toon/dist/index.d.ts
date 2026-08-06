@@ -5,7 +5,9 @@
  */
 export { VERSION } from './version.js';
 export { ToonError, ToonlCursorInvalidationError, ToonlError } from './errors.js';
-export { DEFAULT_INDENT, DEFAULT_MAX_DEPTH, detectTruncation, parse, parseDocument, serialize, } from './toon.js';
+export { DEFAULT_INDENT, DEFAULT_MAX_DEPTH, parse, parseDocument, serialize, } from './toon.js';
+export { detectTruncation } from './decode/truncation.js';
+export type { TruncationOptions, TruncationReport } from './decode/truncation.js';
 export { encode } from './encode/serialize.js';
 export type { EncodeOptions } from './encode/serialize.js';
 export type { EncodeReplacer } from './encode/replacer.js';
