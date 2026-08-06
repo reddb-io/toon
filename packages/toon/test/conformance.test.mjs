@@ -1,8 +1,12 @@
 /**
  * The parity contract: the JS implementation runs the *same* corpus as the Rust
- * crate, under the *same* criteria as `tests/runners/rust/toon/spec_conformance.rs`, and must
- * pass all of it. There is no expected-failure ledger here — a JS-only exception
- * would be exactly the drift this test exists to prevent.
+ * crate, under the *same* criteria as `tests/runners/rust/toon/spec_conformance.rs`.
+ *
+ * Fixtures the current v3.3-era decoder/encoder does not yet satisfy against the
+ * renormalized v4 corpus are recorded in `expected-failures.txt` — the JS mirror
+ * of the Rust ledger at `tests/runners/rust/toon/expected-failures.txt`. Both
+ * ledgers are ratchets: an entry may only be removed, so a fixture that starts
+ * passing (or a stale entry) fails the suite instead of silently drifting.
  *
  * Official TOON fixtures come from the `vendor/toon-spec` submodule; the TOONL
  * ones from `tests/corpus/toonl`, shared with the Rust harness.
@@ -11,7 +15,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 
 import {
@@ -29,6 +33,29 @@ const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const FIXTURE_ROOT = join(REPO_ROOT, 'vendor/toon-spec/tests/fixtures')
 const LOCAL_FIXTURE_ROOT = join(REPO_ROOT, 'tests/corpus/toon')
 const TOONL_FIXTURE_ROOT = join(REPO_ROOT, 'tests/corpus/toonl')
+const EXPECTED_FAILURE_LEDGER = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'expected-failures.txt',
+)
+
+/**
+ * Reads the expected-failure ledger: one `<category>/<file>::<test name>` id per
+ * line, `#` comments and blank lines ignored.
+ */
+function readExpectedFailures() {
+  let contents
+  try {
+    contents = readFileSync(EXPECTED_FAILURE_LEDGER, 'utf8')
+  } catch {
+    return new Set()
+  }
+  return new Set(
+    contents
+      .split(/\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#')),
+  )
+}
 
 function readFixtures(directory) {
   let entries
@@ -107,8 +134,11 @@ function roundTripsTo(value) {
   return jsonEqual(parse(serialize(value)), value)
 }
 
-test('official TOON spec fixtures all pass', () => {
-  const failures = []
+test('official TOON spec fixtures do not regress', () => {
+  const expectedFailures = readExpectedFailures()
+  const seen = new Set()
+  const failedIds = new Set()
+  const reasons = new Map()
   let executed = 0
 
   for (const category of ['decode', 'encode']) {
@@ -120,6 +150,7 @@ test('official TOON spec fixtures all pass', () => {
       for (const testCase of fixture.tests) {
         const id = `${category}/${file}::${testCase.name}`
         executed += 1
+        seen.add(id)
         const options = decoderOptions(testCase.options)
 
         let passed = false
@@ -159,18 +190,38 @@ test('official TOON spec fixtures all pass', () => {
             }
           }
         } catch (error) {
-          failures.push(`${id} — threw: ${error.message}`)
+          failedIds.add(id)
+          reasons.set(id, `threw: ${error.message}`)
           continue
         }
 
         if (!passed) {
-          failures.push(id)
+          failedIds.add(id)
         }
       }
     }
   }
 
-  assert.deepEqual(failures, [], `TOON conformance failures:\n  ${failures.join('\n  ')}`)
+  // A fixture that fails without a ledger entry is a real regression; an entry
+  // for a fixture that now passes (stale) or that no longer exists (unknown)
+  // means the ledger drifted from the corpus. All three fail the suite.
+  const unexpectedFailures = [...failedIds]
+    .filter((id) => !expectedFailures.has(id))
+    .map((id) => (reasons.has(id) ? `${id} — ${reasons.get(id)}` : id))
+    .sort()
+  const staleExpectedFailures = [...expectedFailures]
+    .filter((id) => seen.has(id) && !failedIds.has(id))
+    .sort()
+  const unknownExpectedFailures = [...expectedFailures].filter((id) => !seen.has(id)).sort()
+
+  assert.deepEqual(
+    { unexpectedFailures, staleExpectedFailures, unknownExpectedFailures },
+    { unexpectedFailures: [], staleExpectedFailures: [], unknownExpectedFailures: [] },
+    'TOON conformance drift:\n' +
+      `  unexpected failures:\n    ${unexpectedFailures.join('\n    ') || '(none)'}\n` +
+      `  stale expected failures:\n    ${staleExpectedFailures.join('\n    ') || '(none)'}\n` +
+      `  unknown expected failures:\n    ${unknownExpectedFailures.join('\n    ') || '(none)'}`,
+  )
   // A corpus that silently reads zero cases would pass the assertion above, so
   // the count is part of the contract: this is the whole official corpus or bust.
   assert.ok(executed >= 380, `expected the full spec corpus, ran only ${executed} cases`)

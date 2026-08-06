@@ -1,6 +1,6 @@
 # Divergences between this implementation and vendor/toon (toon-format/toon).
 #
-# Source: vendor/toon pinned at a19a1179193451fad40f11ef88de5f363ea3684a (v2.3.0).
+# Source: vendor/toon pinned at a9e6d97eca931379824f3b6a1ba8fbfbda7d3c53 (v4.1.1).
 #
 # The toon-format/toon reference library has no standalone machine-readable
 # fixture vectors (its test data is embedded in TypeScript test files).
