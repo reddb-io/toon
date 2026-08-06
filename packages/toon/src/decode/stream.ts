@@ -19,6 +19,8 @@ export interface DecodeStreamOptions {
   indent?: number
   indentSize?: number
   strict?: boolean
+  cyclicDiscriminatedArrays?: boolean
+  objectArrayColumns?: boolean
 }
 
 interface Ctx {

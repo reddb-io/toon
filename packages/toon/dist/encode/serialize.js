@@ -2,6 +2,8 @@ import { canonicalKey, primitiveText } from '../lexical.js';
 import { isPlainObject, isPrimitive, normalizeValue } from './normalize.js';
 import { applyReplacer } from './replacer.js';
 import { collectLeaves, keyedFields, tabularFields } from './shape.js';
+import { cyclicDiscriminatedArrayWire } from '../toon_parts/cyclic.js';
+import { serialize as serializeLegacyExtensions } from '../toon_parts/serialize.js';
 /** Encodes normalized JSON using the canonical v4.1 forms. */
 export function encode(input, options = {}) {
     const delimiter = options.delimiter ?? ',';
@@ -12,6 +14,20 @@ export function encode(input, options = {}) {
     const value = options.replacer
         ? applyReplacer(normalized, options.replacer)
         : normalized;
+    if (options.cyclicDiscriminatedArrays === true) {
+        const cyclic = cyclicDiscriminatedArrayWire(value);
+        if (cyclic !== undefined)
+            return cyclic.trimEnd();
+    }
+    if (options.objectArrayColumns === true) {
+        const extension = serializeLegacyExtensions(value, {
+            delimiter,
+            objectArrayColumns: true,
+        });
+        const withoutExtension = serializeLegacyExtensions(value, { delimiter });
+        if (extension !== withoutExtension)
+            return extension.trimEnd();
+    }
     return encodeValue(value, { delimiter, indentSize }).join('\n');
 }
 function encodeValue(value, options) {

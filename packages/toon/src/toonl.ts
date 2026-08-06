@@ -6,7 +6,8 @@
  */
 
 import { ToonlCursorInvalidationError, asToonlError, toonlError } from './errors.js'
-import { parse, serialize } from './toon.js'
+import { decodeValue } from './decode/build.js'
+import { encode } from './encode/serialize.js'
 import {
   DOCUMENT_DELIMITER,
   canonicalKey,
@@ -850,12 +851,12 @@ export function recordTransform(fn, options) {
 
 /** Converts a whole JSON document string to canonical TOON. */
 export function jsonToToon(input) {
-  return serialize(JSON.parse(input))
+  return encode(JSON.parse(input))
 }
 
 /** Converts a whole TOON document string to compact JSON. */
 export function toonToJson(input) {
-  return JSON.stringify(parse(input))
+  return JSON.stringify(decodeValue(input))
 }
 
 // ---------------------------------------------------------------------------

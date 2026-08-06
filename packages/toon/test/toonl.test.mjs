@@ -392,7 +392,7 @@ test('JsonlToToonl and ToonlToJsonl bridge line streams in constant memory', asy
 test('document bridge helpers convert whole JSON and TOON documents', () => {
   const toon = jsonToToon('{"users":[{"id":1,"name":"Ada"}]}')
 
-  assert.equal(toon, 'users[1]{id,name}:\n  1,Ada\n')
+  assert.equal(toon, 'users[1]{id,name}:\n  1,Ada')
   assert.equal(toonToJson(toon), '{"users":[{"id":1,"name":"Ada"}]}')
 })
 
