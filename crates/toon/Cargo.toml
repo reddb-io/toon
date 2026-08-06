@@ -49,3 +49,7 @@ serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 [dev-dependencies]
 criterion = { version = "0.5.1", default-features = false, features = ["cargo_bench_support"] }
 proptest = "1.8.0"
+
+[[test]]
+name = "event_fixtures"
+path = "../../tests/runners/rust/toon/event_fixtures.rs"
