@@ -1,0 +1,546 @@
+[
+  {
+    "name": "nested-objects-two-levels",
+    "input": "user:\n  name: Ada\n  address:\n    city: London\n    zip: SW1",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "user",
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "address",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "city",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": "London",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "zip",
+        "line": 5
+      },
+      {
+        "type": "primitive",
+        "value": "SW1",
+        "line": 5
+      },
+      {
+        "type": "endObject",
+        "line": 5
+      },
+      {
+        "type": "endObject",
+        "line": 5
+      },
+      {
+        "type": "endObject",
+        "line": 5
+      }
+    ]
+  },
+  {
+    "name": "empty-object-value-no-child",
+    "input": "meta:\nname: x",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "meta",
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "x",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ]
+  },
+  {
+    "name": "object-as-list-item",
+    "input": "people[2]:\n  - name: Ada\n    age: 30\n  - name: Bob\n    age: 40",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "people",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "age",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 30,
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": "Bob",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "age",
+        "line": 5
+      },
+      {
+        "type": "primitive",
+        "value": 40,
+        "line": 5
+      },
+      {
+        "type": "endObject",
+        "line": 5
+      },
+      {
+        "type": "endArray",
+        "line": 5
+      },
+      {
+        "type": "endObject",
+        "line": 5
+      }
+    ]
+  },
+  {
+    "name": "bare-hyphen-is-empty-object-item",
+    "input": "items[2]:\n  -\n  - name: x",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "items",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": "x",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "list-item-with-nested-object-field",
+    "input": "rows[1]:\n  - id: 1\n    meta:\n      k: v",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "rows",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 1,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "meta",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "k",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": "v",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endArray",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      }
+    ]
+  },
+  {
+    "name": "object-with-nested-array-field",
+    "input": "config:\n  ports[2]: 80,443\n  name: web",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "config",
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "ports",
+        "line": 2
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 80,
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 443,
+        "line": 2
+      },
+      {
+        "type": "endArray",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": "web",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "deeply-nested-object-chain",
+    "input": "a:\n  b:\n    c:\n      d: leaf",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "c",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "d",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": "leaf",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      }
+    ]
+  },
+  {
+    "name": "list-item-holding-tabular-array",
+    "input": "groups[1]:\n  - members[2]{id,name}:\n      1,Ada\n      2,Bob",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "groups",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 1,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "members",
+        "line": 2
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": "Bob",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endArray",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endArray",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      }
+    ]
+  }
+]

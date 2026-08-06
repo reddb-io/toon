@@ -1,0 +1,493 @@
+[
+  {
+    "name": "err-inline-count-too-few",
+    "input": "nums[3]: 1,2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "nums",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 3,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-inline-count-too-many",
+    "input": "nums[2]: 1,2,3",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "nums",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-list-count-mismatch",
+    "input": "xs[3]:\n  - 1\n  - 2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "xs",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 3,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 3
+      }
+    ],
+    "error": {
+      "line": 3
+    }
+  },
+  {
+    "name": "err-tabular-row-count-mismatch",
+    "input": "u[3]{id}:\n  1\n  2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "u",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 3,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ],
+    "error": {
+      "line": 3
+    }
+  },
+  {
+    "name": "err-tabular-row-width-mismatch",
+    "input": "u[1]{a,b}:\n  1",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "u",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 1,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 2
+    }
+  },
+  {
+    "name": "err-keyed-entry-count-mismatch",
+    "input": "m[2]{a}:\n  x: 1",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "m",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-missing-colon-in-object",
+    "input": "a: 1\noops",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 2
+    }
+  },
+  {
+    "name": "err-unterminated-quoted-string",
+    "input": "k: \"abc",
+    "events": [],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-content-after-closing-quote",
+    "input": "k: \"abc\"def",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "k",
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-empty-field-list",
+    "input": "u[1]{}:\n  ",
+    "events": [],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-duplicate-field-name",
+    "input": "u[1]{a,a}:\n  1,2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "u",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 1,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-keyed-header-missing-fields",
+    "input": "m[2:]:\n  x: 1",
+    "events": [],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-content-after-fields-header-colon",
+    "input": "items[2]{a,b}: 1,2",
+    "events": [],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-whitespace-before-bracket",
+    "input": "items [2]: 1,2",
+    "events": [],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-keyless-header-mid-object",
+    "input": "a: 1\n[2]: x,y",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 2
+    }
+  },
+  {
+    "name": "err-over-indented-under-primitive",
+    "input": "a: 1\n  b: 2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 2
+    }
+  },
+  {
+    "name": "err-depth-jump-two-levels",
+    "input": "a:\n    b: deep",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 2
+    }
+  },
+  {
+    "name": "err-trailing-content-after-root-array",
+    "input": "[2]: 1,2\nextra: x",
+    "events": [
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 2
+    }
+  },
+  {
+    "name": "err-duplicate-object-key-strict",
+    "input": "a: 1\na: 2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 2
+    }
+  },
+  {
+    "name": "err-duplicate-keyed-entry-key",
+    "input": "m[2]{v}:\n  a: 1\n  a: 2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "m",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      }
+    ],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-tab-indentation-strict",
+    "input": "a:\n\tb: 1",
+    "events": [],
+    "error": {
+      "line": 2
+    }
+  },
+  {
+    "name": "err-blank-line-inside-tabular-span",
+    "input": "u[2]{id}:\n  1\n\n  2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "u",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ],
+    "error": {
+      "line": 4
+    }
+  },
+  {
+    "name": "err-malformed-array-length",
+    "input": "nums[x]: 1",
+    "events": [],
+    "error": {
+      "line": 1
+    }
+  },
+  {
+    "name": "err-first-line-indented",
+    "input": "  a: 1",
+    "events": [],
+    "error": {
+      "line": 1
+    }
+  }
+]

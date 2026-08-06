@@ -1,0 +1,608 @@
+[
+  {
+    "name": "tabular-array-of-objects",
+    "input": "users[2]{id,name}:\n  1,Ada\n  2,Bob",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "users",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": "Bob",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "tabular-single-row",
+    "input": "rows[1]{a,b,c}:\n  1,2,3",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "rows",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 1,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "c",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endArray",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ]
+  },
+  {
+    "name": "tabular-nested-field-group",
+    "input": "pts[2]{id,pos{x,y}}:\n  1,10,20\n  2,30,40",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "pts",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "pos",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "x",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 10,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "y",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 20,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "pos",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "x",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 30,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "y",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 40,
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "tabular-pipe-delimiter",
+    "input": "rows[2|]{a|b}:\n  1|2\n  3|4",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "rows",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 4,
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "tabular-tab-delimiter",
+    "input": "rows[2\t]{a\tb}:\n  1\t2\n  3\t4",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "rows",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 4,
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "tabular-quoted-cells",
+    "input": "rows[1]{a,b}:\n  \"x,y\",z",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "rows",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 1,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "x,y",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "z",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endArray",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ]
+  },
+  {
+    "name": "tabular-deeply-nested-groups",
+    "input": "t[1]{a,b{c,d{e,f}}}:\n  1,2,3,4",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "t",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 1,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "c",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "d",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "e",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "f",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 4,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endArray",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ]
+  }
+]

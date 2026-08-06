@@ -1,0 +1,448 @@
+[
+  {
+    "name": "inline-primitive-array",
+    "input": "nums[3]: 1,2,3",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "nums",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 3,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "inline-string-array",
+    "input": "tags[2]: alpha,beta",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "tags",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "alpha",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "beta",
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "inline-empty-declared-zero",
+    "input": "nums[0]:",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "nums",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 0,
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "empty-array-field",
+    "input": "items: []",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "items",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 0,
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "root-inline-primitive-array",
+    "input": "[3]: 10,20,30",
+    "events": [
+      {
+        "type": "startArray",
+        "length": 3,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 10,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 20,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 30,
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "inline-array-pipe-delimiter",
+    "input": "nums[2|]: a|b",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "nums",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "b",
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "inline-array-tab-delimiter",
+    "input": "nums[2\t]: a\tb",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "nums",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "b",
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "inline-array-quoted-cells-with-comma",
+    "input": "labels[2]: \"a,b\",c",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "labels",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "a,b",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "c",
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "list-of-primitive-arrays",
+    "input": "matrix[2]:\n  - [2]: 1,2\n  - [2]: 3,4",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "matrix",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "endArray",
+        "line": 2
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 4,
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "non-uniform-array-list-form",
+    "input": "mixed[3]:\n  - 1\n  - hello\n  - true",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "mixed",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 3,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "hello",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": true,
+        "line": 4
+      },
+      {
+        "type": "endArray",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      }
+    ]
+  },
+  {
+    "name": "list-form-nested-arrays-as-items",
+    "input": "outer[2]:\n  - [2]: 1,2\n  - []",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "outer",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "endArray",
+        "line": 2
+      },
+      {
+        "type": "startArray",
+        "length": 0,
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  }
+]

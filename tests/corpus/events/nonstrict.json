@@ -1,0 +1,197 @@
+[
+  {
+    "name": "nonstrict-duplicate-object-key-lww",
+    "input": "a: 1\na: 2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ],
+    "strict": false
+  },
+  {
+    "name": "nonstrict-count-mismatch-tolerated",
+    "input": "nums[5]: 1,2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "nums",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 5,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ],
+    "strict": false
+  },
+  {
+    "name": "nonstrict-tab-indentation-leniency",
+    "input": "a:\n\tb: 1",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ],
+    "strict": false
+  },
+  {
+    "name": "nonstrict-tabular-extra-rows-tolerated",
+    "input": "u[1]{id}:\n  1\n  2\n  3",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "u",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 1,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endArray",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      }
+    ],
+    "strict": false
+  }
+]
