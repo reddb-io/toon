@@ -23,6 +23,10 @@ fn official_toon_spec_fixtures_do_not_regress() {
         "spec fixtures missing at {} — run `git submodule update --init`",
         fixture_root.display()
     );
+    assert!(
+        !manifest_dir.join(EXPECTED_FAILURE_LEDGER).exists(),
+        "the Rust expected-failure baseline must remain deleted"
+    );
     let expected_failures = read_expected_failures(&manifest_dir.join(EXPECTED_FAILURE_LEDGER));
     let mut seen = BTreeSet::new();
     let mut unexpected_failures = Vec::new();
