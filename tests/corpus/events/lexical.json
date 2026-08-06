@@ -1,0 +1,274 @@
+[
+  {
+    "name": "comments-between-fields-are-invisible",
+    "input": "# leading\na: 1\n# middle\nb: 2\n  # indented comment\nc: 3",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "c",
+        "line": 6
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 6
+      },
+      {
+        "type": "endObject",
+        "line": 6
+      }
+    ]
+  },
+  {
+    "name": "blank-lines-between-object-fields",
+    "input": "a: 1\n\nb: 2\n\n\nc: 3",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "c",
+        "line": 6
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 6
+      },
+      {
+        "type": "endObject",
+        "line": 6
+      }
+    ]
+  },
+  {
+    "name": "leading-bom-is-stripped",
+    "input": "﻿name: Ada",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "crlf-line-endings",
+    "input": "a: 1\r\nb: 2\r\nc: 3",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "c",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "trailing-spaces-are-trimmed",
+    "input": "a: 1   \nb: 2",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ]
+  },
+  {
+    "name": "dotted-key-stays-literal-not-nested",
+    "input": "user.name: Ada",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "user.name",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "quoted-key-with-colon-and-spaces",
+    "input": "\"weird: key\": value",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "weird: key",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "value",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "prototype-key-is-ordinary",
+    "input": "__proto__: x\nconstructor: y",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "__proto__",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "x",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "constructor",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "y",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ]
+  }
+]

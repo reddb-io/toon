@@ -1,0 +1,335 @@
+[
+  {
+    "name": "scalar-types-across-object-values",
+    "input": "zero: 0\nint: 42\nneg: -17\nfloat: 3.5\nnegfloat: -0.25\nbig: 1000000\nt: true\nf: false\nnul: null\nempty: \"\"\nspaced: \"a b\"\nnum_like_string: \"42\"\nbool_like_string: \"true\"\nnull_like_string: \"null\"\nleading_zero: \"007\"",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "zero",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 0,
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "int",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 42,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "neg",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": -17,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "float",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": 3.5,
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "negfloat",
+        "line": 5
+      },
+      {
+        "type": "primitive",
+        "value": -0.25,
+        "line": 5
+      },
+      {
+        "type": "key",
+        "key": "big",
+        "line": 6
+      },
+      {
+        "type": "primitive",
+        "value": 1000000,
+        "line": 6
+      },
+      {
+        "type": "key",
+        "key": "t",
+        "line": 7
+      },
+      {
+        "type": "primitive",
+        "value": true,
+        "line": 7
+      },
+      {
+        "type": "key",
+        "key": "f",
+        "line": 8
+      },
+      {
+        "type": "primitive",
+        "value": false,
+        "line": 8
+      },
+      {
+        "type": "key",
+        "key": "nul",
+        "line": 9
+      },
+      {
+        "type": "primitive",
+        "value": null,
+        "line": 9
+      },
+      {
+        "type": "key",
+        "key": "empty",
+        "line": 10
+      },
+      {
+        "type": "primitive",
+        "value": "",
+        "line": 10
+      },
+      {
+        "type": "key",
+        "key": "spaced",
+        "line": 11
+      },
+      {
+        "type": "primitive",
+        "value": "a b",
+        "line": 11
+      },
+      {
+        "type": "key",
+        "key": "num_like_string",
+        "line": 12
+      },
+      {
+        "type": "primitive",
+        "value": "42",
+        "line": 12
+      },
+      {
+        "type": "key",
+        "key": "bool_like_string",
+        "line": 13
+      },
+      {
+        "type": "primitive",
+        "value": "true",
+        "line": 13
+      },
+      {
+        "type": "key",
+        "key": "null_like_string",
+        "line": 14
+      },
+      {
+        "type": "primitive",
+        "value": "null",
+        "line": 14
+      },
+      {
+        "type": "key",
+        "key": "leading_zero",
+        "line": 15
+      },
+      {
+        "type": "primitive",
+        "value": "007",
+        "line": 15
+      },
+      {
+        "type": "endObject",
+        "line": 15
+      }
+    ]
+  },
+  {
+    "name": "quoted-string-escapes-preserved",
+    "input": "tab: \"a\\tb\"\nnewline: \"a\\nb\"\nquote: \"say \\\"hi\\\"\"\nbackslash: \"a\\\\b\"\nunicode: \"caf\\u00e9\"",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "tab",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "a\tb",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "newline",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "a\nb",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "quote",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": "say \"hi\"",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "backslash",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": "a\\b",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "unicode",
+        "line": 5
+      },
+      {
+        "type": "primitive",
+        "value": "café",
+        "line": 5
+      },
+      {
+        "type": "endObject",
+        "line": 5
+      }
+    ]
+  },
+  {
+    "name": "root-primitive-string",
+    "input": "hello",
+    "events": [
+      {
+        "type": "primitive",
+        "value": "hello",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "root-primitive-number",
+    "input": "42",
+    "events": [
+      {
+        "type": "primitive",
+        "value": 42,
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "root-primitive-negative-float",
+    "input": "-3.14",
+    "events": [
+      {
+        "type": "primitive",
+        "value": -3.14,
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "root-primitive-boolean",
+    "input": "true",
+    "events": [
+      {
+        "type": "primitive",
+        "value": true,
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "root-primitive-null",
+    "input": "null",
+    "events": [
+      {
+        "type": "primitive",
+        "value": null,
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "root-primitive-quoted-spaces",
+    "input": "\"hello world\"",
+    "events": [
+      {
+        "type": "primitive",
+        "value": "hello world",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "root-empty-array",
+    "input": "[]",
+    "events": [
+      {
+        "type": "startArray",
+        "length": 0,
+        "line": 1
+      },
+      {
+        "type": "endArray",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "value-that-looks-like-header-but-quoted",
+    "input": "k: \"[2]: a,b\"",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "k",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "[2]: a,b",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  }
+]

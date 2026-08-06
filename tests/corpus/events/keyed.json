@@ -1,0 +1,341 @@
+[
+  {
+    "name": "keyed-tabular-object",
+    "input": "scores[2:]{x,y}:\n  a: 1,2\n  b: 3,4",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "scores",
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "x",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "y",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "x",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "y",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 4,
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "keyed-tabular-root",
+    "input": "[2:]{first,last}:\n  ada: Ada,Lovelace\n  bob: Bob,Ross",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "ada",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "first",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "last",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "Lovelace",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "bob",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "first",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": "Bob",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "last",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": "Ross",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "keyed-tabular-nested-group",
+    "input": "m[1:]{pos{x,y}}:\n  origin: 0,0",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "m",
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "origin",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "pos",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "x",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 0,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "y",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 0,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ]
+  },
+  {
+    "name": "keyed-tabular-pipe-delimiter",
+    "input": "m[2:|]{a|b}:\n  one: 1|2\n  two: 3|4",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "m",
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "one",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "two",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "a",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 3,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "b",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 4,
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  }
+]
