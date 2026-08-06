@@ -495,6 +495,35 @@ fn cyclic_wire_round_trips_through_decode_and_encode() {
 }
 
 #[test]
+fn cyclic_decode_requires_the_opt_in_and_otherwise_leaves_the_section_literal() {
+    // Fail-closed contract: the discriminated-section wire is only ever
+    // inflated when the decoder opts in. Without the opt-in a document that
+    // merely *looks* like a section is never silently re-interpreted — its
+    // fields survive verbatim as ordinary structured data.
+    let opted_out = ParseOptions {
+        cyclic_discriminated_arrays: false,
+        ..ParseOptions::default()
+    };
+    let literal =
+        Value::parse_with_options(CYCLIC_WIRE, opted_out).expect("literal section decode");
+    let json = literal.to_json_value();
+    let section = json["events"].as_object().expect("events stays an object");
+    assert!(
+        section.get("events").is_none(),
+        "no expansion happened: {json}"
+    );
+    assert_eq!(section["order"], json!("cycle(login,purchase,logout)*4"));
+    assert_eq!(section["discriminator"], json!("type"));
+    assert_eq!(section["rows"], json!(12));
+
+    // The default profile opts in, so the same wire inflates into the events
+    // array — the two decoders disagree by design.
+    let expanded = parse(CYCLIC_WIRE).to_json_value();
+    assert!(expanded["events"].is_array(), "opt-in decode inflates the array");
+    assert_ne!(expanded, json, "opt-in and opted-out decoders diverge");
+}
+
+#[test]
 fn cyclic_wire_round_trips_nested_array_and_object_payloads() {
     // login rows carry a nested array, purchase rows a nested object; both must
     // survive flatten-on-encode and inflate-on-decode.
