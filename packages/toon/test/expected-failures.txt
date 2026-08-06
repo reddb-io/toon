@@ -19,17 +19,3 @@
 # not skipped silently — so the pre-rebase gap is demonstrable and CI stays
 # green until the decoder rewrites land. Each entry is removed as the
 # corresponding v4 behavior is implemented (the ledger is a ratchet).
-encode/objects-keyed.json::collapses uniform nested object columns inside keyed headers
-encode/objects-keyed.json::emits a keyed header on the hyphen line when it is the first field of a list item
-encode/objects-keyed.json::encodes an eligible root object with a keyless keyed header
-encode/objects-keyed.json::encodes objects of uniform objects in keyed tabular form
-encode/objects-keyed.json::orders fields by the first entry value's encounter order
-encode/objects-keyed.json::quotes entry keys per key encoding
-encode/objects-keyed.json::quotes entry-row cells containing the active delimiter
-encode/objects-keyed.json::uses the active delimiter in keyed headers and entry-row cells
-
-# v4.1 comment-aware quoting is an encoder gap (#209): the legacy serializer
-# emits leading-# strings unquoted, so the event-decoder roundtrip strips them
-# as comment lines. Remove when the v4.1 encoder lands.
-decode/comments.json::decodes tab-indented hash row as data in non-strict mode
-decode/comments.json::parses quoted hash-leading first cell as data, not comment

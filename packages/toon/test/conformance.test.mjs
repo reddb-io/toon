@@ -23,6 +23,7 @@ import {
   decodeValue,
   closeTransform,
   closeTransformInterleaved,
+  encode,
   encodeLines,
   encodeRecords,
   parse,
@@ -122,10 +123,11 @@ function encoderOptions(options) {
     return {}
   }
   return {
+    delimiter: options.delimiter,
+    indentSize: options.indentSize ?? options.indent,
     nestedTabularHeaders: options.nestedTabularHeaders === true,
     keyedMapCollapse: options.keyedMapCollapse === true,
     primitiveArrayColumns: options.primitiveArrayColumns === true,
-    delimiter: options.delimiter,
   }
 }
 
@@ -184,17 +186,13 @@ test('official TOON spec fixtures do not regress', () => {
               }
             }
           } else {
-            if (
-              Object.prototype.hasOwnProperty.call(testCase, 'input') &&
-              testCase.options?.keyedMapCollapse === true
-            ) {
-              const encoded = serialize(testCase.input, encoderOptions(testCase.options))
-              const decoded = parse(testCase.expected, options)
-              passed = encoded === testCase.expected && jsonEqual(decoded, testCase.input)
-            } else {
-              const value = parse(testCase.expected, options)
-              passed = roundTripsTo(value)
-            }
+            const encoded = official
+              ? encode(testCase.input, encoderOptions(testCase.options))
+              : serialize(testCase.input, encoderOptions(testCase.options))
+            const decoded = official
+              ? decodeValue(testCase.expected, options)
+              : parse(testCase.expected, options)
+            passed = encoded === testCase.expected && jsonEqual(decoded, testCase.input)
           }
         } catch (error) {
           failedIds.add(id)

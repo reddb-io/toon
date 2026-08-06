@@ -246,7 +246,7 @@
       "category": "adversarial-round-trip",
       "rawJson": "[\"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"]",
       "expected": {
-        "js": { "toon": "[4]: \"a,b\",+1,\"\\\"true\\\"\",\"1e2\"\n", "roundTripJson": "[\"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"]" },
+        "js": { "toon": "[4]: \"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"\n", "roundTripJson": "[\"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"]" },
         "rust": { "toon": "[4]: \"a,b\",+1,\"\\\"true\\\"\",\"1e2\"\n", "roundTripJson": "[\"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"]" }
       }
     },
@@ -255,7 +255,7 @@
       "category": "adversarial-round-trip",
       "rawJson": "{\"header\":\"[2]{a,b}:\",\"delimiter\":\"---\",\"leadingPlus\":\"+42\"}",
       "expected": {
-        "js": { "toon": "header: \"[2]{a,b}:\"\ndelimiter: \"---\"\nleadingPlus: +42\n", "roundTripJson": "{\"header\":\"[2]{a,b}:\",\"delimiter\":\"---\",\"leadingPlus\":\"+42\"}" },
+        "js": { "toon": "header: \"[2]{a,b}:\"\ndelimiter: \"---\"\nleadingPlus: \"+42\"\n", "roundTripJson": "{\"header\":\"[2]{a,b}:\",\"delimiter\":\"---\",\"leadingPlus\":\"+42\"}" },
         "rust": { "toon": "header: \"[2]{a,b}:\"\ndelimiter: \"---\"\nleadingPlus: +42\n", "roundTripJson": "{\"header\":\"[2]{a,b}:\",\"delimiter\":\"---\",\"leadingPlus\":\"+42\"}" }
       }
     }

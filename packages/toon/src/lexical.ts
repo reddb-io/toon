@@ -219,7 +219,7 @@ export function isNumberToken(value) {
  * still be quoted so they never decode as numbers.
  */
 export function isNumericLike(value) {
-  return /^-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/.test(value)
+  return /^[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/.test(value)
 }
 
 /** Canonical decimal form per §2. JS already prints the shortest round-trip form. */
@@ -267,7 +267,7 @@ export function canonicalString(value, delimiter) {
 export function needsQuotes(value, delimiter) {
   return (
     value === '' ||
-    value.trim() !== value ||
+    /^[ \t]|[ \t]$/.test(value) ||
     value === 'true' ||
     value === 'false' ||
     value === 'null' ||
@@ -275,7 +275,8 @@ export function needsQuotes(value, delimiter) {
     /[:"\\[\]{}]/.test(value) ||
     /[\u0000-\u001f]/.test(value) ||
     value.includes(delimiter) ||
-    value.startsWith('-')
+    value.startsWith('-') ||
+    value.startsWith('#')
   )
 }
 
