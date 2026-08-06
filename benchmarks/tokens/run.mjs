@@ -5,12 +5,12 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 import { countTokens } from 'gpt-tokenizer'
-import { encodeRecords, serialize } from '../../packages/toon/src/index.js'
+import { encodeRecords, serialize } from '../../packages/toon/dist/index.js'
 
 const REPO_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 const RESULTS_DIR = join(REPO_ROOT, 'benchmarks', 'results')
 const DATASETS_DIR = join(REPO_ROOT, 'benchmarks', 'datasets')
-const REPORT_PATH = join(RESULTS_DIR, '2026-07-15-token-efficiency.md')
+const REPORT_PATH = join(RESULTS_DIR, '2026-08-06-token-efficiency.md')
 const EXTENSIONS = {
   'toon-ext-primitive-array-columns': { primitiveArrayColumns: true },
   'toon-ext-child-tables': { nestedTabularHeaders: true, objectArrayColumns: true },
@@ -271,7 +271,7 @@ function formatsFor(dataset) {
     ['json-pretty', JSON.stringify(dataset.value, null, 2)],
     ['yaml', yaml(dataset.value)],
     ['xml', xml(dataset.value)],
-    ['toon-v3.3-canonical', serialize(dataset.value)],
+    ['toon-v4.1-canonical', serialize(dataset.value)],
   ])
   if (dataset.file) formats.set('toon-rust-crate-canonical', rustCanonicalToon(dataset.file))
   for (const [name, options] of Object.entries(EXTENSIONS)) {
