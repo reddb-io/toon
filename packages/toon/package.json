@@ -3,26 +3,26 @@
   "version": "0.13.2",
   "description": "TOON v3.3 parser and serializer, plus TOONL v0.2 append-only streaming. Dependency-free ESM, conformant against the official spec corpus.",
   "type": "module",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "exports": {
     ".": {
-      "import": "./src/index.js",
-      "types": "./index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./node": {
-      "import": "./src/node.js",
-      "types": "./node.d.ts"
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
     }
   },
-  "types": "./index.d.ts",
+  "types": "./dist/index.d.ts",
   "files": [
-    "src/",
-    "index.d.ts",
-    "node.d.ts",
+    "dist/",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json",
     "test": "node --test test/toon.test.mjs test/toonl.test.mjs test/conformance.test.mjs test/json-limits.test.mjs test/wire-efficiency.test.mjs test/readme-examples.test.mjs test/helpers.test.mjs test/html-payload.test.mjs test/perf-smoke.test.mjs test/roundtrip-property.test.mjs test/version.test.mjs"
   },
   "engines": {
@@ -47,5 +47,9 @@
   },
   "bugs": {
     "url": "https://github.com/reddb-io/tq/issues"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "typescript": "5.9.2"
   }
 }
