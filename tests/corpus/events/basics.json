@@ -1,0 +1,350 @@
+[
+  {
+    "name": "flat-object",
+    "input": "name: Ada\nage: 30\nactive: true\nnickname: null",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "age",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 30,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "active",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": true,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "nickname",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": null,
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      }
+    ]
+  },
+  {
+    "name": "empty-document-is-empty-object",
+    "input": "",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "nested-object",
+    "input": "user:\n  name: Ada\n  address:\n    city: London",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "user",
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "address",
+        "line": 3
+      },
+      {
+        "type": "startObject",
+        "line": 4
+      },
+      {
+        "type": "key",
+        "key": "city",
+        "line": 4
+      },
+      {
+        "type": "primitive",
+        "value": "London",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      }
+    ]
+  },
+  {
+    "name": "tabular-array-is-plain-array-events",
+    "input": "users[2]{id,name}:\n  1,Ada\n  2,Bob",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "users",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      },
+      {
+        "type": "startObject",
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": 2,
+        "line": 3
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": "Bob",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      },
+      {
+        "type": "endArray",
+        "line": 3
+      },
+      {
+        "type": "endObject",
+        "line": 3
+      }
+    ]
+  },
+  {
+    "name": "comment-lines-are-invisible",
+    "input": "# heading comment\nname: Ada",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "name",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "Ada",
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ]
+  },
+  {
+    "name": "dotted-key-stays-literal",
+    "input": "a.b: 1",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "a.b",
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 1
+      },
+      {
+        "type": "endObject",
+        "line": 1
+      }
+    ]
+  },
+  {
+    "name": "primitive-list",
+    "input": "tags[3]:\n  - alpha\n  - beta\n  - gamma",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "tags",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 3,
+        "line": 1
+      },
+      {
+        "type": "primitive",
+        "value": "alpha",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": "beta",
+        "line": 3
+      },
+      {
+        "type": "primitive",
+        "value": "gamma",
+        "line": 4
+      },
+      {
+        "type": "endArray",
+        "line": 4
+      },
+      {
+        "type": "endObject",
+        "line": 4
+      }
+    ]
+  },
+  {
+    "name": "length-mismatch-fails-at-the-short-row",
+    "input": "users[2]{id}:\n  1",
+    "events": [
+      {
+        "type": "startObject",
+        "line": 1
+      },
+      {
+        "type": "key",
+        "key": "users",
+        "line": 1
+      },
+      {
+        "type": "startArray",
+        "length": 2,
+        "line": 1
+      },
+      {
+        "type": "startObject",
+        "line": 2
+      },
+      {
+        "type": "key",
+        "key": "id",
+        "line": 2
+      },
+      {
+        "type": "primitive",
+        "value": 1,
+        "line": 2
+      },
+      {
+        "type": "endObject",
+        "line": 2
+      }
+    ],
+    "error": {
+      "line": 2
+    }
+  }
+]
