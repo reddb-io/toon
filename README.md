@@ -27,10 +27,14 @@ TOONL is the append-only stream form: one record per line, header once, and opti
 
 The root README is a hub, not the normative spec. Use these documents for detail:
 
-- [Official TOON companion](docs/toon-official-spec.md): the upstream TOON behavior this repository tracks.
-- [RedDB TOON extensions](docs/toon-reddb-spec.md): opt-in dialect features implemented here.
+This repository tracks the official **TOON v4.1** specification as its baseline
+and layers a set of opt-in extensions on top of it.
+
+- [Official TOON companion](docs/toon-official-spec.md): annotated companion to the upstream TOON spec this repository tracks.
+- [RedDB TOON extensions](docs/toon-reddb-spec.md): the opt-in extensions layered on the TOON v4.1 baseline (decode always-on, encode opt-in, fail-closed).
 - [TOONL RedDB spec](docs/toonl-reddb-spec.md): append-only stream grammar and reader/writer behavior.
-- [Dialect proposals](docs/proposals/): how this repository's dialect differs from the original TOON project and why each extension exists.
+- [v4.1 migration notes](docs/migration-v4.md): breaking changes for downstream consumers of the former v3.3 baseline (path expansion and key folding removed, strict mode hardened).
+- [Design-history proposals](docs/proposals/): the design history behind each extension — including the mechanisms the official spec absorbed at v4.1.
 
 ---
 
@@ -220,7 +224,7 @@ Details: [`crates/tq`](crates/tq), [release assets](https://github.com/reddb-io/
 
 ### RedDB Toon — VS Code extension
 
-Declarative syntax highlighting for `.toon` and `.toonl` files, plus `toon`/`toonl` fenced code blocks in Markdown. The TextMate grammars cover TOON v3.3 with all five RedDB wire extensions, and TOONL v0.1/v0.2 including trailers, continuation headers, named schemas, and tagged rows. Escape mistakes and the reserved TOONL `- ` prefix show up as errors while you type.
+Declarative syntax highlighting for `.toon` and `.toonl` files, plus `toon`/`toonl` fenced code blocks in Markdown. The TextMate grammars cover TOON v4.1 with the RedDB wire extensions, and TOONL v0.1/v0.2 including trailers, continuation headers, named schemas, and tagged rows. Escape mistakes and the reserved TOONL `- ` prefix show up as errors while you type.
 
 Use it when reading or writing TOON documents, TOONL streams, or the spec documents in [`docs/`](docs/) inside VS Code.
 
@@ -251,7 +255,8 @@ Details: [`packages/vscode-toon`](packages/vscode-toon), [TOON spec companion](d
 | Performance methodology and reports | [`benchmarks/`](benchmarks/) |
 | TOON format detail | [`docs/toon-official-spec.md`](docs/toon-official-spec.md) and [`docs/toon-reddb-spec.md`](docs/toon-reddb-spec.md) |
 | TOONL stream detail | [`docs/toonl-reddb-spec.md`](docs/toonl-reddb-spec.md) |
-| RedDB dialect proposals | [`docs/proposals/`](docs/proposals/) |
+| Extension design history | [`docs/proposals/`](docs/proposals/) |
+| v4.1 migration notes | [`docs/migration-v4.md`](docs/migration-v4.md) |
 | JavaScript and TypeScript package | [`packages/toon`](packages/toon) |
 | Rust format crate | [`crates/toon`](crates/toon) |
 | CLI crate and binary | [`crates/tq`](crates/tq) |

@@ -1,7 +1,9 @@
 # Proposal — Keyed-map collapse
 
+> **Design history — absorbed by the official spec.** The mechanism described here was adopted into the official TOON specification at **v4.1** (upstream RFC [spec#57](https://github.com/toon-format/spec/issues/57)). The official syntax and semantics now govern; this document is retained as design history and carries no independent normative weight. See [ADR 0005](../../.red/adr/0005-rebase-on-spec-v4-1-with-event-based-decoders.md) and the [migration notes](../migration-v4.md).
+
 **Stage:** 4 — graduated
-**Status:** graduated into `toon-reddb-spec.md` as Extension 2; decode always-on, encode opt-in, fail-closed.
+**Status:** absorbed into official TOON spec v4.1 (was Extension 2 in the reddb flavor); design history.
 **Spec section:** [Extension 2 — Keyed-map collapse](../toon-reddb-spec.md#extension-2--keyed-map-collapse)
 **Upstream RFC:** [toon-format/spec#57](https://github.com/toon-format/spec/issues/57)
 **Repo issues / PRs:** —

@@ -1,6 +1,6 @@
-# TOON — reddb-io Flavored Specification
+# TOON v4.1 — reddb-io opt-in extensions
 
-**tl;dr.** This document specifies five opt-in extensions (nested tabular headers, keyed-map collapse, primitive-array columns, object-array columns, cyclic discriminated arrays), delimiter choice, and robustness features (depth guard, `detectTruncation` API) that reddb-io layers over TOON v3.3. All extensions decode always-on and fail closed, so output remains canonical TOON v3.3 by default. We thank the [toon-format](https://github.com/toon-format/spec) team and author Johann Schopplich for a standard clean enough to extend safely.
+**tl;dr.** This document specifies the opt-in extensions that reddb-io layers over the official **TOON v4.1** baseline: primitive-array columns, object-array columns, cyclic discriminated arrays, delimiter choice, and robustness features (depth guard, `detectTruncation` API). Two mechanisms this repository once defined — nested tabular headers and keyed-map collapse — were **absorbed by the official spec at v4.1** (as nested field groups / keyed tabular form); their sections below are retained as design history and the official spec now governs them. All surviving extensions decode always-on and fail closed, so output remains canonical TOON v4.1 by default. See the [v4.1 migration notes](migration-v4.md) for the breaking changes from the former v3.3 baseline. We thank the [toon-format](https://github.com/toon-format/spec) team and author Johann Schopplich for a standard clean enough to extend safely.
 
 ## Acknowledgment
 
@@ -10,21 +10,24 @@ over **TOON**, the Token-Oriented Object Notation. TOON is the work of the
 Schopplich, released under the MIT License; we are grateful for a base
 specification that is deterministic, minimally-quoted, and clean enough that our
 additions can be strict, opt-in, and always backward-compatible. Nothing here
-replaces TOON v3.3 or changes its meaning: the extensions below are *decode
-always-on, encode opt-in*, they *fail closed* against a strict v3.3 decoder, and
-they *round-trip losslessly*. The default output of every reddb-io implementation
-is canonical TOON v3.3, byte-identical to a spec-only implementation. Our thanks
-to the toon-format team for the standard this document builds on.
+replaces the official **TOON v4.1** specification or changes its meaning: the
+surviving extensions below are *decode always-on, encode opt-in*, they *fail
+closed* against a strict v4.1 decoder, and they *round-trip losslessly*. The
+default output of every reddb-io implementation is canonical TOON v4.1,
+byte-identical to a spec-only implementation. Our thanks to the toon-format team
+for the standard this document builds on.
 
 ## Introduction
 
-This is the normative specification of the TOON *dialect* implemented by this
-repository — the reddb-io flavor. It answers, precisely: which official
+This is the normative specification of the opt-in *extensions* this repository
+layers on the official TOON v4.1 baseline — the reddb-io flavor. It is not a
+competing dialect: the baseline is plain TOON v4.1, and these extensions are
+strictly additive and opt-in on encode. It answers, precisely: which official
 specification we implement, what we add on top of it, and what compatibility is
 guaranteed between the two. It absorbs and replaces the repository's former
 standalone TOON-extensions document.
 
-For an annotated, section-by-section companion to the official TOON v3.3 spec and
+For an annotated, section-by-section companion to the official TOON spec and
 how our implementations conform to it, see [`toon-official-spec.md`](toon-official-spec.md). For our
 streaming layer, see [`toonl-reddb-spec.md`](toonl-reddb-spec.md).
 
@@ -54,19 +57,22 @@ RECOMMENDED, MAY, and OPTIONAL are to be interpreted as described in RFC 2119.
 ## Baseline: the official TOON specification
 
 The official TOON specification is `SPEC.md` in
-[toon-format/spec](https://github.com/toon-format/spec) (Working Draft **v3.3**,
-dated 2026-05-21), vendored in this repository as the `vendor/toon-spec` git
-submodule. The submodule pin — commit
-`f55b93ac489f297ff597d95e4c19ae84675eaeb7` — is the exact revision our
-conformance suite runs against. Both implementations (the Rust crate
-`reddb-io-toon` and the JS package `@reddb-io/toon`) pass **100% of the official
-spec corpus** at that pin, and CI enforces it.
+[toon-format/spec](https://github.com/toon-format/spec) (**v4.1**), vendored in
+this repository as the `vendor/toon-spec` git submodule. The submodule pin — the
+v4.1.1 checkpoint (`vendor/toon-spec` at `62f16b3`, `vendor/toon` at `a9e6d97`)
+— is the exact revision our conformance suite targets. Both implementations (the
+Rust crate `reddb-io-toon` and the JS package `@reddb-io/toon`) target **100% of
+the official v4 spec corpus** at that checkpoint, and CI enforces it. v4.1
+absorbed two mechanisms this repository once defined as extensions — nested
+tabular headers (nested field groups, RFC spec#46) and keyed-map collapse (keyed
+tabular form, RFC spec#57) — so those are now part of the baseline rather than
+reddb additions.
 
-Unless explicitly stated in this document, **TOON v3.3 governs**. This document
-changes no v3.3 semantics: every valid v3.3 document decodes here with identical
-meaning, and the **default encoder output is canonical TOON v3.3, byte-identical
-to a spec-only implementation** — the extensions below never appear in output
-unless explicitly enabled.
+Unless explicitly stated in this document, **TOON v4.1 governs**. This document
+changes no v4.1 semantics: every valid v4.1 document decodes here with identical
+meaning, and the **default encoder output is canonical TOON v4.1, byte-identical
+to a spec-only implementation** — the surviving extensions below never appear in
+output unless explicitly enabled.
 
 ## The extension model
 
@@ -76,24 +82,28 @@ the contract of the reddb-io flavor:
 - **Decoding is always on.** A decoder in this repository MUST accept the extended
   forms without any flag.
 - **Encoding is opt-in.** An encoder MUST NOT emit an extended form unless the
-  caller enabled it. With no options set, output is canonical v3.3.
-- **Strict-v3 behavior is explicit.** Extensions 1 through 4 are fail-closed:
-  their extended forms are syntax errors for a spec-only v3.3 decoder, so a
-  document using them is rejected. Extension 5 deliberately uses ordinary TOON
-  syntax; a strict v3.3 decoder reads the literal grouped object and does not
-  reconstruct the source array.
+  caller enabled it. With no options set, output is canonical v4.1.
+- **Strict behavior is explicit.** The surviving fail-closed extensions
+  (primitive-array columns and object-array columns) express forms that are
+  syntax errors for a spec-only v4.1 decoder, so a document using them is
+  rejected rather than misread. (Nested tabular headers and keyed-map collapse
+  are no longer fail-closed extensions: their forms were absorbed into the
+  official spec at v4.1 and a conformant v4.1 decoder reads them natively.)
+  Cyclic discriminated arrays deliberately use ordinary TOON syntax; a strict
+  v4.1 decoder reads the literal grouped object and does not reconstruct the
+  source array.
 - **Lossless round-trip, unconditionally.** `decode(encode(x, opts)) == x` for
   every JSON value `x` and every combination of extension options. Values that do
-  not fit an extension's eligibility rule fall back to standard v3.3 forms.
+  not fit an extension's eligibility rule fall back to standard TOON v4.1 forms.
 
 The asymmetry is deliberate: turning *decoding* on always costs nothing to a
 producer that never emits the forms, while keeping *encoding* opt-in guarantees
-that a naïve pipeline can never accidentally emit an extension. For Extensions 1
-through 4, fail-closed rather than fail-open is the safety property that makes
-"decode always-on" tolerable: a strict v3.3 decoder confronted with an extended
-form errors loudly instead of quietly reading a different shape. Extension 5's
-safety property is explicit literal read: the strict reader sees the grouped
-metadata object, not the reconstructed event array.
+that a naïve pipeline can never accidentally emit an extension. For the
+fail-closed extensions, fail-closed rather than fail-open is the safety property
+that makes "decode always-on" tolerable: a strict v4.1 decoder confronted with an
+extended form errors loudly instead of quietly reading a different shape. The
+cyclic-discriminated-arrays safety property is explicit literal read: the strict
+reader sees the grouped metadata object, not the reconstructed event array.
 
 ### Enabling emission, per surface
 
@@ -103,20 +113,18 @@ metadata object, not the reconstructed event array.
 | Rust — `to_toon_with_options(EncodeOptions)` | `delimiter: ',' \| '\t' \| '\|'` | `nested_tabular_headers: true` | `keyed_map_collapse: true` | `primitive_array_columns: true` | `object_array_columns: true` | `cyclic_discriminated_arrays: true` |
 | `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | `--nested-tabular-headers` | `--keyed-map-collapse` | `--primitive-array-columns` | `--object-array-columns` | `--cyclic-discriminated-arrays` |
 
-Delimiter choice is pure TOON v3.3 for arrays and tabular rows: encoders emit the active-delimiter declaration in the header (`[N|]`, `[N\t]`, and matching field lists) and quote cells that contain the active delimiter. The keyed-map collapse extension mirrors that declaration at the start of its field list, for example `map{|id|name}:`, so extension rows remain self-describing.
+Delimiter choice is pure TOON v4.1 for arrays and tabular rows: encoders emit the active-delimiter declaration in the header (`[N|]`, `[N\t]`, and matching field lists) and quote cells that contain the active delimiter. The keyed-map collapse extension mirrors that declaration at the start of its field list, for example `map{|id|name}:`, so extension rows remain self-describing.
 
 ## Extension 1 — Nested tabular headers
 
-> **Proposal history:** [Nested tabular headers](proposals/nested-tabular-headers.md) — **stage 4 (graduated)**. That proposal records the motivation, frozen grammar, how to test it, measured numbers, and links to the upstream RFC and this repo's issues/PRs. This section is the normative definition.
+> **Design history — absorbed by the official spec at v4.1.** This mechanism was adopted into the official TOON specification at v4.1 (as *nested field groups*, upstream RFC [toon-format/spec#46](https://github.com/toon-format/spec/issues/46)). The official v4.1 syntax and semantics now govern; the description below is retained as design history of how the reddb flavor first shipped it, and the [proposal](proposals/nested-tabular-headers.md) records the motivation, frozen grammar, and measured numbers. The reddb encoder still exposes `nestedTabularHeaders` as an opt-in that emits this now-official form.
 
-*Origin: upstream RFC [toon-format/spec#46](https://github.com/toon-format/spec/issues/46).*
-
-v3.3's tabular form (`key[N]{fields}:`) requires every column to be a primitive.
+The tabular form (`key[N]{fields}:`) requires every column to be a primitive.
 This extension lets a column itself be a uniform nested object, declared
 recursively in the header as `field{sub1,sub2}`. Rows stay flat
 delimiter-separated lines; the header alone encodes the nested shape.
 
-**Example — nested tabular headers (v3.3-equivalent expanded form below):**
+**Example — nested tabular headers (baseline expanded form below):**
 
 ```toon
 orders[2]{id,customer{name,country},total}:
@@ -124,7 +132,7 @@ orders[2]{id,customer{name,country},total}:
   2,Bob,US,20
 ```
 
-decodes exactly as the v3.3 expanded form of:
+decodes exactly as the baseline expanded form of:
 
 ```json
 {"orders": [
@@ -133,7 +141,7 @@ decodes exactly as the v3.3 expanded form of:
 ]}
 ```
 
-**V3.3-compatible expanded form (no extension):**
+**Baseline expanded form (no extension):**
 
 ```toon
 orders[2]:
@@ -164,11 +172,11 @@ Rules:
 
 ## Extension 2 — Keyed-map collapse
 
-> **Proposal history:** [Keyed-map collapse](proposals/keyed-map-collapse.md) — **stage 4 (graduated)**. The proposal documents the deliberate absence of an `[N]` entry count and the entry-count guardrail trade-off in full, alongside the upstream RFC and repo links.
+> **Design history — absorbed by the official spec at v4.1.** This mechanism was adopted into the official TOON specification at v4.1 (as the *keyed tabular form*, upstream RFC [toon-format/spec#57](https://github.com/toon-format/spec/issues/57)). The official v4.1 syntax and semantics now govern; the description below is retained as design history, and the [proposal](proposals/keyed-map-collapse.md) documents the deliberate absence of an `[N]` entry count and the entry-count guardrail trade-off in full. The reddb encoder still exposes `keyedMapCollapse` as an opt-in that emits this now-official form.
 
 *Origin: upstream RFC [toon-format/spec#57](https://github.com/toon-format/spec/issues/57).*
 
-Arrays of uniform objects get table-collapse in v3.3; keyed object *maps* with
+Arrays of uniform objects get table-collapse in the baseline; keyed object *maps* with
 uniform values do not, so every field name repeats once per entry. This extension
 gives uniform maps the same treatment, reusing the recursive-brace header grammar
 — no new sigil family:
@@ -190,7 +198,7 @@ decodes to an object map (not an array):
 }}
 ```
 
-**V3.3-compatible expanded form (no extension):**
+**Baseline expanded form (no extension):**
 
 ```toon
 people:
@@ -214,16 +222,17 @@ config:
 {"config": {"timeout": 30, "retries": 3}}
 ```
 
-> **Note:** A single-entry map stays in ordinary v3.3 form even with the extension enabled, because the entry-count guardrail requires ≥2 entries for collapse eligibility.
+> **Note:** A single-entry map stays in ordinary object form even with the extension enabled, because the entry-count guardrail requires ≥2 entries for collapse eligibility.
 
 Rules:
 
 - The header is `key{fields}:` — object-typed because there is **no `[N]`
-  segment**. A strict v3.3 decoder rejects it (fail-closed) instead of reading a
-  different shape.
+  segment**. Before v4.1 absorbed this form, a strict spec-only decoder rejected
+  it (fail-closed) instead of reading a different shape; a conformant v4.1
+  decoder now reads it natively.
 - Each row is `mapKey: cells`, one line per entry, indented one level. Map keys in
-  row position follow the standard v3.3 key-quoting rules.
-- Non-uniform maps stay in the ordinary v3.3 object form. Round-trip is lossless
+  row position follow the standard TOON v4.1 key-quoting rules.
+- Non-uniform maps stay in the ordinary object form. Round-trip is lossless
   in every case.
 - Nested (recursive) leaves are eligible only when [nested tabular
   headers](#extension-1--nested-tabular-headers) is **also** enabled.
@@ -249,14 +258,14 @@ until there is real repetition to amortize. The trade-off is that a producer
 emitting maps of size one never sees the collapsed form even with the option on;
 this is intentional and keeps the encoder's output stable and predictable rather
 than flipping shape at a size-one boundary. Round-trip is lossless either way,
-because a non-collapsed map is just standard v3.3.
+because a non-collapsed map is just standard TOON v4.1.
 
 ## Extension 3 — Primitive-array columns
 
 > **Proposal history:** [Primitive-array columns](proposals/primitive-array-columns.md) — **stage 4 (graduated)**, landed via [#100](https://github.com/reddb-io/toon/pull/100) / [#101](https://github.com/reddb-io/toon/pull/101). The proposal carries the frozen grammar, the per-cell list-length caveat, and the measured token/byte wins.
 
 Uniform object arrays sometimes contain fields whose values are arrays of
-primitive scalars. TOON v3.3 cannot keep that containing array tabular, because
+primitive scalars. TOON v4.1 cannot keep that containing array tabular, because
 the array-valued field is not itself primitive. This extension lets an otherwise
 tabular object array declare such a field as a primitive-list cell:
 
@@ -292,7 +301,7 @@ only when **all** of the following hold:
 4. the list sub-delimiter differs from the active row delimiter.
 
 Null list fields, mixed scalar/object list items, sparse rows, and heterogeneous
-object shapes fall back to ordinary TOON v3.3. The encoder MUST NOT raise an
+object shapes fall back to ordinary TOON v4.1. The encoder MUST NOT raise an
 error for ordinary ineligible data.
 
 Quoting follows the scalar cell rules. A string item is quoted when it would need
@@ -314,7 +323,7 @@ malformed quoted subcell is still rejected by the quote scanner.
 > **Proposal history:** [Child tables + matrix](proposals/child-tables-and-matrix.md) — **stage 4 (graduated)**, landed via [#102](https://github.com/reddb-io/toon/pull/102) / [#103](https://github.com/reddb-io/toon/pull/103). The proposal covers the recursive child-table grammar and documents the fixed-width matrix form as *not recommended* for a token win.
 
 Uniform object arrays sometimes contain fields whose values are themselves
-arrays of uniform objects. TOON v3.3 must expand the parent rows because the
+arrays of uniform objects. TOON v4.1 must expand the parent rows because the
 child array is not primitive. This extension keeps the parent table and emits
 the child rows immediately below the parent row. The parent cell stores the
 child row count:
@@ -329,7 +338,7 @@ orders[2|]{id|customer|items{sku|quantity|components{part|lot|ok}}}:
   ord_002|cust_b|0
 ```
 
-This decodes to the same JSON shape as the expanded TOON v3.3 list form:
+This decodes to the same JSON shape as the expanded TOON v4.1 list form:
 `orders[].items[]` is an object array, and `items[].components[]` is another
 object array. The grammar is recursive:
 
@@ -353,7 +362,7 @@ form only when **all** of the following hold:
 
 If any row contains a scalar child value, a mixed object/scalar child array, a
 heterogeneous child object shape, or a depth violation, the encoder falls back
-losslessly to ordinary TOON v3.3.
+losslessly to ordinary TOON v4.1.
 
 The same header form also carries fixed-width primitive matrices. A root or
 field value shaped as a uniform non-empty list of primitive lists MAY encode as:
@@ -373,7 +382,7 @@ decodes back to a row array, not an object wrapper.
 > **Proposal history:** [Cyclic discriminated arrays](proposals/cyclic-discriminated-arrays.md) — **stage 4 (graduated)**, landed via [#150](https://github.com/reddb-io/toon/issues/150) / [#151](https://github.com/reddb-io/toon/issues/151). The proposal records the rejected broader heterogeneous-array design, the frozen complete-cycle grammar, and the shipped benchmark re-measurement.
 
 Strongly cyclic event streams repeat a discriminator such as `type`, `kind`, or
-`event` in a stable order. TOON v3.3 repeats that discriminator in every row.
+`event` in a stable order. TOON v4.1 repeats that discriminator in every row.
 This extension emits an ordinary nested TOON object whose metadata fields carry
 the original interleaving and whose tabular sub-tables group rows by
 discriminator label. Scalar common-prefix fields are factored into a shared
@@ -448,7 +457,7 @@ Grammar:
   header MUST include a `.length` guard column plus fixed numeric element paths
   such as `labels.length|labels.0|labels.1`. Non-uniform nested object shapes,
   non-uniform array lengths, nested arrays, and mixed scalar/object paths are
-  ineligible for this extension and fall back to canonical TOON v3.3.
+  ineligible for this extension and fall back to canonical TOON v4.1.
 
 Decoding is always-on for the extension grammar. A malformed cyclic object,
 missing metadata field, duplicate metadata field, invalid order expression,
@@ -461,10 +470,10 @@ each row as:
 { [discriminator]: label, ...commonRow, ...groupPayload }
 ```
 
-A strict TOON v3.3 decoder has no knowledge of this extension and therefore
+A strict TOON v4.1 decoder has no knowledge of this extension and therefore
 MUST read the wire literally as the nested object shown above: scalar `order`,
 `discriminator`, and `rows` fields plus ordinary tabular fields named `common`
-and by discriminator labels. Strict v3.3 read is not an error and does not
+and by discriminator labels. Strict v4.1 read is not an error and does not
 reconstruct the original array. Extension-aware decoders are required when the
 wire is intended to round-trip back to the source array.
 
@@ -491,7 +500,7 @@ this form only when **all** of the following hold:
    eligible only when they are primitive arrays with the same fixed length across
    all rows in that discriminator sub-table.
 
-Any ordinary ineligible value falls back to canonical TOON v3.3. The encoder
+Any ordinary ineligible value falls back to canonical TOON v4.1. The encoder
 MUST NOT raise an error merely because a value is irregular, too short,
 partially cyclic, random, has non-string discriminator values, lacks an eligible
 discriminator, contains a tail after the last complete cycle, or fails the order
@@ -509,7 +518,7 @@ and 26.9% token reductions for the 24-, 90-, 240-, and 500-row cyclic datasets.
 
 > **Proposal history:** [Delimiter choice](proposals/delimiter-choice.md) — **stage 4 (graduated)**. The proposal records why comma stays the default and when to reach for tab or pipe, with measured trade-offs and the upstream RFC link.
 
-TOON v3.3 supports three delimiters — comma (default), tab (HTAB), and pipe
+TOON v4.1 supports three delimiters — comma (default), tab (HTAB), and pipe
 (`|`) — selected by the encoder as the *document delimiter* and declared per
 array header as the *active delimiter*. The reddb-io flavor makes no change to
 this mechanism and adds no fourth delimiter; our decisions are about *defaults*
@@ -676,7 +685,7 @@ the measured reports.
 
 TOONL ([`toonl-reddb-spec.md`](toonl-reddb-spec.md)) is an independent line-oriented streaming
 extension with its own versioning; it is unaffected by this document. The
-TOONL close-transform continues to target canonical TOON v3.3 documents and does
+TOONL close-transform continues to target canonical TOON v4.1 documents and does
 **not** emit the nested-tabular-header, keyed-map-collapse,
 primitive-array-column, object-array-column, or cyclic-discriminated-array forms
 defined here. The two concerns compose cleanly but are specified separately.
@@ -685,7 +694,7 @@ defined here. The two concerns compose cleanly but are specified separately.
 
 The shared corpora under `tests/` pin both implementations to identical behavior:
 
-- `tests/toon/fixtures/` (live from the `vendor/toon-spec` submodule) — the v3.3
+- `tests/toon/fixtures/` (live from the `vendor/toon-spec` submodule) — the v4.1
   baseline, run by both the Rust crate and the JS package.
 - The extension corpora — encode bytes and decode values for nested tabular
   headers, keyed-map collapse, primitive-array columns, object-array columns, and

@@ -8,7 +8,7 @@
 
 ## Motivation
 
-TOON v3.3 is strongest when an array of objects can be written as one table.
+TOON v4.1 is strongest when an array of objects can be written as one table.
 Discriminated object arrays and nested heterogeneous arrays often miss that
 path: rows share a prefix of common fields, then diverge by `type`, `kind`,
 `action`, or a variant-specific object key. Current TOON therefore falls back

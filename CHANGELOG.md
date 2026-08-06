@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Rebased the baseline on the official TOON spec v4.1.** The former v3.3
+  baseline is retired; the `vendor/toon` / `vendor/toon-spec` submodules are
+  pinned at the v4.1.1 checkpoint, and the decoders are rebuilt as event-based
+  streaming decoders targeting the v4.1 rules (see ADR 0005). The default
+  encoder output is now canonical TOON v4.1.
+- **Two mechanisms were absorbed by the official spec at v4.1** and are no
+  longer reddb-io inventions: nested tabular headers (upstream RFC spec#46,
+  "nested field groups") and keyed-map collapse (upstream RFC spec#57, "keyed
+  tabular form"). The remaining opt-in extensions were re-expressed on the v4.1
+  base and keep their decode-always-on / encode-opt-in / fail-closed contract.
+- **Strict mode was hardened** to the v4.1 authoritative error checklist,
+  including a tightened numeric grammar (leading-zero, `+`-prefixed, bare
+  fractional, and non-finite tokens decode as strings).
+
+### Removed
+
+- **Path expansion** (`expandPaths`) and **key folding** (`keyFolding`) were
+  removed from the spec. `expandPaths` is retained only as a non-normative
+  legacy shim (default off); the encoder never folds. See the
+  [v4.1 migration notes](docs/migration-v4.md) for before/after decode behavior.
+
 ### Fixed
 
 - **TOONL v0.2 support** is now implemented across the Rust crate, JS package,
@@ -38,5 +61,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     new construct, and an R1–R4 traceability map.
 
   Boundaries: v0.2 is not yet implemented in the Rust crate or the JS package
-  (encoders/decoders remain v0.1); the TOON v3.3 document spec is unchanged; no v0.1
+  (encoders/decoders remain v0.1); the base TOON document spec is unchanged by TOONL; no v0.1
   semantics change. Implementation is a follow-up Spec.

@@ -1,7 +1,7 @@
 # Proposal — detectTruncation
 
 **Stage:** 4 — graduated
-**Status:** graduated into `toon-reddb-spec.md`. Diagnostic API; changes no decoded value.
+**Status:** live reddb-io extension on the TOON v4.1 baseline; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md). Diagnostic API; changes no decoded value.
 **Spec section:** [detectTruncation — structured completeness reports](../toon-reddb-spec.md#detecttruncation--structured-completeness-reports)
 **Upstream RFC:** —
 **Repo issues / PRs:** —

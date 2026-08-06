@@ -2,7 +2,7 @@
 
 > **Attribution:** This is RedDB's TypeScript implementation of TOON - not the original project. The TOON format was created by Johann Schopplich; see the [official repo](https://github.com/toon-format/toon), [toon-format/spec](https://github.com/toon-format/spec), and [toonformat.dev](https://toonformat.dev) for the format spec and original project.
 
-TOON v3.3 parser and serializer, plus TOONL v0.2 append-only streaming, in dependency-free ESM.
+TOON v4.1 parser and serializer, plus TOONL v0.2 append-only streaming, in dependency-free ESM.
 
 TOON ([Token-Oriented Object Notation](https://github.com/toon-format/spec)) is JSON's data model in a compact model-facing layout. This package decodes TOON to plain JSON values and encodes them back to canonical TOON. It also implements the reddb-io opt-in extensions specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md) and the TOONL streaming layer specified in [`docs/toonl-reddb-spec.md`](../../docs/toonl-reddb-spec.md).
 
@@ -35,7 +35,7 @@ users[2]{id,name}:
 round-trip true
 ```
 
-- `parse(input, options?)` decodes a TOON document to a JSON value. Options are `indent` (default `2`), `strict` (default `true`), `expandPaths` (`'safe'` expands dotted keys into nested objects), and `maxDepth` (default `1000`; set `0` only for trusted input).
+- `parse(input, options?)` decodes a TOON document to a JSON value. Options are `indent` (default `2`), `strict` (default `true`), `expandPaths` (a non-normative legacy shim, default off; `'safe'` expands dotted keys into nested objects — path expansion was removed from the spec at v4.1, see the [migration notes](../../docs/migration-v4.md)), and `maxDepth` (default `1000`; set `0` only for trusted input).
 - `parseDocument(input, options?)` is the object-root variant and throws when the root is not an object.
 - `serialize(value, options?)` encodes canonical TOON by default: comma delimiter, two-space indent, no key folding, and the same depth guard.
 - `encode` and `decode` are exact aliases of `serialize` and `parse`.
@@ -45,7 +45,7 @@ Strict mode is on by default. It enforces the official TOON error checklist; pas
 
 ### Base Options
 
-- `indent` changes how the parser interprets leading spaces. Serialization stays canonical TOON v3.3 with two-space indentation by default.
+- `indent` changes how the parser interprets leading spaces. Serialization stays canonical TOON v4.1 with two-space indentation by default.
 
 ```js
 import { parse, serialize } from '@reddb-io/toon'
@@ -134,13 +134,13 @@ round-trip true
 
 ### Encode Extensions
 
-All reddb-io extensions decode always-on and encode opt-in. With no options, output remains canonical TOON v3.3. The file carries only content: an option lives at the call site — `serialize(value, { … })` here, `EncodeOptions` in Rust, a flag on `tq` — never inside the document, and decoders recognize the extended forms from shape alone. The extension model is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md).
+All reddb-io extensions decode always-on and encode opt-in. With no options, output remains canonical TOON v4.1. Two of the encoder flags below — `nestedTabularHeaders` and `keyedMapCollapse` — emit forms the official spec absorbed at v4.1 (nested field groups and keyed tabular form); the rest are reddb-io extensions re-expressed on the v4.1 base. The file carries only content: an option lives at the call site — `serialize(value, { … })` here, `EncodeOptions` in Rust, a flag on `tq` — never inside the document, and decoders recognize the extended forms from shape alone. The extension model is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md).
 
 In every example below, the `assert` lines are the guarantees — lossless round-trip, and canonical fallback for ineligible data — kept executable without polluting the output, which is always a plain TOON document.
 
 - `nestedTabularHeaders` emits recursive table headers for uniform nested object columns. Spec: [Nested tabular headers](../../docs/proposals/nested-tabular-headers.md).
 
-Default output, canonical v3.3:
+Default output, canonical v4.1:
 
 ```js
 import { serialize } from '@reddb-io/toon'
@@ -175,7 +175,7 @@ orders[1]{id,customer{name,country},total}:
 
 - `keyedMapCollapse` emits compact rows for object maps whose values are uniform objects. Spec: [Keyed-map collapse](../../docs/proposals/keyed-map-collapse.md).
 
-Default output, canonical v3.3:
+Default output, canonical v4.1:
 
 ```js
 import { serialize } from '@reddb-io/toon'
@@ -221,9 +221,9 @@ people{first,last}:
 ```
 
 - `primitiveArrayColumns` emits primitive list columns such as `tags[;]` inside otherwise tabular object arrays. Spec: [Primitive-array columns](../../docs/proposals/primitive-array-columns.md).
-  By default, or when a row is not eligible, output falls back losslessly to canonical TOON v3.3.
+  By default, or when a row is not eligible, output falls back losslessly to canonical TOON v4.1.
 
-Default output, canonical v3.3:
+Default output, canonical v4.1:
 
 ```js
 import { serialize } from '@reddb-io/toon'
@@ -257,9 +257,9 @@ users[1]{id,tags[;]}:
 ```
 
 - `objectArrayColumns` emits child tables for array-valued object columns. Spec: [Child tables and matrix](../../docs/proposals/child-tables-and-matrix.md).
-  By default, or when a child array is not eligible, output falls back losslessly to canonical TOON v3.3.
+  By default, or when a child array is not eligible, output falls back losslessly to canonical TOON v4.1.
 
-Default output, canonical v3.3:
+Default output, canonical v4.1:
 
 ```js
 import { serialize } from '@reddb-io/toon'
@@ -297,9 +297,9 @@ orders[1]{id,items{sku,qty}}:
 ```
 
 - `cyclicDiscriminatedArrays` emits the specialized wire for eligible top-level event arrays whose discriminator values repeat in a stable cycle. Spec: [Cyclic discriminated arrays](../../docs/proposals/cyclic-discriminated-arrays.md).
-  By default, or when the discriminator order is not eligible, output falls back losslessly to canonical TOON v3.3.
+  By default, or when the discriminator order is not eligible, output falls back losslessly to canonical TOON v4.1.
 
-Default output, canonical v3.3 — the discriminator repeats in every row:
+Default output, canonical v4.1 — the discriminator repeats in every row:
 
 ```js
 import { serialize } from '@reddb-io/toon'
@@ -351,7 +351,7 @@ events[12]:
       id: evt_12
 ```
 
-The same value with `cyclicDiscriminatedArrays: true` — the `order`, `discriminator`, and `rows` fields are data (a strict v3.3 decoder reads them as a literal object), not mode flags:
+The same value with `cyclicDiscriminatedArrays: true` — the `order`, `discriminator`, and `rows` fields are data (a strict TOON v4.1 decoder reads them as a literal object), not mode flags:
 
 ```js
 import assert from 'node:assert/strict'
