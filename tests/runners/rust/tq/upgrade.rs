@@ -12,11 +12,14 @@ use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 /// Comfortably above any version this crate will ever carry, so the release the
 /// server serves always reads as an update.
 const NEWER: &str = "999.1.0";
 const NEW_BINARY: &[u8] = b"#!/bin/sh\necho 'tq 999.1.0'\n";
+const ETXTBSY: i32 = 26;
+const EXEC_RETRY_ATTEMPTS: usize = 50;
 
 // --- the flows the acceptance criteria name ---------------------------------
 
@@ -542,6 +545,31 @@ fn a_double_dash_ends_flag_parsing_for_upgrade() {
     assert_eq!(server.hits(&format!("/api/releases/tags/v{NEWER}")), 1);
 }
 
+#[test]
+fn scratch_execution_recovers_when_the_executable_is_temporarily_busy() {
+    let scratch = Scratch::new("temporarily-busy");
+    let writer = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&scratch.binary)
+        .expect("hold the scratch binary open for writing");
+    let release = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(50));
+        drop(writer);
+    });
+
+    let output = scratch.run_upgrade(&["-z"], &[]);
+
+    release.join().expect("release the scratch binary");
+    assert_eq!(output.status.code(), Some(1), "{}", output.describe());
+    assert!(
+        output
+            .stderr_utf8()
+            .contains("usage: tq upgrade [--check] [VERSION]"),
+        "{}",
+        output.describe()
+    );
+}
+
 // --- fixtures ----------------------------------------------------------------
 
 fn current_version() -> &'static str {
@@ -667,7 +695,20 @@ impl Scratch {
         for (key, value) in env {
             command.env(key, value);
         }
-        command.output().expect("run tq upgrade")
+        let mut retries = 0;
+        loop {
+            match command.output() {
+                Ok(output) => return output,
+                Err(error)
+                    if error.raw_os_error() == Some(ETXTBSY)
+                        && retries < EXEC_RETRY_ATTEMPTS =>
+                {
+                    retries += 1;
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("run tq upgrade: {error}"),
+            }
+        }
     }
 
     fn binary_bytes(&self) -> Vec<u8> {
