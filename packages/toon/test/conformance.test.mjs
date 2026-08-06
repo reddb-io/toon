@@ -125,6 +125,9 @@ function encoderOptions(options) {
   return {
     delimiter: options.delimiter,
     indentSize: options.indentSize ?? options.indent,
+    nestedTabularHeaders: options.nestedTabularHeaders === true,
+    keyedMapCollapse: options.keyedMapCollapse === true,
+    primitiveArrayColumns: options.primitiveArrayColumns === true,
   }
 }
 
@@ -183,8 +186,12 @@ test('official TOON spec fixtures do not regress', () => {
               }
             }
           } else {
-            const encoded = encode(testCase.input, encoderOptions(testCase.options))
-            const decoded = decodeValue(testCase.expected, options)
+            const encoded = official
+              ? encode(testCase.input, encoderOptions(testCase.options))
+              : serialize(testCase.input, encoderOptions(testCase.options))
+            const decoded = official
+              ? decodeValue(testCase.expected, options)
+              : parse(testCase.expected, options)
             passed = encoded === testCase.expected && jsonEqual(decoded, testCase.input)
           }
         } catch (error) {
