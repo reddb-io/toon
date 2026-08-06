@@ -78,11 +78,16 @@ test('every #include resolves to a repository entry or a known scope', () => {
 test('manifest wires languages, grammars, and configurations consistently', () => {
   const languages = manifest.contributes.languages
   assert.deepEqual(languages.map((l) => l.id).sort(), ['toon', 'toonl'])
+  // TOON v4.1 §5.1 adds full-line `#` comment lines; TOONL keeps no comment syntax.
+  const lineCommentByLanguage = { toon: '#', toonl: undefined }
   for (const language of languages) {
     assert.ok(existsSync(path.join(pkgRoot, language.configuration)), language.configuration)
     const configuration = readJson(language.configuration)
-    // TOON and TOONL have no comment syntax; a lineComment here would be a spec bug.
-    assert.equal(configuration.comments, undefined, `${language.id} must not declare comments`)
+    assert.equal(
+      configuration.comments?.lineComment,
+      lineCommentByLanguage[language.id],
+      `${language.id} line comment`
+    )
   }
   const grammarEntries = manifest.contributes.grammars
   for (const entry of grammarEntries) {
@@ -122,6 +127,56 @@ test('toon: array headers match every header shape from the specs', () => {
   for (const line of matching) assert.ok(header.test(line), `header matches: ${line}`)
   const nonMatching = ['key: value', '1,Alice,true', 'people{first,last}:', '[]']
   for (const line of nonMatching) assert.ok(!header.test(line), `header rejects: ${line}`)
+})
+
+test('toon: v4.1 full-line comment lines (§5.1) match, mid-line # is content', () => {
+  const comment = rx(toonGrammar, 'comment')
+  for (const line of ['#', '# a note', '#no space', '   # indented with spaces', '    #']) {
+    assert.ok(comment.test(line), `comment matches: ${JSON.stringify(line)}`)
+  }
+  // A `#` anywhere other than the first non-space position is ordinary content,
+  // and only spaces (never a tab) may precede the `#`.
+  for (const line of ['key: value # not a comment', 'motto: "a # b"', '\t# tab-indented is not a comment', ' x # trailing']) {
+    assert.ok(!comment.test(line), `comment rejects: ${JSON.stringify(line)}`)
+  }
+})
+
+test('toon: v4.1 keyed tabular headers (§9.5) match, plain array headers do not', () => {
+  const keyedTabular = rx(toonGrammar, 'keyed-tabular-header')
+  for (const line of [
+    'users[2:]{id,name}:',
+    '[3:]{a,b}:',
+    'byId[2:|]{name|active}:',
+    'metrics[4:\t]{name\tvalue}:',
+    '"odd key"[2:]{a,b}:',
+    'orders[2:]{id,customer{name,country},total}:',
+    'empty[0:]{f}:',
+    '- rows[2:]{id,qty}:'
+  ]) {
+    assert.ok(keyedTabular.test(line), `keyed-tabular matches: ${line}`)
+  }
+  for (const line of [
+    'users[2]{id,name}:', // plain tabular array header, not keyed
+    'people{first,last}:', // Extension 2 keyed-map collapse, no [N] segment
+    'key[2:]:', // keyed header requires a field list
+    'bad[2|:]{a}:', // colon must sit immediately after the length
+    'lead[03:]{a}:', // leading-zero length is malformed
+    'key: value'
+  ]) {
+    assert.ok(!keyedTabular.test(line), `keyed-tabular rejects: ${line}`)
+  }
+})
+
+test('toon: v4.1 nested field groups (§9.3) match inside tabular and keyed headers', () => {
+  const arrayHeader = rx(toonGrammar, 'array-header')
+  const keyedTabular = rx(toonGrammar, 'keyed-tabular-header')
+  // A field entry may carry its own braced field list, to any depth.
+  assert.ok(arrayHeader.test('orders[2]{id,customer{name,country},total}:'))
+  assert.ok(arrayHeader.test('deep[1]{a{b{c,d}}}:'))
+  assert.ok(keyedTabular.test('byId[2:]{id,customer{name,country},total}:'))
+  // The recursive field-list tokenizer must accept nested braces without throwing.
+  const fieldList = toonGrammar.repository['field-list']
+  assert.ok(fieldList && Array.isArray(fieldList.patterns), 'field-list is a recursive pattern set')
 })
 
 test('toon: keyed-map collapse headers (Extension 2) match', () => {
@@ -220,6 +275,11 @@ test('fixtures parse against the structural patterns they showcase', () => {
   assert.ok(toonSample.some((line) => keyedMap.test(line)), 'sample.toon exercises keyed-map collapse')
   const cycle = rx(toonGrammar, 'cycle')
   assert.ok(toonSample.some((line) => cycle.test(line)), 'sample.toon exercises cycle expressions')
+  // v4.1 forms: full-line comments (§5.1) and keyed tabular headers (§9.5).
+  const comment = rx(toonGrammar, 'comment')
+  assert.ok(toonSample.some((line) => comment.test(line)), 'sample.toon exercises comment lines')
+  const keyedTabular = rx(toonGrammar, 'keyed-tabular-header')
+  assert.ok(toonSample.some((line) => keyedTabular.test(line)), 'sample.toon exercises keyed tabular headers')
 
   const toonlSample = readFileSync(path.join(pkgRoot, 'examples/sample.toonl'), 'utf8').split('\n')
   for (const key of ['segment-header', 'schema-declaration', 'continuation-header', 'trailer', 'tagged-row']) {
