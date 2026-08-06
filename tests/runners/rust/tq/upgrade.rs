@@ -12,14 +12,14 @@ use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Comfortably above any version this crate will ever carry, so the release the
 /// server serves always reads as an update.
 const NEWER: &str = "999.1.0";
 const NEW_BINARY: &[u8] = b"#!/bin/sh\necho 'tq 999.1.0'\n";
 const ETXTBSY: i32 = 26;
-const EXEC_RETRY_ATTEMPTS: usize = 50;
+const EXEC_RETRY_TIMEOUT: Duration = Duration::from_secs(5);
 
 // --- the flows the acceptance criteria name ---------------------------------
 
@@ -553,7 +553,9 @@ fn scratch_execution_recovers_when_the_executable_is_temporarily_busy() {
         .open(&scratch.binary)
         .expect("hold the scratch binary open for writing");
     let release = thread::spawn(move || {
-        thread::sleep(Duration::from_millis(50));
+        // Coverage instrumentation can hold the executable busy for longer
+        // than the original half-second retry window.
+        thread::sleep(Duration::from_millis(750));
         drop(writer);
     });
 
@@ -695,15 +697,14 @@ impl Scratch {
         for (key, value) in env {
             command.env(key, value);
         }
-        let mut retries = 0;
+        let retry_deadline = Instant::now() + EXEC_RETRY_TIMEOUT;
         loop {
             match command.output() {
                 Ok(output) => return output,
                 Err(error)
                     if error.raw_os_error() == Some(ETXTBSY)
-                        && retries < EXEC_RETRY_ATTEMPTS =>
+                        && Instant::now() < retry_deadline =>
                 {
-                    retries += 1;
                     thread::sleep(Duration::from_millis(10));
                 }
                 Err(error) => panic!("run tq upgrade: {error}"),
