@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { VERSION } from '../src/index.js'
+import { VERSION } from '../dist/index.js'
 
 const manifest = JSON.parse(
   readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'),

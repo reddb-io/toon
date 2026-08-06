@@ -27,7 +27,7 @@ import {
   parse,
   parseStream,
   serialize,
-} from '../src/index.js'
+} from '../dist/index.js'
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const FIXTURE_ROOT = join(REPO_ROOT, 'vendor/toon-spec/tests/fixtures')

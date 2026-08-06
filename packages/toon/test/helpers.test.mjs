@@ -8,7 +8,7 @@ import {
   parse,
   projectFields,
   serialize,
-} from '../src/index.js'
+} from '../dist/index.js'
 
 test('appendSummaryField emits one conforming document with summary last', () => {
   const out = appendSummaryField({ service: 'checkout', rows: 3 }, { total: 3, failed: 1 })

@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
-const ENTRY_POINT = fileURLToPath(new URL('../src/index.js', import.meta.url))
+const ENTRY_POINT = fileURLToPath(new URL('../dist/index.js', import.meta.url))
 const READMES = [
   join(REPO_ROOT, 'README.md'),
   join(REPO_ROOT, 'packages/toon/README.md'),
