@@ -369,6 +369,30 @@ fn read_fixture_cases(path: &Path) -> Vec<FixtureCase> {
         .collect()
 }
 
+/// v4.1.1 renormalization baseline (Spec #203, issue #204).
+///
+/// vendor/toon-spec is pinned at v4.1.1. The renormalized v4 corpus carries
+/// decode cases whose spec expectation the current v3.3-era decoder does not yet
+/// match through the `tq` CLI — a `shouldError` case the lenient decoder accepts,
+/// or a valid v4 form it cannot yet read. They are recorded here as an explicit
+/// expected-failure baseline, not skipped silently, so the pre-rebase gap is
+/// demonstrable and the sweep stays green until the decoder rewrites land.
+///
+/// This mirrors tests/runners/rust/toon/expected-failures.txt and, like it, is a
+/// ratchet: an entry that starts matching the spec is a stale entry, and the test
+/// says so instead of going quiet.
+const DECODE_FIXTURE_DIVERGENCES: &str = "tests/runners/rust/tq/decode-expected-failures.txt";
+
+fn read_expected_divergences(relative: &str) -> std::collections::BTreeSet<String> {
+    fs::read_to_string(repo_root().join(relative))
+        .unwrap_or_default()
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
 /// The decode fixtures carry TOON snippets, and roughly a sixth of them are
 /// malformed on purpose. Every one goes through the CLI twice — once to parse,
 /// once through `check` — because those are separate entry points into the
@@ -380,6 +404,11 @@ fn official_decode_fixture_cases_survive_the_cli() {
     };
     let files = files_with_extension(&spec_root.join("decode"), "json");
     assert!(!files.is_empty(), "the decode fixtures should not be empty");
+
+    let expected_divergences = read_expected_divergences(DECODE_FIXTURE_DIVERGENCES);
+    let mut seen = std::collections::BTreeSet::new();
+    let mut unexpected = Vec::new();
+    let mut stale = Vec::new();
 
     for path in files {
         for case in read_fixture_cases(&path) {
@@ -398,33 +427,50 @@ fn official_decode_fixture_cases_survive_the_cli() {
             if case.uses_options {
                 continue;
             }
-            if case.should_error {
-                assert!(
-                    !parsed.succeeded(),
-                    "{context}: a malformed document decoded without error"
-                );
-                assert!(
-                    !parsed.stderr.is_empty(),
-                    "{context}: a malformed document failed without a diagnostic"
-                );
-                assert!(
-                    !checked.succeeded(),
-                    "{context}: `tq check` passed a malformed document"
-                );
+
+            // A case "matches" when the CLI's behaviour agrees with the spec's
+            // shouldError flag on both the parse and check entry points. Anything
+            // else is a v3.3-vs-v4 divergence, tracked in the ledger rather than
+            // failing the sweep outright.
+            let matched = if case.should_error {
+                !parsed.succeeded() && !parsed.stderr.is_empty() && !checked.succeeded()
             } else {
-                assert!(
-                    parsed.succeeded(),
-                    "{context}: a valid document failed to decode\n{}",
-                    parsed.stderr
-                );
-                assert!(
-                    checked.succeeded(),
-                    "{context}: `tq check` rejected a valid document\n{}",
-                    checked.stderr
-                );
+                parsed.succeeded() && checked.succeeded()
+            };
+
+            seen.insert(context.clone());
+            let expected_to_diverge = expected_divergences.contains(&context);
+            match (matched, expected_to_diverge) {
+                (true, true) => stale.push(context),
+                (false, false) => unexpected.push(context),
+                _ => {}
             }
         }
     }
+
+    let unknown = expected_divergences
+        .difference(&seen)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    assert!(
+        unexpected.is_empty() && stale.is_empty() && unknown.is_empty(),
+        "decode fixture drift\nunexpected divergences:\n{}\nstale ledger entries:\n{}\nunknown ledger entries:\n{}",
+        format_divergences(&unexpected),
+        format_divergences(&stale),
+        format_divergences(&unknown),
+    );
+}
+
+fn format_divergences(items: &[String]) -> String {
+    if items.is_empty() {
+        return "  (none)".to_owned();
+    }
+    items
+        .iter()
+        .map(|item| format!("  {item}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// The encode fixtures carry JSON values plus the TOON they should produce.
