@@ -47,6 +47,8 @@ jobs:
         run: corepack enable
       - name: Install
         run: pnpm install --frozen-lockfile
+      - name: Check workspace versions
+        run: pnpm check:versions
       - name: Check source file length
         run: scripts/check-file-length.sh
       - name: Verify deterministic accuracy benchmark
