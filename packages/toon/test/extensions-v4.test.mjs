@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { decode, detectTruncation, encode, jsonToToon, toonToJson } from '../dist/index.js'
+import { decode, detectTruncation, encode, jsonToToon, ToonError, toonToJson } from '../dist/index.js'
 
 const cyclicCorpus = JSON.parse(
   readFileSync(
@@ -16,14 +16,51 @@ const childTableCorpus = JSON.parse(
     'utf8',
   ),
 )
+const primitiveArrayCorpus = JSON.parse(
+  readFileSync(
+    new URL('../../../tests/corpus/wire-efficiency/primitive-array-columns.json', import.meta.url),
+    'utf8',
+  ),
+)
+const truncationCorpus = JSON.parse(
+  readFileSync(new URL('../../../tests/corpus/truncation.json', import.meta.url), 'utf8'),
+)
 
-test('v4 codec cyclic discriminated arrays are opt-in and round-trip', () => {
+test('v4 codec cyclic discriminated arrays reconstruct only with opt-in', () => {
   const fixture = cyclicCorpus.cases[0]
   const encoded = encode(fixture.expected, { cyclicDiscriminatedArrays: true })
 
   assert.equal(encoded, fixture.input.trimEnd())
   assert.notEqual(encode(fixture.expected), encoded)
-  assert.deepEqual(decode(encoded), fixture.expected)
+  assert.deepEqual(decode(encoded), fixture.strictV3Literal)
+  assert.deepEqual(decode(encoded, { cyclicDiscriminatedArrays: true }), fixture.expected)
+})
+
+test('v4 codec primitive array columns use exact extension wire and decode the corpus', () => {
+  for (const fixture of primitiveArrayCorpus.cases) {
+    const encoded = encode(fixture.expected, {
+      primitiveArrayColumns: true,
+    })
+
+    assert.equal(
+      encoded,
+      'items[3]{id,tags[;],quantity}:\n' +
+        '  item_001,hazmat;oversize,60\n' +
+        '  item_002,,0\n' +
+        '  item_003,"frag;ile";null;true,7',
+      fixture.name,
+    )
+    assert.notEqual(encode(fixture.expected), encoded, fixture.name)
+    assert.deepEqual(decode(fixture.input), fixture.expected, fixture.name)
+  }
+
+  for (const fixture of primitiveArrayCorpus.errors) {
+    assert.throws(
+      () => decode(fixture.input),
+      (error) => error?.line === fixture.line && error?.reason === fixture.reason,
+      fixture.name,
+    )
+  }
 })
 
 test('v4 codec child tables are opt-in, fail-closed, and round-trip', () => {
@@ -63,6 +100,33 @@ test('truncation detection understands v4 comments and keyed tables', () => {
     actual: 1,
     message: 'declared 2 rows but received 1',
   })
+
+  for (const fixture of truncationCorpus) {
+    assert.deepEqual(
+      detectTruncation(fixture.input, { format: fixture.format }),
+      fixture.report,
+      fixture.name,
+    )
+  }
+})
+
+test('v4 codec encode and decode enforce exact maximum-depth errors', () => {
+  assert.throws(
+    () => encode({ a: { b: { c: 1 } } }, { maxDepth: 1 }),
+    (error) =>
+      error instanceof ToonError &&
+      error.line === 0 &&
+      error.reason === 'maximum nesting depth exceeded (maxDepth 1)',
+  )
+  assert.throws(
+    () => decode('a:\n  b:\n    c: 1', { maxDepth: 1 }),
+    (error) =>
+      error instanceof ToonError &&
+      error.line === 3 &&
+      error.reason === 'maximum nesting depth exceeded (maxDepth 1)',
+  )
+
+  assert.deepEqual(decode('a:\n  b:\n    c: 1', { maxDepth: 0 }), { a: { b: { c: 1 } } })
 })
 
 test('TOONL whole-document bridges use the v4 codec', () => {

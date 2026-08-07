@@ -14,6 +14,7 @@
 import type { ToonEvent } from '../events.js'
 import { ToonError, toonError } from '../errors.js'
 import { findUnquoted, parseKey, parseScalar } from '../lexical.js'
+import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js'
 
 export interface DecodeStreamOptions {
   indent?: number
@@ -21,11 +22,13 @@ export interface DecodeStreamOptions {
   strict?: boolean
   cyclicDiscriminatedArrays?: boolean
   objectArrayColumns?: boolean
+  maxDepth?: number
 }
 
 interface Ctx {
   indentSize: number
   strict: boolean
+  maxDepth: number
 }
 
 interface Line {
@@ -85,6 +88,7 @@ function classifyLines(source: Iterable<string>, ctx: Ctx): Line[] {
     }
     // Non-strict tab leniency (§12): each leading tab counts as one level.
     depth += tabs
+    checkDepth(depth, number, ctx)
     lines.push({ number, depth, content: raw.slice(i), blankBefore: blankPending })
     blankPending = false
   }
@@ -340,9 +344,13 @@ export function* decodeStreamSync(
   source: Iterable<string>,
   options?: DecodeStreamOptions,
 ): Generator<ToonEvent> {
+  const rawMaxDepth = options?.maxDepth ?? DEFAULT_MAX_DEPTH
   const ctx: Ctx = {
     indentSize: options?.indentSize ?? options?.indent ?? 2,
     strict: options?.strict ?? true,
+    maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY
+      ? 0
+      : Math.max(0, Math.floor(rawMaxDepth)),
   }
   const reader = new Reader(classifyLines(source, ctx))
 
@@ -371,6 +379,7 @@ export function* decodeStreamSync(
     if (ctx.strict) throw error
     headerFailed = true
   }
+  if (header !== null && header !== undefined) assertHeaderDepth(header.fields, first.number, ctx)
 
   if (header !== null && header !== undefined && !headerFailed && header.key === undefined) {
     reader.take(ctx)
@@ -443,6 +452,7 @@ function* emitEntry(
   }
 
   if (header !== null && header !== undefined) {
+    assertHeaderDepth(header.fields, line.number, ctx)
     if (header.key === undefined) {
       if (ctx.strict) {
         throw toonError(line.number, 'keyless header is only valid at the root or as a list item')
@@ -561,6 +571,7 @@ function* emitListItem(reader: Reader, line: Line, ctx: Ctx): Generator<ToonEven
   }
 
   if (header !== null && header !== undefined && header.key === undefined) {
+    assertHeaderDepth(header.fields, line.number, ctx)
     // A keyless non-keyed, non-fields header on a hyphen line is the item
     // itself; a fields-bearing or keyed one is only valid at the root (§6, §10).
     if (header.keyed || header.fields !== undefined) {
@@ -698,6 +709,25 @@ function* emitKeyedObject(reader: Reader, header: Line, info: Header, ctx: Ctx):
 function assertCount(got: number, expected: number, line: number, what: string, ctx: Ctx): void {
   if (ctx.strict && got !== expected) {
     throw toonError(line, `expected ${expected} ${what}, but got ${got}`)
+  }
+}
+
+function checkDepth(depth: number, line: number, ctx: Ctx): void {
+  if (ctx.maxDepth !== 0 && depth > ctx.maxDepth) {
+    throw toonError(line, `maximum nesting depth exceeded (maxDepth ${ctx.maxDepth})`)
+  }
+}
+
+function assertHeaderDepth(
+  fields: FieldNode[] | undefined,
+  line: number,
+  ctx: Ctx,
+  depth = 1,
+): void {
+  if (fields === undefined) return
+  checkDepth(depth, line, ctx)
+  for (const field of fields) {
+    if (field.children !== undefined) assertHeaderDepth(field.children, line, ctx, depth + 1)
   }
 }
 

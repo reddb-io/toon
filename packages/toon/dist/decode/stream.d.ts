@@ -18,6 +18,7 @@ export interface DecodeStreamOptions {
     strict?: boolean;
     cyclicDiscriminatedArrays?: boolean;
     objectArrayColumns?: boolean;
+    maxDepth?: number;
 }
 export interface FieldNode {
     name: string;

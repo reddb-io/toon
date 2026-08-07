@@ -60,11 +60,13 @@ export function buildValueFromEvents(events) {
 }
 export function decodeValue(input, options) {
     let value;
-    if (options?.objectArrayColumns !== false && hasFixedArrayColumnHeader(input)) {
+    if (hasPrimitiveArrayColumnHeader(input) ||
+        (options?.objectArrayColumns !== false && hasFixedArrayColumnHeader(input))) {
         value = parseLegacyExtensions(input, {
             indent: options?.indentSize ?? options?.indent,
             strict: options?.strict,
             cyclicDiscriminatedArrays: false,
+            maxDepth: options?.maxDepth,
         });
     }
     else {
@@ -78,25 +80,30 @@ export function decodeValue(input, options) {
                 indent: options?.indentSize ?? options?.indent,
                 strict: options?.strict,
                 cyclicDiscriminatedArrays: false,
+                maxDepth: options?.maxDepth,
             });
         }
     }
-    return (options?.cyclicDiscriminatedArrays === false
-        ? value
-        : expandCyclicDiscriminatedArrays(value));
+    return (options?.cyclicDiscriminatedArrays === true
+        ? expandCyclicDiscriminatedArrays(value)
+        : value);
+}
+function hasPrimitiveArrayColumnHeader(input) {
+    return headerFieldLists(input).some((fields) => [...fields.matchAll(/\[([^\]]*)\]/g)].some(([, content]) => !/^(?:0|[1-9]\d*)(?:\t|\|)?$/.test(content)));
 }
 function hasFixedArrayColumnHeader(input) {
-    return input.split(/\r?\n/).some((line) => {
+    return headerFieldLists(input).some((fields) => /\[(?:0|[1-9]\d*)(?:\t|\|)?\]/.test(fields));
+}
+function headerFieldLists(input) {
+    return input.split(/\r?\n/).flatMap((line) => {
         const outerClose = line.indexOf(']');
         if (outerClose === -1)
-            return false;
+            return [];
         const fieldsStart = line.indexOf('{', outerClose + 1);
         if (fieldsStart === -1)
-            return false;
-        const fieldsEnd = line.indexOf('}:', fieldsStart + 1);
-        if (fieldsEnd === -1)
-            return false;
-        return /\[(?:0|[1-9]\d*)(?:\t|\|)?\]/.test(line.slice(fieldsStart + 1, fieldsEnd));
+            return [];
+        const fieldsEnd = line.lastIndexOf('}');
+        return fieldsEnd > fieldsStart ? [line.slice(fieldsStart + 1, fieldsEnd)] : [];
     });
 }
 function hasChildTableHeader(input) {

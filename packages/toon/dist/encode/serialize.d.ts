@@ -6,7 +6,9 @@ export interface EncodeOptions {
     indent?: number;
     replacer?: EncodeReplacer;
     cyclicDiscriminatedArrays?: boolean;
+    primitiveArrayColumns?: boolean;
     objectArrayColumns?: boolean;
+    maxDepth?: number;
 }
 /** Encodes normalized JSON using the canonical v4.1 forms. */
 export declare function encode(input: unknown, options?: EncodeOptions): string;
