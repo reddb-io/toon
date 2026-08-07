@@ -25,7 +25,7 @@
       }
     },
     "array-header": {
-      "comment": "TOON v3.3 array header `key[N]{fields}:` — key optional at root, delimiter symbol optional inside the bracket ([N|], [N<TAB>]), field list optional. Not anchored to line start so it also matches after a `- ` list-item prefix. TOON quoting rules keep `[]{}:` out of unquoted text, so a mid-line match can only be a real header.",
+      "comment": "TOON v4.1 array or tabular header `key[N]{fields}:` — key optional at root, delimiter symbol optional inside the bracket ([N|], [N<TAB>]), field list optional. Not anchored to line start so it also matches after a `- ` list-item prefix. TOON quoting rules keep `[]{}:` out of unquoted text, so a mid-line match can only be a real header.",
       "match": "(?:(\"(?:[^\"\\\\]|\\\\.)*\")|([A-Za-z_][A-Za-z0-9_.]*))?(\\[)([0-9]+)?([|;\\t])?(\\])(\\{.*\\})?(:)(?=[ \\t]|$)",
       "captures": {
         "1": { "name": "entity.name.tag.key.quoted.toon" },
@@ -125,7 +125,7 @@
       }
     },
     "string": {
-      "comment": "Double-quoted string with the closed v3.3 escape repertoire; any other escape is invalid. Strings never span lines.",
+      "comment": "Double-quoted string with the closed v4.1 escape repertoire; any other escape is invalid. Strings never span lines.",
       "name": "string.quoted.double.toon",
       "begin": "\"",
       "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.toon" } },
