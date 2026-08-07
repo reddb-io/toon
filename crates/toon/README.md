@@ -10,7 +10,7 @@ explicit methods whose names contain `legacy`.
 
 ```toml
 [dependencies]
-reddb-io-toon = "0.8.0"
+reddb-io-toon = "0.20.0"
 ```
 
 ## Public Model
@@ -101,63 +101,40 @@ Use `parse_legacy`, `parse_legacy_with_options`, `to_legacy_toon`, and
 former codec. `LegacyParseOptions` and `LegacyEncodeOptions` make that boundary
 visible at call sites; path expansion exists only there.
 
-## `nested_tabular_headers`
+## Canonical nested and keyed tables
 
-Use recursive table headers for uniform nested object columns. Spec: [Nested tabular headers](../../docs/proposals/nested-tabular-headers.md).
+Nested field groups and keyed tabular form are released v4.1 features, not
+RedDB extensions. Eligible values use them automatically on the canonical
+path. The compatibility-shaped `nested_tabular_headers` and
+`keyed_map_collapse` fields are deprecated no-ops; they cannot disable or
+enable official syntax.
 
 ```rust
-use reddb_io_toon::{EncodeOptions, Value};
+use reddb_io_toon::Value;
 
-let value = Value::from_json_str(
+let orders = Value::from_json_str(
     r#"{"orders":[{"id":1,"customer":{"name":"Ada","country":"UK"},"total":10.5},{"id":2,"customer":{"name":"Bob","country":"US"},"total":20}]}"#,
 )?;
-
-let off = value.to_canonical_toon();
 assert_eq!(
-    off,
-    "orders[2]:\n  - id: 1\n    customer:\n      name: Ada\n      country: UK\n    total: 10.5\n  - id: 2\n    customer:\n      name: Bob\n      country: US\n    total: 20\n"
-);
-
-let on = value.to_toon_with_options(EncodeOptions {
-    nested_tabular_headers: true,
-    ..EncodeOptions::default()
-});
-assert_eq!(
-    on,
+    orders.to_canonical_toon(),
     "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n"
 );
-assert_eq!(Value::parse_toon(&on)?.to_json_value(), value.to_json_value());
-# Ok::<(), Box<dyn std::error::Error>>(())
-```
 
-If nested object columns are not uniform, the encoder falls back to canonical nested objects.
-
-## `keyed_map_collapse`
-
-Use compact rows for object maps whose values are uniform objects. Spec: [Keyed-map collapse](../../docs/proposals/keyed-map-collapse.md).
-
-```rust
-use reddb_io_toon::{EncodeOptions, Value};
-
-let value = Value::from_json_str(
+let people = Value::from_json_str(
     r#"{"people":{"joe":{"first":"Joe","last":"Schmoe"},"mary":{"first":"Mary","last":"Jane"}}}"#,
 )?;
-
 assert_eq!(
-    value.to_canonical_toon(),
-    "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    last: Jane\n"
+    people.to_canonical_toon(),
+    "people[2:]{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane\n"
 );
-
-let on = value.to_toon_with_options(EncodeOptions {
-    keyed_map_collapse: true,
-    ..EncodeOptions::default()
-});
-assert_eq!(on, "people{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane\n");
-assert_eq!(Value::parse_toon(&on)?.to_json_value(), value.to_json_value());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Maps with non-uniform value objects fall back to canonical nested objects.
+Ineligible shapes fall back losslessly to the corresponding canonical list or
+object form. The design-history proposals record how the repository reached
+[nested field groups](../../docs/proposals/nested-tabular-headers.md) and
+[keyed tabular form](../../docs/proposals/keyed-map-collapse.md); the upstream
+v4.1 specification now governs both.
 
 ## `primitive_array_columns`
 
