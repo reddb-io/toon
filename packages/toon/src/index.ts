@@ -23,6 +23,7 @@ export { buildValueFromEvents, decodeFromLines } from './decode/build.js'
 export type { ToonEvent, ToonEventType } from './events.js'
 export type {
   DecodeOptions,
+  DecodeReviver,
   DecodeStreamOptions,
   Delimiter,
   DelimiterKey,
