@@ -273,7 +273,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
             "--strict" => strict = true,
             "--no-strict" => strict = false,
             // Canonical v4.1 output always uses nested and keyed tabular forms;
-            // retain the old switches as harmless compatibility aliases.
+            // retain the old switches as deprecated no-ops for script compatibility.
             "--nested-tabular-headers" | "--keyed-map-collapse" => {}
             "--primitive-array-columns" => primitive_array_columns = true,
             "--object-array-columns" => object_array_columns = true,
