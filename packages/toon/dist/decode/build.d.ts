@@ -1,6 +1,6 @@
 /**
  * Builds a JSON value tree from the decode event stream — the whole-document
- * convenience over `decodeStreamSync` (ADR 0006). Mirrors upstream's
+ * convenience over `decodeFromLines` (ADR 0006). Mirrors upstream's
  * event-builder layering: the stream is the core, the tree is derived.
  */
 import type { ToonEvent } from '../events.js';

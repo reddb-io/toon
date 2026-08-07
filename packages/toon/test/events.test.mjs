@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
-import { decodeStreamSync } from '../dist/decode/stream.js'
+import { decodeFromLines, decodeStreamSync } from '../dist/index.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixturesDir = join(here, '..', '..', '..', 'tests', 'corpus', 'events')
@@ -34,3 +34,42 @@ for (const file of readdirSync(fixturesDir).filter((name) => name.endsWith('.jso
     })
   }
 }
+
+test('decodeFromLines emits before an async source produces its final line', async () => {
+  let releaseFinalLine
+  const finalLineReady = new Promise((resolve) => {
+    releaseFinalLine = resolve
+  })
+  let finalLineProduced = false
+  async function* lines() {
+    yield 'name: Ada'
+    yield 'active: true'
+    await finalLineReady
+    finalLineProduced = true
+    yield 'role: admin'
+  }
+
+  const events = decodeFromLines(lines())
+  const first = await events.next()
+
+  assert.deepEqual(first, { done: false, value: { type: 'startObject', line: 1 } })
+  assert.equal(finalLineProduced, false)
+  releaseFinalLine()
+  await events.return()
+})
+
+test('decodeFromLines does not complete a synchronous source before its first event', () => {
+  function* lines() {
+    yield 'name: Ada'
+    yield 'active: true'
+    throw new Error('final line was requested')
+  }
+
+  const events = decodeFromLines(lines())
+
+  assert.deepEqual(events.next(), {
+    done: false,
+    value: { type: 'startObject', line: 1 },
+  })
+  events.return()
+})

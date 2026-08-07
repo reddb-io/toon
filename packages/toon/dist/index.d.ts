@@ -11,7 +11,7 @@ export type { TruncationOptions, TruncationReport } from './decode/truncation.js
 export { encode } from './encode/serialize.js';
 export type { EncodeOptions } from './encode/serialize.js';
 export type { EncodeReplacer } from './encode/replacer.js';
-export { decodeStream, decodeStreamSync } from './decode/stream.js';
+export { decodeFromLines, decodeStream, decodeStreamSync } from './decode/stream.js';
 export type { DecodeStreamOptions, FieldNode } from './decode/stream.js';
 export { buildValueFromEvents, decodeValue, decodeValue as decode } from './decode/build.js';
 export type { ToonEvent, ToonEventType } from './events.js';

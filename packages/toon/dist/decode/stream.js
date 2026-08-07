@@ -1,10 +1,12 @@
 /**
  * Event-based streaming decoder (ADR 0006), targeting TOON spec v4.1.
  *
- * Consumes an iterable of TOON lines (without newlines) and yields the six
- * JSON-semantic events, each carrying its 1-based source line. Errors are
- * fail-fast positioned `ToonError`s; strict-mode policy is resolved here at
- * the public boundary.
+ * Consumes TOON lines (without newlines) and yields the six JSON-semantic
+ * events, each carrying its 1-based source line. The parser requests lines on
+ * demand and retains at most two classified content lines: the current line
+ * plus one lookahead needed to distinguish a root scalar from a document.
+ * Errors are fail-fast positioned `ToonError`s; strict-mode policy is resolved
+ * here at the public boundary.
  *
  * Layering (§5–§12): line classification (comments, blanks, indentation) →
  * header grammar (§6) → scope emitters for objects (§8), arrays (§9.1–§9.4),
@@ -20,36 +22,40 @@ function isCommentLine(raw) {
         i++;
     return raw[i] === '#';
 }
-function classifyLines(source, ctx) {
-    const lines = [];
-    let number = 0;
-    let blankPending = false;
-    let firstLine = true;
-    for (let raw of source) {
-        number++;
-        if (firstLine) {
+class LineClassifier {
+    ctx;
+    number = 0;
+    blankPending = false;
+    firstLine = true;
+    constructor(ctx) {
+        this.ctx = ctx;
+    }
+    push(input) {
+        let raw = input;
+        this.number++;
+        if (this.firstLine) {
             // A single leading U+FEFF is a byte-order mark, not content (§12).
             if (raw.startsWith('﻿'))
                 raw = raw.slice(1);
-            firstLine = false;
+            this.firstLine = false;
         }
         if (raw.endsWith('\r'))
             raw = raw.slice(0, -1);
         // Trailing spaces are not part of the line's content (§12).
         raw = raw.replace(/ +$/, '');
         if (raw.trim() === '') {
-            blankPending = true;
-            continue;
+            this.blankPending = true;
+            return undefined;
         }
         if (isCommentLine(raw))
-            continue;
+            return undefined;
         let i = 0;
         let tabs = 0;
         let spaces = 0;
         while (i < raw.length && (raw[i] === ' ' || raw[i] === '\t')) {
             if (raw[i] === '\t') {
-                if (ctx.strict)
-                    throw toonError(number, 'tab used as indentation');
+                if (this.ctx.strict)
+                    throw toonError(this.number, 'tab used as indentation');
                 tabs++;
             }
             else {
@@ -58,22 +64,43 @@ function classifyLines(source, ctx) {
             i++;
         }
         let depth;
-        if (spaces % ctx.indentSize === 0) {
-            depth = spaces / ctx.indentSize;
+        if (spaces % this.ctx.indentSize === 0) {
+            depth = spaces / this.ctx.indentSize;
         }
-        else if (ctx.strict) {
-            throw toonError(number, 'invalid indentation');
+        else if (this.ctx.strict) {
+            throw toonError(this.number, 'invalid indentation');
         }
         else {
-            depth = Math.floor(spaces / ctx.indentSize);
+            depth = Math.floor(spaces / this.ctx.indentSize);
         }
         // Non-strict tab leniency (§12): each leading tab counts as one level.
         depth += tabs;
-        checkDepth(depth, number, ctx);
-        lines.push({ number, depth, content: raw.slice(i), blankBefore: blankPending });
-        blankPending = false;
+        checkDepth(depth, this.number, this.ctx);
+        const line = {
+            number: this.number,
+            depth,
+            content: raw.slice(i),
+            blankBefore: this.blankPending,
+        };
+        this.blankPending = false;
+        return line;
     }
-    return lines;
+}
+function* classifyLines(source, ctx) {
+    const classifier = new LineClassifier(ctx);
+    for (const raw of source) {
+        const line = classifier.push(raw);
+        if (line !== undefined)
+            yield line;
+    }
+}
+async function* classifyLinesAsync(source, ctx) {
+    const classifier = new LineClassifier(ctx);
+    for await (const raw of source) {
+        const line = classifier.push(raw);
+        if (line !== undefined)
+            yield line;
+    }
 }
 const LENGTH_RE = /^(0|[1-9]\d*)$/;
 /**
@@ -285,27 +312,44 @@ function splitCells(content, delimiter, line) {
     cells.push(trimSpaces(content.slice(start)));
     return cells;
 }
+const NEED_LINE = Symbol('need line');
+const MAX_CLASSIFIED_LOOKAHEAD = 2;
 class Reader {
-    lines;
-    index = 0;
+    lines = [];
+    ended = false;
+    previous;
     /** Depth of open header spans — blank lines inside one are strict errors (§12). */
     spanActive = 0;
-    constructor(lines) {
-        this.lines = lines;
+    *peek(offset = 0) {
+        if (offset >= MAX_CLASSIFIED_LOOKAHEAD) {
+            throw new Error(`decoder lookahead exceeds ${MAX_CLASSIFIED_LOOKAHEAD} classified lines`);
+        }
+        while (!this.ended && this.lines.length <= offset) {
+            const line = yield NEED_LINE;
+            if (line === undefined)
+                this.ended = true;
+            else
+                this.lines.push(line);
+        }
+        return this.lines[offset];
     }
-    peek() {
-        return this.lines[this.index];
-    }
-    take(ctx) {
-        const line = this.lines[this.index++];
+    *take(ctx) {
+        const line = yield* this.peek();
+        if (line === undefined)
+            throw new Error('decoder attempted to read past end of input');
+        this.lines.shift();
         if (ctx.strict && this.spanActive > 0 && line.blankBefore) {
             throw toonError(line.number, 'blank line inside a header span');
         }
+        this.previous = line;
         return line;
     }
     lastNumber(fallback) {
-        const previous = this.lines[this.index - 1];
-        return previous === undefined ? fallback : previous.number;
+        return this.previous === undefined ? fallback : this.previous.number;
+    }
+    stop() {
+        this.lines.length = 0;
+        this.ended = true;
     }
 }
 function isKeyValueContent(content, line) {
@@ -322,17 +366,19 @@ function decodeKey(token, line) {
         return token;
     }
 }
-export function* decodeStreamSync(source, options) {
+function decodeContext(options) {
     const rawMaxDepth = options?.maxDepth ?? DEFAULT_MAX_DEPTH;
-    const ctx = {
+    return {
         indentSize: options?.indentSize ?? options?.indent ?? 2,
         strict: options?.strict ?? true,
         maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY
             ? 0
             : Math.max(0, Math.floor(rawMaxDepth)),
     };
-    const reader = new Reader(classifyLines(source, ctx));
-    const first = reader.peek();
+}
+function* parseEvents(ctx) {
+    const reader = new Reader();
+    const first = yield* reader.peek();
     if (first === undefined) {
         yield { type: 'startObject', line: 1 };
         yield { type: 'endObject', line: 1 };
@@ -340,9 +386,12 @@ export function* decodeStreamSync(source, options) {
     }
     if (first.depth !== 0)
         throw toonError(first.number, 'invalid indentation');
+    // Fill the sole lookahead slot before root events so lexical/indentation
+    // failures on the next content line retain their fail-before-event ordering.
+    yield* reader.peek(1);
     // Root form discovery (§5).
     if (first.content === '[]') {
-        reader.take(ctx);
+        yield* reader.take(ctx);
         yield { type: 'startArray', length: 0, line: first.number };
         yield { type: 'endArray', line: first.number };
         yield* expectEndOfDocument(reader, ctx);
@@ -361,7 +410,7 @@ export function* decodeStreamSync(source, options) {
     if (header !== null && header !== undefined)
         assertHeaderDepth(header.fields, first.number, ctx);
     if (header !== null && header !== undefined && !headerFailed && header.key === undefined) {
-        reader.take(ctx);
+        yield* reader.take(ctx);
         if (header.keyed) {
             yield* emitKeyedObject(reader, first, header, ctx);
         }
@@ -371,11 +420,10 @@ export function* decodeStreamSync(source, options) {
         yield* expectEndOfDocument(reader, ctx);
         return;
     }
-    const onlyLine = reader.lines.length === 1;
-    if (onlyLine &&
-        (header === null || headerFailed) &&
-        !isKeyValueContent(first.content, first.number)) {
-        reader.take(ctx);
+    if ((header === null || headerFailed) &&
+        !isKeyValueContent(first.content, first.number) &&
+        (yield* reader.peek(1)) === undefined) {
+        yield* reader.take(ctx);
         yield {
             type: 'primitive',
             value: parseScalar(trimSpaces(first.content), first.number),
@@ -387,23 +435,23 @@ export function* decodeStreamSync(source, options) {
     yield* expectEndOfDocument(reader, ctx);
 }
 function* expectEndOfDocument(reader, ctx) {
-    const trailing = reader.peek();
+    const trailing = yield* reader.peek();
     if (trailing !== undefined && ctx.strict) {
         throw toonError(trailing.number, 'expected end of document');
     }
-    reader.index = reader.lines.length;
+    reader.stop();
 }
 // #region Objects (§8)
 function* emitObject(reader, depth, startLine, ctx) {
     yield { type: 'startObject', line: startLine };
     const seen = new Set();
     while (true) {
-        const line = reader.peek();
+        const line = yield* reader.peek();
         if (line === undefined || line.depth < depth)
             break;
         if (line.depth > depth)
             throw toonError(line.number, 'over-indented line');
-        reader.take(ctx);
+        yield* reader.take(ctx);
         yield* emitEntry(reader, line, line.content, depth, ctx, seen);
     }
     yield { type: 'endObject', line: reader.lastNumber(startLine) };
@@ -447,7 +495,7 @@ function* emitEntry(reader, line, content, depth, ctx, seen) {
     recordKey(seen, key, line.number, ctx);
     yield { type: 'key', key, line: line.number };
     if (rest === '') {
-        const child = reader.peek();
+        const child = yield* reader.peek();
         if (child !== undefined && child.depth > depth) {
             if (child.depth !== depth + 1)
                 throw toonError(child.number, 'over-indented line');
@@ -495,14 +543,14 @@ function* emitArray(reader, header, info, ctx) {
     // List form: items at depth +1, each `- …` or the bare `-` (§9.4, §10).
     let items = 0;
     while (true) {
-        const line = reader.peek();
+        const line = yield* reader.peek();
         if (line === undefined || line.depth <= header.depth)
             break;
         if (line.depth !== header.depth + 1)
             throw toonError(line.number, 'over-indented line');
         if (!line.content.startsWith('- ') && line.content !== '-')
             break;
-        reader.take(ctx);
+        yield* reader.take(ctx);
         if (items === 0)
             reader.spanActive++;
         items++;
@@ -558,12 +606,12 @@ function* emitListItem(reader, line, ctx) {
         const seen = new Set();
         yield* emitEntry(reader, line, trimmed, line.depth + 1, ctx, seen);
         while (true) {
-            const next = reader.peek();
+            const next = yield* reader.peek();
             if (next === undefined || next.depth !== line.depth + 1)
                 break;
             if (next.content.startsWith('- ') || next.content === '-')
                 break;
-            reader.take(ctx);
+            yield* reader.take(ctx);
             yield* emitEntry(reader, next, next.content, line.depth + 1, ctx, seen);
         }
         yield { type: 'endObject', line: reader.lastNumber(line.number) };
@@ -579,14 +627,14 @@ function* emitTabularRows(reader, header, info, ctx) {
     const rowDepth = header.depth + 1;
     let rows = 0;
     while (true) {
-        const line = reader.peek();
+        const line = yield* reader.peek();
         if (line === undefined || line.depth <= header.depth)
             break;
         if (line.depth !== rowDepth)
             throw toonError(line.number, 'over-indented line');
         if (!isRowLine(line.content, info.delimiter, line.number))
             break;
-        reader.take(ctx);
+        yield* reader.take(ctx);
         if (rows === 0)
             reader.spanActive++;
         rows++;
@@ -637,7 +685,7 @@ function* emitKeyedObject(reader, header, info, ctx) {
     const seen = new Set();
     let rows = 0;
     while (true) {
-        const line = reader.peek();
+        const line = yield* reader.peek();
         if (line === undefined || line.depth <= header.depth)
             break;
         if (line.depth !== entryDepth)
@@ -646,10 +694,10 @@ function* emitKeyedObject(reader, header, info, ctx) {
         if (colon === -1) {
             if (ctx.strict)
                 throw toonError(line.number, 'expected a keyed entry row');
-            reader.take(ctx);
+            yield* reader.take(ctx);
             continue;
         }
-        reader.take(ctx);
+        yield* reader.take(ctx);
         if (rows === 0)
             reader.spanActive++;
         rows++;
@@ -690,13 +738,53 @@ function assertHeaderDepth(fields, line, ctx, depth = 1) {
 }
 export { ToonError };
 /**
- * Asynchronously decodes TOON lines into positioned events. Buffers the
- * source lines, then delegates to the sync core — incremental pull-based
- * classification is tracked for the cross-language fixture slice.
+ * Synchronously decodes lines with at most two classified lines of lookahead.
  */
+export function* decodeStreamSync(source, options) {
+    const lines = classifyLines(source, decodeContext(options));
+    const parser = parseEvents(decodeContext(options));
+    let step = parser.next();
+    try {
+        while (!step.done) {
+            if (step.value === NEED_LINE) {
+                const next = lines.next();
+                step = parser.next(next.done ? undefined : next.value);
+            }
+            else {
+                yield step.value;
+                step = parser.next();
+            }
+        }
+    }
+    finally {
+        parser.return();
+        lines.return(undefined);
+    }
+}
+/** Asynchronously decodes lines with the same bounded-lookahead parser. */
 export async function* decodeStream(source, options) {
-    const lines = [];
-    for await (const line of source)
-        lines.push(line);
-    yield* decodeStreamSync(lines, options);
+    const lines = classifyLinesAsync(source, decodeContext(options));
+    const parser = parseEvents(decodeContext(options));
+    let step = parser.next();
+    try {
+        while (!step.done) {
+            if (step.value === NEED_LINE) {
+                const next = await lines.next();
+                step = parser.next(next.done ? undefined : next.value);
+            }
+            else {
+                yield step.value;
+                step = parser.next();
+            }
+        }
+    }
+    finally {
+        parser.return();
+        await lines.return(undefined);
+    }
+}
+export function decodeFromLines(source, options) {
+    return Symbol.asyncIterator in source
+        ? decodeStream(source, options)
+        : decodeStreamSync(source, options);
 }
