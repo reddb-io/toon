@@ -57,10 +57,11 @@ export function createBenchmarkSuite(seed = DEFAULT_SEED) {
   ]
 
   return {
-    version: 1,
+    version: 2,
     seed,
     datasets,
     questions: generateQuestions(employees),
+    generationTasks: generateGenerationTasks(),
   }
 }
 
@@ -129,6 +130,42 @@ function structuralQuestion(datasetId, expected) {
     prompt: STRUCTURAL_PROMPT,
     expected: expected ? 'YES' : 'NO',
     answerType: 'boolean',
+  }
+}
+
+function generateGenerationTasks() {
+  return [
+    generationTask(
+      'release-roster',
+      'Generate a release roster named v4.1 with owners Ada and Grace, and checks syntax and semantics both set to true.',
+      {
+        release: 'v4.1',
+        owners: ['Ada', 'Grace'],
+        checks: { syntax: true, semantics: true },
+      },
+    ),
+    generationTask(
+      'deployment-window',
+      'Generate a deployment window for the encoder service starting at 2026-08-07T18:00:00Z, lasting 30 minutes, with approvers Lin and Noor.',
+      {
+        service: 'encoder',
+        window: {
+          start: '2026-08-07T18:00:00Z',
+          durationMinutes: 30,
+        },
+        approvers: ['Lin', 'Noor'],
+      },
+    ),
+  ]
+}
+
+function generationTask(id, prompt, expected) {
+  return {
+    id,
+    style: 'structured-generation',
+    prompt,
+    promptBudget: 256,
+    expected,
   }
 }
 

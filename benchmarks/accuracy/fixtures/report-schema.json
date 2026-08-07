@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "verification": {
+    "mode": "offline",
+    "reproducible": true,
+    "command": "pnpm benchmark:accuracy:verify",
+    "suiteVersion": 2,
+    "seed": 218
+  },
+  "observations": [
+    {
+      "taskId": "release-roster",
+      "model": "fixture-model",
+      "prompt": "Generate a release roster named v4.1 with owners Ada and Grace, and checks syntax and semantics both set to true.",
+      "promptBudget": 256,
+      "format": "json",
+      "retries": 0,
+      "tokens": { "input": 48, "output": 32, "total": 80 },
+      "syntaxValid": true,
+      "semanticAccuracy": 1,
+      "provenance": {
+        "kind": "non-ci-model-observation",
+        "provider": "fixture",
+        "observedAt": "2026-08-07T00:00:00.000Z"
+      },
+      "rawArtifactRefs": ["raw/release-roster-json-attempt-1.txt"]
+    },
+    {
+      "taskId": "release-roster",
+      "model": "fixture-model",
+      "prompt": "Generate a release roster named v4.1 with owners Ada and Grace, and checks syntax and semantics both set to true.",
+      "promptBudget": 256,
+      "format": "toon",
+      "retries": 0,
+      "tokens": { "input": 48, "output": 27, "total": 75 },
+      "syntaxValid": true,
+      "semanticAccuracy": 1,
+      "provenance": {
+        "kind": "non-ci-model-observation",
+        "provider": "fixture",
+        "observedAt": "2026-08-07T00:00:00.000Z"
+      },
+      "rawArtifactRefs": ["raw/release-roster-toon-attempt-1.txt"]
+    },
+    {
+      "taskId": "deployment-window",
+      "model": "fixture-model",
+      "prompt": "Generate a deployment window for the encoder service starting at 2026-08-07T18:00:00Z, lasting 30 minutes, with approvers Lin and Noor.",
+      "promptBudget": 256,
+      "format": "json",
+      "retries": 1,
+      "tokens": { "input": 62, "output": 58, "total": 120 },
+      "syntaxValid": true,
+      "semanticAccuracy": 1,
+      "provenance": {
+        "kind": "non-ci-model-observation",
+        "provider": "fixture",
+        "observedAt": "2026-08-07T00:00:00.000Z"
+      },
+      "rawArtifactRefs": [
+        "raw/deployment-window-json-attempt-1.txt",
+        "raw/deployment-window-json-attempt-2.txt"
+      ]
+    },
+    {
+      "taskId": "deployment-window",
+      "model": "fixture-model",
+      "prompt": "Generate a deployment window for the encoder service starting at 2026-08-07T18:00:00Z, lasting 30 minutes, with approvers Lin and Noor.",
+      "promptBudget": 256,
+      "format": "toon",
+      "retries": 1,
+      "tokens": { "input": 62, "output": 51, "total": 113 },
+      "syntaxValid": true,
+      "semanticAccuracy": 1,
+      "provenance": {
+        "kind": "non-ci-model-observation",
+        "provider": "fixture",
+        "observedAt": "2026-08-07T00:00:00.000Z"
+      },
+      "rawArtifactRefs": [
+        "raw/deployment-window-toon-attempt-1.txt",
+        "raw/deployment-window-toon-attempt-2.txt"
+      ]
+    }
+  ]
+}
