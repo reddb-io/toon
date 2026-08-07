@@ -8,12 +8,12 @@ extension — no activation code.
 [toon-format](https://github.com/toon-format/spec) team. This extension ships
 under the RedDB name — `reddb-io.reddb-toon`, display name **RedDB Toon** —
 mirroring `@reddb-io/toon` (npm) and `reddb-io-toon` (crates.io), because it
-covers this repository's *flavor* of the format (the five wire extensions and
-TOONL) and deliberately does not claim the plain "toon" name.
+covers the official v4.1 baseline, three userland wire extensions, and TOONL;
+it deliberately does not claim the plain "toon" name.
 
 ## What it highlights
 
-**TOON** (`.toon`, [spec companion](../../docs/toon-official-spec.md)):
+**TOON** (`.toon`, [pinned baseline](../../docs/toon-official-spec.md)):
 
 - Array headers `key[N]{fields}:` with the length marker, the active-delimiter
   symbol (`[N|]`, tab), and the field list.
@@ -21,11 +21,13 @@ TOONL) and deliberately does not claim the plain "toon" name.
   with the closed TOON v4.1 escape repertoire (unknown escapes flag as invalid),
   canonical numbers (leading-zero tokens like `05` stay string-colored, as they
   decode), `true`/`false`/`null`, and the empty array `[]`.
-- All five [reddb-io wire extensions](../../docs/toon-reddb-spec.md): nested
-  tabular headers (`customer{name,country}`), keyed-map collapse
-  (`people{first,last}:`), primitive-array columns (`tags[;]`), object-array
-  columns / fixed-width matrices (`values[3|]`), and cyclic discriminated
-  arrays (`cycle(login,purchase,logout)*2`).
+- Official nested field groups (`customer{name,country}`) and keyed tabular
+  form (`people[2:]{first,last}:`).
+- The three [reddb-io wire extensions](../../docs/toon-reddb-spec.md):
+  primitive-array columns (`tags[;]`), object-array columns / fixed-width
+  matrices (`values[3|]`), and cyclic discriminated arrays
+  (`cycle(login,purchase,logout)*2`). Highlighting an extension does not make
+  it official TOON syntax.
 
 **TOONL** (`.toonl`, [spec](../../docs/toonl-reddb-spec.md)):
 
@@ -39,8 +41,9 @@ A Markdown injection grammar also highlights ```` ```toon ```` and
 ```` ```toonl ```` fenced code blocks — the spec documents in `docs/` are full
 of them.
 
-Neither format has comment syntax, so the language configurations deliberately
-declare none (`#` is data).
+TOON v4.1 full-line comments are highlighted when `#` is the first character
+after zero or more spaces. TOONL has no comment syntax, so its language
+configuration deliberately declares none.
 
 ## Known limits
 
