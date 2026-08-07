@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-08-07",
+  "repositories": {
+    "toon-format/spec": {
+      "branch": "main",
+      "release": {
+        "tag": "v4.1.1",
+        "revision": "62f16b369408180f1faf1cba7da1b46d1f336f12",
+        "prerelease": false
+      },
+      "head": {
+        "revision": "62f16b369408180f1faf1cba7da1b46d1f336f12"
+      },
+      "evidence": {
+        "revision": "62f16b369408180f1faf1cba7da1b46d1f336f12",
+        "paths": [
+          "vendor/toon-spec/tests/fixtures",
+          "tests/runners/rust/tq/corpus.rs",
+          "packages/toon/test/conformance.test.mjs"
+        ]
+      }
+    },
+    "toon-format/toon": {
+      "branch": "main",
+      "release": {
+        "tag": "v4.1.1",
+        "revision": "a9e6d97eca931379824f3b6a1ba8fbfbda7d3c53",
+        "prerelease": false
+      },
+      "head": {
+        "revision": "f06ddca16c8a4ccd091f33d7216c543e10a9c681"
+      },
+      "evidence": {
+        "revision": "a9e6d97eca931379824f3b6a1ba8fbfbda7d3c53",
+        "paths": [
+          "vendor/toon",
+          "packages/toon/test/conformance.test.mjs",
+          "tests/runners/rust/toon/spec_conformance.rs"
+        ]
+      }
+    }
+  },
+  "watchlist": {
+    "toon-format/spec#48": {
+      "repository": "toon-format/spec",
+      "number": 48,
+      "kind": "issue",
+      "title": "[RFC] v4.0: Mixed columnar arrays and omission controls",
+      "lastAuditedRevision": "2026-07-15T09:50:27Z",
+      "lastAuditedState": {
+        "status": "open"
+      },
+      "disposition": "Review only; do not ingest before released specification text",
+      "localImpact": "Reconcile object-array columns and omission extensions with the local v4 surface"
+    },
+    "toon-format/spec#47": {
+      "repository": "toon-format/spec",
+      "number": 47,
+      "kind": "pull_request",
+      "title": "[RFC v4.0] Mixed columnar arrays and omission controls",
+      "lastAuditedRevision": "b5ce4c6619665fb23e38f5ae123bb34277d78172",
+      "lastAuditedState": {
+        "status": "open",
+        "draft": true,
+        "conflict": true
+      },
+      "disposition": "Track as draft evidence only; never treat as released syntax",
+      "localImpact": "Compare any resolved semantics with local array-column proposals and fixtures"
+    },
+    "toon-format/toon#294": {
+      "repository": "toon-format/toon",
+      "number": 294,
+      "kind": "pull_request",
+      "title": "feat: add reviver option for decode",
+      "lastAuditedRevision": "b3e4f61609ee7d676c0066440964a9f01ab767b7",
+      "lastAuditedState": {
+        "status": "open",
+        "draft": false,
+        "conflict": false
+      },
+      "disposition": "Evaluate after merge and release; do not infer reference behavior from an open PR",
+      "localImpact": "Review TypeScript decoder API parity and decide whether Rust needs an analogous hook"
+    },
+    "toon-format/toon#330": {
+      "repository": "toon-format/toon",
+      "number": 330,
+      "kind": "pull_request",
+      "title": "feat(benchmarks): add reproducible generation benchmark",
+      "lastAuditedRevision": "df0870d579d666f4625a004c04517c0c7cc45651",
+      "lastAuditedState": {
+        "status": "open",
+        "draft": false,
+        "conflict": true
+      },
+      "disposition": "Compare methodology after merge; no implementation import",
+      "localImpact": "Check whether local token and runtime benchmark reports need methodology updates"
+    }
+  }
+}
