@@ -3,10 +3,10 @@ import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { encode } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/dist/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
-const OUTPUT = join(REPO_ROOT, 'tests/wire-efficiency/corpora.json')
+const OUTPUT = join(REPO_ROOT, 'tests/corpus/wire-efficiency/corpora.json')
 const SEED = 0x5eed_0096
 
 function mulberry32(seed) {
@@ -167,7 +167,7 @@ const EXT_OPTIONS = {
 function caseEntry({ name, description, value, honestyZeroDelta = false, specTokens = undefined }) {
   const expectedBytes = {
     jsonMin: compactJsonBytes(value),
-    toonV3: toonBytes(value),
+    toonCanonical: toonBytes(value),
     toonTab: toonBytes(value, { delimiter: '\t' }),
     toonExt: toonBytes(value, EXT_OPTIONS),
   }
@@ -187,7 +187,7 @@ const cases = [
     name: 'shipments-500',
     description: 'Flat shipment records; Spec further note baseline includes the tab-delimiter quick win.',
     value: shipments(500, random),
-    specTokens: { toonV3: 21578, hypothetical: 21196, tolerancePct: 5 },
+    specTokens: { toonCanonical: 21578, hypothetical: 21196, tolerancePct: 5 },
   }),
   caseEntry({
     name: 'accounts-300',
@@ -208,19 +208,19 @@ const cases = [
     name: 'tagged-300',
     description: 'Primitive-array column benchmark; opt-in primitive-array columns should beat minified JSON.',
     value: tagged(300, random),
-    specTokens: { jsonMin: 6506, toonV3: 8698, hypothetical: 4325, tolerancePct: 5 },
+    specTokens: { jsonMin: 6506, toonCanonical: 8698, hypothetical: 4325, tolerancePct: 5 },
   }),
   caseEntry({
     name: 'matrix-150x8',
     description: 'Fixed-width primitive matrix benchmark emitted through object-array columns.',
     value: matrix(150, 8, random),
-    specTokens: { jsonMin: 2406, toonV3: 3305, hypothetical: 2707, tolerancePct: 5 },
+    specTokens: { jsonMin: 2406, toonCanonical: 3305, hypothetical: 2707, tolerancePct: 5 },
   }),
   caseEntry({
     name: 'tree3-100',
     description: 'Three-level record tree benchmark for recursive child tables.',
     value: tree3(100, random),
-    specTokens: { jsonMin: 11953, toonV3: 13284, hypothetical: 7484, tolerancePct: 5 },
+    specTokens: { jsonMin: 11953, toonCanonical: 13284, hypothetical: 7484, tolerancePct: 5 },
   }),
   caseEntry({
     name: 'honesty-non-uniform-rows',
@@ -240,12 +240,12 @@ const fixture = {
   version: 1,
   seed: `0x${SEED.toString(16)}`,
   generator: 'scripts/generate_wire_efficiency_corpora.mjs',
-  encodings: ['jsonMin', 'toonV3', 'toonExt'],
+  encodings: ['jsonMin', 'toonCanonical', 'toonExt'],
   notes: [
     'jsonMin is JSON.stringify(value).',
-    'toonV3 is canonical TOON v3 output with no extensions enabled.',
+    'toonCanonical is canonical TOON v4.1 output with no extensions enabled.',
     'toonExt enables the currently shipped nestedTabularHeaders, keyedMapCollapse, primitiveArrayColumns, and objectArrayColumns options.',
-    'honestyZeroDelta cases must keep toonV3 and toonExt byte-identical when ineligible for all shipped extensions.',
+    'honestyZeroDelta cases must keep toonCanonical and toonExt byte-identical when ineligible for all shipped extensions.',
     'specTokens records the Spec #93 Further Notes o200k_base baselines where available; token counting is local-only and not part of CI.',
   ],
   cases,
