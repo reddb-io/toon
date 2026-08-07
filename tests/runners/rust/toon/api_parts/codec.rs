@@ -767,7 +767,92 @@ fn encodes_objects_and_scalars() {
     assert_eq!(Value::Null.to_canonical_toon(), "null");
 }
 
+#[test]
+fn v4_api_covers_strings_readers_events_options_and_positioned_errors() {
+    use reddb_io_toon::{
+        decode, decode_event_reader, decode_with_options, encode, encode_with_options,
+        DecodeOptions, EncodeV4Options, ToonEvent,
+    };
+
+    let input = "# people by handle\npeople{first,last}:\n  ada: Ada,Lovelace\n";
+    let expected = json!({"people": {"ada": {"first": "Ada", "last": "Lovelace"}}});
+    assert_eq!(decode(input).expect("string decode").to_json_value(), expected);
+    assert_eq!(
+        reddb_io_toon::decode_reader(lines(input.as_bytes()))
+            .expect("BufRead decode")
+            .to_json_value(),
+        expected
+    );
+    assert_eq!(
+        decode_with_options(input, &DecodeOptions::default())
+            .expect("option decode")
+            .to_json_value(),
+        expected
+    );
+
+    let events = decode_event_reader(lines(b"answer: 42\n"), &DecodeOptions::default())
+        .collect::<Result<Vec<_>, _>>()
+        .expect("event iteration");
+    assert!(matches!(events.first(), Some(ToonEvent::StartObject { line: 1 })));
+    assert!(matches!(events.last(), Some(ToonEvent::EndObject { line: 1 })));
+
+    let value = Value::from_json_value(json!({
+        "people": {
+            "ada": {"first": "Ada", "last": "Lovelace"},
+            "grace": {"first": "Grace", "last": "Hopper"}
+        }
+    }));
+    let expected_wire =
+        "people{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper";
+    assert_eq!(encode(&value).expect("canonical encode"), expected_wire);
+    assert_eq!(
+        encode_with_options(&value, EncodeV4Options::default()).expect("option encode"),
+        expected_wire
+    );
+
+    let error = decode("items[2]: one\ntrailing: true\n").expect_err("invalid count");
+    assert_eq!(error.line(), 1);
+    assert_eq!(error.reason(), "array count mismatch");
+}
+
+#[test]
+fn common_value_methods_use_v4_and_legacy_methods_are_explicit() {
+    use reddb_io_toon::{LegacyEncodeOptions, LegacyParseOptions};
+
+    let value = Value::from_json_value(json!({
+        "people": {
+            "ada": {"first": "Ada", "last": "Lovelace"},
+            "grace": {"first": "Grace", "last": "Hopper"}
+        }
+    }));
+    assert_eq!(
+        value.to_canonical_toon(),
+        "people{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper"
+    );
+    assert_eq!(
+        value.to_legacy_toon_with_options(LegacyEncodeOptions::default()),
+        "people:\n  ada:\n    first: Ada\n    last: Lovelace\n  grace:\n    first: Grace\n    last: Hopper\n"
+    );
+
+    let dotted = "user.name: Ada\n";
+    assert_eq!(
+        Value::parse_toon(dotted).expect("v4 parse").to_json_value(),
+        json!({"user.name": "Ada"})
+    );
+    assert_eq!(
+        Value::parse_legacy_with_options(
+            dotted,
+            LegacyParseOptions {
+                expand_paths: true,
+                ..LegacyParseOptions::default()
+            },
+        )
+        .expect("legacy parse")
+        .to_json_value(),
+        json!({"user": {"name": "Ada"}})
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Value, Array and Document accessors
 // ---------------------------------------------------------------------------
-
