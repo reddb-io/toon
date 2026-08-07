@@ -515,7 +515,7 @@ fn rejects_the_strict_mode_error_checklist() {
 
 #[test]
 fn reports_the_line_the_error_occurred_on() {
-    let failure = Value::parse_toon("a: 1\nb: 2\nc[2]: x\n").expect_err("length mismatch");
+    let failure = Value::parse_legacy("a: 1\nb: 2\nc[2]: x\n").expect_err("length mismatch");
 
     assert_eq!(failure.line(), 3);
     assert_eq!(failure.message(), "array length mismatch");
@@ -576,7 +576,7 @@ fn canonicalizes_numbers_on_the_way_in_and_back_out() {
         let input = format!("v: {token}");
         assert_eq!(json_of(&input), json!({"v": expected}), "decoding {token}");
         assert_eq!(
-            parse(&input).to_canonical_toon(),
+            parse(&input).to_legacy_toon(),
             format!("v: {canonical}\n"),
             "re-encoding {token}"
         );
@@ -590,7 +590,7 @@ fn leading_zero_tokens_decode_as_strings_and_are_quoted_on_the_way_out() {
         json!({"nums": ["05", "007", "-05", "0123"]})
     );
     assert_eq!(
-        parse("nums[1]: 05").to_canonical_toon(),
+        parse("nums[1]: 05").to_legacy_toon(),
         "nums[1]: \"05\"\n"
     );
 }
@@ -610,7 +610,7 @@ fn quotes_only_the_strings_the_spec_requires() {
         "a,b is fine inside a row cell only when the delimiter differs",
     ];
     for value in bare {
-        let encoded = Value::String(value.to_owned()).to_canonical_toon();
+        let encoded = Value::String(value.to_owned()).to_legacy_toon();
         // Only the comma case needs quoting as an object value, so check the
         // ones with no structural character at all.
         if !value.contains(',') {
@@ -641,7 +641,7 @@ fn quotes_only_the_strings_the_spec_requires() {
     ];
     for (value, expected) in quoted {
         assert_eq!(
-            Value::String(value.to_owned()).to_canonical_toon(),
+            Value::String(value.to_owned()).to_legacy_toon(),
             expected,
             "{value:?} is quoted"
         );
@@ -654,7 +654,7 @@ fn a_trailing_decimal_point_is_not_numeric_like_and_needs_no_quotes() {
     // decide quoting, so unlike "1e-6" or "05" it is written bare. It still
     // round-trips as a string, since the decoder's own number grammar (§4)
     // requires digits after the dot too.
-    assert_eq!(Value::String("1.".to_owned()).to_canonical_toon(), "1.");
+    assert_eq!(Value::String("1.".to_owned()).to_legacy_toon(), "1.");
     assert_eq!(json_of("v: 1.\n"), json!({"v": "1."}));
 }
 
@@ -673,7 +673,7 @@ fn quotes_only_the_keys_the_spec_requires() {
     ];
 
     for (input, expected) in cases {
-        assert_eq!(Value::from_json_value(input).to_canonical_toon(), expected);
+        assert_eq!(Value::from_json_value(input).to_legacy_toon(), expected);
     }
 }
 
@@ -738,11 +738,11 @@ fn encodes_and_reparses_every_array_shape() {
 
     for (input, expected) in cases {
         let value = Value::from_json_value(input.clone());
-        let encoded = value.to_canonical_toon();
+        let encoded = value.to_legacy_toon();
 
         assert_eq!(encoded, expected, "encoding {input}");
         assert_eq!(
-            Value::parse_toon(&encoded)
+            Value::parse_legacy(&encoded)
                 .unwrap_or_else(|error| panic!("re-read {encoded:?}: {error}"))
                 .to_json_value(),
             input,
@@ -753,18 +753,18 @@ fn encodes_and_reparses_every_array_shape() {
 
 #[test]
 fn encodes_objects_and_scalars() {
-    assert_eq!(Value::from_json_value(json!({})).to_canonical_toon(), "");
+    assert_eq!(Value::from_json_value(json!({})).to_legacy_toon(), "");
     assert_eq!(
-        Value::from_json_value(json!({"user": {}})).to_canonical_toon(),
+        Value::from_json_value(json!({"user": {}})).to_legacy_toon(),
         "user:\n"
     );
     assert_eq!(
-        Value::from_json_value(json!({"a": {"b": {"c": "deep"}}})).to_canonical_toon(),
+        Value::from_json_value(json!({"a": {"b": {"c": "deep"}}})).to_legacy_toon(),
         "a:\n  b:\n    c: deep\n"
     );
-    assert_eq!(Value::Bool(true).to_canonical_toon(), "true");
-    assert_eq!(Value::Bool(false).to_canonical_toon(), "false");
-    assert_eq!(Value::Null.to_canonical_toon(), "null");
+    assert_eq!(Value::Bool(true).to_legacy_toon(), "true");
+    assert_eq!(Value::Bool(false).to_legacy_toon(), "false");
+    assert_eq!(Value::Null.to_legacy_toon(), "null");
 }
 
 #[test]
