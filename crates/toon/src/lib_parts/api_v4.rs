@@ -20,7 +20,13 @@ pub fn decode_with_options(
     input: &str,
     options: &DecodeOptions,
 ) -> Result<Value, DecodeError> {
-    decode_value_v4(input, options)
+    let mut value = build_value_from_event_results(decode_event_stream(input, options))?;
+    if options.cyclic_discriminated_arrays {
+        if let Value::Object(document) = value {
+            value = Value::Object(expand_cyclic_discriminated_arrays(document)?);
+        }
+    }
+    Ok(value)
 }
 
 /// Decodes a complete TOON v4.1 value from buffered input.
