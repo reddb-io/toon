@@ -104,11 +104,11 @@
         "objectArrayColumns": true
       },
       "expected": "items[2]{a,kids{x}}:\n  1,1\n    9\n  2,0\n",
-      "sameAsV3": false,
+      "sameAsCanonical": false,
       "failClosedV3Strict": true
     },
     {
-      "name": "all-empty child arrays fall back to v3.3",
+      "name": "all-empty child arrays fall back to canonical v4.1",
       "value": {
         "items": [
           {
@@ -125,7 +125,7 @@
         "objectArrayColumns": true
       },
       "expected": "items[2]:\n  - a: 1\n    kids: []\n  - a: 2\n    kids: []\n",
-      "sameAsV3": true
+      "sameAsCanonical": true
     }
   ],
   "errors": [
