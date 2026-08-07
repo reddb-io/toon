@@ -5,10 +5,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 
-import { encode } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/dist/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
-const FIXTURE_PATH = join(REPO_ROOT, 'tests/wire-efficiency/corpora.json')
+const FIXTURE_PATH = join(REPO_ROOT, 'tests/corpus/wire-efficiency/corpora.json')
 const TOKENIZER_DIR = join(REPO_ROOT, '.red/tmp/wire-efficiency-tokenizer')
 const TOKENIZER_PACKAGE = 'js-tiktoken'
 const EXT_OPTIONS = {
@@ -70,23 +70,23 @@ console.log('-'.repeat(93))
 for (const testCase of fixture.cases) {
   const value = testCase.value
   const jsonMin = JSON.stringify(value)
-  const toonV3 = encode(value)
+  const toonCanonical = encode(value)
   const toonTab = encode(value, { delimiter: '\t' })
   const toonExt = encode(value, EXT_OPTIONS)
   const counts = {
     jsonMin: tokens(encoding, jsonMin),
-    toonV3: tokens(encoding, toonV3),
+    toonCanonical: tokens(encoding, toonCanonical),
     toonTab: tokens(encoding, toonTab),
     toonExt: tokens(encoding, toonExt),
   }
   const spec = testCase.specTokens
-    ? `JSON ${testCase.specTokens.jsonMin ?? '-'} / TOON ${testCase.specTokens.toonV3} / hyp ${testCase.specTokens.hypothetical}`
+    ? `JSON ${testCase.specTokens.jsonMin ?? '-'} / TOON ${testCase.specTokens.toonCanonical} / hyp ${testCase.specTokens.hypothetical}`
     : '-'
   console.log(
     [
       testCase.name.padEnd(26),
       pad(counts.jsonMin, 9),
-      pad(counts.toonV3, 9),
+      pad(counts.toonCanonical, 9),
       pad(counts.toonTab, 9),
       pad(counts.toonExt, 9),
       pad(pct(counts.toonExt - counts.jsonMin, counts.jsonMin), 11),
