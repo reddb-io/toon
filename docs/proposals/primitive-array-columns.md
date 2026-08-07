@@ -1,9 +1,9 @@
 # Proposal — Primitive-array columns
 
 **Stage:** 4 — graduated (landed via [#100](https://github.com/reddb-io/toon/pull/100) / [#101](https://github.com/reddb-io/toon/pull/101))
-**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; decode always-on, encode opt-in, fail-closed; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md) as Extension 3. Upstream RFC [spec#49](https://github.com/toon-format/spec/issues/49) is still OPEN upstream (not absorbed into the official spec).
+**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; decode always-on, encode opt-in, fail-closed; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md) as Extension 3. It has no dedicated upstream RFC; spec#49 was previously linked here incorrectly and was the completed v4 roadmap.
 **Spec section:** [Extension 3 — Primitive-array columns](../toon-reddb-spec.md#extension-3--primitive-array-columns)
-**Upstream RFC:** [toon-format/spec#49](https://github.com/toon-format/spec/issues/49)
+**Upstream RFC:** —
 **Repo issues / PRs:** [#97](https://github.com/reddb-io/toon/issues/97), [#99](https://github.com/reddb-io/toon/issues/99) (grammar freeze), [#100](https://github.com/reddb-io/toon/pull/100), [#101](https://github.com/reddb-io/toon/pull/101); spec [#93](https://github.com/reddb-io/toon/issues/93)
 
 ## Motivation
@@ -121,6 +121,5 @@ large and the failure mode is narrow.
 ## Links
 
 - Spec section: [Extension 3 — Primitive-array columns](../toon-reddb-spec.md#extension-3--primitive-array-columns)
-- Upstream RFC: https://github.com/toon-format/spec/issues/49
 - Repo: issues [#97](https://github.com/reddb-io/toon/issues/97), [#99](https://github.com/reddb-io/toon/issues/99), spec [#93](https://github.com/reddb-io/toon/issues/93); PRs [#100](https://github.com/reddb-io/toon/pull/100), [#101](https://github.com/reddb-io/toon/pull/101)
 - Related: [Child tables + matrix](child-tables-and-matrix.md) froze in the same S3 grammar and shares the error taxonomy and LLM-readability sanity check.
