@@ -86,7 +86,7 @@ implementation status is relevant, it is stated inline.
 plus the four v0.2 capabilities: resumable readers (R1), header-preserving trim
 (R2, `tq trim --keep-last N`), tagged-row multiplexing with both close-transform
 variants (R3), and the side-journal retry pattern (R4) — since registry version
-**0.2.6**. The shared executable corpus under `tests/toonl/fixtures/` pins both
+**0.2.6**. The shared executable corpus under `tests/corpus/toonl/` pins both
 implementations to identical behavior.
 
 ## Identity
@@ -1425,17 +1425,18 @@ whether to accept v0.2 constructs — it accepts them iff it is a v0.2 decoder.
 - TOONL does not change the TOON v4.1 document specification. The close-transform
   continues to map closed TOONL segments to valid TOON v4.1 documents.
 - The reserved `- ` line prefix stays reserved for a future nested-frame syntax.
-- The reddb-io TOON extensions (nested tabular headers, keyed-map collapse) are an
-  independent concern; see
-  [`toon-reddb-spec.md`](toon-reddb-spec.md). The close-transform
-  targets canonical TOON v4.1 and does not emit those forms.
+- RedDB's userland TOON extensions are an independent concern; see
+  [`toon-reddb-spec.md`](toon-reddb-spec.md). The close-transform targets
+  canonical TOON v4.1 and may therefore emit official nested field groups and
+  keyed tabular form, but it does not enable userland wire extensions.
 - For an annotated walk through the official TOON v4.1 specification and how our
   implementations conform to it, see [`toon-official-spec.md`](toon-official-spec.md).
 
 ## Conformance
 
-The shared executable corpus under `tests/toonl/fixtures/` covers decode, encode,
+The shared executable corpus under `tests/corpus/toonl/` covers decode, encode,
 close-transform, and required error cases for the v0.1 base and every v0.2
-capability, and pins the Rust crate and the JS package to identical behavior.
-Implementations SHOULD treat those fixtures as executable examples for TOONL
-behavior.
+capability. Run `node --test packages/toon/test/conformance.test.mjs` and
+`cargo test -p reddb-io-toon --test spec_conformance` to exercise it through
+the two public paths. Implementations SHOULD treat those fixtures as executable
+examples for TOONL behavior.
