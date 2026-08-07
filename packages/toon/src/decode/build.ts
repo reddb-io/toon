@@ -9,14 +9,8 @@ import { decodeFromLines as decodeEventsFromLines } from './stream.js'
 import type { DecodeStreamOptions } from './stream.js'
 import { expandCyclicDiscriminatedArrays } from '../toon_parts/cyclic.js'
 import { parse as parseLegacyExtensions } from '../toon_parts/parse.js'
-
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
+import type { DecodeOptions, JsonValue } from '../types.js'
+import { applyReviver } from './reviver.js'
 
 const UNSET = Symbol('unset')
 
@@ -75,12 +69,14 @@ export function buildValueFromEvents(events: Iterable<ToonEvent>): JsonValue {
 /** Decodes pre-split TOON lines into one JSON value. */
 export function decodeFromLines(
   lines: Iterable<string>,
-  options?: DecodeStreamOptions,
+  options?: DecodeOptions,
 ): JsonValue {
-  return buildValueFromEvents(decodeEventsFromLines(lines, options) as Iterable<ToonEvent>)
+  const value = buildValueFromEvents(decodeEventsFromLines(lines, options) as Iterable<ToonEvent>)
+  return options?.reviver ? applyReviver(value, options.reviver) : value
 }
 
-export function decodeValue(input: string, options?: DecodeStreamOptions): JsonValue {
+export function decodeValue(input: string, options?: DecodeOptions): JsonValue {
+  const { reviver, ...streamOptions } = options ?? {}
   let value: JsonValue
   if (
     hasPrimitiveArrayColumnHeader(input) ||
@@ -94,7 +90,7 @@ export function decodeValue(input: string, options?: DecodeStreamOptions): JsonV
     }) as JsonValue
   } else {
     try {
-      value = decodeFromLines(linesFromString(input), options)
+      value = decodeFromLines(linesFromString(input), streamOptions)
     } catch (error) {
       if (options?.objectArrayColumns === false || !hasChildTableHeader(input)) throw error
       value = parseLegacyExtensions(input, {
@@ -105,9 +101,10 @@ export function decodeValue(input: string, options?: DecodeStreamOptions): JsonV
       }) as JsonValue
     }
   }
-  return (options?.cyclicDiscriminatedArrays === true
+  const decoded = (options?.cyclicDiscriminatedArrays === true
     ? expandCyclicDiscriminatedArrays(value)
     : value) as JsonValue
+  return reviver ? applyReviver(decoded, reviver) : decoded
 }
 
 /** Iterates string lines without allocating a whole-document line array. */

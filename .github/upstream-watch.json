@@ -79,8 +79,8 @@
         "draft": false,
         "conflict": false
       },
-      "disposition": "Evaluate after merge and release; do not infer reference behavior from an open PR",
-      "localImpact": "Review TypeScript decoder API parity and decide whether Rust needs an analogous hook"
+      "disposition": "Experimental TypeScript implementation audited at the pinned PR head; re-audit before adopting any merged or released successor",
+      "localImpact": "Compare PR #294 head, merge state, and the next toon-format/toon release against the experimental reviver semantics and fixtures"
     },
     "toon-format/toon#330": {
       "repository": "toon-format/toon",

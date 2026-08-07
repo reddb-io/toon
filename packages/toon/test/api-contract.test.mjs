@@ -71,6 +71,7 @@ test('generated declarations expose the canonical JSON, delimiter, event, and op
   const declarations = readFileSync(new URL('../dist/index.d.ts', import.meta.url), 'utf8')
   for (const name of [
     'DecodeOptions',
+    'DecodeReviver',
     'Delimiter',
     'DelimiterKey',
     'EncodeOptions',
@@ -84,4 +85,7 @@ test('generated declarations expose the canonical JSON, delimiter, event, and op
   ]) {
     assert.match(declarations, new RegExp(`\\b${name}\\b`))
   }
+
+  const optionDeclarations = readFileSync(new URL('../dist/types.d.ts', import.meta.url), 'utf8')
+  assert.match(optionDeclarations, /reviver\?: DecodeReviver/)
 })

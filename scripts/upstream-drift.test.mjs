@@ -187,3 +187,26 @@ test('release-state changes and a clean snapshot render a deterministic dated re
     ].join('\n'),
   )
 })
+
+test('the experimental reviver frontier flags both PR merge and released-successor drift', () => {
+  const audited = checkpoint()
+  const current = snapshot()
+  current.items['toon-format/toon#294'].state.status = 'merged'
+  current.repositories['toon-format/toon'].release = {
+    tag: 'v4.2.0',
+    revision: 'reviver-release',
+    prerelease: false,
+  }
+  current.repositories['toon-format/toon'].evidence.revision = 'reviver-release'
+
+  const report = evaluateDrift(audited, current, { date: '2026-08-08' })
+  const pull = report.watchlist.find(({ key }) => key === 'toon-format/toon#294')
+  const repository = report.repositories.find(
+    ({ repository: name }) => name === 'toon-format/toon',
+  )
+
+  assert.ok(pull.changes.some(({ kind }) => kind === 'merged'))
+  assert.equal(repository.release.changed, true)
+  assert.equal(repository.conformance.rerunRequired, true)
+  assert.equal(report.hasDrift, true)
+})

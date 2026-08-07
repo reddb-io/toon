@@ -6,6 +6,7 @@
 import { decodeFromLines as decodeEventsFromLines } from './stream.js';
 import { expandCyclicDiscriminatedArrays } from '../toon_parts/cyclic.js';
 import { parse as parseLegacyExtensions } from '../toon_parts/parse.js';
+import { applyReviver } from './reviver.js';
 const UNSET = Symbol('unset');
 export function buildValueFromEvents(events) {
     const stack = [];
@@ -60,9 +61,11 @@ export function buildValueFromEvents(events) {
 }
 /** Decodes pre-split TOON lines into one JSON value. */
 export function decodeFromLines(lines, options) {
-    return buildValueFromEvents(decodeEventsFromLines(lines, options));
+    const value = buildValueFromEvents(decodeEventsFromLines(lines, options));
+    return options?.reviver ? applyReviver(value, options.reviver) : value;
 }
 export function decodeValue(input, options) {
+    const { reviver, ...streamOptions } = options ?? {};
     let value;
     if (hasPrimitiveArrayColumnHeader(input) ||
         (options?.objectArrayColumns !== false && hasFixedArrayColumnHeader(input))) {
@@ -75,7 +78,7 @@ export function decodeValue(input, options) {
     }
     else {
         try {
-            value = decodeFromLines(linesFromString(input), options);
+            value = decodeFromLines(linesFromString(input), streamOptions);
         }
         catch (error) {
             if (options?.objectArrayColumns === false || !hasChildTableHeader(input))
@@ -88,9 +91,10 @@ export function decodeValue(input, options) {
             });
         }
     }
-    return (options?.cyclicDiscriminatedArrays === true
+    const decoded = (options?.cyclicDiscriminatedArrays === true
         ? expandCyclicDiscriminatedArrays(value)
         : value);
+    return reviver ? applyReviver(decoded, reviver) : decoded;
 }
 /** Iterates string lines without allocating a whole-document line array. */
 function* linesFromString(input) {
