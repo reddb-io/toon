@@ -1,4 +1,6 @@
 import { canonicalKey, primitiveText } from '../lexical.js';
+import { toonError } from '../errors.js';
+import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js';
 import { isPlainObject, isPrimitive, normalizeValue } from './normalize.js';
 import { applyReplacer } from './replacer.js';
 import { collectLeaves, keyedFields, tabularFields } from './shape.js';
@@ -10,25 +12,32 @@ export function encode(input, options = {}) {
     if (![',', '|', '\t'].includes(delimiter))
         throw new TypeError('invalid delimiter');
     const indentSize = Math.max(1, Math.floor(options.indentSize ?? options.indent ?? 2));
+    const rawMaxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+    const maxDepth = rawMaxDepth === Number.POSITIVE_INFINITY
+        ? 0
+        : Math.max(0, Math.floor(rawMaxDepth));
     const normalized = normalizeValue(input);
     const value = options.replacer
         ? applyReplacer(normalized, options.replacer)
         : normalized;
+    const resolved = { delimiter, indentSize, maxDepth };
     if (options.cyclicDiscriminatedArrays === true) {
         const cyclic = cyclicDiscriminatedArrayWire(value);
         if (cyclic !== undefined)
             return cyclic.trimEnd();
     }
-    if (options.objectArrayColumns === true) {
+    if (options.primitiveArrayColumns === true || options.objectArrayColumns === true) {
         const extension = serializeLegacyExtensions(value, {
             delimiter,
-            objectArrayColumns: true,
+            primitiveArrayColumns: options.primitiveArrayColumns === true,
+            objectArrayColumns: options.objectArrayColumns === true,
+            maxDepth,
         });
-        const withoutExtension = serializeLegacyExtensions(value, { delimiter });
+        const withoutExtension = serializeLegacyExtensions(value, { delimiter, maxDepth });
         if (extension !== withoutExtension)
             return extension.trimEnd();
     }
-    return encodeValue(value, { delimiter, indentSize }).join('\n');
+    return encodeValue(value, resolved).join('\n');
 }
 function encodeValue(value, options) {
     if (isPrimitive(value))
@@ -41,6 +50,7 @@ function encodeValue(value, options) {
         : encodeKeyed(undefined, value, fields, 0, options);
 }
 function encodeObject(value, depth, options) {
+    checkDepth(depth, options);
     return Object.entries(value).flatMap(([key, nested]) => encodeField(key, nested, depth, options));
 }
 function encodeField(key, value, depth, options) {
@@ -58,7 +68,9 @@ function encodeField(key, value, depth, options) {
     return lines;
 }
 function encodeKeyed(key, value, fields, depth, options) {
+    checkDepth(depth, options);
     const entries = Object.entries(value);
+    checkFieldDepth(fields, depth + 1, options);
     const lines = [
         indentation(depth, options) + header(key, entries.length, fields, options.delimiter, true),
     ];
@@ -71,6 +83,7 @@ function encodeKeyed(key, value, fields, depth, options) {
     return lines;
 }
 function encodeArray(key, value, depth, options) {
+    checkDepth(depth, options);
     const prefix = indentation(depth, options);
     if (value.length === 0)
         return [key === undefined ? `${prefix}[]` : `${prefix}${canonicalKey(key)}: []`];
@@ -90,6 +103,7 @@ function encodeArray(key, value, depth, options) {
     return lines;
 }
 function encodeTabular(key, rows, fields, depth, options) {
+    checkFieldDepth(fields, depth + 1, options);
     const lines = [indentation(depth, options) + header(key, rows.length, fields, options.delimiter)];
     for (const row of rows) {
         lines.push(indentation(depth + 1, options) + encodeCells(collectLeaves(row, fields), options.delimiter));
@@ -97,6 +111,7 @@ function encodeTabular(key, rows, fields, depth, options) {
     return lines;
 }
 function encodeListItem(value, depth, options) {
+    checkDepth(depth, options);
     const prefix = indentation(depth, options) + '-';
     if (isPrimitive(value))
         return [`${prefix} ${primitiveText(value, options.delimiter)}`];
@@ -114,6 +129,7 @@ function encodeListItem(value, depth, options) {
     return encodeObjectListItem(value, depth, options);
 }
 function encodeObjectListItem(value, depth, options) {
+    checkDepth(depth, options);
     const entries = Object.entries(value);
     if (entries.length === 0)
         return [indentation(depth, options) + '-'];
@@ -168,6 +184,7 @@ function encodeFirstContainer(key, value, depth, options) {
     if (Array.isArray(value) && value.every(isPlainObject)) {
         const fields = tabularFields(value);
         if (fields !== undefined) {
+            checkFieldDepth(fields, depth + 1, options);
             const lines = [
                 indentation(depth, options) + '- ' + header(key, value.length, fields, options.delimiter),
             ];
@@ -180,6 +197,7 @@ function encodeFirstContainer(key, value, depth, options) {
     if (isPlainObject(value)) {
         const fields = keyedFields(value);
         if (fields !== undefined) {
+            checkFieldDepth(fields, depth + 1, options);
             const entries = Object.entries(value);
             const lines = [
                 indentation(depth, options) + '- ' + header(key, entries.length, fields, options.delimiter, true),
@@ -213,4 +231,16 @@ function encodeCells(values, delimiter) {
 }
 function indentation(depth, options) {
     return ' '.repeat(depth * options.indentSize);
+}
+function checkDepth(depth, options) {
+    if (options.maxDepth !== 0 && depth > options.maxDepth) {
+        throw toonError(0, `maximum nesting depth exceeded (maxDepth ${options.maxDepth})`);
+    }
+}
+function checkFieldDepth(fields, depth, options) {
+    checkDepth(depth, options);
+    for (const field of fields) {
+        if (field.children !== undefined)
+            checkFieldDepth(field.children, depth + 1, options);
+    }
 }

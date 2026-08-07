@@ -12,6 +12,7 @@
  */
 import { ToonError, toonError } from '../errors.js';
 import { findUnquoted, parseKey, parseScalar } from '../lexical.js';
+import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js';
 /** A full-line comment: only U+0020 spaces before `#` (§5.1). */
 function isCommentLine(raw) {
     let i = 0;
@@ -68,6 +69,7 @@ function classifyLines(source, ctx) {
         }
         // Non-strict tab leniency (§12): each leading tab counts as one level.
         depth += tabs;
+        checkDepth(depth, number, ctx);
         lines.push({ number, depth, content: raw.slice(i), blankBefore: blankPending });
         blankPending = false;
     }
@@ -321,9 +323,13 @@ function decodeKey(token, line) {
     }
 }
 export function* decodeStreamSync(source, options) {
+    const rawMaxDepth = options?.maxDepth ?? DEFAULT_MAX_DEPTH;
     const ctx = {
         indentSize: options?.indentSize ?? options?.indent ?? 2,
         strict: options?.strict ?? true,
+        maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY
+            ? 0
+            : Math.max(0, Math.floor(rawMaxDepth)),
     };
     const reader = new Reader(classifyLines(source, ctx));
     const first = reader.peek();
@@ -352,6 +358,8 @@ export function* decodeStreamSync(source, options) {
             throw error;
         headerFailed = true;
     }
+    if (header !== null && header !== undefined)
+        assertHeaderDepth(header.fields, first.number, ctx);
     if (header !== null && header !== undefined && !headerFailed && header.key === undefined) {
         reader.take(ctx);
         if (header.keyed) {
@@ -412,6 +420,7 @@ function* emitEntry(reader, line, content, depth, ctx, seen) {
         header = null;
     }
     if (header !== null && header !== undefined) {
+        assertHeaderDepth(header.fields, line.number, ctx);
         if (header.key === undefined) {
             if (ctx.strict) {
                 throw toonError(line.number, 'keyless header is only valid at the root or as a list item');
@@ -529,6 +538,7 @@ function* emitListItem(reader, line, ctx) {
         header = null;
     }
     if (header !== null && header !== undefined && header.key === undefined) {
+        assertHeaderDepth(header.fields, line.number, ctx);
         // A keyless non-keyed, non-fields header on a hyphen line is the item
         // itself; a fields-bearing or keyed one is only valid at the root (§6, §10).
         if (header.keyed || header.fields !== undefined) {
@@ -662,6 +672,20 @@ function* emitKeyedObject(reader, header, info, ctx) {
 function assertCount(got, expected, line, what, ctx) {
     if (ctx.strict && got !== expected) {
         throw toonError(line, `expected ${expected} ${what}, but got ${got}`);
+    }
+}
+function checkDepth(depth, line, ctx) {
+    if (ctx.maxDepth !== 0 && depth > ctx.maxDepth) {
+        throw toonError(line, `maximum nesting depth exceeded (maxDepth ${ctx.maxDepth})`);
+    }
+}
+function assertHeaderDepth(fields, line, ctx, depth = 1) {
+    if (fields === undefined)
+        return;
+    checkDepth(depth, line, ctx);
+    for (const field of fields) {
+        if (field.children !== undefined)
+            assertHeaderDepth(field.children, line, ctx, depth + 1);
     }
 }
 export { ToonError };
