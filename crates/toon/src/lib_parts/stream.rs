@@ -7,6 +7,9 @@
 // `tests/corpus/events/` are the parity contract between the two ports.
 
 use std::collections::HashSet;
+use std::io::Cursor;
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::thread::JoinHandle;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToonEvent {
@@ -67,106 +70,6 @@ fn stream_depth_error(line: usize, max_depth: usize) -> ParseError {
         message: "maximum nesting depth exceeded",
         max_depth: Some(max_depth),
     }
-}
-
-/// A full-line comment: only U+0020 spaces before `#` (§5.1).
-fn is_comment_line(raw: &str) -> bool {
-    raw.trim_start_matches(' ').starts_with('#')
-}
-
-/// Token trimming is exactly U+0020 (§12).
-fn trim_u0020(text: &str) -> &str {
-    text.trim_matches(' ')
-}
-
-fn classify_stream_lines(input: &str, ctx: &StreamCtx) -> Result<Vec<StreamLine>, ParseError> {
-    let mut lines = Vec::new();
-    let mut blank_pending = false;
-    for (index, raw_line) in input.split('\n').enumerate() {
-        let number = index + 1;
-        let mut raw = raw_line;
-        if number == 1 {
-            // A single leading U+FEFF is a byte-order mark, not content (§12).
-            raw = raw.strip_prefix('\u{feff}').unwrap_or(raw);
-        }
-        raw = raw.strip_suffix('\r').unwrap_or(raw);
-        // Trailing spaces are not part of the line's content (§12).
-        raw = raw.trim_end_matches(' ');
-        if raw.trim().is_empty() {
-            blank_pending = true;
-            continue;
-        }
-        if is_comment_line(raw) {
-            continue;
-        }
-        let mut i = 0;
-        let mut tabs = 0usize;
-        let mut spaces = 0usize;
-        for ch in raw.chars() {
-            match ch {
-                ' ' => spaces += 1,
-                '\t' => {
-                    if ctx.strict {
-                        return Err(stream_error(number, "tab used as indentation"));
-                    }
-                    tabs += 1;
-                }
-                _ => break,
-            }
-            i += ch.len_utf8();
-        }
-        let mut depth = if spaces % ctx.indent_size == 0 {
-            spaces / ctx.indent_size
-        } else if ctx.strict {
-            return Err(stream_error(number, "invalid indentation"));
-        } else {
-            spaces / ctx.indent_size
-        };
-        // Non-strict tab leniency (§12): each leading tab counts as one level.
-        depth += tabs;
-        if ctx.max_depth != 0 && depth > ctx.max_depth {
-            return Err(stream_depth_error(number, ctx.max_depth));
-        }
-        check_stream_header_depth(&raw[i..], number, ctx.max_depth)?;
-        lines.push(StreamLine {
-            number,
-            depth,
-            content: raw[i..].to_owned(),
-            blank_before: blank_pending,
-        });
-        blank_pending = false;
-    }
-    Ok(lines)
-}
-
-fn check_stream_header_depth(
-    content: &str,
-    line: usize,
-    max_depth: usize,
-) -> Result<(), ParseError> {
-    if max_depth == 0 {
-        return Ok(());
-    }
-    let mut depth = 0;
-    let mut quoted = false;
-    let mut escaped = false;
-    for character in content.chars() {
-        if escaped {
-            escaped = false;
-        } else if quoted && character == '\\' {
-            escaped = true;
-        } else if character == '"' {
-            quoted = !quoted;
-        } else if !quoted && character == '{' {
-            depth += 1;
-            if depth > max_depth {
-                return Err(stream_depth_error(line, max_depth));
-            }
-        } else if !quoted && character == '}' {
-            depth = depth.saturating_sub(1);
-        }
-    }
-    Ok(())
 }
 
 // #region Header grammar (§6)
@@ -459,27 +362,117 @@ fn split_stream_cells(content: &str, delimiter: char, _line: usize) -> Vec<Strin
     cells
 }
 
-struct StreamReader {
-    lines: Vec<StreamLine>,
-    index: usize,
+struct StreamReader<R> {
+    input: R,
+    lookahead: Option<StreamLine>,
+    next_number: usize,
+    last_number: Option<usize>,
+    blank_pending: bool,
+    at_eof: bool,
     /// Depth of open header spans — blank lines inside one are strict errors (§12).
     span_active: usize,
 }
 
-impl StreamReader {
-    fn peek(&self) -> Option<&StreamLine> {
-        self.lines.get(self.index)
+impl<R: BufRead> StreamReader<R> {
+    fn new(input: R) -> Self {
+        Self {
+            input,
+            lookahead: None,
+            next_number: 1,
+            last_number: None,
+            blank_pending: false,
+            at_eof: false,
+            span_active: 0,
+        }
     }
+
+    fn fill(&mut self, ctx: &StreamCtx) -> Result<(), ParseError> {
+        while self.lookahead.is_none() && !self.at_eof {
+            let number = self.next_number;
+            let mut raw = String::new();
+            let read = self
+                .input
+                .read_line(&mut raw)
+                .map_err(|_| stream_error(number, "failed to read input"))?;
+            if read == 0 {
+                self.at_eof = true;
+                break;
+            }
+            self.next_number += 1;
+            if raw.ends_with('\n') {
+                raw.pop();
+            }
+            let mut text = raw.as_str();
+            if number == 1 {
+                text = text.strip_prefix('\u{feff}').unwrap_or(text);
+            }
+            text = text.strip_suffix('\r').unwrap_or(text);
+            text = text.trim_end_matches(' ');
+            if text.trim().is_empty() {
+                self.blank_pending = true;
+                continue;
+            }
+            if is_comment_line(text) {
+                continue;
+            }
+            let mut offset = 0;
+            let mut tabs = 0usize;
+            let mut spaces = 0usize;
+            for character in text.chars() {
+                match character {
+                    ' ' => spaces += 1,
+                    '\t' => {
+                        if ctx.strict {
+                            return Err(stream_error(number, "tab used as indentation"));
+                        }
+                        tabs += 1;
+                    }
+                    _ => break,
+                }
+                offset += character.len_utf8();
+            }
+            let mut depth = if spaces % ctx.indent_size == 0 {
+                spaces / ctx.indent_size
+            } else if ctx.strict {
+                return Err(stream_error(number, "invalid indentation"));
+            } else {
+                spaces / ctx.indent_size
+            };
+            depth += tabs;
+            if ctx.max_depth != 0 && depth > ctx.max_depth {
+                return Err(stream_depth_error(number, ctx.max_depth));
+            }
+            check_stream_header_depth(&text[offset..], number, ctx.max_depth)?;
+            self.lookahead = Some(StreamLine {
+                number,
+                depth,
+                content: text[offset..].to_owned(),
+                blank_before: self.blank_pending,
+            });
+            self.blank_pending = false;
+        }
+        Ok(())
+    }
+
+    fn peek(&mut self, ctx: &StreamCtx) -> Result<Option<StreamLine>, ParseError> {
+        self.fill(ctx)?;
+        Ok(self.lookahead.clone())
+    }
+
     fn take(&mut self, ctx: &StreamCtx) -> Result<StreamLine, ParseError> {
-        let line = self.lines[self.index].clone();
-        self.index += 1;
+        self.fill(ctx)?;
+        let line = self
+            .lookahead
+            .take()
+            .expect("take is only called after successful lookahead");
+        self.last_number = Some(line.number);
         if ctx.strict && self.span_active > 0 && line.blank_before {
             return Err(stream_error(line.number, "blank line inside a header span"));
         }
         Ok(line)
     }
     fn last_number(&self, fallback: usize) -> usize {
-        if self.index == 0 { fallback } else { self.lines[self.index - 1].number }
+        self.last_number.unwrap_or(fallback)
     }
 }
 
@@ -527,46 +520,122 @@ pub fn decode_events(
         max_depth: options.max_depth,
     };
     let mut events = Vec::new();
-    let error = decode_events_into(input, &ctx, &mut events).err();
+    let error = decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut events).err();
     (events, error)
 }
 
-/// Iterator over positioned decode events; the streaming public surface.
+trait EventSink {
+    fn emit(&mut self, event: ToonEvent) -> Result<(), ParseError>;
+}
+
+impl EventSink for Vec<ToonEvent> {
+    fn emit(&mut self, event: ToonEvent) -> Result<(), ParseError> {
+        self.push(event);
+        Ok(())
+    }
+}
+
+struct ChannelSink {
+    sender: SyncSender<Result<ToonEvent, ParseError>>,
+}
+
+impl EventSink for ChannelSink {
+    fn emit(&mut self, event: ToonEvent) -> Result<(), ParseError> {
+        let line = event.line();
+        self.sender
+            .send(Ok(event))
+            .map_err(|_| stream_error(line, "event consumer disconnected"))
+    }
+}
+
+impl ToonEvent {
+    fn line(&self) -> usize {
+        match self {
+            Self::StartObject { line }
+            | Self::EndObject { line }
+            | Self::StartArray { line, .. }
+            | Self::EndArray { line }
+            | Self::Key { line, .. }
+            | Self::Primitive { line, .. } => *line,
+        }
+    }
+}
+
+/// Iterator over positioned decode events. A zero-capacity channel keeps the
+/// parser coupled to iteration, so neither input nor events are accumulated.
 pub struct EventDecoder {
-    events: std::vec::IntoIter<ToonEvent>,
-    error: Option<ParseError>,
+    receiver: Receiver<Result<ToonEvent, ParseError>>,
+    worker: Option<JoinHandle<()>>,
 }
 
 impl Iterator for EventDecoder {
     type Item = Result<ToonEvent, ParseError>;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.events.next() {
-            Some(event) => Some(Ok(event)),
-            None => self.error.take().map(Err),
+        match self.receiver.recv() {
+            Ok(event) => Some(event),
+            Err(_) => {
+                if let Some(worker) = self.worker.take() {
+                    let _ = worker.join();
+                }
+                None
+            }
         }
     }
 }
 
-pub fn decode_event_stream(input: &str, options: &DecodeStreamOptions) -> EventDecoder {
-    let (events, error) = decode_events(input, options);
-    EventDecoder { events: events.into_iter(), error }
+impl Drop for EventDecoder {
+    fn drop(&mut self) {
+        // Replacing the receiver disconnects a parser blocked on event delivery.
+        let (_sender, replacement) = sync_channel(0);
+        let old = std::mem::replace(&mut self.receiver, replacement);
+        drop(old);
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
 }
 
-fn decode_events_into(
-    input: &str,
-    ctx: &StreamCtx,
-    out: &mut Vec<ToonEvent>,
-) -> Result<(), ParseError> {
-    let mut reader =
-        StreamReader { lines: classify_stream_lines(input, ctx)?, index: 0, span_active: 0 };
+/// Decode events directly from a buffered reader with one classified line of
+/// lookahead. The reader is moved to a worker so each iterator step can suspend
+/// the recursive grammar exactly at an event boundary.
+pub fn decode_event_reader<R>(reader: R, options: &DecodeStreamOptions) -> EventDecoder
+where
+    R: BufRead + Send + 'static,
+{
+    let (sender, receiver) = sync_channel(0);
+    let ctx = StreamCtx {
+        indent_size: options.indent.max(1),
+        strict: options.strict,
+        max_depth: options.max_depth,
+    };
+    let error_sender = sender.clone();
+    let worker = std::thread::spawn(move || {
+        let mut sink = ChannelSink { sender };
+        if let Err(error) = decode_events_into(reader, &ctx, &mut sink) {
+            let _ = error_sender.send(Err(error));
+        }
+    });
+    EventDecoder { receiver, worker: Some(worker) }
+}
 
-    let first = match reader.peek() {
+pub fn decode_event_stream(input: &str, options: &DecodeStreamOptions) -> EventDecoder {
+    decode_event_reader(Cursor::new(input.as_bytes().to_vec()), options)
+}
+
+fn decode_events_into<R: BufRead, S: EventSink>(
+    input: R,
+    ctx: &StreamCtx,
+    out: &mut S,
+) -> Result<(), ParseError> {
+    let mut reader = StreamReader::new(input);
+
+    let first = match reader.peek(ctx)? {
         None => {
-            out.push(ToonEvent::StartObject { line: 1 });
-            out.push(ToonEvent::EndObject { line: 1 });
+            out.emit(ToonEvent::StartObject { line: 1 })?;
+            out.emit(ToonEvent::EndObject { line: 1 })?;
             return Ok(());
         }
-        Some(line) => line.clone(),
+        Some(line) => line,
     };
     if first.depth != 0 {
         return Err(stream_error(first.number, "invalid indentation"));
@@ -575,8 +644,8 @@ fn decode_events_into(
     // Root form discovery (§5).
     if first.content == "[]" {
         reader.take(ctx)?;
-        out.push(ToonEvent::StartArray { length: 0, line: first.number });
-        out.push(ToonEvent::EndArray { line: first.number });
+        out.emit(ToonEvent::StartArray { length: 0, line: first.number })?;
+        out.emit(ToonEvent::EndArray { line: first.number })?;
         return expect_stream_end(&mut reader, ctx);
     }
 
@@ -603,47 +672,90 @@ fn decode_events_into(
             return expect_stream_end(&mut reader, ctx);
         }
         // fall through to object parsing with this line as the first entry
-    } else if reader.lines.len() == 1
-        && !is_stream_key_value(&first.content, first.number)?
-    {
+    } else if !is_stream_key_value(&first.content, first.number)? {
         let _ = header_failed;
         reader.take(ctx)?;
-        out.push(ToonEvent::Primitive {
-            value: parse_scalar(trim_u0020(&first.content), first.number)?,
-            line: first.number,
-        });
-        return Ok(());
+        if reader.peek(ctx)?.is_none() {
+            out.emit(ToonEvent::Primitive {
+                value: parse_scalar(trim_u0020(&first.content), first.number)?,
+                line: first.number,
+            })?;
+            return Ok(());
+        }
+        out.emit(ToonEvent::StartObject { line: first.number })?;
+        let mut seen = HashSet::new();
+        return emit_entry(
+            &mut reader,
+            &first,
+            &first.content,
+            0,
+            ctx,
+            &mut seen,
+            out,
+        );
     }
 
-    emit_object(&mut reader, 0, first.number, ctx, out)?;
+    reader.take(ctx)?;
+    // Root-form disambiguation and lexical validation require one additional
+    // classified line. This is the decoder's only two-line lookahead point.
+    let _ = reader.peek(ctx)?;
+    emit_object_from_first(&mut reader, first, ctx, out)?;
     expect_stream_end(&mut reader, ctx)
 }
 
-fn expect_stream_end(reader: &mut StreamReader, ctx: &StreamCtx) -> Result<(), ParseError> {
-    if let Some(trailing) = reader.peek() {
+fn expect_stream_end<R: BufRead>(
+    reader: &mut StreamReader<R>,
+    ctx: &StreamCtx,
+) -> Result<(), ParseError> {
+    if let Some(trailing) = reader.peek(ctx)? {
         if ctx.strict {
             return Err(stream_error(trailing.number, "expected end of document"));
         }
     }
-    reader.index = reader.lines.len();
     Ok(())
 }
 
 // #region Objects (§8)
 
-fn emit_object(
-    reader: &mut StreamReader,
+fn emit_object_from_first<R: BufRead, S: EventSink>(
+    reader: &mut StreamReader<R>,
+    first: StreamLine,
+    ctx: &StreamCtx,
+    out: &mut S,
+) -> Result<(), ParseError> {
+    out.emit(ToonEvent::StartObject { line: first.number })?;
+    let mut seen = HashSet::new();
+    let content = first.content.clone();
+    emit_entry(reader, &first, &content, 0, ctx, &mut seen, out)?;
+    loop {
+        let line = match reader.peek(ctx)? {
+            None => break,
+            Some(line) => line,
+        };
+        if line.depth > 0 {
+            return Err(stream_error(line.number, "over-indented line"));
+        }
+        reader.take(ctx)?;
+        let content = line.content.clone();
+        emit_entry(reader, &line, &content, 0, ctx, &mut seen, out)?;
+    }
+    out.emit(ToonEvent::EndObject { line: reader.last_number(first.number) })?;
+    Ok(())
+}
+
+fn emit_object<R: BufRead, S: EventSink>(
+    reader: &mut StreamReader<R>,
     depth: usize,
     start_line: usize,
     ctx: &StreamCtx,
-    out: &mut Vec<ToonEvent>,
+    out: &mut S,
 ) -> Result<(), ParseError> {
-    out.push(ToonEvent::StartObject { line: start_line });
+    out.emit(ToonEvent::StartObject { line: start_line })?;
     let mut seen = HashSet::new();
     loop {
-        let line = match reader.peek() {
+        let line = match reader.peek(ctx)? {
             None => break,
-            Some(line) => line.clone(),
+            Some(line) => line,
         };
         if line.depth < depth {
             break;
@@ -655,21 +767,21 @@ fn emit_object(
         let content = line.content.clone();
         emit_entry(reader, &line, &content, depth, ctx, &mut seen, out)?;
     }
-    out.push(ToonEvent::EndObject { line: reader.last_number(start_line) });
+    out.emit(ToonEvent::EndObject { line: reader.last_number(start_line) })?;
     Ok(())
 }
 
 /// One object entry whose content sits at `depth` (possibly carried on a
 /// hyphen line, §10).
 #[allow(clippy::too_many_arguments)]
-fn emit_entry(
-    reader: &mut StreamReader,
+fn emit_entry<R: BufRead, S: EventSink>(
+    reader: &mut StreamReader<R>,
     line: &StreamLine,
     content: &str,
     depth: usize,
     ctx: &StreamCtx,
     seen: &mut HashSet<String>,
-    out: &mut Vec<ToonEvent>,
+    out: &mut S,
 ) -> Result<(), ParseError> {
     let header = match parse_stream_header(content, line.number) {
         Ok(value) => value,
@@ -694,7 +806,7 @@ fn emit_entry(
             }
             Some(key) => {
                 record_stream_key(seen, key, line.number, ctx)?;
-                out.push(ToonEvent::Key { key: key.clone(), line: line.number });
+                out.emit(ToonEvent::Key { key: key.clone(), line: line.number })?;
                 let standing = StreamLine { depth, ..line.clone() };
                 if header.keyed {
                     emit_keyed_object(reader, &standing, &header, ctx, out)?;
@@ -711,10 +823,10 @@ fn emit_entry(
     let key = decode_stream_key(trim_u0020(&content[..colon]), line.number)?;
     let rest = trim_u0020(&content[colon + 1..]);
     record_stream_key(seen, &key, line.number, ctx)?;
-    out.push(ToonEvent::Key { key, line: line.number });
+    out.emit(ToonEvent::Key { key, line: line.number })?;
 
     if rest.is_empty() {
-        let child = reader.peek().cloned();
+        let child = reader.peek(ctx)?;
         if let Some(child) = child {
             if child.depth > depth {
                 if child.depth != depth + 1 {
@@ -723,16 +835,19 @@ fn emit_entry(
                 return emit_object(reader, depth + 1, child.number, ctx, out);
             }
         }
-        out.push(ToonEvent::StartObject { line: line.number });
-        out.push(ToonEvent::EndObject { line: line.number });
+        out.emit(ToonEvent::StartObject { line: line.number })?;
+        out.emit(ToonEvent::EndObject { line: line.number })?;
         return Ok(());
     }
     if rest == "[]" {
-        out.push(ToonEvent::StartArray { length: 0, line: line.number });
-        out.push(ToonEvent::EndArray { line: line.number });
+        out.emit(ToonEvent::StartArray { length: 0, line: line.number })?;
+        out.emit(ToonEvent::EndArray { line: line.number })?;
         return Ok(());
     }
-    out.push(ToonEvent::Primitive { value: parse_scalar(rest, line.number)?, line: line.number });
+    out.emit(ToonEvent::Primitive {
+        value: parse_scalar(rest, line.number)?,
+        line: line.number,
+    })?;
     Ok(())
 }
 
@@ -740,14 +855,14 @@ fn emit_entry(
 
 // #region Arrays (§9.1, §9.2, §9.4) and list items (§10)
 
-fn emit_array(
-    reader: &mut StreamReader,
+fn emit_array<R: BufRead, S: EventSink>(
+    reader: &mut StreamReader<R>,
     header: &StreamLine,
     info: &StreamHeader,
     ctx: &StreamCtx,
-    out: &mut Vec<ToonEvent>,
+    out: &mut S,
 ) -> Result<(), ParseError> {
-    out.push(ToonEvent::StartArray { length: info.length, line: header.number });
+    out.emit(ToonEvent::StartArray { length: info.length, line: header.number })?;
 
     if let Some(fields) = &info.fields {
         assert_no_duplicate_stream_fields(fields, header.number, ctx)?;
@@ -758,21 +873,21 @@ fn emit_array(
         let values = split_stream_cells(inline, info.delimiter, header.number);
         assert_stream_count(values.len(), info.length, header.number, ctx)?;
         for value in values {
-            out.push(ToonEvent::Primitive {
+            out.emit(ToonEvent::Primitive {
                 value: parse_scalar(&value, header.number)?,
                 line: header.number,
-            });
+            })?;
         }
-        out.push(ToonEvent::EndArray { line: header.number });
+        out.emit(ToonEvent::EndArray { line: header.number })?;
         return Ok(());
     }
 
     // List form: items at depth +1, each `- …` or the bare `-` (§9.4, §10).
     let mut items = 0usize;
     loop {
-        let line = match reader.peek() {
+        let line = match reader.peek(ctx)? {
             None => break,
-            Some(line) => line.clone(),
+            Some(line) => line,
         };
         if line.depth <= header.depth {
             break;
@@ -798,26 +913,26 @@ fn emit_array(
     if ctx.strict && items != info.length {
         return Err(stream_error(end_line, "array count mismatch"));
     }
-    out.push(ToonEvent::EndArray { line: end_line });
+    out.emit(ToonEvent::EndArray { line: end_line })?;
     Ok(())
 }
 
-fn emit_list_item(
-    reader: &mut StreamReader,
+fn emit_list_item<R: BufRead, S: EventSink>(
+    reader: &mut StreamReader<R>,
     line: &StreamLine,
     ctx: &StreamCtx,
-    out: &mut Vec<ToonEvent>,
+    out: &mut S,
 ) -> Result<(), ParseError> {
     if line.content == "-" {
-        out.push(ToonEvent::StartObject { line: line.number });
-        out.push(ToonEvent::EndObject { line: line.number });
+        out.emit(ToonEvent::StartObject { line: line.number })?;
+        out.emit(ToonEvent::EndObject { line: line.number })?;
         return Ok(());
     }
     let trimmed = trim_u0020(&line.content[2..]).to_owned();
 
     if trimmed == "[]" {
-        out.push(ToonEvent::StartArray { length: 0, line: line.number });
-        out.push(ToonEvent::EndArray { line: line.number });
+        out.emit(ToonEvent::StartArray { length: 0, line: line.number })?;
+        out.emit(ToonEvent::EndArray { line: line.number })?;
         return Ok(());
     }
 
@@ -843,10 +958,10 @@ fn emit_list_item(
                         "keyless fields-bearing header is only valid at the root",
                     ));
                 }
-                out.push(ToonEvent::Primitive {
+                out.emit(ToonEvent::Primitive {
                     value: parse_scalar(&trimmed, line.number)?,
                     line: line.number,
-                });
+                })?;
                 return Ok(());
             }
             return emit_array(reader, line, header, ctx, out);
@@ -858,13 +973,13 @@ fn emit_list_item(
             || is_stream_key_value(&trimmed, line.number)?;
     if is_object_item {
         // Object as list item: the first field stands at depth d+1 (§10).
-        out.push(ToonEvent::StartObject { line: line.number });
+        out.emit(ToonEvent::StartObject { line: line.number })?;
         let mut seen = HashSet::new();
         emit_entry(reader, line, &trimmed, line.depth + 1, ctx, &mut seen, out)?;
         loop {
-            let next = match reader.peek() {
+            let next = match reader.peek(ctx)? {
                 None => break,
-                Some(next) => next.clone(),
+                Some(next) => next,
             };
             if next.depth != line.depth + 1 {
                 break;
@@ -876,14 +991,14 @@ fn emit_list_item(
             let content = next.content.clone();
             emit_entry(reader, &next, &content, line.depth + 1, ctx, &mut seen, out)?;
         }
-        out.push(ToonEvent::EndObject { line: reader.last_number(line.number) });
+        out.emit(ToonEvent::EndObject { line: reader.last_number(line.number) })?;
         return Ok(());
     }
 
-    out.push(ToonEvent::Primitive {
+    out.emit(ToonEvent::Primitive {
         value: parse_scalar(&trimmed, line.number)?,
         line: line.number,
-    });
+    })?;
     Ok(())
 }
 
@@ -891,21 +1006,21 @@ fn emit_list_item(
 
 // #region Tabular rows (§9.3)
 
-fn emit_tabular_rows(
-    reader: &mut StreamReader,
+fn emit_tabular_rows<R: BufRead, S: EventSink>(
+    reader: &mut StreamReader<R>,
     header: &StreamLine,
     info: &StreamHeader,
     fields: &[StreamFieldNode],
     ctx: &StreamCtx,
-    out: &mut Vec<ToonEvent>,
+    out: &mut S,
 ) -> Result<(), ParseError> {
     let leaf_count = count_stream_leaves(fields);
     let row_depth = header.depth + 1;
     let mut rows = 0usize;
     loop {
-        let line = match reader.peek() {
+        let line = match reader.peek(ctx)? {
             None => break,
-            Some(line) => line.clone(),
+            Some(line) => line,
         };
         if line.depth <= header.depth {
             break;
@@ -933,7 +1048,7 @@ fn emit_tabular_rows(
     if ctx.strict && rows != info.length {
         return Err(stream_error(end_line, "array count mismatch"));
     }
-    out.push(ToonEvent::EndArray { line: end_line });
+    out.emit(ToonEvent::EndArray { line: end_line })?;
     Ok(())
 }
 
@@ -950,27 +1065,27 @@ fn is_stream_row(content: &str, delimiter: char, line: usize) -> Result<bool, Pa
     }
 }
 
-fn emit_row_object(
+fn emit_row_object<S: EventSink>(
     fields: &[StreamFieldNode],
     cells: &[String],
     cursor: &mut usize,
     line: usize,
-    out: &mut Vec<ToonEvent>,
+    out: &mut S,
 ) -> Result<(), ParseError> {
-    out.push(ToonEvent::StartObject { line });
+    out.emit(ToonEvent::StartObject { line })?;
     for field in fields {
-        out.push(ToonEvent::Key { key: field.name.clone(), line });
+        out.emit(ToonEvent::Key { key: field.name.clone(), line })?;
         match &field.children {
             None => {
                 let empty = String::new();
                 let cell = cells.get(*cursor).unwrap_or(&empty);
                 *cursor += 1;
-                out.push(ToonEvent::Primitive { value: parse_scalar(cell, line)?, line });
+                out.emit(ToonEvent::Primitive { value: parse_scalar(cell, line)?, line })?;
             }
             Some(children) => emit_row_object(children, cells, cursor, line, out)?,
         }
     }
-    out.push(ToonEvent::EndObject { line });
+    out.emit(ToonEvent::EndObject { line })?;
     Ok(())
 }
 
@@ -978,24 +1093,24 @@ fn emit_row_object(
 
 // #region Keyed tabular objects (§9.5)
 
-fn emit_keyed_object(
-    reader: &mut StreamReader,
+fn emit_keyed_object<R: BufRead, S: EventSink>(
+    reader: &mut StreamReader<R>,
     header: &StreamLine,
     info: &StreamHeader,
     ctx: &StreamCtx,
-    out: &mut Vec<ToonEvent>,
+    out: &mut S,
 ) -> Result<(), ParseError> {
     let fields = info.fields.as_ref().expect("keyed header always carries fields");
     assert_no_duplicate_stream_fields(fields, header.number, ctx)?;
     let leaf_count = count_stream_leaves(fields);
     let entry_depth = header.depth + 1;
-    out.push(ToonEvent::StartObject { line: header.number });
+    out.emit(ToonEvent::StartObject { line: header.number })?;
     let mut seen = HashSet::new();
     let mut rows = 0usize;
     loop {
-        let line = match reader.peek() {
+        let line = match reader.peek(ctx)? {
             None => break,
-            Some(line) => line.clone(),
+            Some(line) => line,
         };
         if line.depth <= header.depth {
             break;
@@ -1020,7 +1135,7 @@ fn emit_keyed_object(
         rows += 1;
         let key = decode_stream_key(trim_u0020(&line.content[..colon]), line.number)?;
         record_stream_key(&mut seen, &key, line.number, ctx)?;
-        out.push(ToonEvent::Key { key, line: line.number });
+        out.emit(ToonEvent::Key { key, line: line.number })?;
         let cells = split_stream_cells(&line.content[colon + 1..], info.delimiter, line.number);
         assert_stream_count(cells.len(), leaf_count, line.number, ctx)?;
         let mut cursor = 0usize;
@@ -1033,7 +1148,7 @@ fn emit_keyed_object(
     if ctx.strict && rows != info.length {
         return Err(stream_error(end_line, "array count mismatch"));
     }
-    out.push(ToonEvent::EndObject { line: end_line });
+    out.emit(ToonEvent::EndObject { line: end_line })?;
     Ok(())
 }
 
@@ -1050,56 +1165,3 @@ fn assert_stream_count(
     }
     Ok(())
 }
-
-// #region Value building
-
-pub fn build_value_from_events(events: &[ToonEvent]) -> Value {
-    enum Slot {
-        Object(Vec<Field>),
-        Array(Vec<Value>),
-    }
-    let mut stack: Vec<(Slot, Option<String>)> = Vec::new();
-    let mut root: Option<Value> = None;
-
-    fn attach(stack: &mut [(Slot, Option<String>)], root: &mut Option<Value>, value: Value) {
-        match stack.last_mut() {
-            None => *root = Some(value),
-            Some((Slot::Array(items), _)) => items.push(value),
-            Some((Slot::Object(fields), pending)) => {
-                if let Some(key) = pending.take() {
-                    // duplicate keys are last-write-wins (§14.3)
-                    if let Some(existing) = fields.iter_mut().find(|f| f.key == key) {
-                        existing.value = value;
-                    } else {
-                        fields.push(Field { key, value });
-                    }
-                }
-            }
-        }
-    }
-
-    for event in events {
-        match event {
-            ToonEvent::StartObject { .. } => stack.push((Slot::Object(Vec::new()), None)),
-            ToonEvent::StartArray { .. } => stack.push((Slot::Array(Vec::new()), None)),
-            ToonEvent::EndObject { .. } | ToonEvent::EndArray { .. } => {
-                if let Some((slot, _)) = stack.pop() {
-                    let value = match slot {
-                        Slot::Object(fields) => Value::Object(Document { fields }),
-                        Slot::Array(items) => Value::Array(Array::List(items)),
-                    };
-                    attach(&mut stack, &mut root, value);
-                }
-            }
-            ToonEvent::Key { key, .. } => {
-                if let Some((_, pending)) = stack.last_mut() {
-                    *pending = Some(key.clone());
-                }
-            }
-            ToonEvent::Primitive { value, .. } => attach(&mut stack, &mut root, value.clone()),
-        }
-    }
-    root.unwrap_or(Value::Object(Document { fields: Vec::new() }))
-}
-
-// #endregion

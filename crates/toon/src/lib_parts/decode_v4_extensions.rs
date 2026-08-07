@@ -5,13 +5,12 @@ pub fn decode_value_v4(input: &str, options: &DecodeStreamOptions) -> Result<Val
     let mut value = if options.object_array_columns && has_fixed_array_column_header(input) {
         decode_extension_value(input, options)?
     } else {
-        let (events, error) = decode_events(input, options);
-        match error {
-            None => build_value_from_events(&events),
-            Some(_) if options.object_array_columns && has_child_table_header(input) => {
+        match build_value_from_event_results(decode_event_stream(input, options)) {
+            Ok(value) => value,
+            Err(_) if options.object_array_columns && has_child_table_header(input) => {
                 decode_extension_value(input, options)?
             }
-            Some(error) => return Err(error),
+            Err(error) => return Err(error),
         }
     };
     if options.cyclic_discriminated_arrays {

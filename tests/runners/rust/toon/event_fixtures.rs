@@ -2,9 +2,14 @@
 //! executes (`packages/toon/test/events.test.mjs`) must produce the same
 //! positioned events — event by event, line by line (ADR 0006).
 
-use reddb_io_toon::{decode_event_stream, DecodeStreamOptions, ToonEvent};
+use reddb_io_toon::{decode_event_reader, decode_event_stream, DecodeStreamOptions, ToonEvent};
 use serde_json::Value as Json;
 use std::fs;
+use std::io::{self, BufRead, Read};
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+    Arc,
+};
 
 const FIXTURES: &str = "../../tests/corpus/events";
 
@@ -75,4 +80,82 @@ fn event_sequences_match_the_shared_fixtures() {
         checked >= 70,
         "fixture corpus unexpectedly small: {checked}"
     );
+}
+
+struct GatedReader {
+    bytes: Vec<u8>,
+    position: usize,
+    first_chunk: usize,
+    open: Arc<AtomicBool>,
+    consumed: Arc<AtomicUsize>,
+}
+
+impl Read for GatedReader {
+    fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+        let available = self.fill_buf()?;
+        let count = available.len().min(output.len());
+        output[..count].copy_from_slice(&available[..count]);
+        self.consume(count);
+        Ok(count)
+    }
+}
+
+impl BufRead for GatedReader {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        let limit = if self.open.load(Ordering::SeqCst) {
+            self.bytes.len()
+        } else {
+            self.first_chunk
+        };
+        if self.position == limit && limit < self.bytes.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "input is not available yet",
+            ));
+        }
+        Ok(&self.bytes[self.position..limit])
+    }
+
+    fn consume(&mut self, amount: usize) {
+        self.position += amount;
+        self.consumed.store(self.position, Ordering::SeqCst);
+    }
+}
+
+#[test]
+fn bufread_decoder_yields_before_the_reader_reaches_eof() {
+    let input = b"a: 1\nb: 2\nc: 3\n";
+    let bounded_prefix = b"a: 1\nb: 2\n".len();
+    let open = Arc::new(AtomicBool::new(false));
+    let consumed = Arc::new(AtomicUsize::new(0));
+    let reader = GatedReader {
+        bytes: input.to_vec(),
+        position: 0,
+        first_chunk: bounded_prefix,
+        open: Arc::clone(&open),
+        consumed: Arc::clone(&consumed),
+    };
+
+    let mut events = decode_event_reader(reader, &DecodeStreamOptions::default());
+    assert_eq!(
+        events.next().unwrap().unwrap(),
+        ToonEvent::StartObject { line: 1 }
+    );
+    assert_eq!(
+        consumed.load(Ordering::SeqCst),
+        bounded_prefix,
+        "the decoder must retain at most two lines of lookahead"
+    );
+    assert_eq!(
+        events.next().unwrap().unwrap(),
+        ToonEvent::Key {
+            key: "a".to_owned(),
+            line: 1
+        }
+    );
+
+    open.store(true, Ordering::SeqCst);
+    let remainder: Vec<_> = events.collect::<Result<_, _>>().unwrap();
+    assert_eq!(remainder.len(), 6);
+    assert_eq!(consumed.load(Ordering::SeqCst), input.len());
 }
