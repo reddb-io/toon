@@ -1,9 +1,7 @@
 //! TOON (Token-Oriented Object Notation) parser and serializer.
 //!
-//! Implements the v3.3 working draft hosted at <https://github.com/toon-format/spec>.
-//! The decoder honours the spec's decoder options (`indent`, `strict`, `expandPaths`);
-//! the encoder emits the canonical default profile: comma document delimiter,
-//! two-space indentation, no key folding.
+//! Implements TOON v4.1 as the authoritative codec, with explicit `legacy`
+//! methods for the former compatibility parser and serializer.
 
 include!("lib_parts/core.rs");
 include!("lib_parts/toonl_and_cyclic_decode.rs");
@@ -16,4 +14,5 @@ include!("lib_parts/decode_v4_extensions.rs");
 include!("lib_parts/encoder.rs");
 include!("lib_parts/tabular_encoder.rs");
 include!("lib_parts/encode_v4.rs");
+include!("lib_parts/api_v4.rs");
 include!("lib_parts/tests.rs");
