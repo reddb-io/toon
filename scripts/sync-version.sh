@@ -3,8 +3,9 @@
 # (reddb-style, ADR 0003). Both crates inherit [workspace.package] version;
 # the tq → toon dependency requirement, the resolved Cargo.lock entries, the
 # npm package @reddb-io/toon and the VERSION constant it reports at runtime,
-# the VS Code extension, and the workspace root package.json are the other
-# declarations, so a release ships every artefact at the same version.
+# the generated JavaScript artifact, the VS Code extension, and the workspace
+# root package.json are the other declarations, so a release ships every
+# artefact at the same version.
 #
 # Wired into the root package.json `version` lifecycle hook: `pnpm version
 # patch` bumps the root manifest, this script fans the new version out to the
@@ -32,8 +33,10 @@ sed_i "s|\(reddb-io-toon = { path = \"../toon\", version = \"\)[^\"]*|\1${VERSIO
 sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/toon/package.json
 sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" package.json
 # The runtime constant the JS package reports; a source constant on purpose,
-# so nothing has to read package.json at runtime (packages/toon/src/version.js).
-sed_i "s|^export const VERSION = '.*'|export const VERSION = '${VERSION}'|" packages/toon/src/version.js
+# so nothing has to read package.json at runtime. Keep the committed generated
+# JavaScript in lockstep with its TypeScript source for consumers of dist/.
+sed_i "s|^export const VERSION = '.*'|export const VERSION = '${VERSION}'|" packages/toon/src/version.ts
+sed_i "s|^export const VERSION = '.*'|export const VERSION = '${VERSION}'|" packages/toon/dist/version.js
 
 # Cargo.lock pins the workspace crates by version as well, and a stale entry is
 # what lets a publish resolve a version the tree never declared. Rewriting the
