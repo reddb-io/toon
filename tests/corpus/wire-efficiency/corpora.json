@@ -4,14 +4,14 @@
   "generator": "scripts/generate_wire_efficiency_corpora.mjs",
   "encodings": [
     "jsonMin",
-    "toonV3",
+    "toonCanonical",
     "toonExt"
   ],
   "notes": [
     "jsonMin is JSON.stringify(value).",
-    "toonV3 is canonical TOON v3 output with no extensions enabled.",
+    "toonCanonical is canonical TOON v4.1 output with no extensions enabled.",
     "toonExt enables the currently shipped nestedTabularHeaders, keyedMapCollapse, primitiveArrayColumns, and objectArrayColumns options.",
-    "honestyZeroDelta cases must keep toonV3 and toonExt byte-identical when ineligible for all shipped extensions.",
+    "honestyZeroDelta cases must keep toonCanonical and toonExt byte-identical when ineligible for all shipped extensions.",
     "specTokens records the Spec #93 Further Notes o200k_base baselines where available; token counting is local-only and not part of CI."
   ],
   "cases": [
@@ -20,13 +20,13 @@
       "description": "Flat shipment records; Spec further note baseline includes the tab-delimiter quick win.",
       "honestyZeroDelta": false,
       "specTokens": {
-        "toonV3": 21578,
+        "toonCanonical": 21578,
         "hypothetical": 21196,
         "tolerancePct": 5
       },
       "expectedBytes": {
         "jsonMin": 54164,
-        "toonV3": 20214,
+        "toonCanonical": 20214,
         "toonTab": 20215,
         "toonExt": 20214
       },
@@ -4041,7 +4041,7 @@
       "honestyZeroDelta": false,
       "expectedBytes": {
         "jsonMin": 33841,
-        "toonV3": 39242,
+        "toonCanonical": 39242,
         "toonTab": 39243,
         "toonExt": 12289
       },
@@ -7656,7 +7656,7 @@
       "honestyZeroDelta": false,
       "expectedBytes": {
         "jsonMin": 18775,
-        "toonV3": 20571,
+        "toonCanonical": 20571,
         "toonTab": 20571,
         "toonExt": 10403
       },
@@ -8871,7 +8871,7 @@
       "honestyZeroDelta": false,
       "expectedBytes": {
         "jsonMin": 33542,
-        "toonV3": 39043,
+        "toonCanonical": 39043,
         "toonTab": 39044,
         "toonExt": 14349
       },
@@ -11886,13 +11886,13 @@
       "honestyZeroDelta": false,
       "specTokens": {
         "jsonMin": 6506,
-        "toonV3": 8698,
+        "toonCanonical": 8698,
         "hypothetical": 4325,
         "tolerancePct": 5
       },
       "expectedBytes": {
         "jsonMin": 24794,
-        "toonV3": 25359,
+        "toonCanonical": 25359,
         "toonTab": 25660,
         "toonExt": 12784
       },
@@ -14775,13 +14775,13 @@
       "honestyZeroDelta": false,
       "specTokens": {
         "jsonMin": 2406,
-        "toonV3": 3305,
+        "toonCanonical": 3305,
         "hypothetical": 2707,
         "tolerancePct": 5
       },
       "expectedBytes": {
         "jsonMin": 7616,
-        "toonV3": 8667,
+        "toonCanonical": 8667,
         "toonTab": 8818,
         "toonExt": 7628
       },
@@ -16296,13 +16296,13 @@
       "honestyZeroDelta": false,
       "specTokens": {
         "jsonMin": 11953,
-        "toonV3": 13284,
+        "toonCanonical": 13284,
         "hypothetical": 7484,
         "tolerancePct": 5
       },
       "expectedBytes": {
         "jsonMin": 37076,
-        "toonV3": 37889,
+        "toonCanonical": 37889,
         "toonTab": 38216,
         "toonExt": 19076
       },
@@ -20628,7 +20628,7 @@
       "honestyZeroDelta": true,
       "expectedBytes": {
         "jsonMin": 72,
-        "toonV3": 95,
+        "toonCanonical": 95,
         "toonTab": 96,
         "toonExt": 95
       },
@@ -20657,7 +20657,7 @@
       "honestyZeroDelta": true,
       "expectedBytes": {
         "jsonMin": 92,
-        "toonV3": 92,
+        "toonCanonical": 92,
         "toonTab": 92,
         "toonExt": 92
       },
