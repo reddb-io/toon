@@ -149,7 +149,7 @@ mod tests {
         let arity = Document::parse("orders[1]{id,customer{name,country}}:\n  1,Ada\n")
             .expect_err("leaf count controls row arity");
         assert_eq!(arity.line(), 2);
-        assert_eq!(arity.message(), "array row length mismatch");
+        assert_eq!(arity.message(), "array count mismatch");
 
         let empty = Document::parse("orders[1]{id,customer{}}:\n  1\n")
             .expect_err("empty nested groups are invalid");
