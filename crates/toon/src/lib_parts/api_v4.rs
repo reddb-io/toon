@@ -240,6 +240,30 @@ impl Value {
     }
 }
 
+impl Array {
+    pub fn to_legacy_toon(&self) -> String {
+        self.to_legacy_toon_with_options(LegacyEncodeOptions::default())
+    }
+
+    pub fn to_legacy_toon_with_options(&self, options: LegacyEncodeOptions) -> String {
+        self.try_to_legacy_toon_with_options(options)
+            .expect("legacy TOON encoding failed")
+    }
+
+    pub fn try_to_legacy_toon(&self) -> Result<String, EncodeError> {
+        self.try_to_legacy_toon_with_options(LegacyEncodeOptions::default())
+    }
+
+    pub fn try_to_legacy_toon_with_options(
+        &self,
+        options: LegacyEncodeOptions,
+    ) -> Result<String, EncodeError> {
+        let mut output = String::new();
+        write_array(&mut output, None, &self.values(), 0, false, options)?;
+        Ok(output)
+    }
+}
+
 /// Reports incomplete authoritative v4.1 TOON using default options.
 pub fn detect_truncation(input: &str) -> TruncationReport {
     detect_truncation_v4(input, &DecodeOptions::default())
