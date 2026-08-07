@@ -1,0 +1,6 @@
+# Decode fixture cases whose v4.1 expectation does not yet match through `tq`.
+# Format: <label>::<test name>, matching
+# `official_decode_fixture_cases_survive_the_cli` in corpus.rs.
+#
+# The authoritative v4.1 codec currently passes the complete pinned corpus.
+# This empty ledger remains as a ratchet for any future checkpoint update.
