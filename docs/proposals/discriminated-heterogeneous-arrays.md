@@ -97,7 +97,7 @@ It reads:
 For each file it emits Candidate C and Candidate B wires, decodes each wire,
 and asserts `JSON.stringify(decoded) === JSON.stringify(original)`. The same
 run reports UTF-8 bytes and `o200k_base` token counts versus minified JSON,
-canonical TOON v3.3, and the best current TOON output from the existing
+the canonical pre-v4 baseline, and the best current TOON output from the existing
 extension options.
 
 ## Measured numbers
@@ -105,7 +105,7 @@ extension options.
 Measured by `scripts/discriminated_heterogeneous_arrays_prototype.mjs --check`
 using `js-tiktoken` `o200k_base`.
 
-| Corpus | Arrays | JSON bytes | TOON v3.3 bytes | Best current bytes | C bytes | B bytes | C bytes vs JSON | B bytes vs JSON | JSON tokens | TOON v3.3 tokens | Best current tokens | C tokens | B tokens | C tokens vs JSON | B tokens vs JSON |
+| Corpus | Arrays | JSON bytes | Pre-v4 TOON bytes | Best current bytes | C bytes | B bytes | C bytes vs JSON | B bytes vs JSON | JSON tokens | Pre-v4 TOON tokens | Best current tokens | C tokens | B tokens | C tokens vs JSON | B tokens vs JSON |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | tagged-records/small | 1 | 697 | 759 | 759 | 654 | 839 | -6.2% | +20.4% | 216 | 258 | 258 | 248 | 271 | +14.8% | +25.5% |
 | tagged-records/large | 1 | 20,360 | 22,191 | 22,191 | 16,491 | 17,906 | -19.0% | -12.1% | 6,386 | 7,632 | 7,632 | 6,302 | 5,864 | -1.3% | -8.2% |
