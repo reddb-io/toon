@@ -1,1 +1,1 @@
-error: line 3: array length mismatch
+error: line 3: array count mismatch
