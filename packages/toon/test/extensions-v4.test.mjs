@@ -40,7 +40,7 @@ test('v4 codec cyclic discriminated arrays reconstruct only with opt-in', () => 
 
   assert.equal(encoded, fixture.input.trimEnd())
   assert.notEqual(encode(fixture.expected), encoded)
-  assert.deepEqual(decode(encoded), fixture.strictV3Literal)
+  assert.deepEqual(decode(encoded), fixture.canonicalLiteral)
   assert.deepEqual(decode(encoded, { cyclicDiscriminatedArrays: true }), fixture.expected)
 })
 
@@ -87,7 +87,7 @@ test('v4 codec child tables are opt-in, fail-closed, and round-trip', () => {
     const encoded = encode(fixture.value, { objectArrayColumns: true })
     assert.equal(encoded, fixture.expected.trimEnd(), fixture.name)
     assert.deepEqual(decode(encoded), fixture.value, fixture.name)
-    assert.equal(encoded === encode(fixture.value), fixture.sameAsV3, fixture.name)
+    assert.equal(encoded === encode(fixture.value), fixture.sameAsCanonical, fixture.name)
   }
 
   for (const fixture of childTableCorpus.errors) {
