@@ -309,7 +309,10 @@ fn a_nested_object_column_cell_disambiguates_from_a_child_table() {
 
 #[test]
 fn truncation_reports_cover_invalid_indentation_and_child_tables() {
-    let report = detect_truncation_with_options("v: 1\n   bad: 2\n", ParseOptions::default());
+    let report = reddb_io_toon::detect_truncation_legacy_with_options(
+        "v: 1\n   bad: 2\n",
+        ParseOptions::default(),
+    );
     assert!(!report.complete);
     assert_eq!(report.line, Some(2));
     assert_eq!(
@@ -317,7 +320,7 @@ fn truncation_reports_cover_invalid_indentation_and_child_tables() {
         Some("line 2: invalid indentation")
     );
 
-    let report = detect_truncation_with_options(
+    let report = reddb_io_toon::detect_truncation_legacy_with_options(
         "items[2]{a,kids{x}}:\n  1,1\n    r1\n",
         ParseOptions::default(),
     );
