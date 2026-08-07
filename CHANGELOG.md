@@ -60,6 +60,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - v0.1/v0.2 compatibility and version-signaling rules, a worked example for every
     new construct, and an R1–R4 traceability map.
 
-  Boundaries: v0.2 is not yet implemented in the Rust crate or the JS package
-  (encoders/decoders remain v0.1); the base TOON document spec is unchanged by TOONL; no v0.1
-  semantics change. Implementation is a follow-up Spec.
+  Boundaries: v0.2 is implemented by the Rust crate, JS package, and `tq`; the
+  base TOON document spec is unchanged by TOONL, and no v0.1 semantics change.
