@@ -4,7 +4,9 @@
 
 Rust parser, serializer, document model, encode extensions, and TOONL v0.2 stream utilities for TOON v4.1.
 
-The crate emits canonical TOON v4.1 by default. The reddb-io encode extensions are always decoded but only encoded when requested with [`EncodeOptions`]. The extension specs live in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md), and TOONL is specified in [`docs/toonl-reddb-spec.md`](../../docs/toonl-reddb-spec.md).
+The suffix-free API and the common `Value`, `Document`, and `Array` methods use
+the authoritative TOON v4.1 codec. The former codec is available only through
+explicit methods whose names contain `legacy`.
 
 ```toml
 [dependencies]
@@ -16,34 +18,29 @@ reddb-io-toon = "0.8.0"
 `Value` is the root enum: `Object(Document)`, `Array(Array)`, `String`, `Number`, `Bool`, and `Null`. `Document` is an ordered object model with parsed fields. `Array` stores either a normal `List(Vec<Value>)` or a `Tabular(TabularArray)` so table-shaped arrays can be decoded without immediately materializing every row into nested documents.
 
 ```rust
-use reddb_io_toon::{Array, Document, EncodeOptions, ParseOptions, Value};
+use reddb_io_toon::{decode, decode_iter, decode_reader, encode, Array, Value};
+use std::io::Cursor;
 
-let value = Value::parse_toon("users[1]{id,name}:\n  1,Ada\n")?;
-let document = Document::parse("users[1]{id,name}:\n  1,Ada\n")?;
+let input = "users[1]{id,name}:\n  1,Ada\n";
+let value = decode(input)?;
+let document = value.as_object().expect("object root");
 let users = document.get("users").and_then(Value::as_array).expect("users array");
 
-assert!(matches!(users, Array::Tabular(_)));
-assert_eq!(value.to_canonical_toon(), "users[1]{id,name}:\n  1,Ada\n");
-assert_eq!(
-    value.to_toon_with_options(EncodeOptions::default()),
-    value.to_canonical_toon()
-);
-
-let parsed = Value::parse_with_options(
-    "a.b: 1\n",
-    ParseOptions {
-        expand_paths: true,
-        ..ParseOptions::default()
-    },
-)?;
-assert_eq!(parsed.to_json_string(true)?, r#"{"a":{"b":1}}"#);
+assert!(matches!(users, Array::List(_)));
+assert_eq!(encode(&value)?, "users[1]{id,name}:\n  1,Ada");
+assert_eq!(decode_reader(Cursor::new(input.as_bytes()))?, value);
+assert!(decode_iter(input).all(|event| event.is_ok()));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 Main entry points:
 
-- `Value::parse_toon(input)` parses any TOON root value.
-- `Value::parse_with_options(input, options)` accepts `indent`, `strict`, `expand_paths`, and `max_depth`.
+- `decode(input)` and `decode_with_options(input, options)` parse any v4.1 root value.
+- `decode_reader(reader)` and `decode_reader_with_options(reader, options)` accept `BufRead` input.
+- `decode_iter(input)` and `decode_event_reader(reader, options)` lazily yield positioned events.
+- `encode(value)` and `encode_with_options(value, options)` emit canonical v4.1.
+- `DecodeOptions`, `EncodeV4Options`, `DecodeError`, and `EncodeError` are the option and error surfaces.
+- `Value::parse_toon`, `Document::parse`, and the common canonical-output methods delegate to those v4.1 entry points.
 - `Document::parse(input)` and `Document::parse_with_options(input, options)` require an object root.
 - `Value::from_json_str(input)` and `Value::from_json_value(value)` convert JSON into the same model.
 - `to_canonical_toon()` emits canonical v4.1.
@@ -53,19 +50,19 @@ Main entry points:
 
 ## Parse Options
 
-Strict mode is on by default and enforces the hardened v4.1 error checklist. Set `strict: false` only when accepting legacy recovery behavior is intentional. See the [v4.1 migration notes](../../docs/migration-v4.md) for what strict mode now rejects that v3.3 tolerated.
+Strict mode is on by default and enforces the hardened v4.1 error checklist.
 
 ```rust
-use reddb_io_toon::{ParseOptions, Value};
+use reddb_io_toon::{decode, decode_with_options, DecodeOptions};
 
 let input = "a: 1\na: 2\n";
-assert!(Value::parse_toon(input).is_err());
+assert!(decode(input).is_err());
 
-let recovered = Value::parse_with_options(
+let recovered = decode_with_options(
     input,
-    ParseOptions {
+    &DecodeOptions {
         strict: false,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     },
 )?;
 assert_eq!(recovered.to_json_string(true)?, r#"{"a":2}"#);
@@ -75,13 +72,13 @@ assert_eq!(recovered.to_json_string(true)?, r#"{"a":2}"#);
 `max_depth` protects decoders and fallible encoders from untrusted nesting. `0` disables the guard for trusted input.
 
 ```rust
-use reddb_io_toon::{ParseOptions, Value};
+use reddb_io_toon::{decode_with_options, DecodeOptions};
 
-let error = Value::parse_with_options(
+let error = decode_with_options(
     "a:\n  b:\n    c: 1\n",
-    ParseOptions {
+    &DecodeOptions {
         max_depth: 1,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     },
 )
 .expect_err("depth guard rejects the third level");
@@ -91,9 +88,18 @@ assert!(error.to_string().contains("maxDepth 1"));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-## EncodeOptions
+## Encode options
 
-`EncodeOptions::default()` preserves canonical TOON v4.1. Each extension below contrasts default-off output with opt-in output and round-trips through `parse_toon`. Fallbacks are lossless: when an opt-in extension is not eligible, the encoder emits the canonical shape instead of changing the value.
+`EncodeV4Options::default()` preserves canonical TOON v4.1. The common value
+methods accept the compatibility-shaped `EncodeOptions` and still delegate to
+the same v4.1 encoder. Extension fallbacks are lossless.
+
+## Explicit legacy compatibility
+
+Use `parse_legacy`, `parse_legacy_with_options`, `to_legacy_toon`, and
+`try_to_legacy_toon_with_options` only for stored documents that depend on the
+former codec. `LegacyParseOptions` and `LegacyEncodeOptions` make that boundary
+visible at call sites; path expansion exists only there.
 
 ## `nested_tabular_headers`
 
