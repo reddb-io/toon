@@ -11,6 +11,8 @@ use std::io::Cursor;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::thread::JoinHandle;
 
+const EVENT_DECODER_STACK_SIZE: usize = 8 * 1024 * 1024;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToonEvent {
     StartObject { line: usize },
@@ -609,12 +611,15 @@ where
         max_depth: options.max_depth,
     };
     let error_sender = sender.clone();
-    let worker = std::thread::spawn(move || {
-        let mut sink = ChannelSink { sender };
-        if let Err(error) = decode_events_into(reader, &ctx, &mut sink) {
-            let _ = error_sender.send(Err(error));
-        }
-    });
+    let worker = std::thread::Builder::new()
+        .stack_size(EVENT_DECODER_STACK_SIZE)
+        .spawn(move || {
+            let mut sink = ChannelSink { sender };
+            if let Err(error) = decode_events_into(reader, &ctx, &mut sink) {
+                let _ = error_sender.send(Err(error));
+            }
+        })
+        .expect("failed to spawn TOON event decoder");
     EventDecoder { receiver, worker: Some(worker) }
 }
 
