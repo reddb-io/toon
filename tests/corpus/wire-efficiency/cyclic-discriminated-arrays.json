@@ -97,7 +97,7 @@
           }
         ]
       },
-      "strictV3Literal": {
+      "canonicalLiteral": {
         "events": {
           "order": "cycle(login,purchase,logout)*4",
           "discriminator": "type",
