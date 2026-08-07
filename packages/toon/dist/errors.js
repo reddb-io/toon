@@ -2,13 +2,29 @@
  * Errors carry the 1-based source line so a decoder failure points at the row
  * that caused it. `line: 0` means "no line context" (encoder-side failures).
  */
-export class ToonError extends Error {
+export class ToonDecodeError extends SyntaxError {
     line;
+    source;
     reason;
-    constructor(line, message) {
-        super(line === 0 ? message : `line ${line}: ${message}`);
+    constructor(message, context = {}) {
+        const prefix = context.line === undefined || context.line === 0 ? '' : `Line ${context.line}: `;
+        super(prefix + message, context.cause === undefined ? undefined : { cause: context.cause });
+        this.name = 'ToonDecodeError';
+        this.line = context.line;
+        this.source = context.source;
+        this.reason = message;
+    }
+}
+/** Error used by the explicit pre-v4 compatibility codec. */
+export class ToonError extends SyntaxError {
+    line;
+    source;
+    reason;
+    constructor(line, message, context = {}) {
+        super(line === 0 ? message : `line ${line}: ${message}`, context.cause === undefined ? undefined : { cause: context.cause });
         this.name = 'ToonError';
         this.line = line;
+        this.source = context.source;
         this.reason = message;
     }
 }
@@ -32,8 +48,8 @@ export class ToonlCursorInvalidationError extends ToonlError {
         this.details = details;
     }
 }
-export function toonError(line, message) {
-    return new ToonError(line, message);
+export function toonError(line, message, context = {}) {
+    return new ToonError(line, message, context);
 }
 export function toonlError(line, message) {
     return new ToonlError(line, message);

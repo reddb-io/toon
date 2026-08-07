@@ -9,4 +9,6 @@ export type JsonValue = string | number | boolean | null | JsonValue[] | {
     [key: string]: JsonValue;
 };
 export declare function buildValueFromEvents(events: Iterable<ToonEvent>): JsonValue;
+/** Decodes pre-split TOON lines into one JSON value. */
+export declare function decodeFromLines(lines: Iterable<string>, options?: DecodeStreamOptions): JsonValue;
 export declare function decodeValue(input: string, options?: DecodeStreamOptions): JsonValue;

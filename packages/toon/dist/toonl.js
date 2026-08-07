@@ -674,7 +674,7 @@ export function ToonlDecodeStream() {
 /** Web Streams encoder: records in, TOONL text chunks out. */
 export function ToonlEncodeStream(options) {
     const WebTransformStream = requireTransformStream();
-    const state = { emitter: encodeLines(options) };
+    const state = { emitter: encodeToonlLines(options) };
     return new WebTransformStream({
         transform(record, controller) {
             const output = state.emitter.push(record);
@@ -690,7 +690,7 @@ export function ToonlEncodeStream(options) {
 /** JSONL text chunks in, TOONL text chunks out. */
 export function JsonlToToonl(options) {
     const WebTransformStream = requireTransformStream();
-    const state = { buffer: '', emitter: encodeLines(options), textDecoder: new TextDecoder() };
+    const state = { buffer: '', emitter: encodeToonlLines(options), textDecoder: new TextDecoder() };
     return new WebTransformStream({
         transform(chunk, controller) {
             consumeBufferedLines(state, chunkText(state.textDecoder, chunk, true), controller, enqueueEncodedJson);
@@ -725,7 +725,7 @@ export function recordTransform(fn, options) {
         throw toonlError(0, 'recordTransform requires a function');
     }
     const WebTransformStream = requireTransformStream();
-    const state = { emitter: encodeLines(options) };
+    const state = { emitter: encodeToonlLines(options) };
     return new WebTransformStream({
         transform(record, controller) {
             const next = fn(record);
@@ -922,7 +922,7 @@ export class ToonlEncoder {
  *
  * `trailer` (default `true`) writes the `[=N]` trailer when a segment closes.
  */
-export function encodeLines({ delimiter = DOCUMENT_DELIMITER, trailer = true, continuationEveryRows, continuationEveryBytes, } = {}) {
+export function encodeToonlLines({ delimiter = DOCUMENT_DELIMITER, trailer = true, continuationEveryRows, continuationEveryBytes, } = {}) {
     validateDelimiter(delimiter);
     validateCadence(continuationEveryRows);
     validateCadence(continuationEveryBytes);
@@ -1025,10 +1025,10 @@ export function encodeLines({ delimiter = DOCUMENT_DELIMITER, trailer = true, co
 }
 /**
  * Convenience: encodes records to one TOONL string, rotating on schema change.
- * Uses the same first-seen per-shape field order as `encodeLines`.
+ * Uses the same first-seen per-shape field order as `encodeToonlLines`.
  */
 export function encodeRecords(records, options) {
-    const emitter = encodeLines(options);
+    const emitter = encodeToonlLines(options);
     let output = '';
     for (const record of records) {
         output += emitter.push(record);

@@ -2,7 +2,15 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { decode, detectTruncation, encode, jsonToToon, ToonError, toonToJson } from '../dist/index.js'
+import {
+  decode,
+  detectTruncation,
+  encode,
+  jsonToToon,
+  ToonDecodeError,
+  ToonError,
+  toonToJson,
+} from '../dist/index.js'
 
 const cyclicCorpus = JSON.parse(
   readFileSync(
@@ -149,7 +157,7 @@ test('v4 codec encode and decode enforce exact maximum-depth errors', () => {
   assert.throws(
     () => decode('a:\n  b:\n    c: 1', { maxDepth: 1 }),
     (error) =>
-      error instanceof ToonError &&
+      error instanceof ToonDecodeError &&
       error.line === 3 &&
       error.reason === 'maximum nesting depth exceeded (maxDepth 1)',
   )

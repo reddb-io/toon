@@ -1,14 +1,25 @@
 /**
- * @reddb-io/toon — TOON v3.3 parser/serializer and TOONL v0.1 streaming, in
+ * @reddb-io/toon — TOON v4.1 encoder/decoder and TOONL v0.2 streaming, in
  * dependency-free ESM. The TOON side decodes to (and encodes from) plain JSON
  * values; the TOONL side is built for append-only streams.
  */
+import { decodeValue } from './decode/build.js';
+import { encode } from './encode/serialize.js';
 export { VERSION } from './version.js';
-export { ToonError, ToonlCursorInvalidationError, ToonlError } from './errors.js';
-export { DEFAULT_INDENT, DEFAULT_MAX_DEPTH, parse, parseDocument, serialize, } from './toon.js';
+export { ToonDecodeError, ToonError, ToonlCursorInvalidationError, ToonlError } from './errors.js';
+export { DEFAULT_INDENT, DEFAULT_MAX_DEPTH } from './toon.js';
+export { DEFAULT_DELIMITER, DELIMITERS } from './constants.js';
 export { detectTruncation } from './decode/truncation.js';
-export { encode } from './encode/serialize.js';
-export { decodeFromLines, decodeStream, decodeStreamSync } from './decode/stream.js';
-export { buildValueFromEvents, decodeValue, decodeValue as decode } from './decode/build.js';
+export { encodeLines } from './encode/serialize.js';
+export { rawString } from './encode/raw-string.js';
+export { escapeString } from './lexical.js';
+export { decodeStream, decodeStreamSync } from './decode/stream.js';
+export { buildValueFromEvents, decodeFromLines } from './decode/build.js';
 export { appendSummaryField, projectFields } from './helpers.js';
-export { JsonlToToonl, ToonlDecodeStream, ToonlEncodeStream, ToonlToJsonl, ToonlEncoder, ToonlReader, closeTransform, closeTransformInterleaved, decodeLines, encodeLines, encodeRecords, jsonToToon, parseRecords, parseStream, recordTransform, toonToJson, } from './toonl.js';
+export const decode = decodeValue;
+/** @deprecated Use {@link decode}. */
+export const parse = decode;
+export { encode };
+/** @deprecated Use {@link encode}. */
+export const serialize = encode;
+export { JsonlToToonl, ToonlDecodeStream, ToonlEncodeStream, ToonlToJsonl, ToonlEncoder, ToonlReader, closeTransform, closeTransformInterleaved, decodeLines, encodeToonlLines, encodeRecords, jsonToToon, parseRecords, parseStream, recordTransform, toonToJson, } from './toonl.js';

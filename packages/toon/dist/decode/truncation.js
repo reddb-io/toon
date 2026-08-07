@@ -1,4 +1,4 @@
-import { ToonError } from '../errors.js';
+import { ToonDecodeError, ToonError } from '../errors.js';
 import { findUnquoted, splitDelimited } from '../lexical.js';
 import { detectTruncation as detectLegacyTruncation } from '../toon_parts/parse.js';
 import { decodeValue } from './build.js';
@@ -20,10 +20,12 @@ export function detectTruncation(input, options = {}) {
         return {
             complete: false,
             kind: 'invalid',
-            line: error instanceof ToonError ? error.line : 1,
+            line: error instanceof ToonDecodeError || error instanceof ToonError ? error.line ?? 1 : 1,
             declared: null,
             actual: null,
-            message: error instanceof Error ? error.message : String(error),
+            message: error instanceof ToonDecodeError || error instanceof ToonError
+                ? `line ${error.line ?? 1}: ${error.reason}`
+                : error instanceof Error ? error.message : String(error),
         };
     }
 }

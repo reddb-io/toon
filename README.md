@@ -53,11 +53,11 @@ pnpm add @reddb-io/toon
 ```
 
 ```js
-import { parse, serialize } from '@reddb-io/toon'
+import { decode, encode } from '@reddb-io/toon'
 
-const document = parse('users[2]{id,name}:\n  1,Ada\n  2,Linus\n')
+const document = decode('users[2]{id,name}:\n  1,Ada\n  2,Linus\n')
 console.log(document.users[0].name)
-process.stdout.write(serialize(document))
+process.stdout.write(`${encode(document)}\n`)
 ```
 ```console
 Ada

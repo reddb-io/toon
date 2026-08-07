@@ -14,7 +14,7 @@
  */
 
 import type { ToonEvent } from '../events.js'
-import { ToonError, toonError } from '../errors.js'
+import { ToonDecodeError, ToonError, toonError } from '../errors.js'
 import { findUnquoted, parseKey, parseScalar } from '../lexical.js'
 import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js'
 
@@ -49,6 +49,7 @@ function isCommentLine(raw: string): boolean {
 }
 
 class LineClassifier {
+  readonly sourceByLine = new Map<number, string>()
   private number = 0
   private blankPending = false
   private firstLine = true
@@ -58,6 +59,7 @@ class LineClassifier {
   push(input: string): Line | undefined {
     let raw = input
     this.number++
+    this.sourceByLine.set(this.number, input)
     if (this.firstLine) {
       // A single leading U+FEFF is a byte-order mark, not content (§12).
       if (raw.startsWith('﻿')) raw = raw.slice(1)
@@ -105,8 +107,10 @@ class LineClassifier {
   }
 }
 
-function* classifyLines(source: Iterable<string>, ctx: Ctx): Generator<Line> {
-  const classifier = new LineClassifier(ctx)
+function* classifyLines(
+  source: Iterable<string>,
+  classifier: LineClassifier,
+): Generator<Line> {
   for (const raw of source) {
     const line = classifier.push(raw)
     if (line !== undefined) yield line
@@ -115,9 +119,8 @@ function* classifyLines(source: Iterable<string>, ctx: Ctx): Generator<Line> {
 
 async function* classifyLinesAsync(
   source: AsyncIterable<string> | Iterable<string>,
-  ctx: Ctx,
+  classifier: LineClassifier,
 ): AsyncGenerator<Line> {
-  const classifier = new LineClassifier(ctx)
   for await (const raw of source) {
     const line = classifier.push(raw)
     if (line !== undefined) yield line
@@ -795,8 +798,10 @@ export function* decodeStreamSync(
   source: Iterable<string>,
   options?: DecodeStreamOptions,
 ): Generator<ToonEvent> {
-  const lines = classifyLines(source, decodeContext(options))
-  const parser = parseEvents(decodeContext(options))
+  const context = decodeContext(options)
+  const classifier = new LineClassifier(context)
+  const lines = classifyLines(source, classifier)
+  const parser = parseEvents(context)
   let step = parser.next()
   try {
     while (!step.done) {
@@ -808,6 +813,8 @@ export function* decodeStreamSync(
         step = parser.next()
       }
     }
+  } catch (error) {
+    throw withSource(error, classifier)
   } finally {
     parser.return()
     lines.return(undefined)
@@ -819,8 +826,10 @@ export async function* decodeStream(
   source: AsyncIterable<string> | Iterable<string>,
   options?: DecodeStreamOptions,
 ): AsyncGenerator<ToonEvent> {
-  const lines = classifyLinesAsync(source, decodeContext(options))
-  const parser = parseEvents(decodeContext(options))
+  const context = decodeContext(options)
+  const classifier = new LineClassifier(context)
+  const lines = classifyLinesAsync(source, classifier)
+  const parser = parseEvents(context)
   let step = parser.next()
   try {
     while (!step.done) {
@@ -832,10 +841,21 @@ export async function* decodeStream(
         step = parser.next()
       }
     }
+  } catch (error) {
+    throw withSource(error, classifier)
   } finally {
     parser.return()
     await lines.return(undefined)
   }
+}
+
+function withSource(error: unknown, classifier: LineClassifier): unknown {
+  if (!(error instanceof ToonError) || error.source !== undefined) return error
+  return new ToonDecodeError(error.reason, {
+    line: error.line,
+    source: classifier.sourceByLine.get(error.line),
+    cause: error,
+  })
 }
 
 /** Canonical line-to-event entry point, preserving the source's iteration mode. */

@@ -20,16 +20,15 @@ import test from 'node:test'
 
 import {
   ToonlEncoder,
-  decodeValue,
   closeTransform,
   closeTransformInterleaved,
+  decode,
   encode,
-  encodeLines,
+  encodeToonlLines,
   encodeRecords,
-  parse,
   parseStream,
-  serialize,
 } from '../dist/index.js'
+import { parse as parseLegacy, serialize as serializeLegacy } from '../dist/legacy.js'
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const FIXTURE_ROOT = join(REPO_ROOT, 'vendor/toon-spec/tests/fixtures')
@@ -134,7 +133,7 @@ function encoderOptions(options) {
 /** Our canonical output has to decode back to the value we started from. */
 function roundTripsTo(value) {
   // The canonical profile is always the default one, whatever the input used.
-  return jsonEqual(parse(serialize(value)), value)
+  return jsonEqual(decode(encode(value)), value)
 }
 
 test('official TOON spec fixtures do not regress', () => {
@@ -167,7 +166,7 @@ test('official TOON spec fixtures do not regress', () => {
             // Official v4 fixtures exercise the event decoder; the local
             // extension fixtures stay on the legacy parser until the
             // extensions are re-expressed on the v4.1 base (#214).
-            const decodeFn = official ? decodeValue : parse
+            const decodeFn = official ? decode : parseLegacy
             if (testCase.shouldError === true) {
               // A rejection the spec asked for.
               try {
@@ -185,7 +184,7 @@ test('official TOON spec fixtures do not regress', () => {
               const value = decodeFn(testCase.input, options)
               passed =
                 jsonEqual(value, testCase.expected) &&
-                jsonEqual(decodeFn(serialize(value)), value)
+                jsonEqual(decodeFn(official ? encode(value) : serializeLegacy(value)), value)
               if (passed && testCase.failClosedV3Strict === true) {
                 assert.throws(() => rejectV3Strict(testCase.input), /invalid .* header/)
               }
@@ -193,10 +192,10 @@ test('official TOON spec fixtures do not regress', () => {
           } else {
             const encoded = official
               ? encode(testCase.input, encoderOptions(testCase.options))
-              : serialize(testCase.input, encoderOptions(testCase.options))
+              : serializeLegacy(testCase.input, encoderOptions(testCase.options))
             const decoded = official
-              ? decodeValue(testCase.expected, options)
-              : parse(testCase.expected, options)
+              ? decode(testCase.expected, options)
+              : parseLegacy(testCase.expected, options)
             passed = encoded === testCase.expected && jsonEqual(decoded, testCase.input)
           }
         } catch (error) {
@@ -275,7 +274,7 @@ test('TOONL fixtures are executable spec examples', () => {
       }
 
       if (testCase.kind === 'encode-tagged-records') {
-        const emitter = encodeLines()
+        const emitter = encodeToonlLines()
         let output = ''
         for (const operation of testCase.operations) {
           output += emitter.pushTagged(operation.tag, operation.record)
@@ -288,7 +287,7 @@ test('TOONL fixtures are executable spec examples', () => {
         const documents = closeTransform(testCase.input)
         assert.deepEqual(documents, testCase.expectedToonDocuments, `${name}: transformed docs`)
         for (const document of documents) {
-          parse(document)
+          decode(document)
         }
         if (testCase.expectedInterleavedToonDocuments !== undefined) {
           const interleavedDocuments = closeTransformInterleaved(testCase.input)
@@ -298,7 +297,7 @@ test('TOONL fixtures are executable spec examples', () => {
             `${name}: interleaved transformed docs`,
           )
           for (const document of interleavedDocuments) {
-            parse(document)
+            decode(document)
           }
         }
         continue

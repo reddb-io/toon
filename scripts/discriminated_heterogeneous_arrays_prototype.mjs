@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 
-import { serialize } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/src/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const TOKENIZER_DIR = join(REPO_ROOT, '.red/tmp/wire-efficiency-tokenizer')
@@ -334,8 +334,8 @@ function replacePlaceholders(value, replacements) {
 function measure(encoding, dataset) {
   const value = JSON.parse(readFileSync(join(REPO_ROOT, dataset.path), 'utf8'))
   const jsonMin = JSON.stringify(value)
-  const toonV33 = serialize(value)
-  const toonExt = serialize(value, EXT_OPTIONS)
+  const toonV33 = encode(value)
+  const toonExt = encode(value, EXT_OPTIONS)
   const bestCurrentWire = byteLength(toonExt) < byteLength(toonV33) ? toonExt : toonV33
   const cWire = candidateCWire(value)
   const bWire = candidateBWire(value)

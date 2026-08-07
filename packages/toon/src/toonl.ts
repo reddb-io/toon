@@ -763,7 +763,7 @@ export function ToonlDecodeStream() {
 /** Web Streams encoder: records in, TOONL text chunks out. */
 export function ToonlEncodeStream(options) {
   const WebTransformStream = requireTransformStream()
-  const state = { emitter: encodeLines(options) }
+  const state = { emitter: encodeToonlLines(options) }
 
   return new WebTransformStream({
     transform(record, controller) {
@@ -781,7 +781,7 @@ export function ToonlEncodeStream(options) {
 /** JSONL text chunks in, TOONL text chunks out. */
 export function JsonlToToonl(options) {
   const WebTransformStream = requireTransformStream()
-  const state = { buffer: '', emitter: encodeLines(options), textDecoder: new TextDecoder() }
+  const state = { buffer: '', emitter: encodeToonlLines(options), textDecoder: new TextDecoder() }
 
   return new WebTransformStream({
     transform(chunk, controller) {
@@ -830,7 +830,7 @@ export function recordTransform(fn, options) {
     throw toonlError(0, 'recordTransform requires a function')
   }
   const WebTransformStream = requireTransformStream()
-  const state = { emitter: encodeLines(options) }
+  const state = { emitter: encodeToonlLines(options) }
 
   return new WebTransformStream({
     transform(record, controller) {
@@ -1054,7 +1054,7 @@ export class ToonlEncoder {
  *
  * `trailer` (default `true`) writes the `[=N]` trailer when a segment closes.
  */
-export function encodeLines({
+export function encodeToonlLines({
   delimiter = DOCUMENT_DELIMITER,
   trailer = true,
   continuationEveryRows,
@@ -1174,10 +1174,10 @@ export function encodeLines({
 
 /**
  * Convenience: encodes records to one TOONL string, rotating on schema change.
- * Uses the same first-seen per-shape field order as `encodeLines`.
+ * Uses the same first-seen per-shape field order as `encodeToonlLines`.
  */
 export function encodeRecords(records, options) {
-  const emitter = encodeLines(options)
+  const emitter = encodeToonlLines(options)
   let output = ''
   for (const record of records) {
     output += emitter.push(record)

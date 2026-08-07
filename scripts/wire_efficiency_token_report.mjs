@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 
-import { serialize } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/src/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const FIXTURE_PATH = join(REPO_ROOT, 'tests/wire-efficiency/corpora.json')
@@ -70,9 +70,9 @@ console.log('-'.repeat(93))
 for (const testCase of fixture.cases) {
   const value = testCase.value
   const jsonMin = JSON.stringify(value)
-  const toonV3 = serialize(value)
-  const toonTab = serialize(value, { delimiter: '\t' })
-  const toonExt = serialize(value, EXT_OPTIONS)
+  const toonV3 = encode(value)
+  const toonTab = encode(value, { delimiter: '\t' })
+  const toonExt = encode(value, EXT_OPTIONS)
   const counts = {
     jsonMin: tokens(encoding, jsonMin),
     toonV3: tokens(encoding, toonV3),

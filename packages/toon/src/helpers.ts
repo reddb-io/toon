@@ -4,19 +4,19 @@
  * published package gets them (and RedSkills can be a pure npm consumer).
  */
 
-import { serialize } from './toon.js'
+import { encode } from './encode/serialize.js'
 
 /**
  * Encodes an object with a trailing spec-legal `summary:` field.
  *
- * The returned bytes are one conforming TOON document, so `parse(output)`
+ * The returned bytes are one conforming TOON document, so `decode(output)`
  * recovers the rollup together with the rest of the payload. Any existing
  * `summary` key is replaced and moved to the end.
  */
 export function appendSummaryField(value, summary) {
   const entries = Object.entries(value).filter(([key]) => key !== 'summary')
   entries.push(['summary', summary])
-  return serialize(Object.fromEntries(entries))
+  return encode(Object.fromEntries(entries))
 }
 
 /**

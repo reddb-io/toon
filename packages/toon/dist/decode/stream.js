@@ -12,7 +12,7 @@
  * header grammar (§6) → scope emitters for objects (§8), arrays (§9.1–§9.4),
  * keyed tabular objects (§9.5) and objects as list items (§10).
  */
-import { ToonError, toonError } from '../errors.js';
+import { ToonDecodeError, ToonError, toonError } from '../errors.js';
 import { findUnquoted, parseKey, parseScalar } from '../lexical.js';
 import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js';
 /** A full-line comment: only U+0020 spaces before `#` (§5.1). */
@@ -24,6 +24,7 @@ function isCommentLine(raw) {
 }
 class LineClassifier {
     ctx;
+    sourceByLine = new Map();
     number = 0;
     blankPending = false;
     firstLine = true;
@@ -33,6 +34,7 @@ class LineClassifier {
     push(input) {
         let raw = input;
         this.number++;
+        this.sourceByLine.set(this.number, input);
         if (this.firstLine) {
             // A single leading U+FEFF is a byte-order mark, not content (§12).
             if (raw.startsWith('﻿'))
@@ -86,16 +88,14 @@ class LineClassifier {
         return line;
     }
 }
-function* classifyLines(source, ctx) {
-    const classifier = new LineClassifier(ctx);
+function* classifyLines(source, classifier) {
     for (const raw of source) {
         const line = classifier.push(raw);
         if (line !== undefined)
             yield line;
     }
 }
-async function* classifyLinesAsync(source, ctx) {
-    const classifier = new LineClassifier(ctx);
+async function* classifyLinesAsync(source, classifier) {
     for await (const raw of source) {
         const line = classifier.push(raw);
         if (line !== undefined)
@@ -741,8 +741,10 @@ export { ToonError };
  * Synchronously decodes lines with at most two classified lines of lookahead.
  */
 export function* decodeStreamSync(source, options) {
-    const lines = classifyLines(source, decodeContext(options));
-    const parser = parseEvents(decodeContext(options));
+    const context = decodeContext(options);
+    const classifier = new LineClassifier(context);
+    const lines = classifyLines(source, classifier);
+    const parser = parseEvents(context);
     let step = parser.next();
     try {
         while (!step.done) {
@@ -756,6 +758,9 @@ export function* decodeStreamSync(source, options) {
             }
         }
     }
+    catch (error) {
+        throw withSource(error, classifier);
+    }
     finally {
         parser.return();
         lines.return(undefined);
@@ -763,8 +768,10 @@ export function* decodeStreamSync(source, options) {
 }
 /** Asynchronously decodes lines with the same bounded-lookahead parser. */
 export async function* decodeStream(source, options) {
-    const lines = classifyLinesAsync(source, decodeContext(options));
-    const parser = parseEvents(decodeContext(options));
+    const context = decodeContext(options);
+    const classifier = new LineClassifier(context);
+    const lines = classifyLinesAsync(source, classifier);
+    const parser = parseEvents(context);
     let step = parser.next();
     try {
         while (!step.done) {
@@ -778,10 +785,22 @@ export async function* decodeStream(source, options) {
             }
         }
     }
+    catch (error) {
+        throw withSource(error, classifier);
+    }
     finally {
         parser.return();
         await lines.return(undefined);
     }
+}
+function withSource(error, classifier) {
+    if (!(error instanceof ToonError) || error.source !== undefined)
+        return error;
+    return new ToonDecodeError(error.reason, {
+        line: error.line,
+        source: classifier.sourceByLine.get(error.line),
+        cause: error,
+    });
 }
 export function decodeFromLines(source, options) {
     return Symbol.asyncIterator in source

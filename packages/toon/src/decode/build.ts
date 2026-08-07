@@ -5,7 +5,7 @@
  */
 
 import type { ToonEvent } from '../events.js'
-import { decodeFromLines } from './stream.js'
+import { decodeFromLines as decodeEventsFromLines } from './stream.js'
 import type { DecodeStreamOptions } from './stream.js'
 import { expandCyclicDiscriminatedArrays } from '../toon_parts/cyclic.js'
 import { parse as parseLegacyExtensions } from '../toon_parts/parse.js'
@@ -72,6 +72,14 @@ export function buildValueFromEvents(events: Iterable<ToonEvent>): JsonValue {
   return root === UNSET ? {} : root
 }
 
+/** Decodes pre-split TOON lines into one JSON value. */
+export function decodeFromLines(
+  lines: Iterable<string>,
+  options?: DecodeStreamOptions,
+): JsonValue {
+  return buildValueFromEvents(decodeEventsFromLines(lines, options) as Iterable<ToonEvent>)
+}
+
 export function decodeValue(input: string, options?: DecodeStreamOptions): JsonValue {
   let value: JsonValue
   if (
@@ -86,7 +94,7 @@ export function decodeValue(input: string, options?: DecodeStreamOptions): JsonV
     }) as JsonValue
   } else {
     try {
-      value = buildValueFromEvents(decodeFromLines(linesFromString(input), options))
+      value = decodeFromLines(linesFromString(input), options)
     } catch (error) {
       if (options?.objectArrayColumns === false || !hasChildTableHeader(input)) throw error
       value = parseLegacyExtensions(input, {

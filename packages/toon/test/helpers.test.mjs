@@ -5,14 +5,12 @@ import {
   appendSummaryField,
   decode,
   encode,
-  parse,
   projectFields,
-  serialize,
 } from '../dist/index.js'
 
 test('appendSummaryField emits one conforming document with summary last', () => {
   const out = appendSummaryField({ service: 'checkout', rows: 3 }, { total: 3, failed: 1 })
-  const back = parse(out)
+  const back = decode(out)
   assert.deepEqual(back, { service: 'checkout', rows: 3, summary: { total: 3, failed: 1 } })
   const keys = Object.keys(back)
   assert.equal(keys[keys.length - 1], 'summary')
@@ -20,14 +18,14 @@ test('appendSummaryField emits one conforming document with summary last', () =>
 
 test('appendSummaryField replaces an existing summary key and moves it to the end', () => {
   const out = appendSummaryField({ summary: 'stale', a: 1 }, 'fresh')
-  const back = parse(out)
+  const back = decode(out)
   assert.deepEqual(back, { a: 1, summary: 'fresh' })
   assert.equal(Object.keys(back)[1], 'summary')
 })
 
 test('appendSummaryField output survives strings that need quoting', () => {
   const value = { note: 'a, b: [c] {d}\nnext' }
-  const back = parse(appendSummaryField(value, 'ok'))
+  const back = decode(appendSummaryField(value, 'ok'))
   assert.deepEqual(back, { note: 'a, b: [c] {d}\nnext', summary: 'ok' })
 })
 
@@ -50,10 +48,7 @@ test('projectFields leaves absent fields absent instead of null-filling', () => 
   assert.equal(Object.prototype.hasOwnProperty.call(projected[0], 'missing'), false)
 })
 
-test('encode/decode expose v4.1 while serialize/parse retain extension behavior', () => {
-  assert.notEqual(encode, serialize)
-  assert.notEqual(decode, parse)
+test('encode/decode expose the authoritative v4.1 semantics', () => {
   assert.equal(encode({ value: 1 }), 'value: 1')
-  assert.equal(serialize({ value: 1 }), 'value: 1\n')
   assert.deepEqual(decode('# comment\nvalue: 1'), { value: 1 })
 })
