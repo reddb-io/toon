@@ -46,6 +46,39 @@ Pre-v4 dotted-key expansion and the former permissive codec live only at the exp
 
 Strict mode is on by default. It enforces the official TOON error checklist; pass `{ strict: false }` only when you intentionally want legacy recovery behavior.
 
+### Experimental Decode Reviver
+
+`decode` and `decodeFromLines` accept an experimental `reviver` option. This
+frontier is audited from upstream PR
+[`toon-format/toon#294`](https://github.com/toon-format/toon/pull/294) at commit
+`b3e4f61609ee7d676c0066440964a9f01ab767b7`; it is not normative TOON v4.1
+behavior and may change when that PR merges or ships in an upstream release.
+Calls are depth-first and bottom-up. The callback receives a string property
+key, the current value, and a root-relative path whose array segments are
+numbers. Returning `undefined` deletes object properties and compacts array
+elements; for the root value it means no change. Other replacements are
+normalized to the JSON data model. Callback errors propagate unchanged.
+
+```js
+import { decode } from '@reddb-io/toon'
+
+const document = decode('user:\n  name: Ada\n  password: secret\nroles[2]: admin,reader', {
+  reviver(key, value, path) {
+    if (key === 'password') return undefined
+    if (path[0] === 'roles' && typeof value === 'string') return value.toUpperCase()
+    return value
+  },
+})
+
+console.log(JSON.stringify(document))
+```
+```console
+{"user":{"name":"Ada"},"roles":["ADMIN","READER"]}
+```
+
+Omitting `reviver` leaves ordinary decode unchanged. `decodeStream` and
+`decodeStreamSync` remain the normative event APIs and do not run this hook.
+
 ### Base Options
 
 - `indent` changes how the parser interprets leading spaces. Serialization stays canonical TOON v4.1 with two-space indentation by default.
