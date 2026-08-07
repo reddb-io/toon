@@ -1,9 +1,9 @@
 /**
  * Builds a JSON value tree from the decode event stream — the whole-document
- * convenience over `decodeStreamSync` (ADR 0006). Mirrors upstream's
+ * convenience over `decodeFromLines` (ADR 0006). Mirrors upstream's
  * event-builder layering: the stream is the core, the tree is derived.
  */
-import { decodeStreamSync } from './stream.js';
+import { decodeFromLines } from './stream.js';
 import { expandCyclicDiscriminatedArrays } from '../toon_parts/cyclic.js';
 import { parse as parseLegacyExtensions } from '../toon_parts/parse.js';
 const UNSET = Symbol('unset');
@@ -71,7 +71,7 @@ export function decodeValue(input, options) {
     }
     else {
         try {
-            value = buildValueFromEvents(decodeStreamSync(input.split('\n'), options));
+            value = buildValueFromEvents(decodeFromLines(linesFromString(input), options));
         }
         catch (error) {
             if (options?.objectArrayColumns === false || !hasChildTableHeader(input))
@@ -87,6 +87,19 @@ export function decodeValue(input, options) {
     return (options?.cyclicDiscriminatedArrays === true
         ? expandCyclicDiscriminatedArrays(value)
         : value);
+}
+/** Iterates string lines without allocating a whole-document line array. */
+function* linesFromString(input) {
+    let start = 0;
+    while (true) {
+        const end = input.indexOf('\n', start);
+        if (end === -1) {
+            yield input.slice(start);
+            return;
+        }
+        yield input.slice(start, end);
+        start = end + 1;
+    }
 }
 function hasPrimitiveArrayColumnHeader(input) {
     return headerFieldLists(input).some((fields) => [...fields.matchAll(/\[([^\]]*)\]/g)].some(([, content]) => !/^(?:0|[1-9]\d*)(?:\t|\|)?$/.test(content)));

@@ -1,10 +1,12 @@
 /**
  * Event-based streaming decoder (ADR 0006), targeting TOON spec v4.1.
  *
- * Consumes an iterable of TOON lines (without newlines) and yields the six
- * JSON-semantic events, each carrying its 1-based source line. Errors are
- * fail-fast positioned `ToonError`s; strict-mode policy is resolved here at
- * the public boundary.
+ * Consumes TOON lines (without newlines) and yields the six JSON-semantic
+ * events, each carrying its 1-based source line. The parser requests lines on
+ * demand and retains at most two classified content lines: the current line
+ * plus one lookahead needed to distinguish a root scalar from a document.
+ * Errors are fail-fast positioned `ToonError`s; strict-mode policy is resolved
+ * here at the public boundary.
  *
  * Layering (§5–§12): line classification (comments, blanks, indentation) →
  * header grammar (§6) → scope emitters for objects (§8), arrays (§9.1–§9.4),
@@ -46,32 +48,35 @@ function isCommentLine(raw: string): boolean {
   return raw[i] === '#'
 }
 
-function classifyLines(source: Iterable<string>, ctx: Ctx): Line[] {
-  const lines: Line[] = []
-  let number = 0
-  let blankPending = false
-  let firstLine = true
-  for (let raw of source) {
-    number++
-    if (firstLine) {
+class LineClassifier {
+  private number = 0
+  private blankPending = false
+  private firstLine = true
+
+  constructor(private readonly ctx: Ctx) {}
+
+  push(input: string): Line | undefined {
+    let raw = input
+    this.number++
+    if (this.firstLine) {
       // A single leading U+FEFF is a byte-order mark, not content (§12).
       if (raw.startsWith('﻿')) raw = raw.slice(1)
-      firstLine = false
+      this.firstLine = false
     }
     if (raw.endsWith('\r')) raw = raw.slice(0, -1)
     // Trailing spaces are not part of the line's content (§12).
     raw = raw.replace(/ +$/, '')
     if (raw.trim() === '') {
-      blankPending = true
-      continue
+      this.blankPending = true
+      return undefined
     }
-    if (isCommentLine(raw)) continue
+    if (isCommentLine(raw)) return undefined
     let i = 0
     let tabs = 0
     let spaces = 0
     while (i < raw.length && (raw[i] === ' ' || raw[i] === '\t')) {
       if (raw[i] === '\t') {
-        if (ctx.strict) throw toonError(number, 'tab used as indentation')
+        if (this.ctx.strict) throw toonError(this.number, 'tab used as indentation')
         tabs++
       } else {
         spaces++
@@ -79,20 +84,44 @@ function classifyLines(source: Iterable<string>, ctx: Ctx): Line[] {
       i++
     }
     let depth: number
-    if (spaces % ctx.indentSize === 0) {
-      depth = spaces / ctx.indentSize
-    } else if (ctx.strict) {
-      throw toonError(number, 'invalid indentation')
+    if (spaces % this.ctx.indentSize === 0) {
+      depth = spaces / this.ctx.indentSize
+    } else if (this.ctx.strict) {
+      throw toonError(this.number, 'invalid indentation')
     } else {
-      depth = Math.floor(spaces / ctx.indentSize)
+      depth = Math.floor(spaces / this.ctx.indentSize)
     }
     // Non-strict tab leniency (§12): each leading tab counts as one level.
     depth += tabs
-    checkDepth(depth, number, ctx)
-    lines.push({ number, depth, content: raw.slice(i), blankBefore: blankPending })
-    blankPending = false
+    checkDepth(depth, this.number, this.ctx)
+    const line = {
+      number: this.number,
+      depth,
+      content: raw.slice(i),
+      blankBefore: this.blankPending,
+    }
+    this.blankPending = false
+    return line
   }
-  return lines
+}
+
+function* classifyLines(source: Iterable<string>, ctx: Ctx): Generator<Line> {
+  const classifier = new LineClassifier(ctx)
+  for (const raw of source) {
+    const line = classifier.push(raw)
+    if (line !== undefined) yield line
+  }
+}
+
+async function* classifyLinesAsync(
+  source: AsyncIterable<string> | Iterable<string>,
+  ctx: Ctx,
+): AsyncGenerator<Line> {
+  const classifier = new LineClassifier(ctx)
+  for await (const raw of source) {
+    const line = classifier.push(raw)
+    if (line !== undefined) yield line
+  }
 }
 
 // #region Header grammar (§6)
@@ -305,24 +334,48 @@ function splitCells(content: string, delimiter: string, line: number): string[] 
   return cells
 }
 
+const NEED_LINE = Symbol('need line')
+const MAX_CLASSIFIED_LOOKAHEAD = 2
+type ParserOutput = ToonEvent | typeof NEED_LINE
+type ParserGenerator = Generator<ParserOutput, void, Line | undefined>
+
 class Reader {
-  index = 0
+  private readonly lines: Line[] = []
+  private ended = false
+  private previous: Line | undefined
   /** Depth of open header spans — blank lines inside one are strict errors (§12). */
-  spanActive = 0
-  constructor(readonly lines: Line[]) {}
-  peek(): Line | undefined {
-    return this.lines[this.index]
+  spanActive = 0;
+
+  * peek(offset = 0): Generator<typeof NEED_LINE, Line | undefined, Line | undefined> {
+    if (offset >= MAX_CLASSIFIED_LOOKAHEAD) {
+      throw new Error(`decoder lookahead exceeds ${MAX_CLASSIFIED_LOOKAHEAD} classified lines`)
+    }
+    while (!this.ended && this.lines.length <= offset) {
+      const line = yield NEED_LINE
+      if (line === undefined) this.ended = true
+      else this.lines.push(line)
+    }
+    return this.lines[offset]
   }
-  take(ctx: Ctx): Line {
-    const line = this.lines[this.index++]
+
+  * take(ctx: Ctx): Generator<typeof NEED_LINE, Line, Line | undefined> {
+    const line = yield* this.peek()
+    if (line === undefined) throw new Error('decoder attempted to read past end of input')
+    this.lines.shift()
     if (ctx.strict && this.spanActive > 0 && line.blankBefore) {
       throw toonError(line.number, 'blank line inside a header span')
     }
+    this.previous = line
     return line
   }
+
   lastNumber(fallback: number): number {
-    const previous = this.lines[this.index - 1]
-    return previous === undefined ? fallback : previous.number
+    return this.previous === undefined ? fallback : this.previous.number
+  }
+
+  stop(): void {
+    this.lines.length = 0
+    this.ended = true
   }
 }
 
@@ -340,31 +393,34 @@ function decodeKey(token: string, line: number): string {
   }
 }
 
-export function* decodeStreamSync(
-  source: Iterable<string>,
-  options?: DecodeStreamOptions,
-): Generator<ToonEvent> {
+function decodeContext(options?: DecodeStreamOptions): Ctx {
   const rawMaxDepth = options?.maxDepth ?? DEFAULT_MAX_DEPTH
-  const ctx: Ctx = {
+  return {
     indentSize: options?.indentSize ?? options?.indent ?? 2,
     strict: options?.strict ?? true,
     maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY
       ? 0
       : Math.max(0, Math.floor(rawMaxDepth)),
   }
-  const reader = new Reader(classifyLines(source, ctx))
+}
 
-  const first = reader.peek()
+function* parseEvents(ctx: Ctx): ParserGenerator {
+  const reader = new Reader()
+
+  const first = yield* reader.peek()
   if (first === undefined) {
     yield { type: 'startObject', line: 1 }
     yield { type: 'endObject', line: 1 }
     return
   }
   if (first.depth !== 0) throw toonError(first.number, 'invalid indentation')
+  // Fill the sole lookahead slot before root events so lexical/indentation
+  // failures on the next content line retain their fail-before-event ordering.
+  yield* reader.peek(1)
 
   // Root form discovery (§5).
   if (first.content === '[]') {
-    reader.take(ctx)
+    yield* reader.take(ctx)
     yield { type: 'startArray', length: 0, line: first.number }
     yield { type: 'endArray', line: first.number }
     yield* expectEndOfDocument(reader, ctx)
@@ -382,7 +438,7 @@ export function* decodeStreamSync(
   if (header !== null && header !== undefined) assertHeaderDepth(header.fields, first.number, ctx)
 
   if (header !== null && header !== undefined && !headerFailed && header.key === undefined) {
-    reader.take(ctx)
+    yield* reader.take(ctx)
     if (header.keyed) {
       yield* emitKeyedObject(reader, first, header, ctx)
     } else {
@@ -392,13 +448,12 @@ export function* decodeStreamSync(
     return
   }
 
-  const onlyLine = reader.lines.length === 1
   if (
-    onlyLine &&
     (header === null || headerFailed) &&
-    !isKeyValueContent(first.content, first.number)
+    !isKeyValueContent(first.content, first.number) &&
+    (yield* reader.peek(1)) === undefined
   ) {
-    reader.take(ctx)
+    yield* reader.take(ctx)
     yield {
       type: 'primitive',
       value: parseScalar(trimSpaces(first.content), first.number),
@@ -411,24 +466,24 @@ export function* decodeStreamSync(
   yield* expectEndOfDocument(reader, ctx)
 }
 
-function* expectEndOfDocument(reader: Reader, ctx: Ctx): Generator<ToonEvent> {
-  const trailing = reader.peek()
+function* expectEndOfDocument(reader: Reader, ctx: Ctx): ParserGenerator {
+  const trailing = yield* reader.peek()
   if (trailing !== undefined && ctx.strict) {
     throw toonError(trailing.number, 'expected end of document')
   }
-  reader.index = reader.lines.length
+  reader.stop()
 }
 
 // #region Objects (§8)
 
-function* emitObject(reader: Reader, depth: number, startLine: number, ctx: Ctx): Generator<ToonEvent> {
+function* emitObject(reader: Reader, depth: number, startLine: number, ctx: Ctx): ParserGenerator {
   yield { type: 'startObject', line: startLine }
   const seen = new Set<string>()
   while (true) {
-    const line = reader.peek()
+    const line = yield* reader.peek()
     if (line === undefined || line.depth < depth) break
     if (line.depth > depth) throw toonError(line.number, 'over-indented line')
-    reader.take(ctx)
+    yield* reader.take(ctx)
     yield* emitEntry(reader, line, line.content, depth, ctx, seen)
   }
   yield { type: 'endObject', line: reader.lastNumber(startLine) }
@@ -442,7 +497,7 @@ function* emitEntry(
   depth: number,
   ctx: Ctx,
   seen: Set<string>,
-): Generator<ToonEvent> {
+): ParserGenerator {
   let header: Header | null = null
   try {
     header = parseHeader(content, line.number)
@@ -478,7 +533,7 @@ function* emitEntry(
   yield { type: 'key', key, line: line.number }
 
   if (rest === '') {
-    const child = reader.peek()
+    const child = yield* reader.peek()
     if (child !== undefined && child.depth > depth) {
       if (child.depth !== depth + 1) throw toonError(child.number, 'over-indented line')
       yield* emitObject(reader, depth + 1, child.number, ctx)
@@ -508,7 +563,7 @@ function recordKey(seen: Set<string>, key: string, line: number, ctx: Ctx): void
 
 // #region Arrays (§9.1, §9.2, §9.4) and list items (§10)
 
-function* emitArray(reader: Reader, header: Line, info: Header, ctx: Ctx): Generator<ToonEvent> {
+function* emitArray(reader: Reader, header: Line, info: Header, ctx: Ctx): ParserGenerator {
   yield { type: 'startArray', length: info.length, line: header.number }
 
   if (info.fields !== undefined) {
@@ -530,11 +585,11 @@ function* emitArray(reader: Reader, header: Line, info: Header, ctx: Ctx): Gener
   // List form: items at depth +1, each `- …` or the bare `-` (§9.4, §10).
   let items = 0
   while (true) {
-    const line = reader.peek()
+    const line = yield* reader.peek()
     if (line === undefined || line.depth <= header.depth) break
     if (line.depth !== header.depth + 1) throw toonError(line.number, 'over-indented line')
     if (!line.content.startsWith('- ') && line.content !== '-') break
-    reader.take(ctx)
+    yield* reader.take(ctx)
     if (items === 0) reader.spanActive++
     items++
     yield* emitListItem(reader, line, ctx)
@@ -548,7 +603,7 @@ function* emitArray(reader: Reader, header: Line, info: Header, ctx: Ctx): Gener
   yield { type: 'endArray', line: endLine }
 }
 
-function* emitListItem(reader: Reader, line: Line, ctx: Ctx): Generator<ToonEvent> {
+function* emitListItem(reader: Reader, line: Line, ctx: Ctx): ParserGenerator {
   if (line.content === '-') {
     yield { type: 'startObject', line: line.number }
     yield { type: 'endObject', line: line.number }
@@ -594,10 +649,10 @@ function* emitListItem(reader: Reader, line: Line, ctx: Ctx): Generator<ToonEven
     const seen = new Set<string>()
     yield* emitEntry(reader, line, trimmed, line.depth + 1, ctx, seen)
     while (true) {
-      const next = reader.peek()
+      const next = yield* reader.peek()
       if (next === undefined || next.depth !== line.depth + 1) break
       if (next.content.startsWith('- ') || next.content === '-') break
-      reader.take(ctx)
+      yield* reader.take(ctx)
       yield* emitEntry(reader, next, next.content, line.depth + 1, ctx, seen)
     }
     yield { type: 'endObject', line: reader.lastNumber(line.number) }
@@ -611,17 +666,17 @@ function* emitListItem(reader: Reader, line: Line, ctx: Ctx): Generator<ToonEven
 
 // #region Tabular rows (§9.3)
 
-function* emitTabularRows(reader: Reader, header: Line, info: Header, ctx: Ctx): Generator<ToonEvent> {
+function* emitTabularRows(reader: Reader, header: Line, info: Header, ctx: Ctx): ParserGenerator {
   const fields = info.fields as FieldNode[]
   const leafCount = countLeaves(fields)
   const rowDepth = header.depth + 1
   let rows = 0
   while (true) {
-    const line = reader.peek()
+    const line = yield* reader.peek()
     if (line === undefined || line.depth <= header.depth) break
     if (line.depth !== rowDepth) throw toonError(line.number, 'over-indented line')
     if (!isRowLine(line.content, info.delimiter, line.number)) break
-    reader.take(ctx)
+    yield* reader.take(ctx)
     if (rows === 0) reader.spanActive++
     rows++
     const cells = splitCells(line.content, info.delimiter, line.number)
@@ -650,7 +705,7 @@ function* emitRowObject(
   cells: string[],
   cursor: { next: number },
   line: number,
-): Generator<ToonEvent> {
+): ParserGenerator {
   yield { type: 'startObject', line }
   for (const field of fields) {
     yield { type: 'key', key: field.name, line }
@@ -668,7 +723,7 @@ function* emitRowObject(
 
 // #region Keyed tabular objects (§9.5)
 
-function* emitKeyedObject(reader: Reader, header: Line, info: Header, ctx: Ctx): Generator<ToonEvent> {
+function* emitKeyedObject(reader: Reader, header: Line, info: Header, ctx: Ctx): ParserGenerator {
   const fields = info.fields as FieldNode[]
   assertNoDuplicateFields(fields, header.number, ctx)
   const leafCount = countLeaves(fields)
@@ -677,16 +732,16 @@ function* emitKeyedObject(reader: Reader, header: Line, info: Header, ctx: Ctx):
   const seen = new Set<string>()
   let rows = 0
   while (true) {
-    const line = reader.peek()
+    const line = yield* reader.peek()
     if (line === undefined || line.depth <= header.depth) break
     if (line.depth !== entryDepth) throw toonError(line.number, 'over-indented line')
     const colon = findUnquoted(line.content, ':', line.number)
     if (colon === -1) {
       if (ctx.strict) throw toonError(line.number, 'expected a keyed entry row')
-      reader.take(ctx)
+      yield* reader.take(ctx)
       continue
     }
-    reader.take(ctx)
+    yield* reader.take(ctx)
     if (rows === 0) reader.spanActive++
     rows++
     const key = decodeKey(trimSpaces(line.content.slice(0, colon)), line.number)
@@ -734,15 +789,69 @@ function assertHeaderDepth(
 export { ToonError }
 
 /**
- * Asynchronously decodes TOON lines into positioned events. Buffers the
- * source lines, then delegates to the sync core — incremental pull-based
- * classification is tracked for the cross-language fixture slice.
+ * Synchronously decodes lines with at most two classified lines of lookahead.
  */
+export function* decodeStreamSync(
+  source: Iterable<string>,
+  options?: DecodeStreamOptions,
+): Generator<ToonEvent> {
+  const lines = classifyLines(source, decodeContext(options))
+  const parser = parseEvents(decodeContext(options))
+  let step = parser.next()
+  try {
+    while (!step.done) {
+      if (step.value === NEED_LINE) {
+        const next = lines.next()
+        step = parser.next(next.done ? undefined : next.value)
+      } else {
+        yield step.value as ToonEvent
+        step = parser.next()
+      }
+    }
+  } finally {
+    parser.return()
+    lines.return(undefined)
+  }
+}
+
+/** Asynchronously decodes lines with the same bounded-lookahead parser. */
 export async function* decodeStream(
   source: AsyncIterable<string> | Iterable<string>,
   options?: DecodeStreamOptions,
 ): AsyncGenerator<ToonEvent> {
-  const lines: string[] = []
-  for await (const line of source) lines.push(line)
-  yield* decodeStreamSync(lines, options)
+  const lines = classifyLinesAsync(source, decodeContext(options))
+  const parser = parseEvents(decodeContext(options))
+  let step = parser.next()
+  try {
+    while (!step.done) {
+      if (step.value === NEED_LINE) {
+        const next = await lines.next()
+        step = parser.next(next.done ? undefined : next.value)
+      } else {
+        yield step.value as ToonEvent
+        step = parser.next()
+      }
+    }
+  } finally {
+    parser.return()
+    await lines.return(undefined)
+  }
+}
+
+/** Canonical line-to-event entry point, preserving the source's iteration mode. */
+export function decodeFromLines(
+  source: AsyncIterable<string>,
+  options?: DecodeStreamOptions,
+): AsyncGenerator<ToonEvent>
+export function decodeFromLines(
+  source: Iterable<string>,
+  options?: DecodeStreamOptions,
+): Generator<ToonEvent>
+export function decodeFromLines(
+  source: AsyncIterable<string> | Iterable<string>,
+  options?: DecodeStreamOptions,
+): AsyncGenerator<ToonEvent> | Generator<ToonEvent> {
+  return Symbol.asyncIterator in source
+    ? decodeStream(source as AsyncIterable<string>, options)
+    : decodeStreamSync(source as Iterable<string>, options)
 }

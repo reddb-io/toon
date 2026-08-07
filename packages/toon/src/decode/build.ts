@@ -1,11 +1,11 @@
 /**
  * Builds a JSON value tree from the decode event stream — the whole-document
- * convenience over `decodeStreamSync` (ADR 0006). Mirrors upstream's
+ * convenience over `decodeFromLines` (ADR 0006). Mirrors upstream's
  * event-builder layering: the stream is the core, the tree is derived.
  */
 
 import type { ToonEvent } from '../events.js'
-import { decodeStreamSync } from './stream.js'
+import { decodeFromLines } from './stream.js'
 import type { DecodeStreamOptions } from './stream.js'
 import { expandCyclicDiscriminatedArrays } from '../toon_parts/cyclic.js'
 import { parse as parseLegacyExtensions } from '../toon_parts/parse.js'
@@ -86,7 +86,7 @@ export function decodeValue(input: string, options?: DecodeStreamOptions): JsonV
     }) as JsonValue
   } else {
     try {
-      value = buildValueFromEvents(decodeStreamSync(input.split('\n'), options))
+      value = buildValueFromEvents(decodeFromLines(linesFromString(input), options))
     } catch (error) {
       if (options?.objectArrayColumns === false || !hasChildTableHeader(input)) throw error
       value = parseLegacyExtensions(input, {
@@ -100,6 +100,20 @@ export function decodeValue(input: string, options?: DecodeStreamOptions): JsonV
   return (options?.cyclicDiscriminatedArrays === true
     ? expandCyclicDiscriminatedArrays(value)
     : value) as JsonValue
+}
+
+/** Iterates string lines without allocating a whole-document line array. */
+function* linesFromString(input: string): Generator<string> {
+  let start = 0
+  while (true) {
+    const end = input.indexOf('\n', start)
+    if (end === -1) {
+      yield input.slice(start)
+      return
+    }
+    yield input.slice(start, end)
+    start = end + 1
+  }
 }
 
 function hasPrimitiveArrayColumnHeader(input: string): boolean {
