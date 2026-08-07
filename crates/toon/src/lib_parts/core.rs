@@ -16,14 +16,14 @@ const DOCUMENT_DELIMITER: char = ',';
 const CYCLIC_TABLE_DELIMITER: char = '|';
 const TOONL_TAGGED_LANE_LIMIT: usize = 8;
 
-/// Decoder options (spec §13).
+/// Compatibility options for the legacy decoder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParseOptions {
     /// Spaces per indentation level.
     pub indent: usize,
     /// Enforce the §14 strict-mode error checklist.
     pub strict: bool,
-    /// Expand dotted keys into nested objects (spec §13.4, `expandPaths: "safe"`).
+    /// Expand dotted keys into nested objects on the explicit legacy path.
     pub expand_paths: bool,
     /// Recognize the tabular cyclic discriminated-array extension during decode.
     pub cyclic_discriminated_arrays: bool,
@@ -43,12 +43,12 @@ impl Default for ParseOptions {
     }
 }
 
-/// Encoder options. Defaults preserve the canonical v3 output profile.
+/// Compatibility-shaped encoder options used by model methods and legacy output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EncodeOptions {
-    /// Emit recursive-brace tabular headers for uniform nested object fields.
+    /// Legacy-only nested table switch; canonical v4.1 selects nested groups automatically.
     pub nested_tabular_headers: bool,
-    /// Emit brace-header tabular rows for keyed maps with uniform object values.
+    /// Legacy-only keyed map switch; canonical v4.1 selects keyed tables automatically.
     pub keyed_map_collapse: bool,
     /// Emit primitive-array columns inside otherwise tabular object arrays.
     pub primitive_array_columns: bool,

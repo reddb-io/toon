@@ -2,7 +2,7 @@
  * The parity contract: the JS implementation runs the *same* corpus as the Rust
  * crate, under the *same* criteria as `tests/runners/rust/toon/spec_conformance.rs`.
  *
- * Fixtures the current v3.3-era decoder/encoder does not yet satisfy against the
+ * Fixtures the current compatibility decoder/encoder does not yet satisfy against the
  * renormalized v4 corpus are recorded in `expected-failures.txt` — the JS mirror
  * of the Rust ledger at `tests/runners/rust/toon/expected-failures.txt`. Both
  * ledgers are ratchets: an entry may only be removed, so a fixture that starts

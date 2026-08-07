@@ -86,8 +86,9 @@ does not match the declared nesting level).
 
 Decoding is always-on. The `tq` golden tests cover `--object-array-columns`
 end-to-end; the extension corpus covers encode/decode and fall-back. The
-prototype (`scripts/wire_efficiency_s3_prototype.mjs --check`) generated the
-frozen-grammar wires from `tests/wire-efficiency/corpora.json` during design.
+prototype (`node scripts/wire_efficiency_s3_prototype.mjs --check`) generated
+the frozen-grammar wires from `tests/corpus/wire-efficiency/corpora.json` during
+design.
 
 ## Measured numbers
 

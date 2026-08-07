@@ -10,7 +10,7 @@
 
 ## Motivation
 
-v3.3 gives **arrays** of uniform objects the table-collapse win, but keyed
+The pre-v4 baseline gave **arrays** of uniform objects the table-collapse win, but keyed
 object **maps** with uniform values get nothing — every field name repeats once
 per entry. A map of `id -> {first, last}` with 50 entries writes `first` and
 `last` 50 times each. Maps keyed by an id are extremely common (lookup tables,
@@ -36,7 +36,7 @@ decodes to an **object map** (not an array):
 }}
 ```
 
-The v3.3-equivalent expanded form (no extension):
+The equivalent expanded form on the pre-v4 baseline:
 
 ```toon
 people:
@@ -51,11 +51,11 @@ people:
 Rules:
 
 - The header is `key{fields}:` — object-typed because there is **no `[N]`
-  segment**. A strict v3.3 decoder rejects it (fail-closed) instead of reading a
+  segment**. A strict pre-v4 decoder rejects it (fail-closed) instead of reading a
   different shape.
 - Each row is `mapKey: cells`, one line per entry, indented one level. Map keys
-  in row position follow the standard v3.3 key-quoting rules.
-- Non-uniform maps stay in ordinary v3.3 object form; round-trip is lossless in
+  in row position follow the baseline key-quoting rules.
+- Non-uniform maps stay in ordinary object form; round-trip is lossless in
   every case.
 - Nested (recursive) leaves are eligible only when
   [nested tabular headers](nested-tabular-headers.md) is **also** enabled.
@@ -102,9 +102,9 @@ entry has the same key set as the first; and (4) each header leaf is primitive
 (or eligible per the nested-headers rule). Rule 1 is a token/clarity balance: for
 one entry the collapsed header plus one row does not beat the ordinary object
 form on tokens, and it costs the reader a header to parse for a single record.
-So a size-one uniform map stays in plain v3.3 form even with the option on. This
+So a size-one uniform map stayed in the plain baseline form even with the option on. This
 keeps encoder output stable rather than flipping shape at the size-one boundary;
-round-trip is lossless either way because a non-collapsed map is just v3.3.
+round-trip is lossless either way because a non-collapsed map is an ordinary object.
 
 ## Stage transitions
 

@@ -10,8 +10,8 @@
 
 ## Motivation
 
-TOON v3.3's tabular form `key[N]{fields}:` is the format's biggest token win —
-the field header is written once and amortized over `N` rows. But v3.3 requires
+The pre-v4 tabular form `key[N]{fields}:` was the format's biggest token win —
+the field header is written once and amortized over `N` rows. That baseline required
 every column to be a **primitive**. The moment one column is itself a small
 uniform object (`customer: {name, country}`), the whole array falls back to the
 expanded list form, and the amortization is lost: every nested key repeats on
@@ -39,7 +39,7 @@ decodes to:
 ]}
 ```
 
-The v3.3-equivalent expanded form (no extension) is:
+The equivalent expanded form on the pre-v4 baseline was:
 
 ```toon
 orders[2]:
@@ -61,7 +61,7 @@ Rules:
   count of cells per row, in header order.
 - Malformed nested headers (unbalanced braces, empty groups, duplicate leaf
   paths) are parse errors reported with the header's line number.
-- **Fail-closed:** a strict v3.3 decoder rejects `field{...}` inside a tabular
+- **Fail-closed:** a strict pre-v4 decoder rejects `field{...}` inside a tabular
   header, so it never silently reads a different shape.
 - **Encode opt-in:** the form is emitted only when every record has the same
   recursive shape (same key sets at every level, all leaves primitive). Any

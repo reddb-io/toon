@@ -6,7 +6,11 @@ TOON v4.1 parser and serializer, plus TOONL v0.2 append-only streaming, in depen
 
 TOON ([Token-Oriented Object Notation](https://github.com/toon-format/spec)) is JSON's data model in a compact model-facing layout. This package decodes TOON to plain JSON values and encodes them back to canonical TOON. It also implements the reddb-io opt-in extensions specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md) and the TOONL streaming layer specified in [`docs/toonl-reddb-spec.md`](../../docs/toonl-reddb-spec.md).
 
-Zero dependencies, no build step, hand-written types. Performance notes and token-efficiency measurements live in [`benchmarks/`](../../benchmarks/README.md), not in this package README.
+The runtime has zero dependencies. TypeScript sources are compiled into the
+published `dist/` JavaScript and declarations; the release workflow verifies
+that build before publishing. Performance notes and token-efficiency
+measurements live in [`benchmarks/`](../../benchmarks/README.md), not in this
+package README.
 
 ```bash
 pnpm add @reddb-io/toon
@@ -38,7 +42,9 @@ round-trip true
 - `decode(input, options?)` decodes a TOON document to a JSON value. `decodeFromLines(lines, options?)` accepts pre-split lines.
 - `decodeStream` and `decodeStreamSync` expose positioned JSON-semantic events without building a value tree.
 - `encode(value, options?)` encodes canonical TOON. `encodeLines(value, options?)` yields its lines without trailing newlines.
-- `parse` and `serialize` are deprecated exact aliases of `decode` and `encode`.
+- `parse` and `serialize` are deprecated names for the canonical `decode` and
+  `encode` functions. They do not select the former codec; import the explicit
+  `@reddb-io/toon/legacy` subpath when old recovery behavior is required.
 - `DELIMITERS`, `DEFAULT_DELIMITER`, `rawString`, `escapeString`, and `ToonDecodeError` match the canonical v4.1 helper surface.
 - `detectTruncation(input, { format?: 'toon' | 'toonl', ...parseOptions })` returns a structured completeness report instead of throwing. Complete input reports `complete: true`; truncated TOON arrays, cut nested bodies, TOONL trailer mismatches, and missing TOONL trailers report `kind`, `line`, `declared`, `actual`, and `message`.
 
@@ -170,7 +176,14 @@ round-trip true
 
 ### Encode Extensions
 
-All reddb-io extensions decode always-on and encode opt-in. With no options, output remains canonical TOON v4.1. Nested field groups and keyed tabular maps are no longer extensions: v4.1 absorbed them and the canonical encoder uses them automatically. The remaining options below are re-expressed on the v4.1 base. The extension model is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md).
+With no encode options, output remains canonical TOON v4.1. Nested field groups
+and keyed tabular maps are not extensions: v4.1 absorbed them and the canonical
+encoder uses them automatically. Primitive-array and object-array extension
+wires are recognized by default and emitted only when requested. Cyclic
+discriminated arrays require an explicit option for both reconstruction and
+emission because their wire is also valid as a literal v4.1 object. The
+extension model is specified in
+[`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md).
 
 In every example below, the `assert` lines are the guarantees — lossless round-trip, and canonical fallback for ineligible data — kept executable without polluting the output, which is always a plain TOON document.
 

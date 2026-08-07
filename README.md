@@ -30,10 +30,10 @@ The root README is a hub, not the normative spec. Use these documents for detail
 This repository tracks the official **TOON v4.1** specification as its baseline
 and layers a set of opt-in extensions on top of it.
 
-- [Official TOON companion](docs/toon-official-spec.md): annotated companion to the upstream TOON spec this repository tracks.
-- [RedDB TOON extensions](docs/toon-reddb-spec.md): the opt-in extensions layered on the TOON v4.1 baseline (decode always-on, encode opt-in, fail-closed).
+- [Official TOON baseline](docs/toon-official-spec.md): the pinned upstream release, API boundaries, frontier status, and executable evidence.
+- [RedDB TOON extensions](docs/toon-reddb-spec.md): userland features layered on v4.1, with each decode/encode opt-in and fallback rule stated explicitly.
 - [TOONL RedDB spec](docs/toonl-reddb-spec.md): append-only stream grammar and reader/writer behavior.
-- [v4.1 migration notes](docs/migration-v4.md): breaking changes for downstream consumers of the former v3.3 baseline (path expansion and key folding removed, strict mode hardened).
+- [v4.1 migration notes](docs/migration-v4.md): TypeScript and Rust cutovers from the retired pre-v4 baseline, with observable before/after behavior.
 - [Design-history proposals](docs/proposals/): the design history behind each extension — including the mechanisms the official spec absorbed at v4.1.
 
 ---
@@ -117,7 +117,7 @@ Use it for Rust pipelines that need canonical TOON output, bounded parsing for u
 
 ```toml
 [dependencies]
-reddb-io-toon = "0.8"
+reddb-io-toon = "0.20"
 ```
 
 ```rust

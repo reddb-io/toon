@@ -6,10 +6,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 
-import { encode } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/dist/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
-const FIXTURE_PATH = join(REPO_ROOT, 'tests/wire-efficiency/corpora.json')
+const FIXTURE_PATH = join(REPO_ROOT, 'tests/corpus/wire-efficiency/corpora.json')
 const TOKENIZER_DIR = join(REPO_ROOT, '.red/tmp/wire-efficiency-tokenizer')
 const TOKENIZER_PACKAGE = 'js-tiktoken'
 const EXT_OPTIONS = { nestedTabularHeaders: true, keyedMapCollapse: true }
@@ -19,21 +19,21 @@ const LIST_SUB_DELIMITER = ';'
 const EXPECTED = {
   'tagged-300': {
     wire: 'primitive-array-column',
-    bytes: { jsonMin: 24794, toonV3: 25359, toonExt: 25359, hypothetical: 12784 },
-    tokens: { jsonMin: 8113, toonV3: 10181, toonExt: 10181, hypothetical: 5723 },
-    specTokens: { jsonMin: 6506, toonV3: 8698, hypothetical: 4325, tolerancePct: 5 },
+    bytes: { jsonMin: 24794, toonBaseline: 25359, toonExt: 25359, hypothetical: 12784 },
+    tokens: { jsonMin: 8113, toonBaseline: 10181, toonExt: 10181, hypothetical: 5723 },
+    specTokens: { jsonMin: 6506, toonBaseline: 8698, hypothetical: 4325, tolerancePct: 5 },
   },
   'tree3-100': {
     wire: 'child-table',
-    bytes: { jsonMin: 37076, toonV3: 37889, toonExt: 37889, hypothetical: 19076 },
-    tokens: { jsonMin: 13370, toonV3: 13556, toonExt: 13556, hypothetical: 9305 },
-    specTokens: { jsonMin: 11953, toonV3: 13284, hypothetical: 7484, tolerancePct: 5 },
+    bytes: { jsonMin: 37076, toonBaseline: 37889, toonExt: 37889, hypothetical: 19076 },
+    tokens: { jsonMin: 13370, toonBaseline: 13556, toonExt: 13556, hypothetical: 9305 },
+    specTokens: { jsonMin: 11953, toonBaseline: 13284, hypothetical: 7484, tolerancePct: 5 },
   },
   'matrix-150x8': {
     wire: 'matrix-as-child-table',
-    bytes: { jsonMin: 7616, toonV3: 8667, toonExt: 8667, hypothetical: 7629 },
-    tokens: { jsonMin: 4803, toonV3: 5702, toonExt: 5702, hypothetical: 5108 },
-    specTokens: { jsonMin: 2406, toonV3: 3305, hypothetical: 2707, tolerancePct: 5 },
+    bytes: { jsonMin: 7616, toonBaseline: 8667, toonExt: 8667, hypothetical: 7629 },
+    tokens: { jsonMin: 4803, toonBaseline: 5702, toonExt: 5702, hypothetical: 5108 },
+    specTokens: { jsonMin: 2406, toonBaseline: 3305, hypothetical: 2707, tolerancePct: 5 },
   },
 }
 
@@ -167,7 +167,7 @@ function structuralVerdict(format, scenario) {
 }
 
 function readabilityRows() {
-  const formats = ['proposed', 'toonV3', 'jsonMin']
+  const formats = ['proposed', 'toonBaseline', 'jsonMin']
   return READABILITY_SCENARIOS.flatMap((scenario) =>
     formats.map((format) => ({
       format,
@@ -180,7 +180,7 @@ function readabilityRows() {
 
 function measureCase(encoding, testCase) {
   const jsonMin = JSON.stringify(testCase.value)
-  const toonV3 = encode(testCase.value)
+  const toonBaseline = encode(testCase.value)
   const toonExt = encode(testCase.value, EXT_OPTIONS)
   const hypothetical = hypotheticalWire(testCase)
   if (!hypothetical) return null
@@ -189,13 +189,13 @@ function measureCase(encoding, testCase) {
     wire: EXPECTED[testCase.name].wire,
     bytes: {
       jsonMin: byteLength(jsonMin),
-      toonV3: byteLength(toonV3),
+      toonBaseline: byteLength(toonBaseline),
       toonExt: byteLength(toonExt),
       hypothetical: byteLength(hypothetical),
     },
     tokens: {
       jsonMin: tokenCount(encoding, jsonMin),
-      toonV3: tokenCount(encoding, toonV3),
+      toonBaseline: tokenCount(encoding, toonBaseline),
       toonExt: tokenCount(encoding, toonExt),
       hypothetical: tokenCount(encoding, hypothetical),
     },
@@ -214,16 +214,16 @@ function assertMeasurements(results) {
 
   assert.deepEqual(readabilityRows(), [
     { format: 'proposed', scenario: 'control', expected: 'valid', verdict: 'pass' },
-    { format: 'toonV3', scenario: 'control', expected: 'valid', verdict: 'pass' },
+    { format: 'toonBaseline', scenario: 'control', expected: 'valid', verdict: 'pass' },
     { format: 'jsonMin', scenario: 'control', expected: 'valid', verdict: 'pass' },
     { format: 'proposed', scenario: 'truncated', expected: 'invalid', verdict: 'pass' },
-    { format: 'toonV3', scenario: 'truncated', expected: 'invalid', verdict: 'pass' },
+    { format: 'toonBaseline', scenario: 'truncated', expected: 'invalid', verdict: 'pass' },
     { format: 'jsonMin', scenario: 'truncated', expected: 'invalid', verdict: 'miss' },
     { format: 'proposed', scenario: 'extra rows', expected: 'invalid', verdict: 'pass' },
-    { format: 'toonV3', scenario: 'extra rows', expected: 'invalid', verdict: 'pass' },
+    { format: 'toonBaseline', scenario: 'extra rows', expected: 'invalid', verdict: 'pass' },
     { format: 'jsonMin', scenario: 'extra rows', expected: 'invalid', verdict: 'miss' },
     { format: 'proposed', scenario: 'width mismatch', expected: 'invalid', verdict: 'pass' },
-    { format: 'toonV3', scenario: 'width mismatch', expected: 'invalid', verdict: 'pass' },
+    { format: 'toonBaseline', scenario: 'width mismatch', expected: 'invalid', verdict: 'pass' },
     { format: 'jsonMin', scenario: 'width mismatch', expected: 'invalid', verdict: 'miss' },
   ])
 }
@@ -249,18 +249,18 @@ function printReport(results) {
   console.log('-'.repeat(151))
   for (const result of results) {
     const spec = result.specTokens
-      ? `JSON ${result.specTokens.jsonMin} / TOON ${result.specTokens.toonV3} / hyp ${result.specTokens.hypothetical}`
+      ? `JSON ${result.specTokens.jsonMin} / TOON ${result.specTokens.toonBaseline} / hyp ${result.specTokens.hypothetical}`
       : '-'
     console.log(
       [
         result.name.padEnd(18),
         result.wire.padEnd(22),
         pad(result.bytes.jsonMin, 8),
-        pad(result.bytes.toonV3, 8),
+        pad(result.bytes.toonBaseline, 8),
         pad(result.bytes.hypothetical, 8),
         pad(pct(result.bytes.hypothetical - result.bytes.jsonMin, result.bytes.jsonMin), 12),
         pad(result.tokens.jsonMin, 9),
-        pad(result.tokens.toonV3, 9),
+        pad(result.tokens.toonBaseline, 9),
         pad(result.tokens.hypothetical, 9),
         pad(pct(result.tokens.hypothetical - result.tokens.jsonMin, result.tokens.jsonMin), 12),
         spec,

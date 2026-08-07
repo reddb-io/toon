@@ -1,7 +1,7 @@
 # Proposal — Primitive-array columns
 
 **Stage:** 4 — graduated (landed via [#100](https://github.com/reddb-io/toon/pull/100) / [#101](https://github.com/reddb-io/toon/pull/101))
-**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; decode always-on, encode opt-in, fail-closed; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md) as Extension 3. It has no dedicated upstream RFC; spec#49 was previously linked here incorrectly and was the completed v4 roadmap.
+**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; decoded by default, encode opt-in, fail-closed; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md) as Extension 3. It has no dedicated upstream RFC.
 **Spec section:** [Extension 3 — Primitive-array columns](../toon-reddb-spec.md#extension-3--primitive-array-columns)
 **Upstream RFC:** —
 **Repo issues / PRs:** [#97](https://github.com/reddb-io/toon/issues/97), [#99](https://github.com/reddb-io/toon/issues/99) (grammar freeze), [#100](https://github.com/reddb-io/toon/pull/100), [#101](https://github.com/reddb-io/toon/pull/101); spec [#93](https://github.com/reddb-io/toon/issues/93)
@@ -79,8 +79,9 @@ standard TOON v4.1 when eligibility fails.
 
 Decoding is always-on. The extension corpus covers encode bytes, decode values,
 quoting, and the fail-closed / fall-back cases across both implementations. The
-prototype generator (`scripts/wire_efficiency_s3_prototype.mjs --check`) generated
-the frozen-grammar wires from `tests/wire-efficiency/corpora.json` during design.
+prototype generator (`node scripts/wire_efficiency_s3_prototype.mjs --check`)
+generated the frozen-grammar wires from
+`tests/corpus/wire-efficiency/corpora.json` during design.
 
 ## Measured numbers
 

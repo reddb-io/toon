@@ -47,7 +47,9 @@ fn wire_efficiency_corpora_assert_encoded_byte_sizes_for_rust() {
         );
         assert_eq!(
             toon_v3.len(),
-            expected["toonV3"].as_u64().expect("TOON v3 byte count") as usize,
+            expected["toonCanonical"]
+                .as_u64()
+                .expect("canonical TOON byte count") as usize,
             "{name}: TOON v3 bytes"
         );
         assert_eq!(
@@ -157,7 +159,7 @@ fn object_array_column_corpus_decodes_identically_for_rust() {
             .to_json_value();
         assert_eq!(&decoded, expected, "{name}: decoded value");
 
-        if let Some(literal) = test_case.get("strictV3Literal") {
+        if let Some(literal) = test_case.get("canonicalLiteral") {
             let decoded = Value::parse_legacy_with_options(
                 input,
                 ParseOptions {
@@ -209,11 +211,11 @@ fn object_array_column_corpus_decodes_identically_for_rust() {
             value,
             "{name}: round trip"
         );
-        if test_case.get("sameAsV3").and_then(Json::as_bool) == Some(true) {
+        if test_case.get("sameAsCanonical").and_then(Json::as_bool) == Some(true) {
             assert_eq!(
                 encoded,
                 toon_value.to_legacy_toon(),
-                "{name}: v3.3 fallback"
+                "{name}: canonical fallback"
             );
         } else {
             assert_ne!(
@@ -363,7 +365,7 @@ fn cyclic_discriminated_array_encoding_is_opt_in_and_pins_the_frozen_wire_for_ru
         )
         .unwrap()
         .to_json_value(),
-        test_case.get("strictV3Literal").unwrap().clone()
+        test_case.get("canonicalLiteral").unwrap().clone()
     );
 }
 
@@ -423,7 +425,10 @@ fn cyclic_discriminated_array_encoding_emits_percent_encoded_multi_section_wire_
     assert!(encoded.contains("audits:\n"));
     assert!(encoded.contains("  order: cycle(alpha%20beta,gamma%2Fdelta)*6\n"));
     assert!(encoded.contains("  \"alpha beta\"[6|]{detail.bucket|detail.attempt}:\n"));
-    assert_eq!(Value::parse_legacy(&encoded).unwrap().to_json_value(), input);
+    assert_eq!(
+        Value::parse_legacy(&encoded).unwrap().to_json_value(),
+        input
+    );
 }
 
 #[test]
@@ -545,7 +550,10 @@ fn cyclic_discriminated_array_encoding_falls_back_for_boundary_cases_for_rust() 
             ..EncodeOptions::default()
         });
         assert_eq!(encoded, value.to_legacy_toon(), "{name}");
-        assert_eq!(Value::parse_legacy(&encoded).unwrap().to_json_value(), input);
+        assert_eq!(
+            Value::parse_legacy(&encoded).unwrap().to_json_value(),
+            input
+        );
     }
 }
 
@@ -646,7 +654,9 @@ fn object_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust() {
         "matrix[2|]{values[3|]}:\n  1|2|3\n  4|5|6\n"
     );
     assert_eq!(
-        Value::parse_legacy(&matrix_encoded).unwrap().to_json_value(),
+        Value::parse_legacy(&matrix_encoded)
+            .unwrap()
+            .to_json_value(),
         matrix
     );
 

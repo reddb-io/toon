@@ -334,7 +334,7 @@ fn v4_cyclic_fixture_is_literal_without_opt_in_and_deterministic_with_it() {
         decode_value_v4(wire, &DecodeStreamOptions::default())
             .expect("literal cyclic metadata")
             .to_json_value(),
-        fixture["strictV3Literal"],
+        fixture["canonicalLiteral"],
     );
     assert_eq!(
         decode_value_v4(

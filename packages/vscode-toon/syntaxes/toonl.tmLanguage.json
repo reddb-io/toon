@@ -84,7 +84,7 @@
       ]
     },
     "string": {
-      "comment": "Cells follow TOON quoting: double quotes with the closed v3.3 escape repertoire.",
+      "comment": "Cells follow TOON quoting: double quotes with the closed v4.1 escape repertoire.",
       "name": "string.quoted.double.toonl",
       "begin": "\"",
       "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.toonl" } },

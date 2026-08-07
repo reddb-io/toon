@@ -72,7 +72,7 @@ It compares:
 - YAML
 - CSV
 - XML
-- canonical TOON v3.3
+- canonical TOON v4.1 through the public package and crate paths
 - TOON with each shipped opt-in extension enabled independently
 - TOON with all shipped opt-in extensions enabled
 - TOONL versus JSONL where the payload is a stream of records
