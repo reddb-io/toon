@@ -16,8 +16,8 @@
     "wire:tokens": "node scripts/wire_efficiency_token_report.mjs",
     "test": "pnpm -r test",
     "lint": "pnpm -r --if-present lint",
-    "version": "bash scripts/sync-version.sh \"$npm_package_version\" && git add -- Cargo.toml Cargo.lock crates/tq/Cargo.toml package.json packages/toon/package.json packages/toon/src/version.js packages/vscode-toon/package.json",
-    "check:versions": "bash scripts/check-versions.sh"
+    "version": "bash scripts/sync-version.sh \"$npm_package_version\" && git add -- Cargo.toml Cargo.lock crates/tq/Cargo.toml package.json packages/toon/package.json packages/toon/src/version.ts packages/toon/dist/version.js packages/vscode-toon/package.json",
+    "check:versions": "node --test scripts/release-version.test.mjs && bash scripts/check-versions.sh"
   },
   "license": "MIT",
   "repository": {
