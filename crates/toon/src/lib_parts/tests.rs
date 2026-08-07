@@ -154,17 +154,17 @@ mod tests {
         let empty = Document::parse("orders[1]{id,customer{}}:\n  1\n")
             .expect_err("empty nested groups are invalid");
         assert_eq!(empty.line(), 1);
-        assert_eq!(empty.message(), "invalid array header");
+        assert_eq!(empty.message(), "empty field entry in header");
 
         let duplicate = Document::parse("orders[1]{customer{name},customer{name}}:\n  Ada,Bob\n")
             .expect_err("duplicate leaf paths are invalid");
         assert_eq!(duplicate.line(), 1);
-        assert_eq!(duplicate.message(), "duplicate key");
+        assert_eq!(duplicate.message(), "duplicate field name in header");
 
         let unbalanced = Document::parse("orders[1]{id,customer{name,country}:\n  1,Ada,UK\n")
             .expect_err("unbalanced nested groups are invalid");
         assert_eq!(unbalanced.line(), 1);
-        assert_eq!(unbalanced.message(), "invalid array header");
+        assert_eq!(unbalanced.message(), "malformed tabular header fields");
     }
 
     #[test]
