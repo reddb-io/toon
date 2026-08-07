@@ -541,6 +541,7 @@ version = "0.17.0"
 dependencies = [
  "reddb-io-toon",
  "regex",
+ "serde",
  "serde_json",
  "serde_norway",
  "sha2",
