@@ -37,6 +37,22 @@ test('current user-facing surfaces describe the v4.1 baseline without retired cl
     assert.doesNotMatch(source, /compatibility aliases/i, `${path} must not call no-op flags aliases`)
     assert.doesNotMatch(source, /100% conformance/i, `${path} must not make an unscoped parity claim`)
   }
+
+  for (const path of [
+    'scripts/generate_wire_efficiency_corpora.mjs',
+    'scripts/wire_efficiency_token_report.mjs',
+    'tests/corpus/wire-efficiency/corpora.json',
+    'tests/corpus/wire-efficiency/object-array-columns.json',
+    'tests/corpus/wire-efficiency/cyclic-discriminated-arrays.json',
+    'packages/toon/test/wire-efficiency.test.mjs',
+    'tests/runners/rust/toon/wire_efficiency.rs',
+  ]) {
+    assert.doesNotMatch(
+      read(path),
+      /toonV3|strictV3Literal|sameAsV3|canonical TOON v3/i,
+      `${path} must use version-neutral fixture vocabulary`,
+    )
+  }
 })
 
 test('known upstream issue mappings cannot regress', () => {
