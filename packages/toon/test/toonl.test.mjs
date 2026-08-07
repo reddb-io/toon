@@ -16,7 +16,7 @@ import {
   closeTransform,
   closeTransformInterleaved,
   decodeLines,
-  encodeLines,
+  encodeToonlLines,
   encodeRecords,
   jsonToToon,
   parseRecords,
@@ -191,8 +191,8 @@ test('decodeLines rejects rows before a header and reserved list prefixes', asyn
   await assert.rejects(() => collect('[]{id,name}:\n1,Ada,extra\n'), /row arity mismatch/)
 })
 
-test('encodeLines writes the header lazily and rotates on a schema change', () => {
-  const emitter = encodeLines()
+test('encodeToonlLines writes the header lazily and rotates on a schema change', () => {
+  const emitter = encodeToonlLines()
 
   assert.equal(emitter.push({ id: 1, name: 'Ada' }), '[]{id,name}:\n1,Ada\n')
   assert.equal(emitter.push({ id: 2, name: 'Linus' }), '2,Linus\n')
@@ -205,7 +205,7 @@ test('encodeLines writes the header lazily and rotates on a schema change', () =
   assert.equal(emitter.end(), '')
 })
 
-test('encodeLines canonicalizes shuffled field order per record shape', () => {
+test('encodeToonlLines canonicalizes shuffled field order per record shape', () => {
   assert.equal(
     encodeRecords([
       { id: 1, name: 'Ada' },
@@ -215,7 +215,7 @@ test('encodeLines canonicalizes shuffled field order per record shape', () => {
   )
 })
 
-test('encodeLines can leave the stream trailer-free', () => {
+test('encodeToonlLines can leave the stream trailer-free', () => {
   assert.equal(
     encodeRecords([{ id: 1 }, { id: 2 }], { trailer: false }),
     '[]{id}:\n1\n2\n',
@@ -226,7 +226,7 @@ test('encodeLines can leave the stream trailer-free', () => {
   )
 })
 
-test('encodeLines emits continuation headers only when configured', () => {
+test('encodeToonlLines emits continuation headers only when configured', () => {
   const records = [
     { id: 1, name: 'Ada' },
     { id: 2, name: 'Linus' },
@@ -247,7 +247,7 @@ test('encodeLines emits continuation headers only when configured', () => {
   assert.equal(encoder.finish(), '[]{id,name}:\n1,Ada\n2,Linus\n[~]{id,name}:\n3,Grace\n[=3]\n')
 })
 
-test('encodeLines output decodes back to the records it was given', async () => {
+test('encodeToonlLines output decodes back to the records it was given', async () => {
   const records = [
     { id: 1, name: 'Ada', active: true },
     { id: 2, name: 'Linus', active: false },
@@ -257,8 +257,8 @@ test('encodeLines output decodes back to the records it was given', async () => 
   assert.deepEqual(await collect(encodeRecords(records)), records)
 })
 
-test('encodeLines interleaves tagged lanes and canonicalizes each lane shape', async () => {
-  const emitter = encodeLines()
+test('encodeToonlLines interleaves tagged lanes and canonicalizes each lane shape', async () => {
+  const emitter = encodeToonlLines()
   let output = ''
 
   output += emitter.pushTagged('req', { method: 'GET', path: '/health', status: 200 })
@@ -283,8 +283,8 @@ test('encodeLines interleaves tagged lanes and canonicalizes each lane shape', a
   ])
 })
 
-test('encodeLines rejects the ninth tagged lane before producing bytes', () => {
-  const emitter = encodeLines()
+test('encodeToonlLines rejects the ninth tagged lane before producing bytes', () => {
+  const emitter = encodeToonlLines()
   let output = ''
   for (const tag of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
     output += emitter.pushTagged(tag, { v: tag })
@@ -294,8 +294,8 @@ test('encodeLines rejects the ninth tagged lane before producing bytes', () => {
   assert.equal(output.includes('[]<i>{v}:'), false)
 })
 
-test('encodeLines rejects rows TOONL cannot represent', () => {
-  const emitter = encodeLines()
+test('encodeToonlLines rejects rows TOONL cannot represent', () => {
+  const emitter = encodeToonlLines()
 
   assert.throws(() => emitter.push({ id: 1, tags: ['a'] }), /TOONL rows must be flat objects/)
   assert.throws(() => emitter.push({}), /TOONL output requires object rows/)

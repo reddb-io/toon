@@ -3,7 +3,7 @@
  * convenience over `decodeFromLines` (ADR 0006). Mirrors upstream's
  * event-builder layering: the stream is the core, the tree is derived.
  */
-import { decodeFromLines } from './stream.js';
+import { decodeFromLines as decodeEventsFromLines } from './stream.js';
 import { expandCyclicDiscriminatedArrays } from '../toon_parts/cyclic.js';
 import { parse as parseLegacyExtensions } from '../toon_parts/parse.js';
 const UNSET = Symbol('unset');
@@ -58,6 +58,10 @@ export function buildValueFromEvents(events) {
     }
     return root === UNSET ? {} : root;
 }
+/** Decodes pre-split TOON lines into one JSON value. */
+export function decodeFromLines(lines, options) {
+    return buildValueFromEvents(decodeEventsFromLines(lines, options));
+}
 export function decodeValue(input, options) {
     let value;
     if (hasPrimitiveArrayColumnHeader(input) ||
@@ -71,7 +75,7 @@ export function decodeValue(input, options) {
     }
     else {
         try {
-            value = buildValueFromEvents(decodeFromLines(linesFromString(input), options));
+            value = decodeFromLines(linesFromString(input), options);
         }
         catch (error) {
             if (options?.objectArrayColumns === false || !hasChildTableHeader(input))

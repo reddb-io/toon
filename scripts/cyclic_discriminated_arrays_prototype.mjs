@@ -6,7 +6,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
-import { serialize } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/src/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const TOKENIZER_DIR = join(REPO_ROOT, '.red/tmp/wire-efficiency-tokenizer')
@@ -428,8 +428,8 @@ const CASES = [
 
 function measure(encoding, testCase) {
   const jsonMin = JSON.stringify(testCase.value)
-  const toonV33 = serialize(testCase.value)
-  const toonExt = serialize(testCase.value, EXT_OPTIONS)
+  const toonV33 = encode(testCase.value)
+  const toonExt = encode(testCase.value, EXT_OPTIONS)
   const bestCurrent = bytes(toonExt) < bytes(toonV33) ? toonExt : toonV33
   const section = eligibleSection(testCase.value.events)
   const shippedWire = shippedCyclicWire(testCase.value)

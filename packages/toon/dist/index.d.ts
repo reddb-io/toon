@@ -1,19 +1,30 @@
 /**
- * @reddb-io/toon — TOON v3.3 parser/serializer and TOONL v0.1 streaming, in
+ * @reddb-io/toon — TOON v4.1 encoder/decoder and TOONL v0.2 streaming, in
  * dependency-free ESM. The TOON side decodes to (and encodes from) plain JSON
  * values; the TOONL side is built for append-only streams.
  */
+import { decodeValue } from './decode/build.js';
+import { encode } from './encode/serialize.js';
 export { VERSION } from './version.js';
-export { ToonError, ToonlCursorInvalidationError, ToonlError } from './errors.js';
-export { DEFAULT_INDENT, DEFAULT_MAX_DEPTH, parse, parseDocument, serialize, } from './toon.js';
+export { ToonDecodeError, ToonError, ToonlCursorInvalidationError, ToonlError } from './errors.js';
+export { DEFAULT_INDENT, DEFAULT_MAX_DEPTH } from './toon.js';
+export { DEFAULT_DELIMITER, DELIMITERS } from './constants.js';
 export { detectTruncation } from './decode/truncation.js';
 export type { TruncationOptions, TruncationReport } from './decode/truncation.js';
-export { encode } from './encode/serialize.js';
-export type { EncodeOptions } from './encode/serialize.js';
-export type { EncodeReplacer } from './encode/replacer.js';
-export { decodeFromLines, decodeStream, decodeStreamSync } from './decode/stream.js';
-export type { DecodeStreamOptions, FieldNode } from './decode/stream.js';
-export { buildValueFromEvents, decodeValue, decodeValue as decode } from './decode/build.js';
+export { encodeLines } from './encode/serialize.js';
+export { rawString } from './encode/raw-string.js';
+export type { RawString } from './encode/raw-string.js';
+export { escapeString } from './lexical.js';
+export { decodeStream, decodeStreamSync } from './decode/stream.js';
+export type { FieldNode } from './decode/stream.js';
+export { buildValueFromEvents, decodeFromLines } from './decode/build.js';
 export type { ToonEvent, ToonEventType } from './events.js';
+export type { DecodeOptions, DecodeStreamOptions, Delimiter, DelimiterKey, EncodeOptions, EncodeReplacer, JsonArray, JsonObject, JsonPrimitive, JsonStreamEvent, JsonValue, ResolvedDecodeOptions, ResolvedEncodeOptions, } from './types.js';
 export { appendSummaryField, projectFields } from './helpers.js';
-export { JsonlToToonl, ToonlDecodeStream, ToonlEncodeStream, ToonlToJsonl, ToonlEncoder, ToonlReader, closeTransform, closeTransformInterleaved, decodeLines, encodeLines, encodeRecords, jsonToToon, parseRecords, parseStream, recordTransform, toonToJson, } from './toonl.js';
+export declare const decode: typeof decodeValue;
+/** @deprecated Use {@link decode}. */
+export declare const parse: typeof decodeValue;
+export { encode };
+/** @deprecated Use {@link encode}. */
+export declare const serialize: typeof encode;
+export { JsonlToToonl, ToonlDecodeStream, ToonlEncodeStream, ToonlToJsonl, ToonlEncoder, ToonlReader, closeTransform, closeTransformInterleaved, decodeLines, encodeToonlLines, encodeRecords, jsonToToon, parseRecords, parseStream, recordTransform, toonToJson, } from './toonl.js';

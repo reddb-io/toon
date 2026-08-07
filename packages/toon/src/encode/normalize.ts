@@ -1,8 +1,11 @@
+import { isRawString } from './raw-string.js'
+
 const SURROGATE_PATTERN = /[\uD800-\uDFFF]/
 
 /** Converts host values to the JSON data model before replacement and encoding. */
 export function normalizeValue(value: unknown): any {
   if (value === null) return null
+  if (isRawString(value)) return value
 
   if (
     typeof value === 'object' &&
@@ -70,7 +73,7 @@ export function isPlainObject(value: unknown): value is Record<string, any> {
 }
 
 export function isPrimitive(value: unknown): boolean {
-  return value === null || ['string', 'number', 'boolean'].includes(typeof value)
+  return value === null || isRawString(value) || ['string', 'number', 'boolean'].includes(typeof value)
 }
 
 export function setOwn(target: object, key: string, value: any): void {

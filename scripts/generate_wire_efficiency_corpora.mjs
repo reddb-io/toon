@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { serialize } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/src/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const OUTPUT = join(REPO_ROOT, 'tests/wire-efficiency/corpora.json')
@@ -154,7 +154,7 @@ function compactJsonBytes(value) {
 }
 
 function toonBytes(value, options = {}) {
-  return Buffer.byteLength(serialize(value, options), 'utf8')
+  return Buffer.byteLength(encode(value, options), 'utf8')
 }
 
 const EXT_OPTIONS = {

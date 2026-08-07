@@ -1,11 +1,18 @@
 import { isPlainObject, normalizeValue, setOwn } from './normalize.js';
+import { isRawString } from './raw-string.js';
 /** Applies the JSON-style replacer before shape detection and emission. */
 export function applyReplacer(root, replacer) {
     const replaced = replacer('', root, []);
     // The root cannot be omitted. Undefined there means "keep the original".
     return replaced === undefined
         ? transformChildren(root, replacer, [])
-        : transformChildren(normalizeValue(replaced), replacer, []);
+        : transformReplaced(root, replaced, replacer, []);
+}
+function transformReplaced(original, replaced, replacer, path) {
+    if (isRawString(replaced) && (Array.isArray(original) || isPlainObject(original))) {
+        return transformChildren(original, replacer, path);
+    }
+    return transformChildren(normalizeValue(replaced), replacer, path);
 }
 function transformChildren(value, replacer, path) {
     if (Array.isArray(value))
@@ -21,7 +28,7 @@ function transformObject(value, replacer, path) {
         const replaced = replacer(key, child, childPath);
         if (replaced === undefined)
             continue;
-        setOwn(result, key, transformChildren(normalizeValue(replaced), replacer, childPath));
+        setOwn(result, key, transformReplaced(child, replaced, replacer, childPath));
     }
     return result;
 }
@@ -32,7 +39,7 @@ function transformArray(value, replacer, path) {
         const replaced = replacer(String(index), value[index], childPath);
         if (replaced === undefined)
             continue;
-        result.push(transformChildren(normalizeValue(replaced), replacer, childPath));
+        result.push(transformReplaced(value[index], replaced, replacer, childPath));
     }
     return result;
 }

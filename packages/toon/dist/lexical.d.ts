@@ -40,6 +40,8 @@ export declare function canonicalString(value: any, delimiter: any): any;
 /** The §7.2 quoting checklist. */
 export declare function needsQuotes(value: any, delimiter: any): any;
 export declare function quoteString(value: any): string;
+/** Escapes a string for use inside a quoted TOON token. */
+export declare function escapeString(value: any): string;
 /**
  * Defines an own enumerable property even when the key is `__proto__`, which a
  * plain assignment would silently route to the prototype instead of the object.

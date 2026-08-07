@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 
-import { serialize } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/src/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const FIXTURE_PATH = join(REPO_ROOT, 'tests/wire-efficiency/corpora.json')
@@ -180,8 +180,8 @@ function readabilityRows() {
 
 function measureCase(encoding, testCase) {
   const jsonMin = JSON.stringify(testCase.value)
-  const toonV3 = serialize(testCase.value)
-  const toonExt = serialize(testCase.value, EXT_OPTIONS)
+  const toonV3 = encode(testCase.value)
+  const toonExt = encode(testCase.value, EXT_OPTIONS)
   const hypothetical = hypotheticalWire(testCase)
   if (!hypothetical) return null
   return {

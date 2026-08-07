@@ -79,7 +79,7 @@ export declare class ToonlEncoder {
  *
  * `trailer` (default `true`) writes the `[=N]` trailer when a segment closes.
  */
-export declare function encodeLines({ delimiter, trailer, continuationEveryRows, continuationEveryBytes, }?: any): {
+export declare function encodeToonlLines({ delimiter, trailer, continuationEveryRows, continuationEveryBytes, }?: any): {
     push(record: any): string;
     declareLane(tag: any, declaredFields: any): string;
     pushTagged(tag: any, record: any): string;
@@ -87,6 +87,6 @@ export declare function encodeLines({ delimiter, trailer, continuationEveryRows,
 };
 /**
  * Convenience: encodes records to one TOONL string, rotating on schema change.
- * Uses the same first-seen per-shape field order as `encodeLines`.
+ * Uses the same first-seen per-shape field order as `encodeToonlLines`.
  */
 export declare function encodeRecords(records: any, options: any): string;

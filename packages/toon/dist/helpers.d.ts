@@ -6,7 +6,7 @@
 /**
  * Encodes an object with a trailing spec-legal `summary:` field.
  *
- * The returned bytes are one conforming TOON document, so `parse(output)`
+ * The returned bytes are one conforming TOON document, so `decode(output)`
  * recovers the rollup together with the rest of the payload. Any existing
  * `summary` key is replaced and moved to the end.
  */

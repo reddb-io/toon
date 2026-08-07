@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 import { countTokens } from 'gpt-tokenizer'
-import { encodeRecords, serialize } from '../../packages/toon/dist/index.js'
+import { encodeRecords, encode } from '../../packages/toon/dist/index.js'
 
 const REPO_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 const RESULTS_DIR = join(REPO_ROOT, 'benchmarks', 'results')
@@ -271,11 +271,11 @@ function formatsFor(dataset) {
     ['json-pretty', JSON.stringify(dataset.value, null, 2)],
     ['yaml', yaml(dataset.value)],
     ['xml', xml(dataset.value)],
-    ['toon-v4.1-canonical', serialize(dataset.value)],
+    ['toon-v4.1-canonical', encode(dataset.value)],
   ])
   if (dataset.file) formats.set('toon-rust-crate-canonical', rustCanonicalToon(dataset.file))
   for (const [name, options] of Object.entries(EXTENSIONS)) {
-    formats.set(name, serialize(dataset.value, options))
+    formats.set(name, encode(dataset.value, options))
   }
   for (const [name, flags] of Object.entries(dataset.rustExtensions ?? {})) {
     formats.set(name, rustToon(dataset.value, flags))

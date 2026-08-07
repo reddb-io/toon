@@ -12,3 +12,5 @@ export interface EncodeOptions {
 }
 /** Encodes normalized JSON using the canonical v4.1 forms. */
 export declare function encode(input: unknown, options?: EncodeOptions): string;
+/** Encodes normalized JSON as TOON lines without trailing newlines. */
+export declare function encodeLines(input: unknown, options?: EncodeOptions): Iterable<string>;

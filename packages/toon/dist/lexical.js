@@ -3,6 +3,7 @@
  * TOON (§4, §7, §11) and TOONL both build on.
  */
 import { toonError } from './errors.js';
+import { isRawString } from './encode/raw-string.js';
 /** The document delimiter of the default profile (spec §11.1). */
 export const DOCUMENT_DELIMITER = ',';
 /**
@@ -221,6 +222,8 @@ export function isPrimitive(value) {
         typeof value === 'string');
 }
 export function primitiveText(value, delimiter) {
+    if (isRawString(value))
+        return value.value;
     if (value === null)
         return 'null';
     if (typeof value === 'boolean')
@@ -257,10 +260,14 @@ export function needsQuotes(value, delimiter) {
 }
 const QUOTE_ESCAPED = /["\\\u0000-\u001f]/g;
 export function quoteString(value) {
+    return `"${escapeString(value)}"`;
+}
+/** Escapes a string for use inside a quoted TOON token. */
+export function escapeString(value) {
     // Jumps between characters that need escaping with a regex scan and copies
     // the plain runs in between with slice — appending one character at a time
     // thrashes the GC on large strings (e.g. HTML payloads).
-    let output = '"';
+    let output = '';
     let runStart = 0;
     QUOTE_ESCAPED.lastIndex = 0;
     let match;
@@ -288,7 +295,7 @@ export function quoteString(value) {
         output += value.slice(runStart, match.index) + escape;
         runStart = match.index + 1;
     }
-    return `${output}${value.slice(runStart)}"`;
+    return `${output}${value.slice(runStart)}`;
 }
 /**
  * Defines an own enumerable property even when the key is `__proto__`, which a

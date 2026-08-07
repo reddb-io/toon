@@ -15,13 +15,13 @@ pnpm add @reddb-io/toon
 ## TOON
 
 ```js
-import { parse, serialize } from '@reddb-io/toon'
+import { decode, encode } from '@reddb-io/toon'
 
-const document = parse('users[2]{id,name}:\n  1,Ada\n  2,Linus\n')
+const document = decode('users[2]{id,name}:\n  1,Ada\n  2,Linus\n')
 console.log(JSON.stringify(document))
 
-process.stdout.write(serialize(document))
-console.log('round-trip', JSON.stringify(parse(serialize(document))) === JSON.stringify(document))
+process.stdout.write(`${encode(document)}\n`)
+console.log('round-trip', JSON.stringify(decode(encode(document))) === JSON.stringify(document))
 ```
 ```console
 {"users":[{"id":1,"name":"Ada"},{"id":2,"name":"Linus"}]}
@@ -35,11 +35,14 @@ users[2]{id,name}:
 round-trip true
 ```
 
-- `parse(input, options?)` decodes a TOON document to a JSON value. Options are `indent` (default `2`), `strict` (default `true`), `expandPaths` (a non-normative legacy shim, default off; `'safe'` expands dotted keys into nested objects — path expansion was removed from the spec at v4.1, see the [migration notes](../../docs/migration-v4.md)), and `maxDepth` (default `1000`; set `0` only for trusted input).
-- `parseDocument(input, options?)` is the object-root variant and throws when the root is not an object.
-- `serialize(value, options?)` encodes canonical TOON by default: comma delimiter, two-space indent, no key folding, and the same depth guard.
-- `encode` and `decode` are exact aliases of `serialize` and `parse`.
+- `decode(input, options?)` decodes a TOON document to a JSON value. `decodeFromLines(lines, options?)` accepts pre-split lines.
+- `decodeStream` and `decodeStreamSync` expose positioned JSON-semantic events without building a value tree.
+- `encode(value, options?)` encodes canonical TOON. `encodeLines(value, options?)` yields its lines without trailing newlines.
+- `parse` and `serialize` are deprecated exact aliases of `decode` and `encode`.
+- `DELIMITERS`, `DEFAULT_DELIMITER`, `rawString`, `escapeString`, and `ToonDecodeError` match the canonical v4.1 helper surface.
 - `detectTruncation(input, { format?: 'toon' | 'toonl', ...parseOptions })` returns a structured completeness report instead of throwing. Complete input reports `complete: true`; truncated TOON arrays, cut nested bodies, TOONL trailer mismatches, and missing TOONL trailers report `kind`, `line`, `declared`, `actual`, and `message`.
+
+Pre-v4 dotted-key expansion and the former permissive codec live only at the explicit `@reddb-io/toon/legacy` subpath. New code should not import it.
 
 Strict mode is on by default. It enforces the official TOON error checklist; pass `{ strict: false }` only when you intentionally want legacy recovery behavior.
 
@@ -48,23 +51,23 @@ Strict mode is on by default. It enforces the official TOON error checklist; pas
 - `indent` changes how the parser interprets leading spaces. Serialization stays canonical TOON v4.1 with two-space indentation by default.
 
 ```js
-import { parse, serialize } from '@reddb-io/toon'
+import { decode, encode } from '@reddb-io/toon'
 
 const input = 'person:\n    city: London\n'
 
 try {
-  parse(input)
+  decode(input)
 } catch (error) {
   console.log('default indent', error.message)
 }
 
-const document = parse(input, { indent: 4 })
+const document = decode(input, { indent: 4 })
 console.log('indent 4', JSON.stringify(document))
-process.stdout.write(serialize(document))
-console.log('round-trip', JSON.stringify(parse(serialize(document))) === JSON.stringify(document))
+process.stdout.write(`${encode(document)}\n`)
+console.log('round-trip', JSON.stringify(decode(encode(document))) === JSON.stringify(document))
 ```
 ```console
-default indent line 2: invalid indentation
+default indent Line 2: over-indented line
 ```
 ```console
 indent 4 {"person":{"city":"London"}}
@@ -80,45 +83,45 @@ round-trip true
 - `strict` is on by default. Turning it off keeps legacy last-write-wins recovery for duplicate keys.
 
 ```js
-import { parse } from '@reddb-io/toon'
+import { decode } from '@reddb-io/toon'
 
 const input = 'a: 1\na: 2\n'
 
 try {
-  parse(input)
+  decode(input)
 } catch (error) {
   console.log('strict default', error.message)
 }
 
-console.log('strict false', JSON.stringify(parse(input, { strict: false })))
+console.log('strict false', JSON.stringify(decode(input, { strict: false })))
 ```
 ```console
-strict default line 2: duplicate key
+strict default Line 2: duplicate object key
 ```
 ```console
 strict false {"a":2}
 ```
 
-- `maxDepth` guards both parse and serialize recursion. Set `0` only when the input is trusted and you intentionally want to disable the depth guard.
+- `maxDepth` guards both decode and encode recursion. Set `0` only when the input is trusted and you intentionally want to disable the depth guard.
 
 ```js
-import { parse, serialize } from '@reddb-io/toon'
+import { decode, encode } from '@reddb-io/toon'
 
 const input = 'a:\n  b:\n    c: 1\n'
 
 try {
-  parse(input, { maxDepth: 1 })
+  decode(input, { maxDepth: 1 })
 } catch (error) {
   console.log('maxDepth 1', error.message)
 }
 
-const document = parse(input, { maxDepth: 0 })
+const document = decode(input, { maxDepth: 0 })
 console.log('maxDepth 0', JSON.stringify(document))
-process.stdout.write(serialize(document, { maxDepth: 0 }))
-console.log('round-trip', JSON.stringify(parse(serialize(document))) === JSON.stringify(document))
+process.stdout.write(`${encode(document, { maxDepth: 0 })}\n`)
+console.log('round-trip', JSON.stringify(decode(encode(document))) === JSON.stringify(document))
 ```
 ```console
-maxDepth 1 line 3: maximum nesting depth exceeded (maxDepth 1)
+maxDepth 1 Line 3: maximum nesting depth exceeded (maxDepth 1)
 ```
 ```console
 maxDepth 0 {"a":{"b":{"c":1}}}
@@ -134,91 +137,9 @@ round-trip true
 
 ### Encode Extensions
 
-All reddb-io extensions decode always-on and encode opt-in. With no options, output remains canonical TOON v4.1. Two of the encoder flags below — `nestedTabularHeaders` and `keyedMapCollapse` — emit forms the official spec absorbed at v4.1 (nested field groups and keyed tabular form); the rest are reddb-io extensions re-expressed on the v4.1 base. The file carries only content: an option lives at the call site — `serialize(value, { … })` here, `EncodeOptions` in Rust, a flag on `tq` — never inside the document, and decoders recognize the extended forms from shape alone. The extension model is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md).
+All reddb-io extensions decode always-on and encode opt-in. With no options, output remains canonical TOON v4.1. Nested field groups and keyed tabular maps are no longer extensions: v4.1 absorbed them and the canonical encoder uses them automatically. The remaining options below are re-expressed on the v4.1 base. The extension model is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md).
 
 In every example below, the `assert` lines are the guarantees — lossless round-trip, and canonical fallback for ineligible data — kept executable without polluting the output, which is always a plain TOON document.
-
-- `nestedTabularHeaders` emits recursive table headers for uniform nested object columns. Spec: [Nested tabular headers](../../docs/proposals/nested-tabular-headers.md).
-
-Default output, canonical v4.1:
-
-```js
-import { serialize } from '@reddb-io/toon'
-
-const value = { orders: [{ id: 1, customer: { name: 'Ada', country: 'UK' }, total: 10.5 }] }
-process.stdout.write(serialize(value))
-```
-```console
-orders[1]:
-  - id: 1
-    customer:
-      name: Ada
-      country: UK
-    total: 10.5
-```
-
-The same value with `nestedTabularHeaders: true`:
-
-```js
-import assert from 'node:assert/strict'
-import { parse, serialize } from '@reddb-io/toon'
-
-const value = { orders: [{ id: 1, customer: { name: 'Ada', country: 'UK' }, total: 10.5 }] }
-const enabled = serialize(value, { nestedTabularHeaders: true })
-process.stdout.write(enabled)
-assert.deepEqual(parse(enabled), value)
-```
-```console
-orders[1]{id,customer{name,country},total}:
-  1,Ada,UK,10.5
-```
-
-- `keyedMapCollapse` emits compact rows for object maps whose values are uniform objects. Spec: [Keyed-map collapse](../../docs/proposals/keyed-map-collapse.md).
-
-Default output, canonical v4.1:
-
-```js
-import { serialize } from '@reddb-io/toon'
-
-const value = {
-  people: {
-    joe: { first: 'Joe', last: 'Schmoe' },
-    mary: { first: 'Mary', last: 'Jane' },
-  },
-}
-process.stdout.write(serialize(value))
-```
-```console
-people:
-  joe:
-    first: Joe
-    last: Schmoe
-  mary:
-    first: Mary
-    last: Jane
-```
-
-The same value with `keyedMapCollapse: true`:
-
-```js
-import assert from 'node:assert/strict'
-import { parse, serialize } from '@reddb-io/toon'
-
-const value = {
-  people: {
-    joe: { first: 'Joe', last: 'Schmoe' },
-    mary: { first: 'Mary', last: 'Jane' },
-  },
-}
-const enabled = serialize(value, { keyedMapCollapse: true })
-process.stdout.write(enabled)
-assert.deepEqual(parse(enabled), value)
-```
-```console
-people{first,last}:
-  joe: Joe,Schmoe
-  mary: Mary,Jane
-```
 
 - `primitiveArrayColumns` emits primitive list columns such as `tags[;]` inside otherwise tabular object arrays. Spec: [Primitive-array columns](../../docs/proposals/primitive-array-columns.md).
   By default, or when a row is not eligible, output falls back losslessly to canonical TOON v4.1.
@@ -226,10 +147,10 @@ people{first,last}:
 Default output, canonical v4.1:
 
 ```js
-import { serialize } from '@reddb-io/toon'
+import { encode } from '@reddb-io/toon'
 
 const value = { users: [{ id: 1, tags: ['red', 'blue'] }] }
-process.stdout.write(serialize(value))
+process.stdout.write(`${encode(value)}\n`)
 ```
 ```console
 users[1]:
@@ -241,15 +162,15 @@ The same value with `primitiveArrayColumns: true`:
 
 ```js
 import assert from 'node:assert/strict'
-import { parse, serialize } from '@reddb-io/toon'
+import { decode, encode } from '@reddb-io/toon'
 
 const value = { users: [{ id: 1, tags: ['red', 'blue'] }] }
-const enabled = serialize(value, { primitiveArrayColumns: true })
-process.stdout.write(enabled)
-assert.deepEqual(parse(enabled), value)
+const enabled = encode(value, { primitiveArrayColumns: true })
+process.stdout.write(`${enabled}\n`)
+assert.deepEqual(decode(enabled), value)
 
 const ineligible = { users: [{ id: 1, tags: null }, { id: 2, tags: ['ok'] }] }
-assert.equal(serialize(ineligible, { primitiveArrayColumns: true }), serialize(ineligible))
+assert.equal(encode(ineligible, { primitiveArrayColumns: true }), encode(ineligible))
 ```
 ```console
 users[1]{id,tags[;]}:
@@ -262,10 +183,10 @@ users[1]{id,tags[;]}:
 Default output, canonical v4.1:
 
 ```js
-import { serialize } from '@reddb-io/toon'
+import { encode } from '@reddb-io/toon'
 
 const value = { orders: [{ id: 1, items: [{ sku: 'A', qty: 2 }, { sku: 'B', qty: 1 }] }] }
-process.stdout.write(serialize(value))
+process.stdout.write(`${encode(value)}\n`)
 ```
 ```console
 orders[1]:
@@ -279,15 +200,15 @@ The same value with `objectArrayColumns: true`:
 
 ```js
 import assert from 'node:assert/strict'
-import { parse, serialize } from '@reddb-io/toon'
+import { decode, encode } from '@reddb-io/toon'
 
 const value = { orders: [{ id: 1, items: [{ sku: 'A', qty: 2 }, { sku: 'B', qty: 1 }] }] }
-const enabled = serialize(value, { objectArrayColumns: true })
-process.stdout.write(enabled)
-assert.deepEqual(parse(enabled), value)
+const enabled = encode(value, { objectArrayColumns: true })
+process.stdout.write(`${enabled}\n`)
+assert.deepEqual(decode(enabled), value)
 
 const ineligible = { orders: [{ id: 1, items: [{ sku: 'A' }] }, { id: 2, items: [1] }] }
-assert.equal(serialize(ineligible, { objectArrayColumns: true }), serialize(ineligible))
+assert.equal(encode(ineligible, { objectArrayColumns: true }), encode(ineligible))
 ```
 ```console
 orders[1]{id,items{sku,qty}}:
@@ -302,69 +223,45 @@ orders[1]{id,items{sku,qty}}:
 Default output, canonical v4.1 — the discriminator repeats in every row:
 
 ```js
-import { serialize } from '@reddb-io/toon'
+import { encode } from '@reddb-io/toon'
 
 const value = { events: [] }
 for (let index = 1; index <= 12; index += 1) {
   const type = ['login', 'purchase', 'logout'][(index - 1) % 3]
   value.events.push({ type, payload: { id: `evt_${index}` } })
 }
-process.stdout.write(serialize(value))
+process.stdout.write(`${encode(value)}\n`)
 ```
 ```console
-events[12]:
-  - type: login
-    payload:
-      id: evt_1
-  - type: purchase
-    payload:
-      id: evt_2
-  - type: logout
-    payload:
-      id: evt_3
-  - type: login
-    payload:
-      id: evt_4
-  - type: purchase
-    payload:
-      id: evt_5
-  - type: logout
-    payload:
-      id: evt_6
-  - type: login
-    payload:
-      id: evt_7
-  - type: purchase
-    payload:
-      id: evt_8
-  - type: logout
-    payload:
-      id: evt_9
-  - type: login
-    payload:
-      id: evt_10
-  - type: purchase
-    payload:
-      id: evt_11
-  - type: logout
-    payload:
-      id: evt_12
+events[12]{type,payload{id}}:
+  login,evt_1
+  purchase,evt_2
+  logout,evt_3
+  login,evt_4
+  purchase,evt_5
+  logout,evt_6
+  login,evt_7
+  purchase,evt_8
+  logout,evt_9
+  login,evt_10
+  purchase,evt_11
+  logout,evt_12
 ```
 
 The same value with `cyclicDiscriminatedArrays: true` — the `order`, `discriminator`, and `rows` fields are data (a strict TOON v4.1 decoder reads them as a literal object), not mode flags:
 
 ```js
 import assert from 'node:assert/strict'
-import { parse, serialize } from '@reddb-io/toon'
+import { decode, encode } from '@reddb-io/toon'
 
 const value = { events: [] }
 for (let index = 1; index <= 12; index += 1) {
   const type = ['login', 'purchase', 'logout'][(index - 1) % 3]
   value.events.push({ type, payload: { id: `evt_${index}` } })
 }
-const enabled = serialize(value, { cyclicDiscriminatedArrays: true })
-process.stdout.write(enabled)
-assert.deepEqual(parse(enabled), value)
+const enabled = encode(value, { cyclicDiscriminatedArrays: true })
+process.stdout.write(`${enabled}\n`)
+assert.deepEqual(decode(enabled, { cyclicDiscriminatedArrays: true }), value)
 
 const ineligible = {
   events: [
@@ -373,7 +270,7 @@ const ineligible = {
     { type: 'logout', id: 'evt_3' },
   ],
 }
-assert.equal(serialize(ineligible, { cyclicDiscriminatedArrays: true }), serialize(ineligible))
+assert.equal(encode(ineligible, { cyclicDiscriminatedArrays: true }), encode(ineligible))
 ```
 ```console
 events:
@@ -402,10 +299,10 @@ events:
 Default output, comma-delimited:
 
 ```js
-import { serialize } from '@reddb-io/toon'
+import { encode } from '@reddb-io/toon'
 
 const value = { rows: [{ id: 1, name: 'Ada' }] }
-process.stdout.write(serialize(value))
+process.stdout.write(`${encode(value)}\n`)
 ```
 ```console
 rows[1]{id,name}:
@@ -416,12 +313,12 @@ The same value with `delimiter: '|'` — the header itself declares the active d
 
 ```js
 import assert from 'node:assert/strict'
-import { parse, serialize } from '@reddb-io/toon'
+import { decode, encode } from '@reddb-io/toon'
 
 const value = { rows: [{ id: 1, name: 'Ada' }] }
-const pipe = serialize(value, { delimiter: '|' })
-process.stdout.write(pipe)
-assert.deepEqual(parse(pipe), value)
+const pipe = encode(value, { delimiter: '|' })
+process.stdout.write(`${pipe}\n`)
+assert.deepEqual(decode(pipe), value)
 ```
 ```console
 rows[1|]{id|name}:
@@ -433,9 +330,9 @@ rows[1|]{id|name}:
 TOONL is a line-oriented stream profile for flat records. A segment opens with a schema header, appends one row per line, and may close with a `[=N]` trailer. TOONL v0.2 adds resumable cursors, header-preserving trim semantics, tagged multiplexing, close-transform variants, and append-safe retry patterns. See [`docs/toonl-reddb-spec.md`](../../docs/toonl-reddb-spec.md).
 
 ```js
-import { closeTransform, decodeLines, encodeLines } from '@reddb-io/toon'
+import { closeTransform, decodeLines, encodeToonlLines } from '@reddb-io/toon'
 
-const emitter = encodeLines()
+const emitter = encodeToonlLines()
 let stream = ''
 stream += emitter.push({ id: 1, name: 'Ada' })
 stream += emitter.push({ id: 2, name: 'Linus' })
@@ -460,7 +357,7 @@ Linus
 - `ToonlDecodeStream()` is a WHATWG `TransformStream` from TOONL text or bytes to records.
 - `ToonlEncodeStream(options?)` is a WHATWG `TransformStream` from records to TOONL text.
 - `decodeLines(source)` is the async-generator form of the decoder. It follows schema rotation, skips blank lines, validates trailers, and supports strings plus sync or async chunk iterables.
-- `encodeLines(options?)` returns an incremental emitter with `push(record)`, `declareLane(tag, fields)`, `pushTagged(tag, record)`, and `end()`. Options are `delimiter`, `trailer`, `continuationEveryRows`, and `continuationEveryBytes`.
+- `encodeToonlLines(options?)` returns an incremental emitter with `push(record)`, `declareLane(tag, fields)`, `pushTagged(tag, record)`, and `end()`. Options are `delimiter`, `trailer`, `continuationEveryRows`, and `continuationEveryBytes`.
 - `encodeRecords(records, options?)` buffers an iterable of records into one TOONL string, rotating segments when record shape changes.
 - `parseStream(input)` returns raw segments with decoded headers and raw cells; `parseRecords(input)` returns decoded records.
 - Cursors record byte offset, active header, row count since that header, and optional anchor bytes. They support append-safe resume and are invalidated by truncation or anchor mismatch.
@@ -581,9 +478,9 @@ assert.deepEqual(parseRecords(stream), records)
 ```
 
 ```js
-import { encodeLines, closeTransformInterleaved } from '@reddb-io/toon'
+import { encodeToonlLines, closeTransformInterleaved } from '@reddb-io/toon'
 
-const stream = encodeLines()
+const stream = encodeToonlLines()
 let out = ''
 out += stream.declareLane('api', ['id', 'path'])
 out += stream.pushTagged('api', { id: 1, path: '/health' })
@@ -622,7 +519,7 @@ const thin = projectFields([{ id: 1, state: 'ok', debug: true }], ['id', 'state'
 
 - `appendSummaryField(value, summary)` returns one conforming TOON document with a trailing `summary:` field.
 - `projectFields(rows, fields)` keeps allowlisted fields in allowlist order, drops other fields, and leaves absent fields absent.
-- `ToonError` is thrown by TOON parse failures and carries the 1-based source `line`.
+- `ToonError` is thrown by TOON decode failures and carries the 1-based source `line`.
 - `ToonlError` is thrown by TOONL decode or encode failures; `line` is `0` when there is no line context.
 - `ToonlCursorInvalidationError` extends `ToonlError` for failed cursor resumes and carries `condition` plus `details`.
 

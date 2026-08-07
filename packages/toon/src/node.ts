@@ -1,7 +1,7 @@
 import { createReadStream, createWriteStream } from 'node:fs'
 import { finished } from 'node:stream/promises'
 
-import { decodeLines, encodeLines } from './index.js'
+import { decodeLines, encodeToonlLines } from './index.js'
 
 export function readToonlFile(path) {
   return decodeLines(createReadStream(path))
@@ -9,7 +9,7 @@ export function readToonlFile(path) {
 
 export async function writeToonlFile(path, records, options) {
   const writer = createWriteStream(path)
-  const emitter = encodeLines(options)
+  const emitter = encodeToonlLines(options)
 
   const write = async (chunk) => {
     if (chunk === '') {

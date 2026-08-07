@@ -27,6 +27,11 @@ interface ResolvedOptions {
 
 /** Encodes normalized JSON using the canonical v4.1 forms. */
 export function encode(input: unknown, options: EncodeOptions = {}): string {
+  return Array.from(encodeLines(input, options)).join('\n')
+}
+
+/** Encodes normalized JSON as TOON lines without trailing newlines. */
+export function encodeLines(input: unknown, options: EncodeOptions = {}): Iterable<string> {
   const delimiter = options.delimiter ?? ','
   if (![',', '|', '\t'].includes(delimiter)) throw new TypeError('invalid delimiter')
   const indentSize = Math.max(1, Math.floor(options.indentSize ?? options.indent ?? 2))
@@ -41,7 +46,7 @@ export function encode(input: unknown, options: EncodeOptions = {}): string {
   const resolved = { delimiter, indentSize, maxDepth }
   if (options.cyclicDiscriminatedArrays === true) {
     const cyclic = cyclicDiscriminatedArrayWire(value)
-    if (cyclic !== undefined) return cyclic.trimEnd()
+    if (cyclic !== undefined) return cyclic.trimEnd().split('\n')
   }
   if (options.primitiveArrayColumns === true || options.objectArrayColumns === true) {
     const extension = serializeLegacyExtensions(value, {
@@ -51,9 +56,9 @@ export function encode(input: unknown, options: EncodeOptions = {}): string {
       maxDepth,
     })
     const withoutExtension = serializeLegacyExtensions(value, { delimiter, maxDepth })
-    if (extension !== withoutExtension) return extension.trimEnd()
+    if (extension !== withoutExtension) return extension.trimEnd().split('\n')
   }
-  return encodeValue(value, resolved).join('\n')
+  return encodeValue(value, resolved)
 }
 
 function encodeValue(value: any, options: ResolvedOptions): string[] {
