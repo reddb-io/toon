@@ -49,6 +49,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check workspace versions
         run: pnpm check:versions
+      - name: Test offline upstream drift decisions
+        run: pnpm test:upstream
       - name: Check source file length
         run: scripts/check-file-length.sh
       - name: Verify deterministic accuracy benchmark
