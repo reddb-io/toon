@@ -91,6 +91,34 @@ test('v4 codec child tables are opt-in, fail-closed, and round-trip', () => {
   }
 })
 
+test('upstream feedback tracks the mixed-columnar RFC without stale issue mappings', () => {
+  const upstreamFeedback = readFileSync(
+    new URL('../../../docs/upstream-feedback.md', import.meta.url),
+    'utf8',
+  )
+  const migration = readFileSync(new URL('../../../docs/migration-v4.md', import.meta.url), 'utf8')
+  const proposalIndex = readFileSync(
+    new URL('../../../docs/proposals/README.md', import.meta.url),
+    'utf8',
+  )
+  const delimiterProposal = readFileSync(
+    new URL('../../../docs/proposals/delimiter-choice.md', import.meta.url),
+    'utf8',
+  )
+  const primitiveProposal = readFileSync(
+    new URL('../../../docs/proposals/primitive-array-columns.md', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(upstreamFeedback, /#48.*Mixed columnar arrays/i)
+  assert.match(upstreamFeedback, /draft PR #47.*b5ce4c6/i)
+  assert.match(upstreamFeedback, /Approval status:.*not approved.*not posted/i)
+  assert.doesNotMatch(delimiterProposal, /toon-format\/spec\/issues\/48/)
+  assert.doesNotMatch(primitiveProposal, /toon-format\/spec\/issues\/49/)
+  assert.doesNotMatch(`${migration}\n${proposalIndex}`, /spec#48.*Delimiter choice/i)
+  assert.doesNotMatch(`${migration}\n${proposalIndex}`, /spec#49.*Primitive-array columns/i)
+})
+
 test('truncation detection understands v4 comments and keyed tables', () => {
   assert.deepEqual(detectTruncation('# users\n[2:]{name}:\n  ada: Ada'), {
     complete: false,
