@@ -401,7 +401,7 @@ fn run_fixture(args: &[String]) -> Run {
 /// v4.1.1 renormalization baseline (Spec #203, issue #204).
 ///
 /// vendor/toon-spec is pinned at v4.1.1. The renormalized v4 corpus carries
-/// decode cases whose spec expectation the current v3.3-era decoder does not yet
+/// decode cases whose spec expectation the compatibility decoder does not yet
 /// match through the `tq` CLI — a `shouldError` case the lenient decoder accepts,
 /// or a valid v4 form it cannot yet read. They are recorded here as an explicit
 /// expected-failure baseline, not skipped silently, so the pre-rebase gap is
@@ -459,7 +459,7 @@ fn official_decode_fixture_cases_survive_the_cli() {
 
             // A case "matches" when the CLI's behaviour agrees with the spec's
             // shouldError flag on both the parse and check entry points. Anything
-            // else is a v3.3-vs-v4 divergence, tracked in the ledger rather than
+            // else is a legacy-vs-v4 divergence, tracked in the ledger rather than
             // failing the sweep outright.
             let matched = if case.should_error {
                 !parsed.succeeded() && !parsed.stderr.is_empty() && !checked.succeeded()
