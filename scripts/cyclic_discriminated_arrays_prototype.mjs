@@ -6,7 +6,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
-import { encode } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/dist/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const TOKENIZER_DIR = join(REPO_ROOT, '.red/tmp/wire-efficiency-tokenizer')
@@ -428,9 +428,9 @@ const CASES = [
 
 function measure(encoding, testCase) {
   const jsonMin = JSON.stringify(testCase.value)
-  const toonV33 = encode(testCase.value)
+  const toonBaseline = encode(testCase.value)
   const toonExt = encode(testCase.value, EXT_OPTIONS)
-  const bestCurrent = bytes(toonExt) < bytes(toonV33) ? toonExt : toonV33
+  const bestCurrent = bytes(toonExt) < bytes(toonBaseline) ? toonExt : toonBaseline
   const section = eligibleSection(testCase.value.events)
   const shippedWire = shippedCyclicWire(testCase.value)
   const genuineWire = genuineToonWire(testCase.value)
@@ -456,14 +456,14 @@ function measure(encoding, testCase) {
     repeat: section ? section.order.repeats : 0,
     bytes: {
       jsonMin: bytes(jsonMin),
-      toonV33: bytes(toonV33),
+      toonBaseline: bytes(toonBaseline),
       bestCurrent: bytes(bestCurrent),
       shipped: bytes(shippedWire),
       genuine: bytes(genuineWire),
     },
     tokens: {
       jsonMin: encoding.encode(jsonMin).length,
-      toonV33: encoding.encode(toonV33).length,
+      toonBaseline: encoding.encode(toonBaseline).length,
       bestCurrent: encoding.encode(bestCurrent).length,
       shipped: encoding.encode(shippedWire).length,
       genuine: encoding.encode(genuineWire).length,
@@ -506,13 +506,13 @@ function printReport(results) {
         pad(result.cycle || '-', 5),
         pad(result.repeat || '-', 5),
         pad(result.bytes.jsonMin, 8),
-        pad(result.bytes.toonV33, 8),
+        pad(result.bytes.toonBaseline, 8),
         pad(result.bytes.bestCurrent, 8),
         pad(result.bytes.shipped, 8),
         pad(result.bytes.genuine, 8),
         pad(pct(result.bytes.genuine - result.bytes.shipped, result.bytes.shipped), 12),
         pad(result.tokens.jsonMin, 9),
-        pad(result.tokens.toonV33, 9),
+        pad(result.tokens.toonBaseline, 9),
         pad(result.tokens.bestCurrent, 9),
         pad(result.tokens.shipped, 9),
         pad(result.tokens.genuine, 9),
