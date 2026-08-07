@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 
-import { encode } from '../packages/toon/src/index.js'
+import { encode } from '../packages/toon/dist/index.js'
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const TOKENIZER_DIR = join(REPO_ROOT, '.red/tmp/wire-efficiency-tokenizer')
@@ -37,20 +37,20 @@ const DATASETS = [
 
 const EXPECTED = {
   'tagged-records/small': {
-    bytes: { jsonMin: 697, toonV33: 759, bestCurrent: 759, candidateC: 654, candidateB: 839 },
-    tokens: { jsonMin: 216, toonV33: 258, bestCurrent: 258, candidateC: 248, candidateB: 271 },
+    bytes: { jsonMin: 697, toonBaseline: 759, bestCurrent: 759, candidateC: 654, candidateB: 839 },
+    tokens: { jsonMin: 216, toonBaseline: 258, bestCurrent: 258, candidateC: 248, candidateB: 271 },
   },
   'tagged-records/large': {
-    bytes: { jsonMin: 20360, toonV33: 22191, bestCurrent: 22191, candidateC: 16491, candidateB: 17906 },
-    tokens: { jsonMin: 6386, toonV33: 7632, bestCurrent: 7632, candidateC: 6302, candidateB: 5864 },
+    bytes: { jsonMin: 20360, toonBaseline: 22191, bestCurrent: 22191, candidateC: 16491, candidateB: 17906 },
+    tokens: { jsonMin: 6386, toonBaseline: 7632, bestCurrent: 7632, candidateC: 6302, candidateB: 5864 },
   },
   'nested-heterogeneous/small': {
-    bytes: { jsonMin: 1621, toonV33: 1966, bestCurrent: 1966, candidateC: 1737, candidateB: 1805 },
-    tokens: { jsonMin: 447, toonV33: 509, bestCurrent: 509, candidateC: 502, candidateB: 521 },
+    bytes: { jsonMin: 1621, toonBaseline: 1966, bestCurrent: 1966, candidateC: 1737, candidateB: 1805 },
+    tokens: { jsonMin: 447, toonBaseline: 509, bestCurrent: 509, candidateC: 502, candidateB: 521 },
   },
   'nested-heterogeneous/large': {
-    bytes: { jsonMin: 28378, toonV33: 29963, bestCurrent: 29963, candidateC: 28105, candidateB: 29500 },
-    tokens: { jsonMin: 8459, toonV33: 9405, bestCurrent: 9405, candidateC: 8592, candidateB: 9157 },
+    bytes: { jsonMin: 28378, toonBaseline: 29963, bestCurrent: 29963, candidateC: 28105, candidateB: 29500 },
+    tokens: { jsonMin: 8459, toonBaseline: 9405, bestCurrent: 9405, candidateC: 8592, candidateB: 9157 },
   },
 }
 
@@ -334,9 +334,9 @@ function replacePlaceholders(value, replacements) {
 function measure(encoding, dataset) {
   const value = JSON.parse(readFileSync(join(REPO_ROOT, dataset.path), 'utf8'))
   const jsonMin = JSON.stringify(value)
-  const toonV33 = encode(value)
+  const toonBaseline = encode(value)
   const toonExt = encode(value, EXT_OPTIONS)
-  const bestCurrentWire = byteLength(toonExt) < byteLength(toonV33) ? toonExt : toonV33
+  const bestCurrentWire = byteLength(toonExt) < byteLength(toonBaseline) ? toonExt : toonBaseline
   const cWire = candidateCWire(value)
   const bWire = candidateBWire(value)
 
@@ -348,14 +348,14 @@ function measure(encoding, dataset) {
     candidateCount: findCandidateArrays(value).length,
     bytes: {
       jsonMin: byteLength(jsonMin),
-      toonV33: byteLength(toonV33),
+      toonBaseline: byteLength(toonBaseline),
       bestCurrent: byteLength(bestCurrentWire),
       candidateC: byteLength(cWire),
       candidateB: byteLength(bWire),
     },
     tokens: {
       jsonMin: encoding.encode(jsonMin).length,
-      toonV33: encoding.encode(toonV33).length,
+      toonBaseline: encoding.encode(toonBaseline).length,
       bestCurrent: encoding.encode(bestCurrentWire).length,
       candidateC: encoding.encode(cWire).length,
       candidateB: encoding.encode(bWire).length,
@@ -400,14 +400,14 @@ function printReport(results) {
         result.key.padEnd(22),
         pad(result.candidateCount, 6),
         pad(result.bytes.jsonMin, 8),
-        pad(result.bytes.toonV33, 8),
+        pad(result.bytes.toonBaseline, 8),
         pad(result.bytes.bestCurrent, 8),
         pad(result.bytes.candidateC, 8),
         pad(result.bytes.candidateB, 8),
         pad(pct(result.bytes.candidateC - result.bytes.jsonMin, result.bytes.jsonMin), 10),
         pad(pct(result.bytes.candidateB - result.bytes.jsonMin, result.bytes.jsonMin), 10),
         pad(result.tokens.jsonMin, 9),
-        pad(result.tokens.toonV33, 9),
+        pad(result.tokens.toonBaseline, 9),
         pad(result.tokens.bestCurrent, 9),
         pad(result.tokens.candidateC, 9),
         pad(result.tokens.candidateB, 9),
