@@ -23,14 +23,22 @@ pub enum PathSegment {
 /// TypeScript `undefined`); at the root [`None`] keeps the original value.
 pub type EncodeReplacer<'a> = dyn Fn(&str, &Value, &[PathSegment]) -> Option<Value> + 'a;
 
-/// Options for [`encode_v4`]. Unlike [`EncodeOptions`], the canonical v4.1 forms
-/// are unconditional, so only the active delimiter and indentation are tunable.
+/// Options for [`encode_v4`]. Canonical v4.1 forms are unconditional; the
+/// surviving wire-efficiency extensions remain explicit opt-ins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EncodeV4Options {
     /// Active delimiter for array and tabular rows: comma, pipe, or tab.
     pub delimiter: char,
     /// Spaces per indentation level; clamped to at least one.
     pub indent_size: usize,
+    /// Emit primitive-array columns in otherwise tabular object arrays.
+    pub primitive_array_columns: bool,
+    /// Emit recursive child tables and fixed-width matrix columns.
+    pub object_array_columns: bool,
+    /// Emit cyclic discriminated-array wire for repeated event streams.
+    pub cyclic_discriminated_arrays: bool,
+    /// Maximum nesting depth. `0` disables the guard for trusted input.
+    pub max_depth: usize,
 }
 
 impl Default for EncodeV4Options {
@@ -38,6 +46,10 @@ impl Default for EncodeV4Options {
         Self {
             delimiter: DOCUMENT_DELIMITER,
             indent_size: DEFAULT_INDENT,
+            primitive_array_columns: false,
+            object_array_columns: false,
+            cyclic_discriminated_arrays: false,
+            max_depth: DEFAULT_MAX_DEPTH,
         }
     }
 }
@@ -85,7 +97,78 @@ fn encode_v4_inner(
         Some(replacer) => apply_replacer(value, replacer),
         None => value.clone(),
     };
+    validate_v4_depth(&value, 0, options.max_depth)?;
+    if let Some(extension) = encode_v4_extension(&value, options)? {
+        return Ok(extension);
+    }
     Ok(encode_v4_value(&value, resolved).join("\n"))
+}
+
+/// The extension emitters are shared with the legacy surface. Comparing their
+/// result with the same emitter's extension-free result distinguishes a real
+/// extension wire from an ineligible fallback before returning to v4.1.
+fn encode_v4_extension(
+    value: &Value,
+    options: EncodeV4Options,
+) -> Result<Option<String>, EncodeError> {
+    let base = EncodeOptions {
+        delimiter: options.delimiter,
+        max_depth: options.max_depth,
+        ..EncodeOptions::default()
+    };
+    if options.cyclic_discriminated_arrays {
+        let encoded = value.try_to_toon_with_options(EncodeOptions {
+            cyclic_discriminated_arrays: true,
+            ..base
+        })?;
+        if encoded != value.try_to_toon_with_options(base)? {
+            return Ok(Some(encoded.trim_end_matches('\n').to_owned()));
+        }
+    }
+    if options.primitive_array_columns || options.object_array_columns {
+        let encoded = value.try_to_toon_with_options(EncodeOptions {
+            primitive_array_columns: options.primitive_array_columns,
+            object_array_columns: options.object_array_columns,
+            ..base
+        })?;
+        if encoded != value.try_to_toon_with_options(base)? {
+            return Ok(Some(encoded.trim_end_matches('\n').to_owned()));
+        }
+    }
+    Ok(None)
+}
+
+fn validate_v4_depth(value: &Value, depth: usize, max_depth: usize) -> Result<(), EncodeError> {
+    if max_depth != 0 && depth > max_depth {
+        return Err(EncodeError {
+            message: "maximum nesting depth exceeded",
+            max_depth: Some(max_depth),
+        });
+    }
+    match value {
+        Value::Object(document) => {
+            for field in &document.fields {
+                match &field.value {
+                    Value::Object(nested) => {
+                        validate_v4_depth(&Value::Object(nested.clone()), depth + 1, max_depth)?;
+                    }
+                    Value::Array(array) => {
+                        validate_v4_depth(&Value::Array(array.clone()), depth, max_depth)?;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Value::Array(array) => {
+            for item in array.values() {
+                if !item.is_primitive() {
+                    validate_v4_depth(&item, depth + 1, max_depth)?;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn encode_v4_value(value: &Value, options: ResolvedV4) -> Vec<String> {

@@ -403,8 +403,8 @@ fn decoder_options(options: Option<&Json>) -> ParseOptions {
     }
 }
 
-/// Maps a fixture's `options` onto the canonical v4.1 encoder: only the active
-/// delimiter and indentation are tunable, since the v4.1 forms are unconditional.
+/// Maps fixture options onto the canonical v4.1 encoder and its opt-in
+/// extensions.
 fn encode_v4_options(options: Option<&Json>) -> EncodeV4Options {
     let defaults = EncodeV4Options::default();
     let Some(options) = options.and_then(Json::as_object) else {
@@ -421,6 +421,22 @@ fn encode_v4_options(options: Option<&Json>) -> EncodeV4Options {
             .or_else(|| options.get("indent"))
             .and_then(Json::as_u64)
             .map_or(defaults.indent_size, |indent| indent as usize),
+        primitive_array_columns: options
+            .get("primitiveArrayColumns")
+            .and_then(Json::as_bool)
+            .unwrap_or(defaults.primitive_array_columns),
+        object_array_columns: options
+            .get("objectArrayColumns")
+            .and_then(Json::as_bool)
+            .unwrap_or(defaults.object_array_columns),
+        cyclic_discriminated_arrays: options
+            .get("cyclicDiscriminatedArrays")
+            .and_then(Json::as_bool)
+            .unwrap_or(defaults.cyclic_discriminated_arrays),
+        max_depth: options
+            .get("maxDepth")
+            .and_then(Json::as_u64)
+            .map_or(defaults.max_depth, |depth| depth as usize),
     }
 }
 
@@ -670,6 +686,18 @@ fn stream_decoder_options(options: Option<&Json>) -> DecodeStreamOptions {
             .get("strict")
             .and_then(Json::as_bool)
             .unwrap_or(defaults.strict),
+        cyclic_discriminated_arrays: options
+            .get("cyclicDiscriminatedArrays")
+            .and_then(Json::as_bool)
+            .unwrap_or(defaults.cyclic_discriminated_arrays),
+        object_array_columns: options
+            .get("objectArrayColumns")
+            .and_then(Json::as_bool)
+            .unwrap_or(defaults.object_array_columns),
+        max_depth: options
+            .get("maxDepth")
+            .and_then(Json::as_u64)
+            .map_or(defaults.max_depth, |depth| depth as usize),
     }
 }
 

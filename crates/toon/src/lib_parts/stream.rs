@@ -22,17 +22,30 @@ pub enum ToonEvent {
 pub struct DecodeStreamOptions {
     pub indent: usize,
     pub strict: bool,
+    /// Reconstruct cyclic discriminated arrays instead of returning metadata.
+    pub cyclic_discriminated_arrays: bool,
+    /// Decode primitive-array columns, recursive child tables, and matrices.
+    pub object_array_columns: bool,
+    /// Maximum nesting depth. `0` disables the guard for trusted input.
+    pub max_depth: usize,
 }
 
 impl Default for DecodeStreamOptions {
     fn default() -> Self {
-        Self { indent: 2, strict: true }
+        Self {
+            indent: DEFAULT_INDENT,
+            strict: true,
+            cyclic_discriminated_arrays: false,
+            object_array_columns: true,
+            max_depth: DEFAULT_MAX_DEPTH,
+        }
     }
 }
 
 struct StreamCtx {
     indent_size: usize,
     strict: bool,
+    max_depth: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +59,14 @@ struct StreamLine {
 
 fn stream_error(line: usize, message: &'static str) -> ParseError {
     ParseError { line, message, max_depth: None }
+}
+
+fn stream_depth_error(line: usize, max_depth: usize) -> ParseError {
+    ParseError {
+        line,
+        message: "maximum nesting depth exceeded",
+        max_depth: Some(max_depth),
+    }
 }
 
 /// A full-line comment: only U+0020 spaces before `#` (§5.1).
@@ -103,6 +124,10 @@ fn classify_stream_lines(input: &str, ctx: &StreamCtx) -> Result<Vec<StreamLine>
         };
         // Non-strict tab leniency (§12): each leading tab counts as one level.
         depth += tabs;
+        if ctx.max_depth != 0 && depth > ctx.max_depth {
+            return Err(stream_depth_error(number, ctx.max_depth));
+        }
+        check_stream_header_depth(&raw[i..], number, ctx.max_depth)?;
         lines.push(StreamLine {
             number,
             depth,
@@ -112,6 +137,36 @@ fn classify_stream_lines(input: &str, ctx: &StreamCtx) -> Result<Vec<StreamLine>
         blank_pending = false;
     }
     Ok(lines)
+}
+
+fn check_stream_header_depth(
+    content: &str,
+    line: usize,
+    max_depth: usize,
+) -> Result<(), ParseError> {
+    if max_depth == 0 {
+        return Ok(());
+    }
+    let mut depth = 0;
+    let mut quoted = false;
+    let mut escaped = false;
+    for character in content.chars() {
+        if escaped {
+            escaped = false;
+        } else if quoted && character == '\\' {
+            escaped = true;
+        } else if character == '"' {
+            quoted = !quoted;
+        } else if !quoted && character == '{' {
+            depth += 1;
+            if depth > max_depth {
+                return Err(stream_depth_error(line, max_depth));
+            }
+        } else if !quoted && character == '}' {
+            depth = depth.saturating_sub(1);
+        }
+    }
+    Ok(())
 }
 
 // #region Header grammar (§6)
@@ -466,7 +521,11 @@ pub fn decode_events(
     input: &str,
     options: &DecodeStreamOptions,
 ) -> (Vec<ToonEvent>, Option<ParseError>) {
-    let ctx = StreamCtx { indent_size: options.indent.max(1), strict: options.strict };
+    let ctx = StreamCtx {
+        indent_size: options.indent.max(1),
+        strict: options.strict,
+        max_depth: options.max_depth,
+    };
     let mut events = Vec::new();
     let error = decode_events_into(input, &ctx, &mut events).err();
     (events, error)
@@ -993,15 +1052,6 @@ fn assert_stream_count(
 }
 
 // #region Value building
-
-/// Whole-document convenience over the event stream: decodes to a JSON value.
-pub fn decode_value_v4(input: &str, options: &DecodeStreamOptions) -> Result<Value, ParseError> {
-    let (events, error) = decode_events(input, options);
-    if let Some(error) = error {
-        return Err(error);
-    }
-    Ok(build_value_from_events(&events))
-}
 
 pub fn build_value_from_events(events: &[ToonEvent]) -> Value {
     enum Slot {

@@ -6,8 +6,8 @@ use std::cell::RefCell;
 
 use proptest::prelude::*;
 use reddb_io_toon::{
-    decode_value_v4, encode_v4, encode_v4_with_replacer, DecodeStreamOptions, EncodeV4Options,
-    PathSegment, Value,
+    decode_value_v4, detect_truncation_v4, encode_toonl_values, encode_v4, encode_v4_with_replacer,
+    DecodeStreamOptions, EncodeV4Options, PathSegment, ToonlStream, Value,
 };
 use serde_json::json;
 
@@ -212,6 +212,7 @@ fn custom_indent_size_round_trips_through_the_v4_decoder() {
         &DecodeStreamOptions {
             indent: 4,
             strict: false,
+            ..DecodeStreamOptions::default()
         },
     )
     .expect("v4 decode")
@@ -219,6 +220,221 @@ fn custom_indent_size_round_trips_through_the_v4_decoder() {
     assert_eq!(
         decoded,
         json!({ "user": { "name": "Ada", "role": "admin" } })
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Extensions rebuilt on the v4.1 entry points (#215)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn v4_extension_options_pin_shared_primitive_and_child_table_wires() {
+    let primitive_corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../corpus/wire-efficiency/primitive-array-columns.json"
+    ))
+    .expect("primitive-column corpus");
+    let primitive_fixture = &primitive_corpus["cases"][0];
+    assert_eq!(
+        decode_value_v4(
+            primitive_fixture["input"]
+                .as_str()
+                .expect("primitive fixture wire"),
+            &DecodeStreamOptions::default(),
+        )
+        .expect("shared primitive fixture decode")
+        .to_json_value(),
+        primitive_fixture["expected"],
+    );
+
+    let primitive = json!({
+        "items": [
+            { "id": 1, "tags": ["hot", "fragile"], "note": "a,b" },
+            { "id": 2, "tags": ["semi;quoted"], "note": "plain" }
+        ]
+    });
+    let primitive_wire =
+        "items[2]{id,tags[;],note}:\n  1,hot;fragile,\"a,b\"\n  2,\"semi;quoted\",plain";
+    assert_eq!(
+        encode_v4(
+            &Value::from_json_value(primitive.clone()),
+            EncodeV4Options {
+                primitive_array_columns: true,
+                ..EncodeV4Options::default()
+            },
+        )
+        .expect("primitive columns encode"),
+        primitive_wire,
+    );
+    assert_eq!(
+        decode_value_v4(primitive_wire, &DecodeStreamOptions::default())
+            .expect("primitive columns decode")
+            .to_json_value(),
+        primitive,
+    );
+
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../corpus/wire-efficiency/object-array-columns.json"
+    ))
+    .expect("child-table corpus");
+    for fixture in corpus["cases"].as_array().expect("cases") {
+        let wire = fixture["input"].as_str().expect("wire").trim_end();
+        let expected = &fixture["expected"];
+        assert_eq!(
+            decode_value_v4(wire, &DecodeStreamOptions::default())
+                .unwrap_or_else(|error| panic!("{}: {error}", fixture["name"]))
+                .to_json_value(),
+            *expected,
+        );
+        assert!(decode_value_v4(
+            wire,
+            &DecodeStreamOptions {
+                object_array_columns: false,
+                ..DecodeStreamOptions::default()
+            },
+        )
+        .is_err());
+    }
+    for fixture in corpus["errors"].as_array().expect("errors") {
+        let error = decode_value_v4(
+            fixture["input"].as_str().expect("invalid wire"),
+            &DecodeStreamOptions::default(),
+        )
+        .expect_err("invalid child table");
+        assert_eq!(error.line(), fixture["line"].as_u64().unwrap() as usize);
+        assert_eq!(error.message(), fixture["reason"].as_str().unwrap());
+    }
+
+    let fixture = &corpus["encodings"][0];
+    assert_eq!(
+        encode_v4(
+            &Value::from_json_value(fixture["value"].clone()),
+            EncodeV4Options {
+                object_array_columns: true,
+                ..EncodeV4Options::default()
+            },
+        )
+        .expect("child tables encode"),
+        fixture["expected"]
+            .as_str()
+            .expect("expected wire")
+            .trim_end(),
+    );
+}
+
+#[test]
+fn v4_cyclic_fixture_is_literal_without_opt_in_and_deterministic_with_it() {
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../corpus/wire-efficiency/cyclic-discriminated-arrays.json"
+    ))
+    .expect("cyclic corpus");
+    let fixture = &corpus["cases"][0];
+    let wire = fixture["input"].as_str().expect("wire").trim_end();
+
+    assert_eq!(
+        decode_value_v4(wire, &DecodeStreamOptions::default())
+            .expect("literal cyclic metadata")
+            .to_json_value(),
+        fixture["strictV3Literal"],
+    );
+    assert_eq!(
+        decode_value_v4(
+            wire,
+            &DecodeStreamOptions {
+                cyclic_discriminated_arrays: true,
+                ..DecodeStreamOptions::default()
+            },
+        )
+        .expect("cyclic graph reconstruction")
+        .to_json_value(),
+        fixture["expected"],
+    );
+    assert_eq!(
+        encode_v4(
+            &Value::from_json_value(fixture["expected"].clone()),
+            EncodeV4Options {
+                cyclic_discriminated_arrays: true,
+                ..EncodeV4Options::default()
+            },
+        )
+        .expect("cyclic graph encode"),
+        wire,
+    );
+}
+
+#[test]
+fn v4_toonl_truncation_and_depth_results_are_exact() {
+    let value = Value::from_json_value(json!({
+        "people": { "ada": { "name": "Ada" }, "linus": { "name": "Linus" } }
+    }));
+    let wire = encode_v4(&value, EncodeV4Options::default()).expect("v4 encode");
+    assert_eq!(wire, "people[2:]{name}:\n  ada: Ada\n  linus: Linus");
+    assert_eq!(
+        decode_value_v4(
+            &format!("# generated\n{wire}"),
+            &DecodeStreamOptions::default()
+        )
+        .expect("v4 decode")
+        .to_json_value(),
+        value.to_json_value(),
+    );
+
+    let rows = [
+        Value::from_json_value(json!({ "id": 1, "name": "Ada" })),
+        Value::from_json_value(json!({ "id": 2, "name": "Linus" })),
+    ];
+    let toonl = encode_toonl_values(&rows).expect("TOONL encode");
+    assert_eq!(toonl, "[]{id,name}:\n1,Ada\n2,Linus\n[=2]\n");
+    assert_eq!(
+        ToonlStream::parse(&toonl)
+            .expect("TOONL decode")
+            .row_values()
+            .expect("TOONL rows")
+            .iter()
+            .map(Value::to_json_value)
+            .collect::<Vec<_>>(),
+        rows.iter().map(Value::to_json_value).collect::<Vec<_>>(),
+    );
+
+    assert_eq!(
+        detect_truncation_v4(
+            "# users\n[2:]{name}:\n  ada: Ada",
+            &DecodeStreamOptions::default(),
+        )
+        .to_json_value(),
+        json!({
+            "complete": false,
+            "kind": "array_length_mismatch",
+            "line": 3,
+            "declared": 2,
+            "actual": 1,
+            "message": "declared 2 rows but received 1",
+        }),
+    );
+
+    let nested = Value::from_json_value(json!({ "a": { "b": { "c": 1 } } }));
+    assert_eq!(
+        encode_v4(
+            &nested,
+            EncodeV4Options {
+                max_depth: 1,
+                ..EncodeV4Options::default()
+            },
+        )
+        .expect_err("encode depth guard")
+        .to_string(),
+        "maximum nesting depth exceeded (maxDepth 1)",
+    );
+    assert_eq!(
+        decode_value_v4(
+            "a:\n  b:\n    c: 1",
+            &DecodeStreamOptions {
+                max_depth: 1,
+                ..DecodeStreamOptions::default()
+            },
+        )
+        .expect_err("decode depth guard")
+        .to_string(),
+        "line 3: maximum nesting depth exceeded (maxDepth 1)",
     );
 }
 
