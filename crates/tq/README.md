@@ -7,13 +7,13 @@
 It is shipped by the `reddb-io-tq` crate and uses the `reddb-io-toon` library. The TOON extension behavior is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md), and TOONL v0.2 is specified in [`docs/toonl-reddb-spec.md`](../../docs/toonl-reddb-spec.md).
 
 ```bash
-cargo install reddb-io-tq --version 0.8.0
+cargo install reddb-io-tq --version 0.20.0
 ```
 
 ## Usage
 
 ```text
-tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--delimiter comma|tab|pipe] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
+tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--strict|--no-strict] [--delimiter comma|tab|pipe] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
 tq trim --keep-last N [--in-place] [FILE]
 tq close [--per-lane|--interleaved] [FILE]
 tq check [-p toon|toonl] [FILE]
@@ -77,57 +77,31 @@ Useful query flags:
 - `-c` prints compact JSON.
 - `-s` or `--slurp` collects TOONL rows into one array before evaluating the query.
 
-## TOON Output Extensions
+## TOON v4.1 output and extensions
 
-TOON output is canonical v4.1 unless an extension flag is enabled. These flags map directly to `reddb_io_toon::EncodeOptions`.
+TOON input is strict v4.1 by default; `--no-strict` is an explicit legacy
+recovery mode. Output is canonical v4.1 unless one of the three local wire
+extension flags below is enabled. Nested field groups and keyed tabular form
+are already canonical v4.1 and are selected automatically for eligible values.
+For script compatibility, the CLI still accepts `--nested-tabular-headers` and
+`--keyed-map-collapse` as deprecated no-op switches; neither changes output.
 
-## `--nested-tabular-headers`
-
-Input:
-
-```json
-{"orders":[{"id":1,"customer":{"name":"Ada","country":"UK"},"total":10.5},{"id":2,"customer":{"name":"Bob","country":"US"},"total":20}]}
-```
-
-Command:
+For example, canonical conversion needs no feature flag:
 
 ```bash
-tq -p json -o toon --nested-tabular-headers .
+printf '%s\n' '{"people":{"joe":{"first":"Joe","last":"Schmoe"},"mary":{"first":"Mary","last":"Jane"}}}' \
+  | tq -p json -o toon .
 ```
-
-Output:
 
 ```toon
-orders[2]{id,customer{name,country},total}:
-  1,Ada,UK,10.5
-  2,Bob,US,20
-```
-
-Spec: [Nested tabular headers](../../docs/proposals/nested-tabular-headers.md).
-
-## `--keyed-map-collapse`
-
-Input:
-
-```json
-{"people":{"joe":{"first":"Joe","last":"Schmoe"},"mary":{"first":"Mary","last":"Jane"}}}
-```
-
-Command:
-
-```bash
-tq -p json -o toon --keyed-map-collapse .
-```
-
-Output:
-
-```toon
-people{first,last}:
+people[2:]{first,last}:
   joe: Joe,Schmoe
   mary: Mary,Jane
 ```
 
-Spec: [Keyed-map collapse](../../docs/proposals/keyed-map-collapse.md).
+The remaining flags map to opt-in fields on
+`reddb_io_toon::EncodeV4Options`; their wire formats are userland-only and
+fall back losslessly to canonical v4.1 when a value is ineligible.
 
 ## `--primitive-array-columns`
 
