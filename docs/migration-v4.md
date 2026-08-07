@@ -155,10 +155,10 @@ keep their contract — decode always-on, encode opt-in, fail-closed, lossless
 round-trip. No migration is required for these; only the baseline they layer
 over moved from v3.3 to v4.1:
 
-- Primitive-array columns (`primitiveArrayColumns`) — upstream RFC
-  [spec#49](https://github.com/toon-format/spec/issues/49) is still open.
-- Delimiter choice (`delimiter`) — upstream RFC
-  [spec#48](https://github.com/toon-format/spec/issues/48) is still open.
+- Primitive-array columns (`primitiveArrayColumns`) — local opt-in extension;
+  there is no dedicated upstream RFC.
+- Delimiter choice (`delimiter`) — local defaults and guidance over the
+  released v4.1 delimiter mechanism; there is no dedicated upstream RFC.
 - Object-array columns / child tables (`objectArrayColumns`).
 - Cyclic discriminated arrays (`cyclicDiscriminatedArrays`).
 - Depth guard (`maxDepth`) and the `detectTruncation` completeness report.

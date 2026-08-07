@@ -1,9 +1,9 @@
 # Proposal — Delimiter choice
 
 **Stage:** 4 — graduated
-**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md). This is a *defaults and guidance* decision on top of a pure v4.1 mechanism — no grammar change, no fourth delimiter. Upstream RFC [spec#48](https://github.com/toon-format/spec/issues/48) is still OPEN upstream (not absorbed into the official spec).
+**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md). This is a *defaults and guidance* decision on top of a pure v4.1 mechanism — no grammar change, no fourth delimiter. It has no dedicated upstream RFC; spec#48 was previously linked here incorrectly and is the mixed-columnar RFC.
 **Spec section:** [Delimiter choice](../toon-reddb-spec.md#delimiter-choice)
-**Upstream RFC:** [toon-format/spec#48](https://github.com/toon-format/spec/issues/48)
+**Upstream RFC:** —
 **Repo issues / PRs:** —
 
 ## Motivation
@@ -86,7 +86,7 @@ the delimiter you pick is genuinely rarer in the data than the one you replaced.
 
 ## Stage transitions
 
-- **Stage 0–1 — idea / measured proposal:** delimiter mechanism from upstream RFC [toon-format/spec#48](https://github.com/toon-format/spec/issues/48).
+- **Stage 0–1 — idea / measured proposal:** local defaults and guidance over the official delimiter mechanism.
 - **Stage 2 — frozen grammar:** unchanged v4.1 delimiter mechanism; defaults fixed.
 - **Stage 3 — implemented opt-in:** `delimiter` option / `--delimiter`.
 - **Stage 4 — graduated:** [Delimiter choice](../toon-reddb-spec.md#delimiter-choice).
@@ -94,4 +94,3 @@ the delimiter you pick is genuinely rarer in the data than the one you replaced.
 ## Links
 
 - Spec section: [Delimiter choice](../toon-reddb-spec.md#delimiter-choice)
-- Upstream RFC: https://github.com/toon-format/spec/issues/48

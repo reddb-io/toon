@@ -1,172 +1,134 @@
-# Upstream feedback — toon-format/spec#48 and spec#49
+# Upstream feedback — mixed columnar arrays
 
-> **Superseded draft — retained as a historical record.** This feedback package
-> was written while the repository tracked the **v3.3** baseline. The repository
-> has since rebased on the official **TOON v4.1** specification (see
-> [ADR 0005](../.red/adr/0005-rebase-on-spec-v4-1-with-event-based-decoders.md)):
-> the related RFCs spec#46 and spec#57 were absorbed into v4.1, while spec#48
-> (delimiter choice) and spec#49 (array-valued fields) discussed here remain
-> **open** upstream and are still carried as reddb-io opt-in extensions on the
-> v4.1 base. The draft comment texts and measurements below are preserved as the
-> in-repo record of what was reported; they are not updated for v4.1.
+Approval status: **NOT APPROVED — NOT POSTED**. The exact comment below is a
+local draft for maintainer review. Posting it to `toon-format/spec` requires a
+fresh human approval; after posting, record the comment URL and response in the
+final section.
 
-**tl;dr.** We implemented the mechanisms discussed in the official RFCs
-[toon-format/spec#48](https://github.com/toon-format/spec/issues/48) (delimiter
-choice) and [toon-format/spec#49](https://github.com/toon-format/spec/issues/49)
-(array-valued fields in tabular rows) end-to-end in our v3.3-compatible dialect
-(JS + Rust + `tq`, 100% official conformance corpus on both implementations),
-measured them with a real tokenizer (`o200k_base`), and are reporting the
-results back upstream. Current bytes and token figures now live in the canonical
-benchmark reports under `../benchmarks/results/`. This document is the in-repo
-record of that feedback package and the exact comment texts approved for
-posting.
+## Source check — 2026-08-07
 
-## Table of contents
+| Source | Freshly checked state | Relevance |
+| --- | --- | --- |
+| [toon-format/spec#48](https://github.com/toon-format/spec/issues/48) | **OPEN**, last updated 2026-07-15 | The actual RFC is “v4.0: Mixed columnar arrays, objectArrayLayout, ignoreNullOrEmpty, excludeEmptyArrays.” It asks that the lossy options be unbundled and that accuracy be benchmarked alongside tokens. |
+| [toon-format/spec draft PR #47](https://github.com/toon-format/spec/pull/47) | **OPEN DRAFT**, unmerged, last updated 2026-07-15; head revision [`b5ce4c6`](https://github.com/toon-format/spec/commit/b5ce4c6619665fb23e38f5ae123bb34277d78172) | Proposes primitive header cells followed by indented complex-field spill lines. The draft still bundles the two lossy options and binary guidance. |
+| [toon-format/spec#49](https://github.com/toon-format/spec/issues/49) | **CLOSED / COMPLETED** on 2026-07-22 | This was the v4 tabular-generalization roadmap. Its closing comment says #48 remains open for reassessment; it is not a primitive-array-column RFC. |
+| [TOON v4.1.1](https://github.com/toon-format/spec/releases/tag/v4.1.1) | **RELEASED** 2026-08-05 at [`62f16b3`](https://github.com/toon-format/spec/commit/62f16b369408180f1faf1cba7da1b46d1f336f12) | Latest released v4.1 patch and the spec revision pinned by this repository. |
+| [v4.1.1 §9.3](https://github.com/toon-format/spec/blob/62f16b369408180f1faf1cba7da1b46d1f336f12/SPEC.md#L489-L530) / [§9.4](https://github.com/toon-format/spec/blob/62f16b369408180f1faf1cba7da1b46d1f336f12/SPEC.md#L531-L549) | **RELEASED syntax** | Nested field groups flatten uniform non-empty object columns into primitive cells. An array-valued or otherwise ineligible column makes the whole array use list form. |
+| [v4.1.1 §9.5](https://github.com/toon-format/spec/blob/62f16b369408180f1faf1cba7da1b46d1f336f12/SPEC.md#L551-L575) | **RELEASED syntax** | Keyed tabular form handles objects whose values share a uniform shape; it does not settle mixed object arrays. |
 
-- [Context](#context)
-- [Results summary](#results-summary)
-- [Trade-offs we found](#trade-offs-we-found)
-- [Draft comment for spec#48 (delimiter choice)](#draft-comment-for-spec48-delimiter-choice)
-- [Draft comment for spec#49 (array-valued fields)](#draft-comment-for-spec49-array-valued-fields)
-- [Links](#links)
+The old local mapping of #48 to delimiter choice and #49 to primitive-array
+columns was incorrect and has been removed. Delimiter selection is already an
+official v4.1 mechanism; this repository only adds local defaults and guidance.
 
-## Context
+## Syntax comparison
 
-The reddb-io dialect ([`toon-reddb-spec.md`](toon-reddb-spec.md)) tracks the
-official TOON v3.3 spec ([companion doc](toon-official-spec.md)) and adds
-opt-in encoder extensions that are always-on and fail-closed on decode. Two of
-those extensions implement, ahead of the official spec, mechanisms that are
-open RFCs upstream:
+The three layers are deliberately separate:
 
-- **Delimiter choice** (spec#48) — defaults and guidance over the existing
-  three-delimiter mechanism; full design history in the
-  [delimiter-choice proposal](proposals/delimiter-choice.md).
-- **Primitive-array columns** (spec#49) — `field[;]` declares a primitive-list
-  cell with an in-cell sub-delimiter; full design history in the
-  [primitive-array-columns proposal](proposals/primitive-array-columns.md).
-  We additionally shipped recursive **child tables** for object-array fields
-  ([child-tables-and-matrix proposal](proposals/child-tables-and-matrix.md)),
-  which goes beyond the current RFC scope but is directly relevant evidence.
+1. **Released v4.1.1:** `customer{name,country}` means a uniform nested
+   **object** whose primitive leaves are flattened into the same row. Arrays in
+   a column remain ineligible, so the encoder uses §9.4 list form.
+2. **Draft #47:** a header lists only primitive fields, while complex fields are
+   emitted as named spill lines below each row. It is proposed upstream syntax,
+   not released syntax.
+3. **reddb-io opt-ins:** `tags[;]` stores a primitive array inside one cell;
+   `items{sku,quantity}` plus a numeric parent cell stores a child-row count and
+   indents those child rows below it. These are implemented local extensions,
+   not official v4.1 and not implementations of draft #47.
 
-Issue tracking: reddb-io/toon#104 (this feedback package), spec program
-reddb-io/toon#93, grammar freeze reddb-io/toon#99.
+The local child-table form intentionally fails closed for a v4.1 decoder with
+extension handling disabled: v4.1 interprets `items{sku,quantity}` as nested
+object leaves, so the count cell/indented child rows cannot be silently decoded
+as a different JSON value. The exact opt-in, round-trip, disabled-decoder, and
+fallback cases are executable in
+[`packages/toon/test/extensions-v4.test.mjs`](../packages/toon/test/extensions-v4.test.mjs)
+and [`tests/runners/rust/toon/wire_efficiency.rs`](../tests/runners/rust/toon/wire_efficiency.rs)
+with `node --test packages/toon/test/extensions-v4.test.mjs` and
+`cargo test --workspace`.
 
-## Results summary
+## Reproducible evidence
 
-Measured with the frozen-grammar prototype
-(`scripts/wire_efficiency_s3_prototype.mjs --check`) over
-`tests/wire-efficiency/corpora.json`, tokens via local `o200k_base`:
+Run `pnpm benchmark:tokens` to regenerate
+[`benchmarks/results/2026-08-06-token-efficiency.md`](../benchmarks/results/2026-08-06-token-efficiency.md).
+The report uses `o200k_base` through `gpt-tokenizer` and labels the synthetic
+wire corpora separately from representative datasets.
 
-| Scenario | Wire | Bytes vs minified JSON | Tokens vs minified JSON |
-| --- | --- | ---: | ---: |
-| tagged-300 (rows + small label lists) | primitive-array column | −48.4% | −29.5% |
-| tree3-100 (3-level nested object arrays) | child tables | −48.5% | −30.4% |
-| matrix-150x8 (uniform numeric matrix) | matrix-as-child-table | +0.2% | +6.4% |
+| Evidence | Minified JSON | Released v4.1 | Local opt-in | Scope |
+| --- | ---: | ---: | ---: | --- |
+| `wire-tagged-300` | 8,113 tokens | 10,181 | primitive-array columns: 5,723 (**−29.5% vs JSON**) | Synthetic eligibility showcase generated from [`tests/corpus/wire-efficiency/corpora.json`](../tests/corpus/wire-efficiency/corpora.json). |
+| `nested-uniform/openapi-petstore-paths-large` (96 records) | 8,345 tokens | 9,174 | child tables: 5,202 (**−37.7% vs JSON**) | Representative offline dataset; the local wire is 20,434 bytes vs 38,013 JSON and 36,541 released v4.1. |
+| `tagged-records/activity-events-large` (120 records) | 6,386 tokens | 7,632 | primitive-array option: 7,632 (**+19.5% vs JSON**) | Representative dataset does not meet this extension's eligibility; it demonstrates canonical fallback, not a win. |
 
-Baseline context: on both winning corpora, plain TOON v3.3 is *worse* than
-minified JSON (the array-valued fields force the table into expanded list
-form), so the extension recovers a shape where TOON currently loses.
+Fixture-level compatibility is covered by
+[`primitive-array-columns.json`](../tests/corpus/wire-efficiency/primitive-array-columns.json)
+and [`object-array-columns.json`](../tests/corpus/wire-efficiency/object-array-columns.json):
+they pin exact bytes, decoded JSON, malformed-header/width/count errors, empty
+children, and ineligible-shape fallback in both shipped implementations.
 
-The matrix form is expressible in the same grammar but is a token **loss**
-against minified JSON — we document it as not recommended for a token win.
+The available local model observation in
+[`2026-07-15-retrieval-accuracy.md`](../benchmarks/results/2026-07-15-retrieval-accuracy.md)
+is a small 6/8 run and does not isolate mixed-columnar syntax. It is therefore
+not evidence for an accuracy claim about #47. A decision on the draft should
+first compare released v4.1 list form, draft #47 spill lines, primitive-list
+cells, and counted child tables on the same payloads and questions.
 
-An LLM-readability sanity check (single-pass structural retrieval over
-control / truncated / extra-row / width-mismatch documents) showed the proposed
-wires preserve TOON's self-checking property: all three failure modes remain
-detectable, where minified JSON misses all three. Details in the
-[child-tables proposal](proposals/child-tables-and-matrix.md#llm-readability-sanity-check).
+## Exact comment proposed for toon-format/spec#48
 
-## Trade-offs we found
-
-- **Per-cell list length is not declared** (primitive-array columns). The
-  parent `[N]` row count and `{fields}` width remain the guardrails; a
-  semantically missing final list item inside a well-formed cell is not
-  independently count-checked. We raised this at grammar freeze and accepted
-  it deliberately — the failure mode is narrow and the token win is large —
-  but an official RFC should make this trade-off explicit.
-- **Child tables carry a stronger guardrail**: the parent cell stores the
-  child row count, so truncation and surplus rows are local parse errors.
-  If spec#49 evolves toward object-array fields, per-row counts are worth
-  keeping for that reason.
-- **Delimiter choice is data-dependent**: tab beats comma exactly when it
-  removes more quoting than it costs (comma-heavy free-text columns). There is
-  no universal constant; guidance should say "measure your payload".
-
-## Draft comment for spec#48 (delimiter choice)
-
-> We implemented the three-delimiter mechanism (comma default, tab, pipe)
-> end-to-end in a v3.3-compatible dialect — JS + Rust libraries and a CLI, both
-> implementations passing 100% of the official conformance corpus — and wanted
-> to report back some implementation experience:
+> We re-checked this RFC against released TOON v4.1.1 and implemented two
+> related experiments in TypeScript and Rust. To keep the terms straight: these
+> are evidence for the mixed-columnar discussion, not implementations of this
+> draft and not released TOON syntax.
 >
-> - Declaring the active delimiter in each array header (`[N|]`, `[N\t]`, with
->   the field list using the same delimiter) kept every header locally legible;
->   we found "absence of a symbol always means comma, no inheritance from the
->   parent header" to be the rule that made nested tables easy to read and
->   parse.
-> - Because delimiter selection never changes the decoded value, it turned out
->   to be a zero-compatibility-risk knob: every output remains valid v3.3.
-> - The efficiency win is data-dependent, not constant. Tab beats comma exactly
->   when it removes more per-cell quoting than it costs — i.e. comma-heavy
->   free-text columns. Our guidance ended up as: comma by default; tab when
->   cells routinely contain commas; pipe for human-facing tables. We'd suggest
->   the RFC frame the choice as "measure your payload" rather than promising a
->   universal saving.
+> Released v4.1.1 already handles uniform nested **object** columns through
+> nested field groups (§9.3), but any array-valued column still disqualifies the
+> table and falls back to §9.4 list form. Draft PR #47 is different: it keeps the
+> primitive fields in the row and writes complex values as named spill lines.
+> Our local opt-ins explored two other points in the design space:
 >
-> Design history and worked examples:
-> https://github.com/reddb-io/toon/blob/main/docs/proposals/delimiter-choice.md
-> — happy to share more details or test cases if useful.
+> - `tags[;]` keeps an array of primitive scalars inside one tabular cell.
+> - `items{sku,quantity}` plus a numeric cell stores a per-parent child-row
+>   count, followed by indented child rows; this recurses for deeper child
+>   arrays.
+>
+> Both local encoders default to canonical v4.1 and require an explicit opt-in.
+> Eligible wires round-trip in both implementations, ineligible shapes fall
+> back to canonical v4.1, and extension wires fail closed rather than silently
+> changing meaning when child-table handling is disabled. Reproducible fixtures
+> and tests:
+> https://github.com/reddb-io/toon/blob/main/tests/corpus/wire-efficiency/primitive-array-columns.json
+> https://github.com/reddb-io/toon/blob/main/tests/corpus/wire-efficiency/object-array-columns.json
+> (`node --test packages/toon/test/extensions-v4.test.mjs` and
+> `cargo test --workspace`).
+>
+> The current deterministic token report is generated with
+> `pnpm benchmark:tokens`:
+> https://github.com/reddb-io/toon/blob/main/benchmarks/results/2026-08-06-token-efficiency.md
+>
+> - On the synthetic `wire-tagged-300` eligibility fixture, primitive-list
+>   cells use 5,723 `o200k_base` tokens versus 8,113 for minified JSON and
+>   10,181 for canonical v4.1 (−29.5% vs JSON).
+> - On the representative 96-record OpenAPI Petstore paths fixture, counted
+>   child tables use 5,202 tokens versus 8,345 for minified JSON and 9,174 for
+>   canonical v4.1 (−37.7% vs JSON); bytes are 20,434 vs 38,013 and 36,541.
+> - The representative 120-record tagged-events fixture does not meet the
+>   primitive-list eligibility rule, so the option falls back to canonical
+>   v4.1 and remains a 19.5% token loss versus JSON. We do not want to generalize
+>   from the synthetic win.
+>
+> The main design difference we found is the guardrail. Primitive-list cells do
+> not declare an item count. Counted child tables do: truncation or surplus child
+> rows is a local parse error. Draft #47's named spill lines are more general
+> than either local extension, but the draft should specify equally explicit
+> row-boundary and completeness checks after the lossy options are unbundled.
+>
+> We also do not yet have defensible mixed-columnar model-accuracy evidence. Our
+> existing local observation is a small 6/8 sanity run and does not isolate this
+> syntax. Before recommending one form, we would compare v4.1 list form, #47
+> spill lines, primitive-list cells, and counted child tables on the same
+> payloads and questions. We would be happy to contribute the fixtures and a
+> head-to-head harness if that would help the reassessment.
 
-## Draft comment for spec#49 (array-valued fields)
+## Upstream posting record
 
-> We implemented this ahead of the spec in a v3.3-compatible dialect (JS +
-> Rust + CLI, 100% official conformance corpus on both implementations) and
-> measured it with `o200k_base`, so here are concrete numbers and one design
-> trade-off worth surfacing.
->
-> **Grammar we froze.** In an otherwise-tabular array, `field[;]` declares a
-> primitive-list cell whose in-cell sub-delimiter is `;` (always distinct from
-> the active row delimiter); empty list = empty cell; items follow ordinary
-> scalar quoting, and anything unrepresentable falls back to plain v3.3 for the
-> whole table. Encode is opt-in, decode always-on, ineligible shapes fall back
-> deterministically.
->
-> **Measured result.** On a 300-row tagged-record corpus (rows + a small list
-> of string labels — the shape that motivates this RFC), the wire is measured
-> by the canonical benchmark reports under `benchmarks/results/`. Notably, plain TOON v3.3 is
-> *worse* than minified JSON on that corpus (the array field forces expanded
-> list form), so this recovers a shape where TOON currently loses.
->
-> **The trade-off to make explicit.** A primitive-list cell does not declare
-> its own item count. The table's `[N]` row count and `{fields}` width still
-> hold, but a semantically missing final list item inside a well-formed cell is
-> not independently count-checked. We accepted this consciously at our grammar
-> freeze (narrow failure mode, large win), but if this RFC advances we'd
-> recommend the spec state that trade-off — TOON's self-checking guardrails are
-> a big part of its value.
->
-> **One step further, as evidence.** We also shipped recursive *child tables*
-> for object-array fields (`items{sku,qty}` in the header; the parent cell
-> stores the child row count; child rows indent below). That keeps a stronger
-> guardrail (every child count is checked, so truncation is a local parse
-> error) and is measured by the canonical benchmark reports on a
-> 3-level tree corpus. A uniform numeric matrix is expressible in the same
-> grammar but is a token *loss* (+6.4%) against minified JSON — worth an honest
-> caveat in any spec text.
->
-> Full design history, grammar, corpus and error taxonomy:
-> https://github.com/reddb-io/toon/blob/main/docs/proposals/primitive-array-columns.md
-> and
-> https://github.com/reddb-io/toon/blob/main/docs/proposals/child-tables-and-matrix.md
-> — happy to contribute test fixtures or wording if that helps the RFC move.
-
-## Links
-
-- Proposals: [delimiter-choice](proposals/delimiter-choice.md),
-  [primitive-array-columns](proposals/primitive-array-columns.md),
-  [child-tables-and-matrix](proposals/child-tables-and-matrix.md)
-- Dialect spec: [`toon-reddb-spec.md`](toon-reddb-spec.md)
-- Benchmark harness: `scripts/wire_efficiency_s3_prototype.mjs` +
-  `tests/wire-efficiency/corpora.json`
-- Upstream RFCs: [spec#48](https://github.com/toon-format/spec/issues/48),
-  [spec#49](https://github.com/toon-format/spec/issues/49)
+- Approval: pending
+- Posted comment URL: not posted
+- Upstream response/status: pending
