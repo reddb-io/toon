@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "taskId": "release-roster",
+      "format": "json",
+      "promptBudget": 256,
+      "attempts": [
+        {
+          "rawArtifactRef": "raw/release-roster-json-attempt-1.txt",
+          "raw": "{\"release\":\"v4.1\",\"owners\":[\"Ada\",\"Grace\"],\"checks\":{\"syntax\":true,\"semantics\":true}}"
+        }
+      ]
+    },
+    {
+      "taskId": "release-roster",
+      "format": "toon",
+      "promptBudget": 256,
+      "attempts": [
+        {
+          "rawArtifactRef": "raw/release-roster-toon-attempt-1.txt",
+          "raw": "release: v4.1\nowners[2]: Ada,Grace\nchecks:\n  syntax: true\n  semantics: true"
+        }
+      ]
+    },
+    {
+      "taskId": "deployment-window",
+      "format": "json",
+      "promptBudget": 256,
+      "attempts": [
+        {
+          "rawArtifactRef": "raw/deployment-window-json-attempt-1.txt",
+          "raw": "{\"service\":\"encoder\""
+        },
+        {
+          "rawArtifactRef": "raw/deployment-window-json-attempt-2.txt",
+          "raw": "{\"service\":\"encoder\",\"window\":{\"start\":\"2026-08-07T18:00:00Z\",\"durationMinutes\":30},\"approvers\":[\"Lin\",\"Noor\"]}"
+        }
+      ]
+    },
+    {
+      "taskId": "deployment-window",
+      "format": "toon",
+      "promptBudget": 256,
+      "attempts": [
+        {
+          "rawArtifactRef": "raw/deployment-window-toon-attempt-1.txt",
+          "raw": "service: encoder\nwindow:\n  start: \"2026-08-07T18:00:00Z\"\n  durationMinutes: 31\napprovers[2]: Lin,Noor"
+        },
+        {
+          "rawArtifactRef": "raw/deployment-window-toon-attempt-2.txt",
+          "raw": "service: encoder\nwindow:\n  start: \"2026-08-07T18:00:00Z\"\n  durationMinutes: 30\napprovers[2]: Lin,Noor"
+        }
+      ]
+    }
+  ]
+}

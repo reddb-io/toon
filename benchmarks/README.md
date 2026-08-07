@@ -13,7 +13,7 @@ the harnesses here measure the shipped implementations, especially the
 `@reddb-io/toon` workspace package and the `reddb-io-toon` crate surface covered
 by the repository tests.
 
-## Token efficiency
+## Accuracy
 
 Verify dataset generation, generated answers and post-encode structural
 corruption without API credentials:
@@ -22,13 +22,38 @@ corruption without API credentials:
 pnpm benchmark:accuracy:verify
 ```
 
-The deterministic suite uses seed `218`. It generates employee records and
-questions in the field-retrieval, aggregation, filtering and structure-awareness
-categories. A second track applies truncation, extra-row and width-mismatch
-damage *after* each document is encoded, preserving TOON's declared row count
-and field list in the same way as the upstream structural-validation track.
+The deterministic suite uses seed `218`. It generates employee records,
+retrieval questions and structured-generation tasks. A second track applies
+truncation, extra-row and width-mismatch damage *after* each document is
+encoded, preserving TOON's declared row count and field list in the same way as
+the upstream structural-validation track. Offline fixtures independently prove
+generation syntax and semantics, retries, raw-artifact retention, report-schema
+validation, and equal task/output-token budgets for JSON and TOON.
 
-Run the LLM comparison with an OpenAI API key:
+Optional model observations require an OpenAI API key:
+
+```bash
+pnpm benchmark:accuracy
+```
+
+They are written to `benchmarks/results/retrieval-accuracy.md` and
+`benchmarks/results/accuracy-report.json`, with raw structured-generation
+responses under `benchmarks/results/accuracy-raw/`. These observations are
+reporting artifacts, not CI or merge-gate evidence.
+
+The accuracy run compares compact JSON with both shipped TOON encoders: the
+TypeScript package and the Rust crate through `tq`. Its Markdown report includes
+per-encoder retrieval accuracy, separate scores for structured questions and
+structural corruption, structured-generation observations, and a byte-for-byte
+TypeScript/Rust output comparison. Retrieval answers and structured outputs are
+validated deterministically; no LLM judge is used. Set
+`BENCHMARK_ACCURACY_MODEL` to select a model or `BENCHMARK_ACCURACY_LIMIT` to
+make a smaller reporting run. Without `OPENAI_API_KEY`, the reporting command
+exits with setup instructions; the verification command remains fully offline.
+
+## Token efficiency
+
+Run:
 
 ```bash
 pnpm benchmark:tokens
@@ -54,25 +79,6 @@ It compares:
 
 Metrics are bytes and `o200k_base` tokens counted with `gpt-tokenizer`.
 Deterministic reports are committed under `benchmarks/results/`.
-
-## Retrieval accuracy
-
-Run:
-
-```bash
-pnpm benchmark:accuracy
-```
-
-The run compares compact JSON with both shipped TOON encoders: the TypeScript
-package and the Rust crate through `tq`. Its report at
-`benchmarks/results/retrieval-accuracy.md` includes per-encoder accuracy,
-separate scores for structured questions and structural corruption, and a
-byte-for-byte TypeScript/Rust output comparison for every scenario. Answers are
-validated deterministically by type; no LLM judge is used. Set
-`BENCHMARK_ACCURACY_MODEL` to select a model or
-`BENCHMARK_ACCURACY_LIMIT` to make a smaller reporting run. Without
-`OPENAI_API_KEY`, the reporting command exits with setup instructions; the
-verification command remains fully offline.
 
 ## Runtime performance
 
