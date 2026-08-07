@@ -739,7 +739,7 @@ impl Array {
     }
 
     pub fn to_canonical_toon(&self) -> String {
-        self.to_toon_with_options(EncodeOptions::default())
+        self.try_to_canonical_toon().expect("TOON encoding failed")
     }
 
     pub fn to_toon_with_options(&self, options: EncodeOptions) -> String {
@@ -748,13 +748,11 @@ impl Array {
     }
 
     pub fn try_to_canonical_toon(&self) -> Result<String, EncodeError> {
-        self.try_to_toon_with_options(EncodeOptions::default())
+        encode(&Value::Array(self.clone()))
     }
 
     pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
-        let mut output = String::new();
-        write_array(&mut output, None, &self.values(), 0, false, options)?;
-        Ok(output)
+        encode_with_options(&Value::Array(self.clone()), encode_options_from_legacy(options))
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
@@ -1060,4 +1058,3 @@ fn cyclic_group_len_error(line: usize) -> ParseError {
 // ---------------------------------------------------------------------------
 // Lines
 // ---------------------------------------------------------------------------
-

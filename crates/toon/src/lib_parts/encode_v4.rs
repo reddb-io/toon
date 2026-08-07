@@ -117,21 +117,21 @@ fn encode_v4_extension(
         ..EncodeOptions::default()
     };
     if options.cyclic_discriminated_arrays {
-        let encoded = value.try_to_toon_with_options(EncodeOptions {
+        let encoded = value.try_to_legacy_toon_with_options(EncodeOptions {
             cyclic_discriminated_arrays: true,
             ..base
         })?;
-        if encoded != value.try_to_toon_with_options(base)? {
+        if encoded != value.try_to_legacy_toon_with_options(base)? {
             return Ok(Some(encoded.trim_end_matches('\n').to_owned()));
         }
     }
     if options.primitive_array_columns || options.object_array_columns {
-        let encoded = value.try_to_toon_with_options(EncodeOptions {
+        let encoded = value.try_to_legacy_toon_with_options(EncodeOptions {
             primitive_array_columns: options.primitive_array_columns,
             object_array_columns: options.object_array_columns,
             ..base
         })?;
-        if encoded != value.try_to_toon_with_options(base)? {
+        if encoded != value.try_to_legacy_toon_with_options(base)? {
             return Ok(Some(encoded.trim_end_matches('\n').to_owned()));
         }
     }

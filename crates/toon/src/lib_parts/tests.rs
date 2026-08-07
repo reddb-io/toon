@@ -29,7 +29,7 @@ mod tests {
 
         assert_eq!(
             document.to_canonical_toon(),
-            "name: Ada\nactive: true\ncount: 3\n"
+            "name: Ada\nactive: true\ncount: 3"
         );
     }
 
@@ -61,14 +61,14 @@ mod tests {
         let error = Document::parse("person: Ada\n  city: London\n").unwrap_err();
 
         assert_eq!(error.line(), 2);
-        assert_eq!(error.message(), "invalid indentation");
+        assert_eq!(error.message(), "over-indented line");
     }
 
     #[test]
     fn parses_inline_list_arrays_and_serializes_canonical_toon() {
         let document = Document::parse("tags[3]: admin,ops,dev\n").unwrap();
 
-        assert_eq!(document.to_canonical_toon(), "tags[3]: admin,ops,dev\n");
+        assert_eq!(document.to_canonical_toon(), "tags[3]: admin,ops,dev");
     }
 
     #[test]
@@ -79,7 +79,7 @@ mod tests {
 
         assert_eq!(
             document.to_canonical_toon(),
-            "users[2]{id,name,active}:\n  1,Ada,true\n  2,Bob Smith,false\n"
+            "users[2]{id,name,active}:\n  1,Ada,true\n  2,Bob Smith,false"
         );
     }
 
@@ -109,17 +109,15 @@ mod tests {
                 { "id": 2, "customer": { "name": "Bob", "country": "US" }, "total": 20 }
             ]
         }));
-        let expanded =
-            "orders[2]:\n  - id: 1\n    customer:\n      name: Ada\n      country: UK\n    total: 10.5\n  - id: 2\n    customer:\n      name: Bob\n      country: US\n    total: 20\n";
         let nested =
-            "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n";
+            "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20";
         let options = EncodeOptions {
             nested_tabular_headers: true,
             keyed_map_collapse: false,
             ..EncodeOptions::default()
         };
 
-        assert_eq!(document.to_canonical_toon(), expanded);
+        assert_eq!(document.to_canonical_toon(), nested);
         assert_eq!(document.to_toon_with_options(options), nested);
         assert_eq!(
             Value::parse_toon(nested).unwrap().to_json_value(),
@@ -142,7 +140,7 @@ mod tests {
                 keyed_map_collapse: false,
                 ..EncodeOptions::default()
             }),
-            "rows[2]:\n  - id: 1\n    point:\n      x: 1\n      y: 2\n  - id: 2\n    point:\n      x: 3\n      z: 4\n"
+            "rows[2]:\n  - id: 1\n    point:\n      x: 1\n      y: 2\n  - id: 2\n    point:\n      x: 3\n      z: 4"
         );
     }
 
@@ -151,28 +149,28 @@ mod tests {
         let arity = Document::parse("orders[1]{id,customer{name,country}}:\n  1,Ada\n")
             .expect_err("leaf count controls row arity");
         assert_eq!(arity.line(), 2);
-        assert_eq!(arity.message(), "array row length mismatch");
+        assert_eq!(arity.message(), "array count mismatch");
 
         let empty = Document::parse("orders[1]{id,customer{}}:\n  1\n")
             .expect_err("empty nested groups are invalid");
         assert_eq!(empty.line(), 1);
-        assert_eq!(empty.message(), "invalid array header");
+        assert_eq!(empty.message(), "empty field entry in header");
 
         let duplicate = Document::parse("orders[1]{customer{name},customer{name}}:\n  Ada,Bob\n")
             .expect_err("duplicate leaf paths are invalid");
         assert_eq!(duplicate.line(), 1);
-        assert_eq!(duplicate.message(), "duplicate key");
+        assert_eq!(duplicate.message(), "duplicate field name in header");
 
         let unbalanced = Document::parse("orders[1]{id,customer{name,country}:\n  1,Ada,UK\n")
             .expect_err("unbalanced nested groups are invalid");
         assert_eq!(unbalanced.line(), 1);
-        assert_eq!(unbalanced.message(), "invalid array header");
+        assert_eq!(unbalanced.message(), "malformed tabular header fields");
     }
 
     #[test]
     fn parses_keyed_map_collapse_rows() {
         let document = Document::parse(
-            "people{first,last,meta{active,score}}:\n  joe: Joe,Schmoe,true,7\n  mary: Mary,Jane,false,9\n",
+            "people[2:]{first,last,meta{active,score}}:\n  joe: Joe,Schmoe,true,7\n  mary: Mary,Jane,false,9\n",
         )
         .unwrap();
 
@@ -195,11 +193,9 @@ mod tests {
                 "mary": { "first": "Mary", "last": "Jane" }
             }
         }));
-        let expanded =
-            "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    last: Jane\n";
-        let collapsed = "people{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane\n";
+        let collapsed = "people[2:]{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane";
 
-        assert_eq!(document.to_canonical_toon(), expanded);
+        assert_eq!(document.to_canonical_toon(), collapsed);
         assert_eq!(
             document.to_toon_with_options(EncodeOptions {
                 nested_tabular_headers: false,
@@ -225,7 +221,7 @@ mod tests {
                 keyed_map_collapse: true,
                 ..EncodeOptions::default()
             }),
-            "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin\n"
+            "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin"
         );
     }
 
@@ -254,7 +250,7 @@ mod tests {
             document.to_json_value(),
             serde_json::json!({"items": [[{}], ["x", {}]]})
         );
-        assert_eq!(document.to_canonical_toon(), input);
+        assert_eq!(document.to_canonical_toon(), input.trim_end());
     }
 
     #[test]
@@ -262,19 +258,21 @@ mod tests {
         let error = Document::parse("tags[2]: admin,ops,dev\n").unwrap_err();
 
         assert_eq!(error.line(), 1);
-        assert_eq!(error.message(), "array length mismatch");
+        assert_eq!(error.message(), "array count mismatch");
     }
 
     #[test]
     fn decodes_only_touched_tabular_rows() {
-        let document =
-            Document::parse("users[3]{id,name}:\n  1,Ada\n  2,Bob\n  3,Chloe\n").unwrap();
+        let document = Document::parse_legacy(
+            "users[3]{id,name}:\n  1,Ada\n  2,Bob\n  3,Chloe\n",
+        )
+        .unwrap();
         let users = document.get("users").and_then(Value::as_array).unwrap();
 
         super::reset_tabular_row_decode_count_for_tests();
         let row = users.get(1).unwrap();
 
-        assert_eq!(row.to_canonical_toon(), "id: 2\nname: Bob\n");
+        assert_eq!(row.to_legacy_toon(), "id: 2\nname: Bob\n");
         assert_eq!(super::tabular_row_decode_count_for_tests(), 1);
     }
 }

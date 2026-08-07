@@ -405,13 +405,13 @@ struct TaggedToonlWriterLane {
 // ---------------------------------------------------------------------------
 
 impl Document {
-    /// Parses a document whose root is an object.
+    /// Parses a v4.1 document whose root is an object.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         Self::parse_with_options(input, ParseOptions::default())
     }
 
     pub fn parse_with_options(input: &str, options: ParseOptions) -> Result<Self, ParseError> {
-        match Value::parse_with_options(input, options)? {
+        match decode_with_options(input, &decode_options_from_legacy(options))? {
             Value::Object(document) => Ok(document),
             _ => Err(ParseError {
                 line: 1,
@@ -437,7 +437,7 @@ impl Document {
     }
 
     pub fn to_canonical_toon(&self) -> String {
-        self.to_toon_with_options(EncodeOptions::default())
+        self.try_to_canonical_toon().expect("TOON encoding failed")
     }
 
     pub fn to_toon_with_options(&self, options: EncodeOptions) -> String {
@@ -446,16 +446,11 @@ impl Document {
     }
 
     pub fn try_to_canonical_toon(&self) -> Result<String, EncodeError> {
-        self.try_to_toon_with_options(EncodeOptions::default())
+        encode(&Value::Object(self.clone()))
     }
 
     pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
-        let mut output = String::new();
-        if write_cyclic_discriminated_arrays(&mut output, self, options)? {
-            return Ok(output);
-        }
-        self.write_fields(&mut output, 0, options)?;
-        Ok(output)
+        encode_with_options(&Value::Object(self.clone()), encode_options_from_legacy(options))
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
@@ -481,12 +476,15 @@ impl Document {
     }
 }
 
-pub fn detect_truncation(input: &str) -> TruncationReport {
-    detect_truncation_with_options(input, ParseOptions::default())
+pub fn detect_truncation_legacy(input: &str) -> TruncationReport {
+    detect_truncation_legacy_with_options(input, ParseOptions::default())
 }
 
-pub fn detect_truncation_with_options(input: &str, options: ParseOptions) -> TruncationReport {
-    match Value::parse_with_options(input, options) {
+pub fn detect_truncation_legacy_with_options(
+    input: &str,
+    options: LegacyParseOptions,
+) -> TruncationReport {
+    match Value::parse_legacy_with_options(input, options) {
         Ok(_) => TruncationReport::complete(),
         Err(error) if error.message() == "array length mismatch" => {
             detect_toon_array_truncation(input, options, error.line())
@@ -672,63 +670,12 @@ impl std::error::Error for EncodeError {}
 
 impl Value {
     pub fn parse_toon(input: &str) -> Result<Self, ParseError> {
-        Self::parse_with_options(input, ParseOptions::default())
+        decode(input)
     }
 
-    /// Decodes TOON per spec §5 root-form discovery.
+    /// Decodes TOON v4.1 per spec §5 root-form discovery.
     pub fn parse_with_options(input: &str, options: ParseOptions) -> Result<Self, ParseError> {
-        let options = ParseOptions {
-            indent: options.indent.max(1),
-            ..options
-        };
-        let lines = collect_lines(input, &options)?;
-        let Some(first) = lines.first() else {
-            return Ok(Self::Object(Document::default()));
-        };
-        if first.depth != 0 {
-            return Err(ParseError {
-                line: first.number,
-                message: "invalid indentation",
-                max_depth: None,
-            });
-        }
-
-        let only_line = lines.len() == 1;
-        if only_line && first.content.trim() == "[]" {
-            return Ok(Self::Array(Array::List(Vec::new())));
-        }
-
-        if first.content.starts_with('[') {
-            check_header_depth(first.content, first.number, &options)?;
-            match parse_header(
-                first.content,
-                find_unquoted(first.content, ':', first.number)?,
-            ) {
-                Ok(header) => return parse_root_array(header, &lines, &options),
-                Err(error) if options.strict => return Err(error.at(first.number)),
-                Err(_) => {}
-            }
-        }
-
-        if only_line && find_unquoted(first.content, ':', first.number)?.is_none() {
-            return parse_scalar(first.content.trim(), first.number);
-        }
-
-        let mut index = 0;
-        let document = parse_object(&lines, &mut index, 0, &options)?;
-        if let Some(line) = lines.get(index) {
-            return Err(ParseError {
-                line: line.number,
-                message: "expected end of document",
-                max_depth: None,
-            });
-        }
-        let document = if options.cyclic_discriminated_arrays {
-            expand_cyclic_discriminated_arrays(document)?
-        } else {
-            document
-        };
-        Ok(Self::Object(document))
+        decode_with_options(input, &decode_options_from_legacy(options))
     }
 
     pub fn from_json_str(input: &str) -> Result<Self, serde_json::Error> {
@@ -758,7 +705,7 @@ impl Value {
     }
 
     pub fn to_canonical_toon(&self) -> String {
-        self.to_toon_with_options(EncodeOptions::default())
+        self.try_to_canonical_toon().expect("TOON encoding failed")
     }
 
     pub fn to_toon_with_options(&self, options: EncodeOptions) -> String {
@@ -767,27 +714,11 @@ impl Value {
     }
 
     pub fn try_to_canonical_toon(&self) -> Result<String, EncodeError> {
-        self.try_to_toon_with_options(EncodeOptions::default())
+        encode(self)
     }
 
     pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
-        let mut output = String::new();
-        match self {
-            Self::Object(document) => {
-                if write_cyclic_discriminated_arrays(&mut output, document, options)? {
-                    return Ok(output);
-                }
-                document.write_fields(&mut output, 0, options)?;
-            }
-            Self::Array(array) => {
-                write_array(&mut output, None, &array.values(), 0, false, options)?
-            }
-            value => {
-                validate_encode_delimiter(options.delimiter)?;
-                output.push_str(&primitive_text(value, options.delimiter));
-            }
-        }
-        Ok(output)
+        encode_with_options(self, encode_options_from_legacy(options))
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {

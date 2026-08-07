@@ -25,7 +25,7 @@ fn decode_extension_value(
     input: &str,
     options: &DecodeStreamOptions,
 ) -> Result<Value, ParseError> {
-    Value::parse_with_options(
+    Value::parse_legacy_with_options(
         input,
         ParseOptions {
             indent: options.indent,

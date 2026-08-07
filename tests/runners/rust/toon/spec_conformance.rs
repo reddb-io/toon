@@ -1,6 +1,6 @@
 use reddb_io_toon::{
-    decode_value_v4, encode_toonl_values, encode_v4, DecodeStreamOptions, EncodeV4Options,
-    ParseOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
+    decode_with_options, encode_toonl_values, encode_with_options, DecodeStreamOptions,
+    EncodeV4Options, ParseOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
 };
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
@@ -80,7 +80,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                     let official = fixture_path.starts_with(&fixture_root);
                     if official {
                         let stream_options = stream_decoder_options(test.get("options"));
-                        match (decode_value_v4(input, &stream_options), should_error) {
+                        match (decode_with_options(input, &stream_options), should_error) {
                             (Err(_), true) => true,
                             (Ok(_), true) | (Err(_), false) => false,
                             (Ok(value), false) => {
@@ -89,7 +89,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                                     .get("expected")
                                     .is_some_and(|expected| decoded == *expected);
                                 matches_spec
-                                    && decode_value_v4(
+                                    && decode_with_options(
                                         &value.to_canonical_toon(),
                                         &DecodeStreamOptions::default(),
                                     )
@@ -97,7 +97,10 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             }
                         }
                     } else {
-                        match (Value::parse_with_options(input, options), should_error) {
+                        match (
+                            Value::parse_legacy_with_options(input, options),
+                            should_error,
+                        ) {
                             // A rejection the spec asked for.
                             (Err(_), true) => true,
                             (Ok(_), true) | (Err(_), false) => false,
@@ -140,14 +143,14 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             .and_then(Json::as_str)
                             .expect("encode expected TOON");
                         let value = Value::from_json_value(input.clone());
-                        match encode_v4(&value, encode_v4_options(test.get("options"))) {
+                        match encode_with_options(&value, encode_v4_options(test.get("options"))) {
                             Ok(encoded) => {
                                 // The round-trip fixpoint is against the encoder's
                                 // own canonical value, not the raw fixture JSON, so
                                 // canonicalizations such as -0 -> 0 do not read as
                                 // a decode mismatch.
                                 encoded == expected
-                                    && decode_value_v4(
+                                    && decode_with_options(
                                         &encoded,
                                         &stream_decoder_options(test.get("options")),
                                     )
@@ -169,8 +172,9 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             .and_then(Json::as_str)
                             .expect("encode expected TOON");
                         let value = Value::from_json_value(input.clone());
-                        value.to_toon_with_options(encoder_options(test.get("options"))) == expected
-                            && Value::parse_with_options(expected, options)
+                        value.to_legacy_toon_with_options(encoder_options(test.get("options")))
+                            == expected
+                            && Value::parse_legacy_with_options(expected, options)
                                 .is_ok_and(|actual| actual.to_json_value() == *input)
                     } else {
                         let expected = test
@@ -702,14 +706,14 @@ fn stream_decoder_options(options: Option<&Json>) -> DecodeStreamOptions {
 }
 
 fn round_trips_to(value: &Value, decoded: &Json) -> bool {
-    Value::parse_with_options(&value.to_canonical_toon(), canonical_options())
+    Value::parse_legacy_with_options(&value.to_legacy_toon(), canonical_options())
         .is_ok_and(|reparsed| reparsed.to_json_value() == *decoded)
 }
 
 fn parse_round_trips(input: &str, options: ParseOptions) -> Result<(), String> {
-    let value = Value::parse_with_options(input, options).map_err(|err| err.to_string())?;
-    let canonical = value.to_canonical_toon();
-    let reparsed = Value::parse_with_options(&canonical, canonical_options())
+    let value = Value::parse_legacy_with_options(input, options).map_err(|err| err.to_string())?;
+    let canonical = value.to_legacy_toon();
+    let reparsed = Value::parse_legacy_with_options(&canonical, canonical_options())
         .map_err(|err| format!("canonical output did not parse: {err}"))?;
     if reparsed.to_json_value() != value.to_json_value() {
         return Err("canonical output did not preserve the decoded value".to_owned());

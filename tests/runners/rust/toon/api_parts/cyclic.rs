@@ -44,7 +44,7 @@ fn narrows_values_to_objects_and_arrays() {
     assert_eq!(array.get(0).expect("first").to_json_value(), json!(1));
     assert!(array.get(9).is_none());
     assert_eq!(array.to_json_value(), json!([1, 2]));
-    assert_eq!(array.to_canonical_toon(), "[2]: 1,2\n");
+    assert_eq!(array.to_legacy_toon(), "[2]: 1,2\n");
 }
 
 #[test]
@@ -80,14 +80,14 @@ fn slices_both_array_representations_and_clamps_out_of_range_bounds() {
 
 #[test]
 fn document_parse_accepts_object_roots_and_rejects_the_others() {
-    let document = Document::parse("a: 1\n").expect("object root");
+    let document = Document::parse_legacy("a: 1\n").expect("object root");
     assert_eq!(document.to_json_value(), json!({"a": 1}));
-    assert_eq!(document.to_canonical_toon(), "a: 1\n");
+    assert_eq!(document.to_legacy_toon(), "a: 1\n");
 
-    assert!(Document::parse("[2]: 1,2\n").is_err());
-    assert!(Document::parse("hello\n").is_err());
+    assert!(Document::parse_legacy("[2]: 1,2\n").is_err());
+    assert!(Document::parse_legacy("hello\n").is_err());
 
-    let document = Document::parse_with_options(
+    let document = Document::parse_legacy_with_options(
         "a.b: 1\n",
         ParseOptions {
             expand_paths: true,
@@ -157,7 +157,8 @@ fn non_strict_mode_reads_a_malformed_nested_array_header_as_a_literal_key() {
         ..ParseOptions::default()
     };
     let value =
-        Value::parse_with_options("items[1]:\n  - [x] : 1\n", options).expect("literal key item");
+        Value::parse_legacy_with_options("items[1]:\n  - [x] : 1\n", options)
+            .expect("literal key item");
     assert_eq!(value.to_json_value(), json!({"items": [{"[x]": 1}]}));
 }
 
@@ -308,7 +309,10 @@ fn a_nested_object_column_cell_disambiguates_from_a_child_table() {
 
 #[test]
 fn truncation_reports_cover_invalid_indentation_and_child_tables() {
-    let report = detect_truncation_with_options("v: 1\n   bad: 2\n", ParseOptions::default());
+    let report = reddb_io_toon::detect_truncation_legacy_with_options(
+        "v: 1\n   bad: 2\n",
+        ParseOptions::default(),
+    );
     assert!(!report.complete);
     assert_eq!(report.line, Some(2));
     assert_eq!(
@@ -316,7 +320,7 @@ fn truncation_reports_cover_invalid_indentation_and_child_tables() {
         Some("line 2: invalid indentation")
     );
 
-    let report = detect_truncation_with_options(
+    let report = reddb_io_toon::detect_truncation_legacy_with_options(
         "items[2]{a,kids{x}}:\n  1,1\n    r1\n",
         ParseOptions::default(),
     );
@@ -347,7 +351,7 @@ fn tabular_arrays_decode_rows_lazily_through_the_array_accessors() {
         ])
     );
     assert_eq!(
-        array.slice(Some(1), None).to_canonical_toon(),
+        array.slice(Some(1), None).to_legacy_toon(),
         "[1]:\n  - a: 2\n    meta:\n      x: hb\n      y: 9\n"
     );
 }
@@ -360,7 +364,7 @@ fn encoding_rejects_a_delimiter_outside_the_declared_set() {
         ..EncodeOptions::default()
     };
     let error = value
-        .try_to_toon_with_options(options)
+        .try_to_legacy_toon_with_options(options)
         .expect_err("semicolon is not a valid document delimiter");
     assert_eq!(error.to_string(), "invalid array header");
 }
@@ -393,10 +397,10 @@ fn an_empty_child_array_in_a_child_table_column_round_trips() {
 fn fallible_canonical_encoders_and_error_accessors_round_trip() {
     // Convenience wrappers around the canonical encoders.
     let value = parse("a[2]: 1,2\n");
-    assert_eq!(value.try_to_canonical_toon().expect("value"), "a[2]: 1,2\n");
+    assert_eq!(value.try_to_legacy_toon().expect("value"), "a[2]: 1,2\n");
     let document = value.as_object().expect("object");
     let array = document.get("a").expect("a").as_array().expect("array");
-    assert_eq!(array.try_to_canonical_toon().expect("array"), "[2]: 1,2\n");
+    assert_eq!(array.try_to_legacy_toon().expect("array"), "[2]: 1,2\n");
 
     // detect_truncation with default options mirrors the _with_options form.
     let report = reddb_io_toon::detect_truncation("v: 1\n   bad: 2\n");
@@ -408,7 +412,7 @@ fn fallible_canonical_encoders_and_error_accessors_round_trip() {
         ..EncodeOptions::default()
     };
     let encode_error = value
-        .try_to_toon_with_options(options)
+        .try_to_legacy_toon_with_options(options)
         .expect_err("bad delimiter");
     assert_eq!(encode_error.message(), "invalid array header");
 
@@ -438,7 +442,7 @@ fn cyclic_encode() -> EncodeOptions {
 /// Encode with the cyclic extension enabled.
 fn cyclic_toon(value: &Value) -> String {
     value
-        .try_to_toon_with_options(cyclic_encode())
+        .try_to_legacy_toon_with_options(cyclic_encode())
         .expect("cyclic encode succeeds")
 }
 
@@ -462,7 +466,7 @@ fn cycle_rows(pattern: &[serde_json::Value], repeats: usize) -> serde_json::Valu
 /// canonical form (i.e. the tabular wire is *not* emitted) for ineligible input.
 fn assert_cyclic_fallback(value: &Value) {
     let with = cyclic_toon(value);
-    let canonical = value.try_to_canonical_toon().expect("canonical encode");
+    let canonical = value.try_to_legacy_toon().expect("canonical encode");
     assert_eq!(with, canonical, "expected fallback to canonical form");
     assert!(
         !with.contains("order: cycle("),
@@ -505,7 +509,8 @@ fn cyclic_decode_requires_the_opt_in_and_otherwise_leaves_the_section_literal() 
         ..ParseOptions::default()
     };
     let literal =
-        Value::parse_with_options(CYCLIC_WIRE, opted_out).expect("literal section decode");
+        Value::parse_legacy_with_options(CYCLIC_WIRE, opted_out)
+            .expect("literal section decode");
     let json = literal.to_json_value();
     let section = json["events"].as_object().expect("events stays an object");
     assert!(

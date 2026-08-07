@@ -268,7 +268,7 @@ fn reports_argument_and_input_errors() {
     // Malformed input in either format.
     assert_error(&["-p", "json", "."], "{not json", "key must be a string");
     assert_error(&["-p", "yaml", "."], "name: [\n", "did not find expected");
-    assert_error(&["."], "a: 1\n  b: 2\n", "invalid indentation");
+    assert_error(&["."], "a: 1\n  b: 2\n", "over-indented line");
 }
 
 #[test]

@@ -33,12 +33,12 @@ fn wire_efficiency_corpora_assert_encoded_byte_sizes_for_rust() {
         let expected = &test_case["expectedBytes"];
         let json_min = serde_json::to_string(&value).expect("compact JSON");
         let toon_value = Value::from_json_value(value.clone());
-        let toon_v3 = toon_value.to_canonical_toon();
-        let toon_tab = toon_value.to_toon_with_options(EncodeOptions {
+        let toon_v3 = toon_value.to_legacy_toon();
+        let toon_tab = toon_value.to_legacy_toon_with_options(EncodeOptions {
             delimiter: '\t',
             ..EncodeOptions::default()
         });
-        let toon_ext = toon_value.to_toon_with_options(ext_options());
+        let toon_ext = toon_value.to_legacy_toon_with_options(ext_options());
 
         assert_eq!(
             json_min.len(),
@@ -61,21 +61,21 @@ fn wire_efficiency_corpora_assert_encoded_byte_sizes_for_rust() {
             "{name}: TOON+ext bytes"
         );
         assert_eq!(
-            Value::parse_toon(&toon_v3)
+            Value::parse_legacy(&toon_v3)
                 .unwrap_or_else(|err| panic!("{name}: TOON v3 parse: {err}"))
                 .to_json_value(),
             value,
             "{name}: TOON v3 round trip"
         );
         assert_eq!(
-            Value::parse_toon(&toon_tab)
+            Value::parse_legacy(&toon_tab)
                 .unwrap_or_else(|err| panic!("{name}: TOON tab parse: {err}"))
                 .to_json_value(),
             value,
             "{name}: TOON tab round trip"
         );
         assert_eq!(
-            Value::parse_toon(&toon_ext)
+            Value::parse_legacy(&toon_ext)
                 .unwrap_or_else(|err| panic!("{name}: TOON+ext parse: {err}"))
                 .to_json_value(),
             value,
@@ -104,7 +104,7 @@ fn primitive_array_column_corpus_decodes_identically_for_rust() {
         let name = test_case["name"].as_str().expect("case name");
         let input = test_case["input"].as_str().expect("case input");
         let expected = test_case.get("expected").expect("case expected");
-        let actual = Value::parse_toon(input)
+        let actual = Value::parse_legacy(input)
             .unwrap_or_else(|err| panic!("{name}: decode failed: {err}"))
             .to_json_value();
         assert_eq!(actual, *expected, "{name}: decoded value");
@@ -124,7 +124,7 @@ fn primitive_array_column_corpus_decodes_identically_for_rust() {
         let input = test_case["input"].as_str().expect("error case input");
         let expected_line = test_case["line"].as_u64().expect("error line") as usize;
         let expected_reason = test_case["reason"].as_str().expect("error reason");
-        let error = Value::parse_toon(input).expect_err(name);
+        let error = Value::parse_legacy(input).expect_err(name);
         assert_eq!(error.line(), expected_line, "{name}: error line");
         assert_eq!(error.message(), expected_reason, "{name}: error reason");
         assert_eq!(
@@ -152,13 +152,13 @@ fn object_array_column_corpus_decodes_identically_for_rust() {
         let name = test_case.get("name").and_then(Json::as_str).unwrap();
         let input = test_case.get("input").and_then(Json::as_str).unwrap();
         let expected = test_case.get("expected").unwrap();
-        let decoded = Value::parse_toon(input)
+        let decoded = Value::parse_legacy(input)
             .unwrap_or_else(|error| panic!("{name}: parse failed: {error}"))
             .to_json_value();
         assert_eq!(&decoded, expected, "{name}: decoded value");
 
         if let Some(literal) = test_case.get("strictV3Literal") {
-            let decoded = Value::parse_with_options(
+            let decoded = Value::parse_legacy_with_options(
                 input,
                 ParseOptions {
                     cyclic_discriminated_arrays: false,
@@ -180,7 +180,7 @@ fn object_array_column_corpus_decodes_identically_for_rust() {
         let input = test_case.get("input").and_then(Json::as_str).unwrap();
         let line = test_case.get("line").and_then(Json::as_u64).unwrap() as usize;
         let reason = test_case.get("reason").and_then(Json::as_str).unwrap();
-        let error = match Value::parse_toon(input) {
+        let error = match Value::parse_legacy(input) {
             Ok(_) => panic!("{name}: expected error"),
             Err(error) => error,
         };
@@ -197,13 +197,13 @@ fn object_array_column_corpus_decodes_identically_for_rust() {
         let name = test_case.get("name").and_then(Json::as_str).unwrap();
         let value = test_case.get("value").unwrap().clone();
         let toon_value = Value::from_json_value(value.clone());
-        let encoded = toon_value.to_toon_with_options(encode_options(
+        let encoded = toon_value.to_legacy_toon_with_options(encode_options(
             test_case.get("options").unwrap_or(&Json::Null),
         ));
         let expected = test_case.get("expected").and_then(Json::as_str).unwrap();
         assert_eq!(encoded, expected, "{name}: encoded wire");
         assert_eq!(
-            Value::parse_toon(&encoded)
+            Value::parse_legacy(&encoded)
                 .unwrap_or_else(|error| panic!("{name}: parse failed: {error}"))
                 .to_json_value(),
             value,
@@ -212,13 +212,13 @@ fn object_array_column_corpus_decodes_identically_for_rust() {
         if test_case.get("sameAsV3").and_then(Json::as_bool) == Some(true) {
             assert_eq!(
                 encoded,
-                toon_value.to_canonical_toon(),
+                toon_value.to_legacy_toon(),
                 "{name}: v3.3 fallback"
             );
         } else {
             assert_ne!(
                 encoded,
-                toon_value.to_canonical_toon(),
+                toon_value.to_legacy_toon(),
                 "{name}: extension wire"
             );
         }
@@ -244,7 +244,7 @@ fn cyclic_discriminated_array_corpus_decodes_identically_for_rust() {
         let name = test_case.get("name").and_then(Json::as_str).unwrap();
         let input = test_case.get("input").and_then(Json::as_str).unwrap();
         let expected = test_case.get("expected").unwrap();
-        let decoded = Value::parse_toon(input)
+        let decoded = Value::parse_legacy(input)
             .unwrap_or_else(|error| panic!("{name}: parse failed: {error}"))
             .to_json_value();
         assert_eq!(&decoded, expected, "{name}: decoded value");
@@ -266,7 +266,7 @@ fn cyclic_discriminated_array_corpus_decodes_identically_for_rust() {
         let input = test_case.get("input").and_then(Json::as_str).unwrap();
         let line = test_case.get("line").and_then(Json::as_u64).unwrap() as usize;
         let reason = test_case.get("reason").and_then(Json::as_str).unwrap();
-        let error = match Value::parse_toon(input) {
+        let error = match Value::parse_legacy(input) {
             Ok(_) => panic!("{name}: expected error"),
             Err(error) => error,
         };
@@ -279,7 +279,7 @@ fn cyclic_discriminated_array_corpus_decodes_identically_for_rust() {
 #[test]
 fn cyclic_discriminated_array_decoder_handles_quoted_labels_and_nested_arrays_for_rust() {
     let input = "events:\n  order: cycle(log%20in,deploy%2Fcheck)*3\n  discriminator: type\n  rows: 6\n  \"log in\"[3|]{seq|tags.length|tags.0}:\n    1|1|auth\n    3|1|auth\n    5|1|auth\n  \"deploy/check\"[3|]{seq|tags.length|tags.0|tags.1}:\n    2|2|deploy|check\n    4|2|deploy|check\n    6|2|deploy|check\n";
-    let decoded = Value::parse_toon(input)
+    let decoded = Value::parse_legacy(input)
         .expect("decode tabular cyclic labels")
         .to_json_value();
 
@@ -297,7 +297,7 @@ fn cyclic_discriminated_array_decoder_handles_quoted_labels_and_nested_arrays_fo
         })
     );
     assert_eq!(
-        Value::parse_with_options(
+        Value::parse_legacy_with_options(
             input,
             ParseOptions {
                 cyclic_discriminated_arrays: false,
@@ -336,8 +336,8 @@ fn cyclic_discriminated_array_encoding_is_opt_in_and_pins_the_frozen_wire_for_ru
         .expect("cyclic discriminated-array case");
     let expected_value = test_case.get("expected").unwrap();
     let value = Value::from_json_value(expected_value.clone());
-    let default_encoded = value.to_canonical_toon();
-    let encoded = value.to_toon_with_options(EncodeOptions {
+    let default_encoded = value.to_legacy_toon();
+    let encoded = value.to_legacy_toon_with_options(EncodeOptions {
         cyclic_discriminated_arrays: true,
         ..EncodeOptions::default()
     });
@@ -346,15 +346,15 @@ fn cyclic_discriminated_array_encoding_is_opt_in_and_pins_the_frozen_wire_for_ru
     assert_ne!(encoded, default_encoded);
     assert_eq!(encoded, expected_wire);
     assert_eq!(
-        value.to_toon_with_options(EncodeOptions::default()),
+        value.to_legacy_toon_with_options(EncodeOptions::default()),
         default_encoded
     );
     assert_eq!(
-        Value::parse_toon(&encoded).unwrap().to_json_value(),
+        Value::parse_legacy(&encoded).unwrap().to_json_value(),
         expected_value.clone()
     );
     assert_eq!(
-        Value::parse_with_options(
+        Value::parse_legacy_with_options(
             &encoded,
             ParseOptions {
                 cyclic_discriminated_arrays: false,
@@ -412,7 +412,7 @@ fn cyclic_discriminated_array_encoding_emits_percent_encoded_multi_section_wire_
         "audits": audits
     });
     let value = Value::from_json_value(input.clone());
-    let encoded = value.to_toon_with_options(EncodeOptions {
+    let encoded = value.to_legacy_toon_with_options(EncodeOptions {
         cyclic_discriminated_arrays: true,
         ..EncodeOptions::default()
     });
@@ -423,7 +423,7 @@ fn cyclic_discriminated_array_encoding_emits_percent_encoded_multi_section_wire_
     assert!(encoded.contains("audits:\n"));
     assert!(encoded.contains("  order: cycle(alpha%20beta,gamma%2Fdelta)*6\n"));
     assert!(encoded.contains("  \"alpha beta\"[6|]{detail.bucket|detail.attempt}:\n"));
-    assert_eq!(Value::parse_toon(&encoded).unwrap().to_json_value(), input);
+    assert_eq!(Value::parse_legacy(&encoded).unwrap().to_json_value(), input);
 }
 
 #[test]
@@ -540,12 +540,12 @@ fn cyclic_discriminated_array_encoding_falls_back_for_boundary_cases_for_rust() 
         ),
     ] {
         let value = Value::from_json_value(input.clone());
-        let encoded = value.to_toon_with_options(EncodeOptions {
+        let encoded = value.to_legacy_toon_with_options(EncodeOptions {
             cyclic_discriminated_arrays: true,
             ..EncodeOptions::default()
         });
-        assert_eq!(encoded, value.to_canonical_toon(), "{name}");
-        assert_eq!(Value::parse_toon(&encoded).unwrap().to_json_value(), input);
+        assert_eq!(encoded, value.to_legacy_toon(), "{name}");
+        assert_eq!(Value::parse_legacy(&encoded).unwrap().to_json_value(), input);
     }
 }
 
@@ -558,7 +558,7 @@ fn primitive_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust(
         ]
     });
     let value = Value::from_json_value(eligible.clone());
-    let encoded = value.to_toon_with_options(EncodeOptions {
+    let encoded = value.to_legacy_toon_with_options(EncodeOptions {
         primitive_array_columns: true,
         ..EncodeOptions::default()
     });
@@ -567,11 +567,11 @@ fn primitive_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust(
         "items[2]{id,tags[;],note}:\n  1,hot;fragile,\"a,b\"\n  2,\"semi;quoted\",plain\n"
     );
     assert_eq!(
-        value.to_canonical_toon(),
+        value.to_legacy_toon(),
         "items[2]:\n  - id: 1\n    tags[2]: hot,fragile\n    note: \"a,b\"\n  - id: 2\n    tags[1]: semi;quoted\n    note: plain\n"
     );
     assert_eq!(
-        Value::parse_toon(&encoded).unwrap().to_json_value(),
+        Value::parse_legacy(&encoded).unwrap().to_json_value(),
         eligible
     );
 
@@ -582,13 +582,13 @@ fn primitive_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust(
         ]
     });
     let value = Value::from_json_value(ineligible.clone());
-    let encoded = value.to_toon_with_options(EncodeOptions {
+    let encoded = value.to_legacy_toon_with_options(EncodeOptions {
         primitive_array_columns: true,
         ..EncodeOptions::default()
     });
-    assert_eq!(encoded, value.to_canonical_toon());
+    assert_eq!(encoded, value.to_legacy_toon());
     assert_eq!(
-        Value::parse_toon(&encoded).unwrap().to_json_value(),
+        Value::parse_legacy(&encoded).unwrap().to_json_value(),
         ineligible
     );
 }
@@ -613,7 +613,7 @@ fn object_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust() {
         ]
     });
     let value = Value::from_json_value(eligible.clone());
-    let encoded = value.to_toon_with_options(EncodeOptions {
+    let encoded = value.to_legacy_toon_with_options(EncodeOptions {
         object_array_columns: true,
         delimiter: '|',
         ..EncodeOptions::default()
@@ -624,19 +624,19 @@ fn object_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust() {
     );
     assert_ne!(
         encoded,
-        value.to_toon_with_options(EncodeOptions {
+        value.to_legacy_toon_with_options(EncodeOptions {
             delimiter: '|',
             ..EncodeOptions::default()
         })
     );
     assert_eq!(
-        Value::parse_toon(&encoded).unwrap().to_json_value(),
+        Value::parse_legacy(&encoded).unwrap().to_json_value(),
         eligible
     );
 
     let matrix = serde_json::json!({ "matrix": [[1, 2, 3], [4, 5, 6]] });
     let matrix_value = Value::from_json_value(matrix.clone());
-    let matrix_encoded = matrix_value.to_toon_with_options(EncodeOptions {
+    let matrix_encoded = matrix_value.to_legacy_toon_with_options(EncodeOptions {
         object_array_columns: true,
         delimiter: '|',
         ..EncodeOptions::default()
@@ -646,7 +646,7 @@ fn object_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust() {
         "matrix[2|]{values[3|]}:\n  1|2|3\n  4|5|6\n"
     );
     assert_eq!(
-        Value::parse_toon(&matrix_encoded).unwrap().to_json_value(),
+        Value::parse_legacy(&matrix_encoded).unwrap().to_json_value(),
         matrix
     );
 
@@ -657,13 +657,13 @@ fn object_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust() {
         ]
     });
     let value = Value::from_json_value(ineligible.clone());
-    let encoded = value.to_toon_with_options(EncodeOptions {
+    let encoded = value.to_legacy_toon_with_options(EncodeOptions {
         object_array_columns: true,
         ..EncodeOptions::default()
     });
-    assert_eq!(encoded, value.to_canonical_toon());
+    assert_eq!(encoded, value.to_legacy_toon());
     assert_eq!(
-        Value::parse_toon(&encoded).unwrap().to_json_value(),
+        Value::parse_legacy(&encoded).unwrap().to_json_value(),
         ineligible
     );
 }
