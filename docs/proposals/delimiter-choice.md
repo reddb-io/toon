@@ -1,7 +1,7 @@
 # Proposal — Delimiter choice
 
 **Stage:** 4 — graduated
-**Status:** live reddb-io opt-in extension on the TOON v4.1 baseline; normatively defined in [`../toon-reddb-spec.md`](../toon-reddb-spec.md). This is a *defaults and guidance* decision on top of a pure v4.1 mechanism — no grammar change, no fourth delimiter. It has no dedicated upstream RFC; spec#48 was previously linked here incorrectly and is the mixed-columnar RFC.
+**Status:** local defaults and guidance on the TOON v4.1 delimiter mechanism; normatively described in [`../toon-reddb-spec.md`](../toon-reddb-spec.md). This is not a wire extension: it adds no grammar and no fourth delimiter, and it has no dedicated upstream RFC.
 **Spec section:** [Delimiter choice](../toon-reddb-spec.md#delimiter-choice)
 **Upstream RFC:** —
 **Repo issues / PRs:** —
