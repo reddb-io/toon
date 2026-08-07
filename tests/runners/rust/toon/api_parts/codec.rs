@@ -774,7 +774,7 @@ fn v4_api_covers_strings_readers_events_options_and_positioned_errors() {
         DecodeOptions, EncodeV4Options, ToonEvent,
     };
 
-    let input = "# people by handle\npeople{first,last}:\n  ada: Ada,Lovelace\n";
+    let input = "# people by handle\npeople[1:]{first,last}:\n  ada: Ada,Lovelace\n";
     let expected = json!({"people": {"ada": {"first": "Ada", "last": "Lovelace"}}});
     assert_eq!(decode(input).expect("string decode").to_json_value(), expected);
     assert_eq!(
@@ -803,7 +803,7 @@ fn v4_api_covers_strings_readers_events_options_and_positioned_errors() {
         }
     }));
     let expected_wire =
-        "people{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper";
+        "people[2:]{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper";
     assert_eq!(encode(&value).expect("canonical encode"), expected_wire);
     assert_eq!(
         encode_with_options(&value, EncodeV4Options::default()).expect("option encode"),
@@ -827,7 +827,7 @@ fn common_value_methods_use_v4_and_legacy_methods_are_explicit() {
     }));
     assert_eq!(
         value.to_canonical_toon(),
-        "people{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper"
+        "people[2:]{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper"
     );
     assert_eq!(
         value.to_legacy_toon_with_options(LegacyEncodeOptions::default()),
