@@ -1,6 +1,6 @@
 use reddb_io_toon::{
-    decode_value_v4, encode_toonl_values, encode_v4, DecodeStreamOptions, EncodeV4Options,
-    ParseOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
+    decode_with_options, encode_toonl_values, encode_with_options, DecodeStreamOptions,
+    EncodeV4Options, ParseOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
 };
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
@@ -80,7 +80,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                     let official = fixture_path.starts_with(&fixture_root);
                     if official {
                         let stream_options = stream_decoder_options(test.get("options"));
-                        match (decode_value_v4(input, &stream_options), should_error) {
+                        match (decode_with_options(input, &stream_options), should_error) {
                             (Err(_), true) => true,
                             (Ok(_), true) | (Err(_), false) => false,
                             (Ok(value), false) => {
@@ -89,7 +89,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                                     .get("expected")
                                     .is_some_and(|expected| decoded == *expected);
                                 matches_spec
-                                    && decode_value_v4(
+                                    && decode_with_options(
                                         &value.to_canonical_toon(),
                                         &DecodeStreamOptions::default(),
                                     )
@@ -143,14 +143,14 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             .and_then(Json::as_str)
                             .expect("encode expected TOON");
                         let value = Value::from_json_value(input.clone());
-                        match encode_v4(&value, encode_v4_options(test.get("options"))) {
+                        match encode_with_options(&value, encode_v4_options(test.get("options"))) {
                             Ok(encoded) => {
                                 // The round-trip fixpoint is against the encoder's
                                 // own canonical value, not the raw fixture JSON, so
                                 // canonicalizations such as -0 -> 0 do not read as
                                 // a decode mismatch.
                                 encoded == expected
-                                    && decode_value_v4(
+                                    && decode_with_options(
                                         &encoded,
                                         &stream_decoder_options(test.get("options")),
                                     )
