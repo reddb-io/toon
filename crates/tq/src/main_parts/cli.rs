@@ -6,12 +6,13 @@ use std::process::{self, ExitCode};
 
 use reddb_io_toon::{
     close_transform_stream, close_transform_stream_interleaved, detect_toonl_truncation,
-    detect_truncation_with_options, encode_toonl_values, Array, EncodeOptions, ParseOptions,
-    ToonlReader, Value,
+    decode_value_v4, detect_truncation_v4, encode_toonl_values, encode_with_options, Array,
+    DecodeOptions, EncodeV4Options, ToonlReader, Value,
 };
+use serde::Serialize;
 
 const USAGE: &str = concat!(
-    "usage: tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--delimiter comma|tab|pipe] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
+    "usage: tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
     "subcommands: trim, close, check, upgrade"
 );
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
@@ -36,8 +37,8 @@ struct Options {
     compact: bool,
     slurp: bool,
     delimiter: char,
-    nested_tabular_headers: bool,
-    keyed_map_collapse: bool,
+    indent_size: usize,
+    strict: bool,
     primitive_array_columns: bool,
     object_array_columns: bool,
     cyclic_discriminated_arrays: bool,
@@ -137,7 +138,16 @@ fn run() -> Result<(String, ExitCode), String> {
             evaluate(&document, &options.query)?
         }
         Format::Toon => {
-            let document = Value::parse_toon(&input).map_err(|error| error.to_string())?;
+            let document = decode_value_v4(
+                &input,
+                &DecodeOptions {
+                    indent: options.indent_size,
+                    strict: options.strict,
+                    cyclic_discriminated_arrays: options.cyclic_discriminated_arrays,
+                    ..DecodeOptions::default()
+                },
+            )
+            .map_err(|error| error.to_string())?;
             evaluate(&document, &options.query)?
         }
         Format::Toonl => unreachable!("TOONL input is handled before reading into a string"),
@@ -187,7 +197,7 @@ fn run_check(options: CheckOptions) -> Result<(String, ExitCode), String> {
         None => read_stdin()?,
     };
     let report = match options.input_format {
-        Format::Toon => detect_truncation_with_options(&input, ParseOptions::default()),
+        Format::Toon => detect_truncation_v4(&input, &DecodeOptions::default()),
         Format::Toonl => detect_toonl_truncation(&input),
         Format::Json | Format::Yaml => unreachable!("check rejects non-TOON input"),
     };
@@ -229,8 +239,8 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut compact = false;
     let mut slurp = false;
     let mut delimiter = ',';
-    let mut nested_tabular_headers = false;
-    let mut keyed_map_collapse = false;
+    let mut indent_size = 2;
+    let mut strict = true;
     let mut primitive_array_columns = false;
     let mut object_array_columns = false;
     let mut cyclic_discriminated_arrays = false;
@@ -254,8 +264,17 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
                 let value = args.next().ok_or_else(|| USAGE.to_owned())?;
                 delimiter = parse_delimiter(&value)?;
             }
-            "--nested-tabular-headers" => nested_tabular_headers = true,
-            "--keyed-map-collapse" => keyed_map_collapse = true,
+            "--indent" => {
+                let value = args.next().ok_or_else(|| USAGE.to_owned())?;
+                indent_size = value
+                    .parse::<usize>()
+                    .map_err(|_| "`--indent` expects a non-negative integer".to_owned())?;
+            }
+            "--strict" => strict = true,
+            "--no-strict" => strict = false,
+            // Canonical v4.1 output always uses nested and keyed tabular forms;
+            // retain the old switches as harmless compatibility aliases.
+            "--nested-tabular-headers" | "--keyed-map-collapse" => {}
             "--primitive-array-columns" => primitive_array_columns = true,
             "--object-array-columns" => object_array_columns = true,
             "--cyclic-discriminated-arrays" => cyclic_discriminated_arrays = true,
@@ -285,8 +304,8 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         compact,
         slurp,
         delimiter,
-        nested_tabular_headers,
-        keyed_map_collapse,
+        indent_size,
+        strict,
         primitive_array_columns,
         object_array_columns,
         cyclic_discriminated_arrays,
@@ -296,7 +315,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
 fn parse_delimiter(value: &str) -> Result<char, String> {
     match value {
         "comma" | "," => Ok(','),
-        "tab" | "\\t" => Ok('\t'),
+        "tab" | "\\t" | "\t" => Ok('\t'),
         "pipe" | "|" => Ok('|'),
         _ => Err("unsupported delimiter; expected comma, tab, or pipe".to_owned()),
     }
@@ -469,4 +488,3 @@ fn input_reader(options: &Options) -> Result<Box<dyn BufRead>, String> {
         None => Ok(Box::new(BufReader::new(io::stdin()))),
     }
 }
-

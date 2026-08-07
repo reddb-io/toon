@@ -338,11 +338,13 @@ fn golden_case_files_never_take_the_cli_down() {
 struct FixtureCase {
     name: String,
     input: Json,
+    expected: Json,
     should_error: bool,
     /// Cases naming decoder/encoder options the CLI does not expose (strict,
     /// indent, expandPaths, …). tq is never asked to honour them, so its exit
     /// code says nothing about the case and only the crash guard applies.
     uses_options: bool,
+    options: Option<Json>,
 }
 
 fn read_fixture_cases(path: &Path) -> Vec<FixtureCase> {
@@ -360,13 +362,40 @@ fn read_fixture_cases(path: &Path) -> Vec<FixtureCase> {
                 .expect("case has a name")
                 .to_string(),
             input: test.get("input").cloned().unwrap_or(Json::Null),
+            expected: test.get("expected").cloned().unwrap_or(Json::Null),
             should_error: test
                 .get("shouldError")
                 .and_then(Json::as_bool)
                 .unwrap_or(false),
             uses_options: test.get("options").is_some(),
+            options: test.get("options").cloned(),
         })
         .collect()
+}
+
+fn fixture_cli_options(case: &FixtureCase) -> Vec<String> {
+    let mut args = Vec::new();
+    let Some(options) = case.options.as_ref().and_then(Json::as_object) else {
+        return args;
+    };
+    if let Some(strict) = options.get("strict").and_then(Json::as_bool) {
+        args.push(if strict { "--strict" } else { "--no-strict" }.to_owned());
+    }
+    if let Some(indent) = options
+        .get("indentSize")
+        .or_else(|| options.get("indent"))
+        .and_then(Json::as_u64)
+    {
+        args.extend(["--indent".to_owned(), indent.to_string()]);
+    }
+    if let Some(delimiter) = options.get("delimiter").and_then(Json::as_str) {
+        args.extend(["--delimiter".to_owned(), delimiter.to_owned()]);
+    }
+    args
+}
+
+fn run_fixture(args: &[String]) -> Run {
+    run_tq(&args.iter().map(String::as_str).collect::<Vec<_>>())
 }
 
 /// v4.1.1 renormalization baseline (Spec #203, issue #204).
@@ -462,6 +491,60 @@ fn official_decode_fixture_cases_survive_the_cli() {
     );
 }
 
+/// Exact values and clean errors from the pinned v4.1 corpus are the oracle.
+/// A decoder that merely accepts the same files can still return wrong data.
+#[test]
+fn official_decode_fixture_cases_match_expected_values_and_errors() {
+    let Some(spec_root) = spec_fixture_root() else {
+        return;
+    };
+    let files = files_with_extension(&spec_root.join("decode"), "json");
+    assert!(!files.is_empty(), "the decode fixtures should not be empty");
+
+    for path in files {
+        for case in read_fixture_cases(&path) {
+            let Some(input) = case.input.as_str() else {
+                continue;
+            };
+            let context = format!("{}::{}", label(&path), case.name);
+            let file = write_scratch("exact-case.toon", input);
+            let file = file.to_str().expect("scratch path is utf-8");
+            let mut args = fixture_cli_options(&case);
+            args.extend([
+                "-p".to_owned(),
+                "toon".to_owned(),
+                "-o".to_owned(),
+                "json".to_owned(),
+                "-c".to_owned(),
+                ".".to_owned(),
+                file.to_owned(),
+            ]);
+
+            let parsed = run_fixture(&args);
+            parsed.assert_failed_cleanly_or_not_at_all(&context);
+            if case.should_error {
+                assert!(
+                    !parsed.succeeded() && parsed.stdout.is_empty() && !parsed.stderr.is_empty(),
+                    "{context}: expected a clean decode error\nstdout:\n{}\nstderr:\n{}",
+                    parsed.stdout,
+                    parsed.stderr
+                );
+            } else {
+                assert!(
+                    parsed.succeeded(),
+                    "{context}: tq rejected an official valid document\n{}",
+                    parsed.stderr
+                );
+                assert_eq!(
+                    parse_json(&parsed.stdout, &context),
+                    case.expected,
+                    "{context}: decoded JSON differs from the official expected value"
+                );
+            }
+        }
+    }
+}
+
 fn format_divergences(items: &[String]) -> String {
     if items.is_empty() {
         return "  (none)".to_owned();
@@ -536,6 +619,52 @@ fn official_encode_fixture_cases_survive_the_cli() {
                 parse_json(&back.stdout, &context),
                 parse_json(&baseline.stdout, &context),
                 "{context}: JSON → TOON → JSON changed the value"
+            );
+        }
+    }
+}
+
+/// Exact canonical bytes from the pinned v4.1 corpus are the oracle. A
+/// self-roundtrip alone can hide an encoder and decoder agreeing on bad wire.
+#[test]
+fn official_encode_fixture_cases_match_canonical_output() {
+    let Some(spec_root) = spec_fixture_root() else {
+        return;
+    };
+    let files = files_with_extension(&spec_root.join("encode"), "json");
+    assert!(!files.is_empty(), "the encode fixtures should not be empty");
+
+    for path in files {
+        for case in read_fixture_cases(&path) {
+            let context = format!("{}::{}", label(&path), case.name);
+            let source = serde_json::to_string(&case.input).expect("case input is serialisable");
+            let file = write_scratch("exact-case.json", &source);
+            let file = file.to_str().expect("scratch path is utf-8");
+            let mut args = fixture_cli_options(&case);
+            args.extend([
+                "-p".to_owned(),
+                "json".to_owned(),
+                "-o".to_owned(),
+                "toon".to_owned(),
+                ".".to_owned(),
+                file.to_owned(),
+            ]);
+
+            let encoded = run_fixture(&args);
+            encoded.assert_failed_cleanly_or_not_at_all(&context);
+            assert!(
+                encoded.succeeded(),
+                "{context}: tq could not encode a valid JSON value\n{}",
+                encoded.stderr
+            );
+            let expected = case
+                .expected
+                .as_str()
+                .unwrap_or_else(|| panic!("{context}: expected output is not a string"));
+            assert_eq!(
+                encoded.stdout,
+                format!("{expected}\n"),
+                "{context}: encoded TOON differs from the official canonical output"
             );
         }
     }
