@@ -39,20 +39,20 @@ test('wire-efficiency corpora assert encoded byte sizes for JS', () => {
   for (const testCase of fixture.cases) {
     const value = testCase.value
     const jsonMin = JSON.stringify(value)
-    const toonV3 = serialize(value)
+    const toonCanonical = serialize(value)
     const toonTab = serialize(value, { delimiter: '\t' })
     const toonExt = serialize(value, EXT_OPTIONS)
 
     assert.equal(byteLength(jsonMin), testCase.expectedBytes.jsonMin, `${testCase.name}: JSON min bytes`)
-    assert.equal(byteLength(toonV3), testCase.expectedBytes.toonV3, `${testCase.name}: TOON v3 bytes`)
+    assert.equal(byteLength(toonCanonical), testCase.expectedBytes.toonCanonical, `${testCase.name}: canonical TOON bytes`)
     assert.equal(byteLength(toonTab), testCase.expectedBytes.toonTab, `${testCase.name}: TOON tab bytes`)
     assert.equal(byteLength(toonExt), testCase.expectedBytes.toonExt, `${testCase.name}: TOON+ext bytes`)
-    assert.deepEqual(parse(toonV3), value, `${testCase.name}: TOON v3 round trip`)
+    assert.deepEqual(parse(toonCanonical), value, `${testCase.name}: canonical TOON round trip`)
     assert.deepEqual(parse(toonTab), value, `${testCase.name}: TOON tab round trip`)
     assert.deepEqual(parse(toonExt), value, `${testCase.name}: TOON+ext round trip`)
 
     if (testCase.honestyZeroDelta) {
-      assert.equal(toonExt, toonV3, `${testCase.name}: extensions must not change ineligible wire bytes`)
+      assert.equal(toonExt, toonCanonical, `${testCase.name}: extensions must not change ineligible wire bytes`)
     }
   }
 })
@@ -115,8 +115,8 @@ test('object-array column corpus decodes identically for JS', () => {
     const encoded = serialize(testCase.value, options)
     assert.equal(encoded, testCase.expected, `${testCase.name}: encoded wire`)
     assert.deepEqual(parse(encoded), testCase.value, `${testCase.name}: round trip`)
-    if (testCase.sameAsV3 === true) {
-      assert.equal(encoded, serialize(testCase.value), `${testCase.name}: v3.3 fallback`)
+    if (testCase.sameAsCanonical === true) {
+      assert.equal(encoded, serialize(testCase.value), `${testCase.name}: canonical fallback`)
     } else {
       assert.notEqual(encoded, serialize(testCase.value), `${testCase.name}: extension wire`)
     }
@@ -136,10 +136,10 @@ test('cyclic discriminated-array corpus decodes identically for JS', () => {
 
   for (const testCase of fixture.cases) {
     assert.deepEqual(parse(testCase.input), testCase.expected, `${testCase.name}: decoded value`)
-    if (testCase.strictV3Literal !== undefined) {
+    if (testCase.canonicalLiteral !== undefined) {
       assert.deepEqual(
         parse(testCase.input, { cyclicDiscriminatedArrays: false }),
-        testCase.strictV3Literal,
+        testCase.canonicalLiteral,
         `${testCase.name}: strict v3 reads the literal grouped object`,
       )
     }
@@ -165,7 +165,7 @@ test('cyclic discriminated-array encoding is opt-in and falls back losslessly fo
     const encoded = serialize(testCase.expected, { cyclicDiscriminatedArrays: true })
     assert.equal(encoded, testCase.input, `${testCase.name}: encoded wire`)
     assert.deepEqual(parse(encoded), testCase.expected, `${testCase.name}: round trip`)
-    assert.notEqual(serialize(testCase.expected), testCase.input, `${testCase.name}: default canonical v3.3`)
+    assert.notEqual(serialize(testCase.expected), testCase.input, `${testCase.name}: default canonical wire`)
   }
 
   const ineligible = {
@@ -178,7 +178,7 @@ test('cyclic discriminated-array encoding is opt-in and falls back losslessly fo
   assert.equal(
     serialize(ineligible, { cyclicDiscriminatedArrays: true }),
     serialize(ineligible),
-    'ineligible cyclic array falls back to canonical v3.3',
+    'ineligible cyclic array falls back to canonical v4.1',
   )
   assert.deepEqual(parse(serialize(ineligible, { cyclicDiscriminatedArrays: true })), ineligible)
 
@@ -193,7 +193,7 @@ test('cyclic discriminated-array encoding is opt-in and falls back losslessly fo
   assert.equal(
     serialize(nonUniformNestedPayload, { cyclicDiscriminatedArrays: true }),
     serialize(nonUniformNestedPayload),
-    'non-uniform nested payload shape within a group falls back to v3.3',
+    'non-uniform nested payload shape within a group falls back to canonical v4.1',
   )
 })
 
