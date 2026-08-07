@@ -338,11 +338,9 @@ fn golden_case_files_never_take_the_cli_down() {
 struct FixtureCase {
     name: String,
     input: Json,
+    expected: Json,
     should_error: bool,
-    /// Cases naming decoder/encoder options the CLI does not expose (strict,
-    /// indent, expandPaths, …). tq is never asked to honour them, so its exit
-    /// code says nothing about the case and only the crash guard applies.
-    uses_options: bool,
+    options: Option<Json>,
 }
 
 fn read_fixture_cases(path: &Path) -> Vec<FixtureCase> {
@@ -360,37 +358,39 @@ fn read_fixture_cases(path: &Path) -> Vec<FixtureCase> {
                 .expect("case has a name")
                 .to_string(),
             input: test.get("input").cloned().unwrap_or(Json::Null),
+            expected: test.get("expected").cloned().unwrap_or(Json::Null),
             should_error: test
                 .get("shouldError")
                 .and_then(Json::as_bool)
                 .unwrap_or(false),
-            uses_options: test.get("options").is_some(),
+            options: test.get("options").cloned(),
         })
         .collect()
 }
 
-/// v4.1.1 renormalization baseline (Spec #203, issue #204).
-///
-/// vendor/toon-spec is pinned at v4.1.1. The renormalized v4 corpus carries
-/// decode cases whose spec expectation the current v3.3-era decoder does not yet
-/// match through the `tq` CLI — a `shouldError` case the lenient decoder accepts,
-/// or a valid v4 form it cannot yet read. They are recorded here as an explicit
-/// expected-failure baseline, not skipped silently, so the pre-rebase gap is
-/// demonstrable and the sweep stays green until the decoder rewrites land.
-///
-/// This mirrors tests/runners/rust/toon/expected-failures.txt and, like it, is a
-/// ratchet: an entry that starts matching the spec is a stale entry, and the test
-/// says so instead of going quiet.
-const DECODE_FIXTURE_DIVERGENCES: &str = "tests/runners/rust/tq/decode-expected-failures.txt";
+fn fixture_cli_options(case: &FixtureCase) -> Vec<String> {
+    let mut args = Vec::new();
+    let Some(options) = case.options.as_ref().and_then(Json::as_object) else {
+        return args;
+    };
+    if let Some(strict) = options.get("strict").and_then(Json::as_bool) {
+        args.push(if strict { "--strict" } else { "--no-strict" }.to_owned());
+    }
+    if let Some(indent) = options
+        .get("indentSize")
+        .or_else(|| options.get("indent"))
+        .and_then(Json::as_u64)
+    {
+        args.extend(["--indent".to_owned(), indent.to_string()]);
+    }
+    if let Some(delimiter) = options.get("delimiter").and_then(Json::as_str) {
+        args.extend(["--delimiter".to_owned(), delimiter.to_owned()]);
+    }
+    args
+}
 
-fn read_expected_divergences(relative: &str) -> std::collections::BTreeSet<String> {
-    fs::read_to_string(repo_root().join(relative))
-        .unwrap_or_default()
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .map(ToOwned::to_owned)
-        .collect()
+fn run_fixture(args: &[String]) -> Run {
+    run_tq(&args.iter().map(String::as_str).collect::<Vec<_>>())
 }
 
 /// The decode fixtures carry TOON snippets, and roughly a sixth of them are
@@ -405,11 +405,6 @@ fn official_decode_fixture_cases_survive_the_cli() {
     let files = files_with_extension(&spec_root.join("decode"), "json");
     assert!(!files.is_empty(), "the decode fixtures should not be empty");
 
-    let expected_divergences = read_expected_divergences(DECODE_FIXTURE_DIVERGENCES);
-    let mut seen = std::collections::BTreeSet::new();
-    let mut unexpected = Vec::new();
-    let mut stale = Vec::new();
-
     for path in files {
         for case in read_fixture_cases(&path) {
             let Some(input) = case.input.as_str() else {
@@ -419,62 +414,46 @@ fn official_decode_fixture_cases_survive_the_cli() {
             let file = write_scratch("case.toon", input);
             let file = file.to_str().expect("scratch path is utf-8");
 
-            let parsed = run_tq(&["-p", "toon", "-o", "json", "-c", ".", file]);
+            let mut args = fixture_cli_options(&case);
+            args.extend([
+                "-p".to_owned(),
+                "toon".to_owned(),
+                "-o".to_owned(),
+                "json".to_owned(),
+                "-c".to_owned(),
+                ".".to_owned(),
+                file.to_owned(),
+            ]);
+            let parsed = run_fixture(&args);
             parsed.assert_failed_cleanly_or_not_at_all(&context);
-            let checked = run_tq(&["check", "-p", "toon", file]);
-            checked.assert_failed_cleanly_or_not_at_all(&context);
 
-            if case.uses_options {
-                continue;
-            }
-
-            // A case "matches" when the CLI's behaviour agrees with the spec's
-            // shouldError flag on both the parse and check entry points. Anything
-            // else is a v3.3-vs-v4 divergence, tracked in the ledger rather than
-            // failing the sweep outright.
-            let matched = if case.should_error {
-                !parsed.succeeded() && !parsed.stderr.is_empty() && !checked.succeeded()
+            if case.should_error {
+                assert!(
+                    !parsed.succeeded() && parsed.stdout.is_empty() && !parsed.stderr.is_empty(),
+                    "{context}: the official fixture requires a clean decode error\nstdout:\n{}\nstderr:\n{}",
+                    parsed.stdout,
+                    parsed.stderr
+                );
             } else {
-                parsed.succeeded() && checked.succeeded()
-            };
-
-            seen.insert(context.clone());
-            let expected_to_diverge = expected_divergences.contains(&context);
-            match (matched, expected_to_diverge) {
-                (true, true) => stale.push(context),
-                (false, false) => unexpected.push(context),
-                _ => {}
+                assert!(
+                    parsed.succeeded(),
+                    "{context}: tq rejected an official valid document\n{}",
+                    parsed.stderr
+                );
+                assert_eq!(
+                    parse_json(&parsed.stdout, &context),
+                    case.expected,
+                    "{context}: decoded JSON differs from the official expected value"
+                );
             }
         }
     }
-
-    let unknown = expected_divergences
-        .difference(&seen)
-        .cloned()
-        .collect::<Vec<_>>();
-
-    assert!(
-        unexpected.is_empty() && stale.is_empty() && unknown.is_empty(),
-        "decode fixture drift\nunexpected divergences:\n{}\nstale ledger entries:\n{}\nunknown ledger entries:\n{}",
-        format_divergences(&unexpected),
-        format_divergences(&stale),
-        format_divergences(&unknown),
-    );
 }
 
-fn format_divergences(items: &[String]) -> String {
-    if items.is_empty() {
-        return "  (none)".to_owned();
-    }
-    items
-        .iter()
-        .map(|item| format!("  {item}"))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// The encode fixtures carry JSON values plus the TOON they should produce.
-/// The CLI has to encode every one of them, and read its own output back.
+/// The encode fixtures carry JSON values plus the exact canonical TOON bytes
+/// produced by the pinned upstream CLI. Self-roundtrip is deliberately not the
+/// oracle: a mutually compatible decoder and encoder can agree on the wrong
+/// wire form.
 #[test]
 fn official_encode_fixture_cases_survive_the_cli() {
     let Some(spec_root) = spec_fixture_root() else {
@@ -490,52 +469,30 @@ fn official_encode_fixture_cases_survive_the_cli() {
             let file = write_scratch("case.json", &source);
             let file = file.to_str().expect("scratch path is utf-8");
 
-            let encoded = run_tq(&["-p", "json", "-o", "toon", ".", file]);
+            let mut args = fixture_cli_options(&case);
+            args.extend([
+                "-p".to_owned(),
+                "json".to_owned(),
+                "-o".to_owned(),
+                "toon".to_owned(),
+                ".".to_owned(),
+                file.to_owned(),
+            ]);
+            let encoded = run_fixture(&args);
             encoded.assert_failed_cleanly_or_not_at_all(&context);
-            if case.uses_options {
-                continue;
-            }
             assert!(
                 encoded.succeeded(),
                 "{context}: tq could not encode a valid JSON value\n{}",
                 encoded.stderr
             );
-
-            // The baseline is tq reading the case itself, not this test's own
-            // JSON parse: TOON normalises some values on the way in (-0 becomes
-            // 0, per the spec's own "encodes negative zero as zero" case), and
-            // that normalisation is not round-trip damage. Comparing tq against
-            // tq keeps the shared normalisations out of the assertion and still
-            // catches a trip that actually loses or changes data.
-            let baseline = run_tq(&["-p", "json", "-o", "json", "-c", ".", file]);
             assert!(
-                baseline.succeeded(),
-                "{context}: tq could not read a valid JSON value\n{}",
-                baseline.stderr
+                case.expected.is_string(),
+                "{context}: encode fixture expected output is not a string"
             );
-
-            // Whatever tq wrote, tq must be able to read — the round trip is
-            // the only claim that holds without reimplementing the encoder.
-            let written = write_scratch("encoded.toon", &encoded.stdout);
-            let back = run_tq(&[
-                "-p",
-                "toon",
-                "-o",
-                "json",
-                "-c",
-                ".",
-                written.to_str().expect("scratch path is utf-8"),
-            ]);
-            back.assert_failed_cleanly_or_not_at_all(&context);
-            assert!(
-                back.succeeded(),
-                "{context}: tq could not read back the TOON it just wrote\n{}",
-                back.stderr
-            );
+            let expected = format!("{}\n", case.expected.as_str().expect("checked string"));
             assert_eq!(
-                parse_json(&back.stdout, &context),
-                parse_json(&baseline.stdout, &context),
-                "{context}: JSON → TOON → JSON changed the value"
+                encoded.stdout, expected,
+                "{context}: encoded TOON differs from the official canonical output"
             );
         }
     }
