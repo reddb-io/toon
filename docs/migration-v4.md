@@ -28,6 +28,81 @@ keys and never relied on lenient numeric parsing, no change is required: valid
 v4.1 documents are a superset-compatible evolution and the default encoder
 output is now canonical **v4.1**.
 
+## TypeScript cutover
+
+The package root is the canonical surface. `parse` and `serialize` remain
+deprecated names for canonical `decode` and `encode`; they no longer select the
+former codec. Legacy parsing moved to an explicit subpath.
+
+Before the cutover, a root import plus path expansion could produce a nested
+object:
+
+```js
+import { parse } from '@reddb-io/toon'
+
+parse('a.b: 1', { expandPaths: 'safe' })
+// { a: { b: 1 } }
+```
+
+After the cutover, canonical decode preserves the dotted key literally:
+
+```js
+import { decode } from '@reddb-io/toon'
+
+decode('a.b: 1')
+// { 'a.b': 1 }
+```
+
+If a stored document temporarily requires the old observable behavior, make
+that dependency visible at the import boundary:
+
+```js
+import { parse } from '@reddb-io/toon/legacy'
+
+parse('a.b: 1', { expandPaths: 'safe' })
+// { a: { b: 1 } }
+```
+
+New code should use `decode`, `decodeFromLines`, `decodeStream`, `encode`, or
+`encodeLines`. The `reviver` option is an experimental TypeScript-only frontier
+pinned to upstream PR #294; it is not part of the v4.1 migration contract.
+
+## Rust cutover
+
+Suffix-free functions and common model methods are canonical v4.1. Use
+`decode`, `decode_with_options`, `decode_reader`, `decode_iter`, `encode`, and
+`encode_with_options`; `Value::parse_toon`, `Document::parse`, and canonical
+output methods delegate to the same codec.
+
+Before the cutover, path expansion was part of the ordinary parser options.
+After the cutover, the same input has a literal key:
+
+```rust
+use reddb_io_toon::decode;
+
+let value = decode("a.b: 1\n")?;
+assert_eq!(value.to_json_value(), serde_json::json!({"a.b": 1}));
+# Ok::<(), reddb_io_toon::DecodeError>(())
+```
+
+An explicit compatibility read uses a method containing `legacy`:
+
+```rust
+use reddb_io_toon::{LegacyParseOptions, Value};
+
+let value = Value::parse_legacy_with_options(
+    "a.b: 1\n",
+    LegacyParseOptions { expand_paths: true, ..LegacyParseOptions::default() },
+)?;
+assert_eq!(value.to_json_value(), serde_json::json!({"a": {"b": 1}}));
+# Ok::<(), reddb_io_toon::DecodeError>(())
+```
+
+Methods named `to_legacy_toon*` are the corresponding old-output boundary.
+Compatibility-shaped `EncodeOptions` passed to common model methods still
+route through the v4.1 encoder; only explicitly named legacy methods select the
+former encoder.
+
 ## Breaking changes
 
 ### 1. Path expansion removed from the spec
@@ -35,10 +110,10 @@ output is now canonical **v4.1**.
 **What changed.** In v3.3 the decoder exposed a spec option
 `expandPaths: "safe"` (§13.4) that split dotted keys back into nested objects
 *after* base parsing. v4.1 removes path expansion from the specification
-entirely. Canonical decode treats a dotted key as a single literal key. Our
-decoders retain `expandPaths` only as a **non-normative legacy shim** (still
-defaulting off); output it produces is not v4.1-conformant, and it should not
-be relied on for new work.
+entirely. Canonical decode treats a dotted key as a single literal key. The
+behavior survives only on the explicit TypeScript legacy subpath and Rust
+methods whose names contain `legacy`; output it produces is not canonical
+v4.1 and should not be relied on for new work.
 
 **Before/after decode** of `a.b.c: 1`:
 
@@ -88,7 +163,7 @@ round-trip losslessly against a v4.1 decoder without any expansion step.
 
 Strict mode (`strict: true`, the default on both surfaces) enforces the v4.1
 authoritative error checklist fail-fast. Documents a lenient v3.3 reader may
-have accepted now raise a positioned `ToonError` / `ToonError` under the
+have accepted now raise a positioned `ToonDecodeError` / `DecodeError` under the
 default, and the numeric grammar is tightened so several token shapes that a
 looser reader treated as numbers now decode as **strings**.
 
@@ -151,14 +226,16 @@ and [`docs/proposals/keyed-map-collapse.md`](proposals/keyed-map-collapse.md).
 ## Surviving opt-in extensions (unchanged behavior)
 
 The remaining reddb-io extensions were **re-expressed on the v4.1 base** and
-keep their contract — decode always-on, encode opt-in, fail-closed, lossless
-round-trip. No migration is required for these; only the baseline they layer
-over moved from v3.3 to v4.1:
+remain encode opt-ins with lossless fallback. Primitive-array and object-array
+wires decode by default and fail closed when extension handling is disabled;
+cyclic reconstruction is opt-in and otherwise has a literal v4.1 reading. No
+migration is required for these; only their baseline moved from v3.3 to v4.1:
 
 - Primitive-array columns (`primitiveArrayColumns`) — local opt-in extension;
   there is no dedicated upstream RFC.
-- Delimiter choice (`delimiter`) — local defaults and guidance over the
-  released v4.1 delimiter mechanism; there is no dedicated upstream RFC.
+- Delimiter choice (`delimiter`) — official v4.1 configuration with local
+  defaults and guidance, not userland grammar; there is no dedicated upstream
+  RFC for the guidance.
 - Object-array columns / child tables (`objectArrayColumns`).
 - Cyclic discriminated arrays (`cyclicDiscriminatedArrays`).
 - Depth guard (`maxDepth`) and the `detectTruncation` completeness report.
