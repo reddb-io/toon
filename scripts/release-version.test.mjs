@@ -155,3 +155,29 @@ test('CI, automatic release, and manual release use the TypeScript-aware version
   assert.match(packageManifest, /packages\/toon\/dist\/version\.js/)
   assert.doesNotMatch(releaseSurface, /packages\/toon\/src\/version\.js/)
 })
+
+test('stable releases document v4.1 and close only after public clean-room verification', () => {
+  const automatic = text(root, '.github/workflows/auto-release.yml')
+  const manual = text(root, '.github/workflows/release.yml')
+
+  for (const heading of [
+    'TOON v4.1 checkpoint',
+    'API cutovers',
+    'Extension policy',
+    'Migration',
+    'Experimental upstream frontiers',
+  ]) {
+    assert.match(manual, new RegExp(`## ${heading}`))
+  }
+
+  assert.match(manual, /name: Capture release-time upstream drift/)
+  assert.match(manual, /name: Verify exact-commit CI/)
+  assert.match(manual, /name: Verify public artifacts from clean consumers/)
+  assert.match(manual, /npm install --ignore-scripts "@reddb-io\/toon@\$\{VERSION\}"/)
+  assert.match(manual, /cargo install --version "\$\{VERSION\}" reddb-io-tq/)
+  assert.match(manual, /releases\/download\/\$\{TAG\}\/reddb-toon\.vsix/)
+  assert.match(manual, /gh issue close "\$CLOSURE_ISSUE"/)
+  assert.match(manual, /gh issue close "\$CLOSURE_SPEC"/)
+  assert.match(automatic, /closure_issue=247/)
+  assert.match(automatic, /closure_spec=203/)
+})
