@@ -82,8 +82,13 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.plan.outputs.version }}"
+          CLOSURE_ARGS=()
+          if [[ "$VERSION" == "0.20.1" ]]; then
+            CLOSURE_ARGS+=("-f" "closure_issue=247" "-f" "closure_spec=203")
+          fi
           gh workflow run release.yml --ref main \
             -f channel=stable \
             -f version="$VERSION" \
-            -f publish_cargo=true
+            -f publish_cargo=true \
+            "${CLOSURE_ARGS[@]}"
           echo "dispatched release.yml for v${VERSION}"
