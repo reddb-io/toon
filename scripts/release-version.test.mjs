@@ -271,3 +271,24 @@ test('automatic release dispatch recovers the exact untagged v4.1 release commit
   assert.match(automatic, /closure_issue=247/)
   assert.match(automatic, /closure_spec=203/)
 })
+
+test('stable release dispatches and watches uniquely correlated CI on the exact release commit', () => {
+  const ci = text(root, '.github/workflows/ci.yml')
+  const release = text(root, '.github/workflows/release.yml')
+
+  assert.match(ci, /run-name: CI \$\{\{ inputs\.correlation \|\| github\.sha \}\}/)
+  assert.match(ci, /workflow_dispatch:[\s\S]*release_sha:[\s\S]*correlation:/)
+  assert.equal(
+    ci.match(/ref: \$\{\{ inputs\.release_sha \|\| github\.sha \}\}/g)?.length,
+    2,
+    'both exact-commit CI jobs must check out the requested release SHA',
+  )
+  assert.match(release, /release_sha:\s*\n\s+description: Exact commit to release/)
+  assert.match(release, /release_sha: \$\{\{ steps\.plan\.outputs\.release_sha \}\}/)
+  assert.match(release, /CORRELATION="release-\$\{RELEASE_SHA\}-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/)
+  assert.match(release, /-f release_sha="\$RELEASE_SHA" -f correlation="\$CORRELATION"/)
+  assert.match(release, /select\(\.displayTitle == "CI \$\{CORRELATION\}"\)/)
+  assert.match(release, /gh run watch "\$CI_RUN" --repo "\$REPO" --exit-status/)
+  assert.match(release, /target_commitish: \$\{\{ needs\.plan\.outputs\.release_sha \}\}/)
+  assert.doesNotMatch(release, /RELEASE_SHA: \$\{\{ github\.sha \}\}/)
+})
