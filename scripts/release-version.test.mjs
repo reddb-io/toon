@@ -182,6 +182,40 @@ test('automatic release planning selects the intended next version without chang
   assert.equal(after.stdout, before.stdout)
 })
 
+test('automatic release planning recovers an untagged synced release without another version commit', () => {
+  const directory = temporaryDirectory('toon-release-recovery-')
+  mkdirSync(join(directory, 'scripts'))
+  cpSync(join(root, 'scripts/plan-auto-release.sh'), join(directory, 'scripts/plan-auto-release.sh'))
+
+  for (const args of [
+    ['init', '-q'],
+    ['config', 'user.name', 'Release Test'],
+    ['config', 'user.email', 'release-test@example.invalid'],
+  ]) {
+    const result = run('git', args, directory)
+    assert.equal(result.status, 0, result.stderr)
+  }
+  writeFileSync(join(directory, 'README.md'), 'baseline\n')
+  assert.equal(run('git', ['add', 'README.md', 'scripts/plan-auto-release.sh'], directory).status, 0)
+  assert.equal(run('git', ['commit', '-qm', 'chore: release 0.20.0'], directory).status, 0)
+  assert.equal(run('git', ['tag', 'v0.20.0'], directory).status, 0)
+  writeFileSync(join(directory, 'README.md'), 'baseline\nv4.1\n')
+  assert.equal(run('git', ['commit', '-qam', 'feat: implement TOON v4.1'], directory).status, 0)
+  writeFileSync(join(directory, 'README.md'), 'baseline\nv4.1\nsynced\n')
+  assert.equal(run('git', ['commit', '-qam', 'chore: release 0.21.0'], directory).status, 0)
+  const releaseSha = run('git', ['rev-parse', 'HEAD'], directory).stdout.trim()
+  writeFileSync(join(directory, 'README.md'), 'baseline\nv4.1\nsynced\nrecovery\n')
+  assert.equal(run('git', ['commit', '-qam', 'fix: recover release automation'], directory).status, 0)
+
+  const result = run('bash', ['scripts/plan-auto-release.sh'], directory)
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /^bump=none$/m)
+  assert.match(result.stdout, /^version=0\.21\.0$/m)
+  assert.match(result.stdout, new RegExp(`^release_sha=${releaseSha}$`, 'm'))
+  assert.match(result.stdout, /^needs_sync=false$/m)
+})
+
 test('CI, automatic release, and manual release use the TypeScript-aware version tools', () => {
   const ci = text(root, '.github/workflows/ci.yml')
   const automatic = text(root, '.github/workflows/auto-release.yml')
