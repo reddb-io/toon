@@ -661,7 +661,7 @@ jobs:
 
   verify-public:
     name: Verify public artifacts from clean consumers
-    needs: [plan, release, publish-cargo, publish-npm, upstream-drift, verify-ci]
+    needs: [plan, publish-github, publish-cargo, publish-npm, upstream-drift, verify-ci]
     if: |
       needs.plan.outputs.should_skip != 'true' &&
       needs.plan.outputs.release_channel == 'stable'
