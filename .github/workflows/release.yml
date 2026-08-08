@@ -25,6 +25,9 @@ on:
       version:
         description: Optional version for stable (e.g. 0.1.2)
         required: false
+      release_sha:
+        description: Exact commit to release
+        required: false
       publish_cargo:
         description: Publish crates to crates.io from GitHub Actions
         required: false
@@ -61,6 +64,7 @@ jobs:
       release_channel: ${{ steps.plan.outputs.release_channel }}
       release_tag: ${{ steps.plan.outputs.release_tag }}
       package_version: ${{ steps.plan.outputs.package_version }}
+      release_sha: ${{ steps.plan.outputs.release_sha }}
       github_prerelease: ${{ steps.plan.outputs.github_prerelease }}
       publish_cargo: ${{ steps.plan.outputs.publish_cargo }}
     steps:
@@ -82,11 +86,13 @@ jobs:
           RELEASE_CHANNEL=""
           RELEASE_TAG=""
           PACKAGE_VERSION=""
+          RELEASE_SHA="${{ inputs.release_sha || github.sha }}"
           IS_PRERELEASE=false
           PUBLISH_CARGO=false
 
           normalize_version() { echo "${1#v}"; }
-          base_version() { awk -F'"' '/^version = /{print $2; exit}' Cargo.toml; }
+          git cat-file -e "${RELEASE_SHA}^{commit}"
+          base_version() { git show "${RELEASE_SHA}:Cargo.toml" | awk -F'"' '/^version = /{print $2; exit}'; }
           next_version() { echo "$(base_version)-next.${GITHUB_RUN_NUMBER}"; }
 
           if [[ "$EVENT_NAME" == "push" && "$REF" == refs/tags/v* ]]; then
@@ -144,6 +150,7 @@ jobs:
           echo "release_channel=${RELEASE_CHANNEL}" >> "$GITHUB_OUTPUT"
           echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
           echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
           echo "github_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
           echo "publish_cargo=${PUBLISH_CARGO}" >> "$GITHUB_OUTPUT"
 
@@ -175,6 +182,8 @@ jobs:
           - { os: windows-latest,    target: x86_64-pc-windows-msvc,     asset_name: windows-x86_64,       optional: true }
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.release_sha }}
 
       - name: Sync release version
         shell: bash
@@ -260,6 +269,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.release_sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -295,6 +306,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.plan.outputs.release_sha }}
           # git-cliff walks the full commit history to build the changelog.
           fetch-depth: 0
 
@@ -335,10 +347,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ needs.plan.outputs.release_tag }}"
-          TARGET_REF="$TAG"
-          if ! git rev-parse -q --verify "${TAG}^{commit}" >/dev/null; then
-            TARGET_REF="HEAD"
-          fi
+          TARGET_REF="${{ needs.plan.outputs.release_sha }}"
 
           PREVIOUS_TAG="$(git tag --merged "$TARGET_REF" --list 'v*' --sort=-v:refname \
             | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
@@ -488,6 +497,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.plan.outputs.release_tag }}
+          target_commitish: ${{ needs.plan.outputs.release_sha }}
           name: tq ${{ needs.plan.outputs.release_tag }}
           body_path: release-body.md
           prerelease: ${{ needs.plan.outputs.github_prerelease }}
@@ -506,6 +516,8 @@ jobs:
       needs.plan.outputs.publish_cargo == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.release_sha }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Sync release version
         run: bash scripts/sync-version.sh "${{ needs.plan.outputs.package_version }}"
@@ -560,6 +572,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.plan.outputs.release_sha }}
           submodules: true
       - uses: actions/setup-node@v4
         with:
@@ -622,6 +635,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.release_sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -646,17 +661,32 @@ jobs:
       needs.plan.outputs.release_channel == 'stable'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      actions: write
+      contents: read
     steps:
-      - name: Wait for CI on the release commit
+      - name: Dispatch and wait for CI on the release commit
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ needs.plan.outputs.release_sha }}
         run: |
           set -euo pipefail
-          CI_RUN="$(gh run list --repo "$REPO" --workflow ci.yml --commit "$RELEASE_SHA" \
-            --event push --limit 1 --json databaseId --jq '.[0].databaseId')"
-          [[ -n "$CI_RUN" ]] || { echo "No CI run found for ${RELEASE_SHA}"; exit 1; }
+          CORRELATION="release-${RELEASE_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh workflow run ci.yml --repo "$REPO" --ref main \
+            -f release_sha="$RELEASE_SHA" -f correlation="$CORRELATION"
+
+          CI_RUN=""
+          for attempt in $(seq 1 30); do
+            CI_RUN="$(gh run list --repo "$REPO" --workflow ci.yml --event workflow_dispatch \
+              --limit 50 --json databaseId,displayTitle \
+              --jq ".[] | select(.displayTitle == \"CI ${CORRELATION}\") | .databaseId" \
+              | head -n1)"
+            [[ -n "$CI_RUN" ]] && break
+            echo "Waiting for exact CI dispatch ${CORRELATION} (${attempt}/30)"
+            sleep 2
+          done
+          [[ -n "$CI_RUN" ]] || { echo "No CI run found for ${CORRELATION}"; exit 1; }
           gh run watch "$CI_RUN" --repo "$REPO" --exit-status
 
   verify-public:
@@ -679,7 +709,7 @@ jobs:
           VERSION: ${{ needs.plan.outputs.package_version }}
           TAG: ${{ needs.plan.outputs.release_tag }}
           REPO: ${{ github.repository }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ needs.plan.outputs.release_sha }}
         run: |
           set -euo pipefail
           CLEAN_ROOT="$(mktemp -d)"
@@ -757,7 +787,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ needs.plan.outputs.release_sha }}
           TAG: ${{ needs.plan.outputs.release_tag }}
           VERSION: ${{ needs.plan.outputs.package_version }}
           CLOSURE_ISSUE: ${{ inputs.closure_issue }}
