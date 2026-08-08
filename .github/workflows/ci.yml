@@ -1,6 +1,17 @@
 name: CI
+run-name: CI ${{ inputs.correlation || github.sha }}
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact commit to validate for a stable release
+        required: true
+        type: string
+      correlation:
+        description: Unique release-run correlation key
+        required: true
+        type: string
   pull_request:
   push:
     branches:
@@ -13,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.release_sha || github.sha }}
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -39,6 +51,7 @@ jobs:
       # spec submodule, exactly as the Rust harness does.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.release_sha || github.sha }}
           submodules: true
       - uses: actions/setup-node@v4
         with:

@@ -2,13 +2,11 @@ name: Auto release
 
 # Auto-cut stable releases from conventional commits on main (issue #60,
 # porting the red-skills scheme). scripts/plan-auto-release.sh decides the
-# bump; the version-sync commit is pushed with the default GITHUB_TOKEN,
+# bump or recovers an already-synced release whose workflow failed before its
+# tag was created. New version-sync commits use the default GITHUB_TOKEN,
 # which triggers no workflows (GitHub suppresses workflow-from-workflow
-# events) — that is the primary anti-loop guarantee. The stable release is
-# then started via workflow_dispatch, the one cross-workflow trigger the
-# default token CAN fire; the tag itself is created by the release run
-# (action-gh-release), so pushing a v*.*.* tag by hand keeps working as the
-# manual override.
+# events) — that is the primary anti-loop guarantee. Stable release and exact
+# commit CI are then started through workflow_dispatch.
 
 on:
   push:
@@ -44,51 +42,56 @@ jobs:
         run: bash scripts/plan-auto-release.sh
 
       - uses: dtolnay/rust-toolchain@stable
-        if: steps.plan.outputs.bump != 'none'
+        if: steps.plan.outputs.needs_sync == 'true'
 
-      - name: Sync workspace version and push release commit
-        if: steps.plan.outputs.bump != 'none'
+      - name: Resolve or create release commit
+        if: steps.plan.outputs.version != ''
+        id: release
         run: |
           set -euo pipefail
           VERSION="${{ steps.plan.outputs.version }}"
-          bash scripts/sync-version.sh "$VERSION"
-          # Cargo.lock pins the workspace members' own versions and CI builds
-          # with --locked, so the lockfile must land with the manifests.
-          # pnpm-lock.yaml records no workspace-package version, so the npm
-          # side needs no lockfile change.
-          cargo generate-lockfile
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Keep this list in lockstep with everything scripts/sync-version.sh
-          # writes — scripts/check-versions.sh fails the next release when a
-          # member is left behind (the 0.11.0 release missed lockstep files
-          # exactly this way).
-          git add Cargo.toml crates/tq/Cargo.toml package.json packages/toon/package.json packages/toon/src/version.ts packages/toon/dist/version.js packages/vscode-toon/package.json Cargo.lock
-          git commit -m "chore: release ${VERSION}"
-          if ! git push origin HEAD:main; then
-            # main moved while we worked. The push that beat us triggers its
-            # own auto-release run, which re-plans over the full range — so
-            # dropping this attempt loses nothing.
-            echo "::notice::main moved before the release commit could land; the newer push's run takes over"
-            exit 0
+          RELEASE_SHA="${{ steps.plan.outputs.release_sha }}"
+          if [[ "${{ steps.plan.outputs.needs_sync }}" == "true" ]]; then
+            bash scripts/sync-version.sh "$VERSION"
+            # Cargo.lock pins the workspace members' own versions and CI builds
+            # with --locked, so the lockfile must land with the manifests.
+            cargo generate-lockfile
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Cargo.toml crates/tq/Cargo.toml package.json packages/toon/package.json packages/toon/src/version.ts packages/toon/dist/version.js packages/vscode-toon/package.json Cargo.lock
+            git commit -m "chore: release ${VERSION}"
+            if ! git push origin HEAD:main; then
+              # The newer main push gets its own auto-release run and re-plans
+              # over the complete range, so this attempt can yield safely.
+              echo "::notice::main moved before the release commit could land; the newer push's run takes over"
+              exit 0
+            fi
+            RELEASE_SHA="$(git rev-parse HEAD)"
+          else
+            [[ -n "$RELEASE_SHA" ]] || { echo "Recovery plan omitted release_sha"; exit 1; }
+            git merge-base --is-ancestor "$RELEASE_SHA" origin/main
+            MANIFEST_VERSION="$(git show "${RELEASE_SHA}:Cargo.toml" | awk -F'"' '/^version = /{print $2; exit}')"
+            [[ "$MANIFEST_VERSION" == "$VERSION" ]] \
+              || { echo "${RELEASE_SHA} has version ${MANIFEST_VERSION}, expected ${VERSION}"; exit 1; }
           fi
-          echo "pushed_release_commit=true" >> "$GITHUB_OUTPUT"
-        id: sync
+          echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch stable release
-        if: steps.sync.outputs.pushed_release_commit == 'true'
+        if: steps.release.outputs.release_sha != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.plan.outputs.version }}"
+          RELEASE_SHA="${{ steps.release.outputs.release_sha }}"
           CLOSURE_ARGS=()
-          if [[ "$VERSION" == "0.20.1" ]]; then
+          if [[ "$VERSION" == "0.21.0" ]]; then
             CLOSURE_ARGS+=("-f" "closure_issue=247" "-f" "closure_spec=203")
           fi
           gh workflow run release.yml --ref main \
             -f channel=stable \
             -f version="$VERSION" \
+            -f release_sha="$RELEASE_SHA" \
             -f publish_cargo=true \
             "${CLOSURE_ARGS[@]}"
-          echo "dispatched release.yml for v${VERSION}"
+          echo "dispatched release.yml for v${VERSION} at ${RELEASE_SHA}"

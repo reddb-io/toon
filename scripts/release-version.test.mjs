@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert'
 import {
   cpSync,
+  readdirSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -72,6 +73,49 @@ function text(directory, path) {
   return readFileSync(join(directory, path), 'utf8')
 }
 
+function unknownWorkflowDependencies(source) {
+  const jobs = new Set()
+  const dependencies = []
+  let currentJob = ''
+  let inJobs = false
+
+  for (const line of source.split('\n')) {
+    if (line === 'jobs:') {
+      inJobs = true
+      continue
+    }
+    if (!inJobs) continue
+    if (/^\S/.test(line)) break
+
+    const job = line.match(/^  ([a-zA-Z0-9_-]+):\s*$/)
+    if (job) {
+      currentJob = job[1]
+      jobs.add(currentJob)
+      continue
+    }
+
+    const needs = line.match(/^    needs:\s*\[([^\]]+)\]\s*$/)
+    if (needs) {
+      for (const dependency of needs[1].split(',').map((name) => name.trim())) {
+        dependencies.push({ job: currentJob, dependency })
+      }
+    }
+  }
+
+  return dependencies.filter(({ dependency }) => !jobs.has(dependency))
+}
+
+test('GitHub Actions jobs depend only on jobs declared by their workflow', () => {
+  const workflowDirectory = join(root, '.github/workflows')
+  for (const filename of readdirSync(workflowDirectory).filter((name) => name.endsWith('.yml'))) {
+    assert.deepEqual(
+      unknownWorkflowDependencies(text(workflowDirectory, filename)),
+      [],
+      `${filename} contains an unknown job dependency`,
+    )
+  }
+})
+
 test('workspace versioning keeps source, generated output, crates, and manifests in lockstep', () => {
   const directory = syncedFixture()
 
@@ -138,6 +182,40 @@ test('automatic release planning selects the intended next version without chang
   assert.equal(after.stdout, before.stdout)
 })
 
+test('automatic release planning recovers an untagged synced release without another version commit', () => {
+  const directory = temporaryDirectory('toon-release-recovery-')
+  mkdirSync(join(directory, 'scripts'))
+  cpSync(join(root, 'scripts/plan-auto-release.sh'), join(directory, 'scripts/plan-auto-release.sh'))
+
+  for (const args of [
+    ['init', '-q'],
+    ['config', 'user.name', 'Release Test'],
+    ['config', 'user.email', 'release-test@example.invalid'],
+  ]) {
+    const result = run('git', args, directory)
+    assert.equal(result.status, 0, result.stderr)
+  }
+  writeFileSync(join(directory, 'README.md'), 'baseline\n')
+  assert.equal(run('git', ['add', 'README.md', 'scripts/plan-auto-release.sh'], directory).status, 0)
+  assert.equal(run('git', ['commit', '-qm', 'chore: release 0.20.0'], directory).status, 0)
+  assert.equal(run('git', ['tag', 'v0.20.0'], directory).status, 0)
+  writeFileSync(join(directory, 'README.md'), 'baseline\nv4.1\n')
+  assert.equal(run('git', ['commit', '-qam', 'feat: implement TOON v4.1'], directory).status, 0)
+  writeFileSync(join(directory, 'README.md'), 'baseline\nv4.1\nsynced\n')
+  assert.equal(run('git', ['commit', '-qam', 'chore: release 0.21.0'], directory).status, 0)
+  const releaseSha = run('git', ['rev-parse', 'HEAD'], directory).stdout.trim()
+  writeFileSync(join(directory, 'README.md'), 'baseline\nv4.1\nsynced\nrecovery\n')
+  assert.equal(run('git', ['commit', '-qam', 'fix: recover release automation'], directory).status, 0)
+
+  const result = run('bash', ['scripts/plan-auto-release.sh'], directory)
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /^bump=none$/m)
+  assert.match(result.stdout, /^version=0\.21\.0$/m)
+  assert.match(result.stdout, new RegExp(`^release_sha=${releaseSha}$`, 'm'))
+  assert.match(result.stdout, /^needs_sync=false$/m)
+})
+
 test('CI, automatic release, and manual release use the TypeScript-aware version tools', () => {
   const ci = text(root, '.github/workflows/ci.yml')
   const automatic = text(root, '.github/workflows/auto-release.yml')
@@ -180,4 +258,37 @@ test('stable releases document v4.1 and close only after public clean-room verif
   assert.match(manual, /gh issue close "\$CLOSURE_SPEC"/)
   assert.match(automatic, /closure_issue=247/)
   assert.match(automatic, /closure_spec=203/)
+})
+
+test('automatic release dispatch recovers the exact untagged v4.1 release commit', () => {
+  const automatic = text(root, '.github/workflows/auto-release.yml')
+
+  assert.match(automatic, /if: steps\.plan\.outputs\.needs_sync == 'true'/)
+  assert.match(automatic, /if: steps\.plan\.outputs\.version != ''/)
+  assert.match(automatic, /RELEASE_SHA="\$\{\{ steps\.plan\.outputs\.release_sha \}\}"/)
+  assert.match(automatic, /-f release_sha="\$RELEASE_SHA"/)
+  assert.match(automatic, /if \[\[ "\$VERSION" == "0\.21\.0" \]\]/)
+  assert.match(automatic, /closure_issue=247/)
+  assert.match(automatic, /closure_spec=203/)
+})
+
+test('stable release dispatches and watches uniquely correlated CI on the exact release commit', () => {
+  const ci = text(root, '.github/workflows/ci.yml')
+  const release = text(root, '.github/workflows/release.yml')
+
+  assert.match(ci, /run-name: CI \$\{\{ inputs\.correlation \|\| github\.sha \}\}/)
+  assert.match(ci, /workflow_dispatch:[\s\S]*release_sha:[\s\S]*correlation:/)
+  assert.equal(
+    ci.match(/ref: \$\{\{ inputs\.release_sha \|\| github\.sha \}\}/g)?.length,
+    2,
+    'both exact-commit CI jobs must check out the requested release SHA',
+  )
+  assert.match(release, /release_sha:\s*\n\s+description: Exact commit to release/)
+  assert.match(release, /release_sha: \$\{\{ steps\.plan\.outputs\.release_sha \}\}/)
+  assert.match(release, /CORRELATION="release-\$\{RELEASE_SHA\}-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/)
+  assert.match(release, /-f release_sha="\$RELEASE_SHA" -f correlation="\$CORRELATION"/)
+  assert.match(release, /select\(\.displayTitle == \\"CI \$\{CORRELATION\}\\"\)/)
+  assert.match(release, /gh run watch "\$CI_RUN" --repo "\$REPO" --exit-status/)
+  assert.match(release, /target_commitish: \$\{\{ needs\.plan\.outputs\.release_sha \}\}/)
+  assert.doesNotMatch(release, /RELEASE_SHA: \$\{\{ github\.sha \}\}/)
 })

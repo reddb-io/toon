@@ -15,8 +15,9 @@
 # tag is only created minutes later by the dispatched release run — without
 # it, back-to-back merges would double-release.
 #
-# Emits `bump=<none|patch|minor|major>` and `version=<X.Y.Z>` to
-# $GITHUB_OUTPUT when set; always prints them to stdout for local runs.
+# Emits `bump=<none|patch|minor|major>`, `version=<X.Y.Z>`, the selected
+# `release_sha`, and whether the workspace `needs_sync` to $GITHUB_OUTPUT when
+# set; always prints them to stdout for local runs.
 set -euo pipefail
 
 LAST_TAG="$(git tag --merged HEAD --list 'v*' \
@@ -35,21 +36,31 @@ if [[ -n "$SYNC_LINE" ]]; then
 fi
 
 emit() {
-  local bump="$1" version="$2"
+  local bump="$1" version="$2" release_sha="$3" needs_sync="$4"
   echo "baseline: ${BASE_REF:-<none>} (${BASE_VERSION:-<none>})"
   echo "bump=${bump}"
   echo "version=${version}"
+  echo "release_sha=${release_sha}"
+  echo "needs_sync=${needs_sync}"
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     {
       echo "bump=${bump}"
       echo "version=${version}"
+      echo "release_sha=${release_sha}"
+      echo "needs_sync=${needs_sync}"
     } >> "$GITHUB_OUTPUT"
   fi
 }
 
+if [[ -n "$SYNC_LINE" ]] && ! git show-ref --verify --quiet "refs/tags/v${BASE_VERSION}"; then
+  echo "recover: ${BASE_REF} already synced ${BASE_VERSION} but v${BASE_VERSION} is absent"
+  emit none "$BASE_VERSION" "$BASE_REF" false
+  exit 0
+fi
+
 if [[ -z "$BASE_REF" ]]; then
   echo "skip: no stable tag or 'chore: release' commit to baseline from — cut the first release manually"
-  emit none ""
+  emit none "" "" false
   exit 0
 fi
 
@@ -59,7 +70,7 @@ BODIES="$(git log --format='%b' "$RANGE")"
 
 if [[ -z "$SUBJECTS" ]]; then
   echo "skip: no commits since ${BASE_REF}"
-  emit none ""
+  emit none "" "" false
   exit 0
 fi
 
@@ -87,9 +98,9 @@ fi
 case "$BUMP" in
   none)
     echo "skip: no releasable commits (feat/fix/perf/refactor/revert/breaking) in ${RANGE}"
-    emit none ""
+    emit none "" "" false
     ;;
-  major) emit major "$((MAJOR + 1)).0.0" ;;
-  minor) emit minor "${MAJOR}.$((MINOR + 1)).0" ;;
-  patch) emit patch "${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+  major) emit major "$((MAJOR + 1)).0.0" "" true ;;
+  minor) emit minor "${MAJOR}.$((MINOR + 1)).0" "" true ;;
+  patch) emit patch "${MAJOR}.${MINOR}.$((PATCH + 1))" "" true ;;
 esac
