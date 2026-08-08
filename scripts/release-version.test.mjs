@@ -287,7 +287,7 @@ test('stable release dispatches and watches uniquely correlated CI on the exact 
   assert.match(release, /release_sha: \$\{\{ steps\.plan\.outputs\.release_sha \}\}/)
   assert.match(release, /CORRELATION="release-\$\{RELEASE_SHA\}-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/)
   assert.match(release, /-f release_sha="\$RELEASE_SHA" -f correlation="\$CORRELATION"/)
-  assert.match(release, /select\(\.displayTitle == "CI \$\{CORRELATION\}"\)/)
+  assert.match(release, /select\(\.displayTitle == \\"CI \$\{CORRELATION\}\\"\)/)
   assert.match(release, /gh run watch "\$CI_RUN" --repo "\$REPO" --exit-status/)
   assert.match(release, /target_commitish: \$\{\{ needs\.plan\.outputs\.release_sha \}\}/)
   assert.doesNotMatch(release, /RELEASE_SHA: \$\{\{ github\.sha \}\}/)
