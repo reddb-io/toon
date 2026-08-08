@@ -30,9 +30,19 @@ on:
         required: false
         default: true
         type: boolean
+      closure_issue:
+        description: Optional release issue to close after public verification
+        required: false
+        type: string
+      closure_spec:
+        description: Optional parent Spec to close after public verification
+        required: false
+        type: string
 
 permissions:
+  actions: read
   contents: write
+  issues: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -374,6 +384,47 @@ jobs:
 
           ---
 
+          ## TOON v4.1 checkpoint
+
+          This release closes the repository's v4.1 frontier at the official TOON v4.1.1
+          checkpoint: `toon-format/spec` revision `62f16b3` and reference implementation
+          revision `a9e6d97`. The TypeScript package, Rust crate, `tq`, and editor grammar
+          share that baseline and are validated against the vendored official corpus.
+
+          ## API cutovers
+
+          - TypeScript callers should use `decode`, `decodeFromLines`, `decodeStream`,
+            `encode`, and `encodeLines`. `parse` and `serialize` are deprecated aliases
+            for the canonical codec; old path-expanding behavior lives at
+            `@reddb-io/toon/legacy`.
+          - Rust callers should use the suffix-free `decode*` and `encode*` functions and
+            canonical model methods. Compatibility entry points are explicitly named
+            `legacy`.
+
+          ## Extension policy
+
+          Nested field groups and keyed tabular form are official v4.1 and are selected
+          automatically. TOONL, primitive-array columns, object-array columns, cyclic
+          discriminated arrays, depth guards, and truncation reports remain RedDB userland
+          features. Wire extensions are opt-in on encode and preserve a lossless canonical
+          fallback; they are never presented as official TOON syntax.
+
+          ## Migration
+
+          Replace legacy root imports and Rust legacy methods with the canonical APIs,
+          treat dotted keys literally, remove key-folding assumptions, and review inputs
+          that depended on lenient numeric or indentation recovery. The complete before/after
+          guide is at https://github.com/${REPO}/blob/${TAG}/docs/migration-v4.md.
+
+          ## Experimental upstream frontiers
+
+          The TypeScript `decode` reviver remains an experimental opt-in audited from
+          https://github.com/toon-format/toon/pull/294; it is not part of the v4.1
+          contract. Mixed-columnar work in https://github.com/toon-format/spec/pull/47
+          and https://github.com/toon-format/spec/issues/48 remains draft evidence and
+          is not released syntax. The release-time upstream-drift report is attached to
+          this workflow run.
+
           ## Installation
 
           **Installer script** (Linux/macOS — detects your platform, verifies checksums, installs or updates in place):
@@ -560,3 +611,185 @@ jobs:
           # the v0.1.0 cut 404'd for minutes after a genuine publish (issue #59).
           bash scripts/verify-published.sh npm "@reddb-io/toon" "${VERSION}"
           echo "@reddb-io/toon@${VERSION} published and verified on npm (dist-tag ${TAG})"
+
+  upstream-drift:
+    name: Capture release-time upstream drift
+    needs: [plan]
+    if: |
+      needs.plan.outputs.should_skip != 'true' &&
+      needs.plan.outputs.release_channel == 'stable'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Capture dated report
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          node scripts/upstream-drift.mjs | tee upstream-drift.md | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upstream-drift-${{ needs.plan.outputs.release_tag }}
+          path: upstream-drift.md
+          if-no-files-found: error
+
+  verify-ci:
+    name: Verify exact-commit CI
+    needs: [plan]
+    if: |
+      needs.plan.outputs.should_skip != 'true' &&
+      needs.plan.outputs.release_channel == 'stable'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Wait for CI on the release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          CI_RUN="$(gh run list --repo "$REPO" --workflow ci.yml --commit "$RELEASE_SHA" \
+            --event push --limit 1 --json databaseId --jq '.[0].databaseId')"
+          [[ -n "$CI_RUN" ]] || { echo "No CI run found for ${RELEASE_SHA}"; exit 1; }
+          gh run watch "$CI_RUN" --repo "$REPO" --exit-status
+
+  verify-public:
+    name: Verify public artifacts from clean consumers
+    needs: [plan, release, publish-cargo, publish-npm, upstream-drift, verify-ci]
+    if: |
+      needs.plan.outputs.should_skip != 'true' &&
+      needs.plan.outputs.release_channel == 'stable'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install and exercise registry packages and release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.package_version }}
+          TAG: ${{ needs.plan.outputs.release_tag }}
+          REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          CLEAN_ROOT="$(mktemp -d)"
+          trap 'rm -rf "$CLEAN_ROOT"' EXIT
+
+          TAG_TYPE="$(gh api "repos/${REPO}/git/ref/tags/${TAG}" --jq .object.type)"
+          TAG_SHA="$(gh api "repos/${REPO}/git/ref/tags/${TAG}" --jq .object.sha)"
+          if [[ "$TAG_TYPE" == "tag" ]]; then
+            TAG_SHA="$(gh api "repos/${REPO}/git/tags/${TAG_SHA}" --jq .object.sha)"
+          fi
+          [[ "$TAG_SHA" == "$RELEASE_SHA" ]] \
+            || { echo "${TAG} points to ${TAG_SHA}, expected ${RELEASE_SHA}"; exit 1; }
+          RELEASE_ASSETS="$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name')"
+          for asset in \
+            tq-linux-x86_64 tq-linux-x86_64-static tq-linux-aarch64 tq-linux-aarch64-static \
+            tq-macos-x86_64 tq-macos-aarch64 tq-windows-x86_64.exe \
+            reddb-toon.vsix SHA256SUMS checksums.txt; do
+            grep -qx "$asset" <<<"$RELEASE_ASSETS" \
+              || { echo "${TAG} is missing release asset ${asset}"; exit 1; }
+          done
+
+          mkdir "$CLEAN_ROOT/js"
+          cd "$CLEAN_ROOT/js"
+          npm init -y >/dev/null
+          npm install --ignore-scripts "@reddb-io/toon@${VERSION}"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { VERSION, decode, encode } from '@reddb-io/toon'
+          assert.equal(VERSION, process.env.VERSION)
+          const value = decode('name: Ada')
+          assert.deepEqual(value, { name: 'Ada' })
+          assert.equal(encode(value), 'name: Ada')
+          NODE
+
+          mkdir -p "$CLEAN_ROOT/rust/src"
+          cd "$CLEAN_ROOT/rust"
+          printf '[package]\nname = "release-consumer"\nversion = "0.0.0"\nedition = "2021"\n\n[dependencies]\nreddb-io-toon = "=%s"\n' "$VERSION" > Cargo.toml
+          cat > src/main.rs <<'RUST'
+          use reddb_io_toon::{decode, encode};
+
+          fn main() {
+              let value = decode("name: Ada").expect("decode public crate");
+              assert_eq!(encode(&value).expect("encode public crate"), "name: Ada");
+          }
+          RUST
+          cargo run
+
+          cargo install --version "${VERSION}" reddb-io-tq --root "$CLEAN_ROOT/cargo"
+          [[ "$("$CLEAN_ROOT/cargo/bin/tq" --version)" == "tq ${VERSION}" ]]
+          [[ "$(printf 'name: Ada\n' | "$CLEAN_ROOT/cargo/bin/tq" -o json -c .name)" == '"Ada"' ]]
+
+          cd "$CLEAN_ROOT"
+          RELEASE_BASE="https://github.com/${REPO}/releases/download/${TAG}"
+          curl -fsSLO "${RELEASE_BASE}/tq-linux-x86_64"
+          curl -fsSLO "${RELEASE_BASE}/reddb-toon.vsix"
+          curl -fsSLO "${RELEASE_BASE}/SHA256SUMS"
+          curl -fsSLO "${RELEASE_BASE}/checksums.txt"
+          cmp SHA256SUMS checksums.txt
+          grep -E '  (tq-linux-x86_64|reddb-toon\.vsix)$' SHA256SUMS | sha256sum -c -
+          chmod +x tq-linux-x86_64
+          [[ "$(./tq-linux-x86_64 --version)" == "tq ${VERSION}" ]]
+          [[ "$(printf 'name: Ada\n' | ./tq-linux-x86_64 -o json -c .name)" == '"Ada"' ]]
+          [[ "$(unzip -p reddb-toon.vsix extension/package.json | jq -r .version)" == "$VERSION" ]]
+
+  finalize-closure:
+    name: Attach verified evidence and close authorized issues
+    needs: [plan, verify-public]
+    if: |
+      needs.plan.outputs.release_channel == 'stable' &&
+      inputs.closure_issue != '' &&
+      inputs.closure_spec != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify child closure, attach evidence, and close
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+          TAG: ${{ needs.plan.outputs.release_tag }}
+          VERSION: ${{ needs.plan.outputs.package_version }}
+          CLOSURE_ISSUE: ${{ inputs.closure_issue }}
+          CLOSURE_SPEC: ${{ inputs.closure_spec }}
+        run: |
+          set -euo pipefail
+          OWNER="${REPO%/*}"
+          NAME="${REPO#*/}"
+          [[ "$CLOSURE_ISSUE" =~ ^[0-9]+$ && "$CLOSURE_SPEC" =~ ^[0-9]+$ ]] \
+            || { echo "Closure inputs must be issue numbers"; exit 1; }
+          OPEN_CHILDREN="$(gh api graphql -f owner="$OWNER" -f repo="$NAME" -F number="$CLOSURE_SPEC" \
+            -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){issue(number:$number){subIssues(first:100){nodes{number state}}}}}' \
+            --jq "[.data.repository.issue.subIssues.nodes[] | select(.state != \"CLOSED\") | select(.number != ${CLOSURE_ISSUE})] | length")"
+          [[ "$OPEN_CHILDREN" == "0" ]] || { echo "Spec has ${OPEN_CHILDREN} open child issues"; exit 1; }
+
+          cat > release-evidence.md <<MARKDOWN
+          v4.1 frontier closure is verified for **${TAG}** at commit \`${RELEASE_SHA}\`.
+
+          - Exact-commit CI and the complete declared gate: https://github.com/${REPO}/commit/${RELEASE_SHA}/checks
+          - Release workflow and captured upstream-drift artifact: https://github.com/${REPO}/actions/runs/${GITHUB_RUN_ID}
+          - GitHub Release, binaries, VSIX, and checksums: https://github.com/${REPO}/releases/tag/${TAG}
+          - npm: https://www.npmjs.com/package/@reddb-io/toon/v/${VERSION}
+          - crates.io: https://crates.io/crates/reddb-io-toon/${VERSION} and https://crates.io/crates/reddb-io-tq/${VERSION}
+          - Clean consumers installed the exact npm and crate versions, exercised canonical TypeScript/Rust APIs and registry-installed \`tq\`, then downloaded and checksum-verified the release binary and editor VSIX.
+          - All children of Spec #${CLOSURE_SPEC} are closed; no post-release watchlist disposition was required.
+          MARKDOWN
+
+          gh issue comment "$CLOSURE_ISSUE" --repo "$REPO" --body-file release-evidence.md
+          if [[ "$(gh issue view "$CLOSURE_ISSUE" --repo "$REPO" --json state --jq .state)" == "OPEN" ]]; then
+            gh issue close "$CLOSURE_ISSUE" --repo "$REPO" --reason completed
+          fi
+          gh issue comment "$CLOSURE_SPEC" --repo "$REPO" --body-file release-evidence.md
+          if [[ "$(gh issue view "$CLOSURE_SPEC" --repo "$REPO" --json state --jq .state)" == "OPEN" ]]; then
+            gh issue close "$CLOSURE_SPEC" --repo "$REPO" --reason completed
+          fi
