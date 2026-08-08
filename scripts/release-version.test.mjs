@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert'
 import {
   cpSync,
+  readdirSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -71,6 +72,49 @@ function syncedFixture(version = '9.8.7') {
 function text(directory, path) {
   return readFileSync(join(directory, path), 'utf8')
 }
+
+function unknownWorkflowDependencies(source) {
+  const jobs = new Set()
+  const dependencies = []
+  let currentJob = ''
+  let inJobs = false
+
+  for (const line of source.split('\n')) {
+    if (line === 'jobs:') {
+      inJobs = true
+      continue
+    }
+    if (!inJobs) continue
+    if (/^\S/.test(line)) break
+
+    const job = line.match(/^  ([a-zA-Z0-9_-]+):\s*$/)
+    if (job) {
+      currentJob = job[1]
+      jobs.add(currentJob)
+      continue
+    }
+
+    const needs = line.match(/^    needs:\s*\[([^\]]+)\]\s*$/)
+    if (needs) {
+      for (const dependency of needs[1].split(',').map((name) => name.trim())) {
+        dependencies.push({ job: currentJob, dependency })
+      }
+    }
+  }
+
+  return dependencies.filter(({ dependency }) => !jobs.has(dependency))
+}
+
+test('GitHub Actions jobs depend only on jobs declared by their workflow', () => {
+  const workflowDirectory = join(root, '.github/workflows')
+  for (const filename of readdirSync(workflowDirectory).filter((name) => name.endsWith('.yml'))) {
+    assert.deepEqual(
+      unknownWorkflowDependencies(text(workflowDirectory, filename)),
+      [],
+      `${filename} contains an unknown job dependency`,
+    )
+  }
+})
 
 test('workspace versioning keeps source, generated output, crates, and manifests in lockstep', () => {
   const directory = syncedFixture()
