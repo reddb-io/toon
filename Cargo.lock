@@ -79,9 +79,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.4.1"
+version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9066c49992464636f92905fa096ec58baaa4d57ec19a5c096c68d3e25ef3d136"
+checksum = "5d262e149917187838d5b42777c8253bcb64500067342904e7d429499a6f277e"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -528,7 +528,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon"
-version = "0.20.0"
+version = "0.21.0"
 dependencies = [
  "criterion",
  "proptest",
@@ -537,7 +537,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-tq"
-version = "0.20.0"
+version = "0.21.0"
 dependencies = [
  "reddb-io-toon",
  "regex",
