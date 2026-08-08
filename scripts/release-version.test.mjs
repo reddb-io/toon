@@ -182,7 +182,7 @@ test('automatic release planning selects the intended next version without chang
   assert.equal(after.stdout, before.stdout)
 })
 
-test('automatic release planning recovers an untagged synced release without another version commit', () => {
+test('automatic release planning recovers an untagged synced release at the corrected HEAD', () => {
   const directory = temporaryDirectory('toon-release-recovery-')
   mkdirSync(join(directory, 'scripts'))
   cpSync(join(root, 'scripts/plan-auto-release.sh'), join(directory, 'scripts/plan-auto-release.sh'))
@@ -203,16 +203,18 @@ test('automatic release planning recovers an untagged synced release without ano
   assert.equal(run('git', ['commit', '-qam', 'feat: implement TOON v4.1'], directory).status, 0)
   writeFileSync(join(directory, 'README.md'), 'baseline\nv4.1\nsynced\n')
   assert.equal(run('git', ['commit', '-qam', 'chore: release 0.21.0'], directory).status, 0)
-  const releaseSha = run('git', ['rev-parse', 'HEAD'], directory).stdout.trim()
+  const staleReleaseSha = run('git', ['rev-parse', 'HEAD'], directory).stdout.trim()
   writeFileSync(join(directory, 'README.md'), 'baseline\nv4.1\nsynced\nrecovery\n')
   assert.equal(run('git', ['commit', '-qam', 'fix: recover release automation'], directory).status, 0)
+  const correctedHead = run('git', ['rev-parse', 'HEAD'], directory).stdout.trim()
 
   const result = run('bash', ['scripts/plan-auto-release.sh'], directory)
 
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /^bump=none$/m)
   assert.match(result.stdout, /^version=0\.21\.0$/m)
-  assert.match(result.stdout, new RegExp(`^release_sha=${releaseSha}$`, 'm'))
+  assert.match(result.stdout, new RegExp(`^release_sha=${correctedHead}$`, 'm'))
+  assert.doesNotMatch(result.stdout, new RegExp(`^release_sha=${staleReleaseSha}$`, 'm'))
   assert.match(result.stdout, /^needs_sync=false$/m)
 })
 
