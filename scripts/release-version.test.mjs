@@ -259,3 +259,15 @@ test('stable releases document v4.1 and close only after public clean-room verif
   assert.match(automatic, /closure_issue=247/)
   assert.match(automatic, /closure_spec=203/)
 })
+
+test('automatic release dispatch recovers the exact untagged v4.1 release commit', () => {
+  const automatic = text(root, '.github/workflows/auto-release.yml')
+
+  assert.match(automatic, /if: steps\.plan\.outputs\.needs_sync == 'true'/)
+  assert.match(automatic, /if: steps\.plan\.outputs\.version != ''/)
+  assert.match(automatic, /RELEASE_SHA="\$\{\{ steps\.plan\.outputs\.release_sha \}\}"/)
+  assert.match(automatic, /-f release_sha="\$RELEASE_SHA"/)
+  assert.match(automatic, /if \[\[ "\$VERSION" == "0\.21\.0" \]\]/)
+  assert.match(automatic, /closure_issue=247/)
+  assert.match(automatic, /closure_spec=203/)
+})
