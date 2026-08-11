@@ -177,7 +177,7 @@ impl Parser {
     fn parse_call(&mut self, name: String) -> Result<Expr, String> {
         // Keep the historic bare spelling for zero-arity builtins. Leaving a
         // following parenthesis untouched preserves its existing diagnostic.
-        if builtins::supports(&name, 0) {
+        if builtins::supports(&name, 0) && self.peek() != Some(&Token::LParen) {
             return Ok(Expr::Call(name, Vec::new()));
         }
         if !self.consume(&Token::LParen) {

@@ -53,6 +53,9 @@ pub(super) fn evaluate(
     input: &Value,
     env: &Env,
 ) -> Result<Vec<Value>, String> {
+    if name == "range" && arguments.is_empty() {
+        return Err("unsupported identifier `range`".to_owned());
+    }
     if let Some(builtin) = lookup(name, arguments.len()) {
         return (builtin.call)(arguments, input, env);
     }
