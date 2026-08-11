@@ -132,9 +132,7 @@ impl Expr {
                 .collect()),
             Self::Literal(value) => Ok(vec![value.clone()]),
             Self::Object(fields) => evaluate_object(fields, input, env),
-            Self::Optional(expression) => {
-                Ok(evaluate_recovering(expression, input, env).values)
-            }
+            Self::Optional(expression) => Ok(evaluate_recovering(expression, input, env).values),
             Self::Pipe(left, right) => {
                 let mut output = Vec::new();
                 for value in left.eval(input, env)? {
@@ -222,12 +220,7 @@ fn evaluate_recovering(expression: &Expr, input: &Value, env: &Env) -> Recovery 
     }
 }
 
-fn recover_try(
-    expression: &Expr,
-    handler: Option<&Expr>,
-    input: &Value,
-    env: &Env,
-) -> Recovery {
+fn recover_try(expression: &Expr, handler: Option<&Expr>, input: &Value, env: &Env) -> Recovery {
     let mut recovery = evaluate_recovering(expression, input, env);
     let Some(error) = recovery.error.take() else {
         return recovery;
