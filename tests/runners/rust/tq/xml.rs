@@ -233,7 +233,7 @@ fn malformed_xml_document_shapes_fail_cleanly() {
         ),
         (
             r#"{"xml":{"declaration":null,"children":[{"type":"comment","value":"a--b"},{"type":"element","name":"r","attributes":[],"children":[],"empty":true}]}}"#,
-            "invalid canonical XML tree",
+            "invalid comment",
         ),
     ];
     for (input, expected) in output_cases {
