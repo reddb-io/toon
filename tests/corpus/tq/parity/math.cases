@@ -1,0 +1,147 @@
+# Math builtins.
+case: "math-floor"
+filter: "floor"
+input: "3.7"
+output: "3\n"
+
+case: "math-fabs"
+filter: "fabs"
+input: "-3.5"
+output: "3.5\n"
+
+case: "math-trunc"
+filter: "trunc"
+input: "-3.7"
+output: "-3\n"
+
+case: "math-significand"
+filter: "significand"
+input: "12.5"
+output: "1.5625\n"
+
+case: "math-pow"
+filter: "pow(2;3)"
+input: "null"
+output: "8\n"
+
+case: "math-log-zero-is-negative-infinity"
+filter: "log"
+input: "0"
+output: "-1.7976931348623157e+308\n"
+
+case: "math-significand-infinity"
+filter: "infinite|significand"
+input: "null"
+output: "1.7976931348623157e+308\n"
+
+case: "math-sqrt-domain-nan"
+filter: "sqrt"
+input: "-1"
+output: "null\n"
+
+case: "math-exp-overflow"
+filter: "exp"
+input: "1000"
+output: "1.7976931348623157e+308\n"
+
+case: "math-log-negative-is-nan"
+filter: "log"
+input: "-1"
+output: "null\n"
+
+case: "math-significand-zero"
+filter: "significand"
+input: "0"
+output: "0\n"
+
+case: "math-significand-subnormal"
+filter: "significand"
+input: "5e-324"
+output: "1\n"
+
+case: "math-significand-nan"
+filter: "nan|significand"
+input: "null"
+output: "null\n"
+
+case: "math-pow-stream-order"
+filter: "pow((2,3);(2,3))"
+input: "null"
+output: "4\n9\n8\n27\n"
+
+case: "math-pow-domain-nan"
+filter: "pow(-1;0.5)"
+input: "null"
+output: "null\n"
+
+case: "math-pow-overflow"
+filter: "pow(0;-1)"
+input: "null"
+output: "1.7976931348623157e+308\n"
+
+case: "math-unary-requires-number"
+filter: "floor"
+input: "\"x\""
+error: "number required"
+
+case: "math-pow-base-requires-number"
+filter: "pow(\"x\";2)"
+input: "null"
+error: "number required"
+
+case: "math-pow-exponent-requires-number"
+filter: "pow(2;\"x\")"
+input: "null"
+error: "number required"
+
+case: "math-unsupported-sin"
+filter: "sin"
+input: "0"
+error: "unsupported identifier `sin`"
+divergence: "sin remains deferred from this math builtin slice"
+jq-output: "0\n"
+
+case: "math-abs"
+filter: "abs"
+input: "-3.5"
+output: "3.5\n"
+
+case: "math-abs-preserves-negative-zero"
+filter: "-0.1|round|abs"
+input: "null"
+output: "-0\n"
+
+case: "math-log10"
+filter: "log10"
+input: "1000"
+output: "3\n"
+
+case: "math-exp"
+filter: "exp"
+input: "1"
+output: "2.718281828459045\n"
+
+case: "math-log"
+filter: "log"
+input: "1"
+output: "0\n"
+
+case: "math-log2"
+filter: "log2"
+input: "8"
+output: "3\n"
+
+case: "math-ceil"
+filter: "ceil"
+input: "-3.7"
+output: "-3\n"
+
+case: "math-round-away-from-zero"
+filter: "[round]"
+input: "-2.5"
+output: "[-3]\n"
+
+case: "math-sqrt"
+filter: "sqrt"
+input: "9"
+output: "3\n"

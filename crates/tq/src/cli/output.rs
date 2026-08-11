@@ -50,6 +50,9 @@ pub(super) fn format_values(values: &[Value], options: &Options) -> Result<Strin
 }
 
 fn format_json(value: &Value, compact: bool, indent_size: usize) -> Result<String, String> {
+    if matches!(value, Value::Number(number) if number == "-0") {
+        return Ok("-0".to_owned());
+    }
     let value = json_value(value);
     if compact || indent_size == 0 {
         return serde_json::to_string(&value).map_err(|error| error.to_string());
@@ -74,7 +77,12 @@ fn json_value(value: &Value) -> serde_json::Value {
             serde_json::Value::Null
         }
         Value::Number(number) if number.parse::<f64>().is_ok_and(f64::is_infinite) => {
-            serde_json::from_str("1.7976931348623157e+308").expect("valid finite JSON number")
+            let finite = if number.starts_with('-') {
+                "-1.7976931348623157e+308"
+            } else {
+                "1.7976931348623157e+308"
+            };
+            serde_json::from_str(finite).expect("valid finite JSON number")
         }
         _ => value.to_json_value(),
     }
