@@ -1,0 +1,65 @@
+# jq's total ordering and evaluator corner cases.
+case: "ordering-mixed-type-rank"
+filter: "sort_by(.k)|map(.k)"
+input: "[{\"k\":\"s\"},{\"k\":1},{\"k\":null},{\"k\":true},{\"k\":[1]},{\"k\":{\"a\":1}}]"
+output: "[null,true,1,\"s\",[1],{\"a\":1}]\n"
+
+case: "ordering-object-values"
+filter: "sort_by(.m)|map(.n)"
+input: "[{\"n\":2,\"m\":{\"k\":2}},{\"n\":1,\"m\":{\"k\":1}}]"
+output: "[1,2]\n"
+
+case: "ordering-array-values"
+filter: "sort_by(.k)|map(.n)"
+input: "[{\"n\":1,\"k\":[2]},{\"n\":2,\"k\":[1]}]"
+output: "[2,1]\n"
+
+case: "ordering-group-numbers"
+filter: "group_by(.k)|map(length)"
+input: "[{\"k\":1},{\"k\":1},{\"k\":2}]"
+output: "[2,1]\n"
+
+case: "ordering-boolean-values"
+filter: "sort_by(.k)|map(.k)"
+input: "[{\"k\":true},{\"k\":false},{\"k\":true}]"
+output: "[false,true,true]\n"
+
+case: "ordering-unary-minus"
+filter: "-.n"
+input: "{\"n\":2}"
+output: "-2\n"
+
+case: "ordering-empty-array"
+filter: "[]"
+input: "{\"n\":2}"
+output: "[]\n"
+
+case: "ordering-empty-object"
+filter: "{}"
+input: "{\"n\":2}"
+output: "{}\n"
+
+case: "ordering-null-and-booleans"
+filter: "sort_by(.k)|map(.k)"
+input: "[{\"k\":null},{\"k\":false},{\"k\":true},{\"k\":null}]"
+output: "[null,null,false,true]\n"
+
+case: "ordering-array-lexicographic"
+filter: "sort_by(.k)|map(.k)"
+input: "[{\"k\":[1,2]},{\"k\":[1]},{\"k\":[2]}]"
+output: "[[1],[1,2],[2]]\n"
+
+case: "ordering-object-key-sequence"
+filter: "sort_by(.k)|map(.k)"
+input: "[{\"k\":{\"b\":1}},{\"k\":{\"a\":1}},{\"k\":{\"a\":1,\"c\":2}}]"
+output: "[{\"a\":1},{\"a\":1,\"c\":2},{\"b\":1}]\n"
+
+case: "ordering-multiple-sort-outputs"
+filter: "sort_by(.a,.b)|map(.a)"
+input: "[{\"a\":2,\"b\":1},{\"a\":1,\"b\":2}]"
+output: "[1,2]\n"
+
+case: "ordering-regex-escape"
+filter: "test(\"a\\\\.b\")"
+input: "\"a.b\""
+output: "true\n"

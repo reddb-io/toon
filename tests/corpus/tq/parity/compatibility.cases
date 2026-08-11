@@ -1,0 +1,41 @@
+# Edge semantics that jq 1.7.1 and tq share.
+case: "compatibility-inverted-slice"
+filter: ".[3:1]"
+input: "[1,2,3,4]"
+output: "[]\n"
+
+case: "compatibility-clamped-slice"
+filter: ".[2:99]"
+input: "[1,2,3,4]"
+output: "[3,4]\n"
+
+case: "compatibility-add-empty"
+filter: "add"
+input: "[]"
+output: "null\n"
+
+case: "compatibility-min-empty"
+filter: "min_by(.x)"
+input: "[]"
+output: "null\n"
+
+case: "compatibility-max-empty"
+filter: "max_by(.x)"
+input: "[]"
+output: "null\n"
+
+# jq 1.7.1 indexes array entries positionally; this is not a divergence.
+case: "compatibility-array-to-entries"
+filter: "to_entries|map(.key)"
+input: "[\"a\",\"b\"]"
+output: "[0,1]\n"
+
+case: "compatibility-from-name-value"
+filter: "from_entries"
+input: "[{\"name\":\"a\",\"value\":1}]"
+output: "{\"a\":1}\n"
+
+case: "compatibility-join-coercion"
+filter: "join(\"-\")"
+input: "[true,null,1,\"x\"]"
+output: "\"true--1-x\"\n"
