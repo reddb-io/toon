@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 
 const COMPLETE_XML: &str = concat!(
     "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
-    "<!--before--><?build release?>",
+    "<!--before & after--><?build release?>",
     "<catalog xmlns=\"urn:catalog\" xmlns:x=\"urn:item\" x:mode=\"full\" id=\"7\">",
     "lead<![CDATA[<raw>&data]]><x:item code=\"a&amp;b\"/>",
     "<x:item></x:item><!--inside--><?step done?>tail",
@@ -27,7 +27,7 @@ fn xml_read_has_one_canonical_ordered_tree() {
                 "standalone": "yes"
             },
             "children": [
-                {"type": "comment", "value": "before"},
+                {"type": "comment", "value": "before & after"},
                 {"type": "processing_instruction", "target": "build", "value": "release"},
                 {
                     "type": "element",
