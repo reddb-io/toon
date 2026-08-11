@@ -11,13 +11,13 @@ pub(super) enum Expr {
     Empty,
     Field(Box<Expr>, String),
     Identity,
-    Index(Box<Expr>, usize),
+    Index(Box<Expr>, Box<Expr>),
     Iter(Box<Expr>),
     Literal(Value),
     Object(Vec<(String, Expr)>),
     Optional(Box<Expr>),
     Pipe(Box<Expr>, Box<Expr>),
-    Slice(Box<Expr>, Option<usize>, Option<usize>),
+    Slice(Box<Expr>, Option<Box<Expr>>, Option<Box<Expr>>),
     Try(Box<Expr>, Option<Box<Expr>>),
 }
 
