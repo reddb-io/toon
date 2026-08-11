@@ -20,7 +20,7 @@ fn xml_read_has_one_canonical_ordered_tree() {
     let actual: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("canonical tree is JSON");
     let expected = serde_json::json!({
-        "$xml": {
+        "xml": {
             "declaration": {
                 "version": "1.0",
                 "encoding": "UTF-8",
@@ -97,7 +97,7 @@ fn xml_is_detected_from_extension_and_unambiguous_stdin() {
     assert_success(&file);
     let stdin = run_tq(&["-o", "json", "-c", "."], "<?xml version=\"1.0\"?><root/>");
     assert_success(&stdin);
-    assert!(String::from_utf8_lossy(&file.stdout).contains("\"$xml\""));
+    assert!(String::from_utf8_lossy(&file.stdout).contains("\"xml\""));
     assert!(String::from_utf8_lossy(&stdin.stdout).contains("\"declaration\""));
 
     std::fs::remove_file(path).expect("remove XML fixture");
@@ -111,7 +111,10 @@ fn malformed_and_adversarial_xml_fails_with_bounded_diagnostics() {
         "<!DOCTYPE root [<!ENTITY x \"boom\">]><root>&x;</root>",
     ] {
         let output = run_tq(&["-p", "xml", "."], input);
-        assert!(!output.status.success(), "malformed XML unexpectedly passed");
+        assert!(
+            !output.status.success(),
+            "malformed XML unexpectedly passed"
+        );
         assert!(output.stderr.len() <= 512, "diagnostic was not bounded");
         assert!(String::from_utf8_lossy(&output.stderr).contains("XML"));
     }
@@ -130,7 +133,14 @@ fn large_xml_input_is_parsed_without_recursion_or_panic() {
     input.push_str("</items>");
 
     let output = run_tq(
-        &["-p", "xml", "-o", "json", "-c", ".$xml.children[0].children|length"],
+        &[
+            "-p",
+            "xml",
+            "-o",
+            "json",
+            "-c",
+            ".xml.children[0].children|length",
+        ],
         &input,
     );
     assert_success(&output);
@@ -149,7 +159,10 @@ fn assert_success(output: &std::process::Output) {
 fn assert_failure(output: &std::process::Output, expected: &str) {
     assert!(!output.status.success(), "tq unexpectedly succeeded");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains(expected), "expected `{expected}` in: {stderr}");
+    assert!(
+        stderr.contains(expected),
+        "expected `{expected}` in: {stderr}"
+    );
 }
 
 fn run_tq(args: &[&str], stdin: &str) -> std::process::Output {
