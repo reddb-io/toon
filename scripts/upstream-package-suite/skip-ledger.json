@@ -1,0 +1,4 @@
+{
+  "policy": "Ratchet rule: entries may only be removed. Additions require an explicit compatibility review and a rationale tied to an upstream-internal implementation detail.",
+  "entries": []
+}
