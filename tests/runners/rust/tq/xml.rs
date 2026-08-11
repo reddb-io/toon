@@ -147,6 +147,108 @@ fn large_xml_input_is_parsed_without_recursion_or_panic() {
     assert_eq!(output.stdout, b"10000\n");
 }
 
+#[test]
+fn malformed_xml_document_shapes_fail_cleanly() {
+    let parse_cases = [
+        ("", "document element is missing"),
+        ("text<root/>", "text is not allowed outside"),
+        ("<a/><b/>", "multiple document elements"),
+        ("<![CDATA[x]]><root/>", "CDATA is not allowed outside"),
+        (
+            "<?xml version=\"1.0\"?><?xml version=\"1.0\"?><root/>",
+            "misplaced declaration",
+        ),
+        ("<?xml encoding=\"UTF-8\"?><root/>", "invalid declaration"),
+        ("<root a=\"&unknown;\"/>", "invalid attribute value"),
+        ("<root a=\"1\" a=\"2\"/>", "invalid attribute"),
+        ("<!--a--b--><root/>", "invalid comment"),
+    ];
+    for (input, expected) in parse_cases {
+        assert_failure(&run_tq(&["-p", "xml", "."], input), expected);
+    }
+
+    let output_cases = [
+        ("null", "expected canonical XML document"),
+        (r#"{"xml":null}"#, "`xml` must be an object"),
+        (
+            r#"{"xml":{"declaration":null,"children":[],"extra":0}}"#,
+            "unsupported field `extra`",
+        ),
+        (r#"{"xml":{"children":[]}}"#, "missing `declaration`"),
+        (
+            r#"{"xml":{"declaration":null,"children":{}}}"#,
+            "XML children",
+        ),
+        (
+            r#"{"xml":{"declaration":"1.0","children":[]}}"#,
+            "declaration must be an object",
+        ),
+        (
+            r#"{"xml":{"declaration":{"version":"1.0","extra":0},"children":[]}}"#,
+            "declaration has unsupported field",
+        ),
+        (
+            r#"{"xml":{"declaration":{},"children":[]}}"#,
+            "missing `version`",
+        ),
+        (
+            r#"{"xml":{"declaration":{"version":1},"children":[]}}"#,
+            "version must be a string",
+        ),
+        (
+            r#"{"xml":{"declaration":{"version":"2.0"},"children":[]}}"#,
+            "version must be `1.0` or `1.1`",
+        ),
+        (
+            r#"{"xml":{"declaration":{"version":"1.0","encoding":1},"children":[]}}"#,
+            "encoding must be a string",
+        ),
+        (
+            r#"{"xml":{"declaration":{"version":"1.0","standalone":"maybe"},"children":[]}}"#,
+            "standalone declaration must be `yes` or `no`",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[null]}}"#,
+            "child node must be an object",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"unknown"}]}}"#,
+            "unsupported XML node type",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"element","name":"r","attributes":[],"children":[{"type":"text","value":"x"}],"empty":true}]}}"#,
+            "empty XML element cannot contain children",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"element","name":"r","attributes":[null],"children":[],"empty":true}]}}"#,
+            "attribute must be an object",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"element","name":"r","attributes":[{"name":1,"value":"x"}],"children":[],"empty":true}]}}"#,
+            "attribute name must be a string",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"text"},{"type":"element","name":"r","attributes":[],"children":[],"empty":true}]}}"#,
+            "leaf node is missing `value`",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"comment","value":"a--b"},{"type":"element","name":"r","attributes":[],"children":[],"empty":true}]}}"#,
+            "invalid canonical XML tree",
+        ),
+    ];
+    for (input, expected) in output_cases {
+        assert_failure(&run_tq(&["-p", "json", "-o", "xml", "."], input), expected);
+    }
+}
+
+#[test]
+fn canonical_xml_output_supports_null_declaration_and_empty_instruction_value() {
+    let input = r#"{"xml":{"declaration":null,"children":[{"type":"processing_instruction","target":"build","value":""},{"type":"element","name":"root","attributes":[],"children":[],"empty":true}]}}"#;
+    let output = run_tq(&["-p", "json", "-o", "xml", "."], input);
+    assert_success(&output);
+    assert_eq!(output.stdout, b"<?build?><root/>\n");
+}
+
 fn assert_success(output: &std::process::Output) {
     assert_eq!(
         output.status.code(),
