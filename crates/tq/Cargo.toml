@@ -31,9 +31,14 @@ path = "../../tests/runners/rust/tq/parity.rs"
 name = "upgrade"
 path = "../../tests/runners/rust/tq/upgrade.rs"
 
+[[test]]
+name = "xml"
+path = "../../tests/runners/rust/tq/xml.rs"
+
 [dependencies]
 reddb-io-toon = { path = "../toon", version = "0.21.0" }
 regex = "1"
+quick-xml = "0.37"
 serde = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 # YAML input parser.
