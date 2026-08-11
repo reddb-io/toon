@@ -43,3 +43,18 @@ case: "iteration-optional-suppresses-error"
 filter: ".[]?"
 input: "1"
 output: ""
+
+case: "optional-suppresses-piped-error"
+filter: "[(.a | .[])?]"
+input: "{\"a\":true}"
+output: "[]\n"
+
+case: "optional-passes-piped-values-through"
+filter: "[(.a[] | . + 1)?]"
+input: "{\"a\":[1,2]}"
+output: "[2,3]\n"
+
+case: "optional-iteration-over-scalar-is-empty"
+filter: "[.a[]?]"
+input: "{\"a\":42}"
+output: "[]\n"

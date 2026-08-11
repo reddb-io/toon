@@ -164,3 +164,54 @@ fn value_kind(value: &Value) -> &'static str {
         Value::String(_) => "string",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn json(input: &str) -> Value {
+        Value::from_json_str(input).expect("valid json literal")
+    }
+
+    #[test]
+    fn indexing_null_and_number_keyed_objects_yields_null() {
+        assert_eq!(index_value(&Value::Null, &json("0")).unwrap(), Value::Null);
+        assert_eq!(
+            index_value(&Value::Null, &json("\"k\"")).unwrap(),
+            Value::Null
+        );
+        assert_eq!(
+            index_value(&json("{\"a\":1}"), &json("0")).unwrap(),
+            Value::Null
+        );
+    }
+
+    #[test]
+    fn indexing_incompatible_kinds_names_both_sides() {
+        let error = index_value(&json("true"), &json("0")).unwrap_err();
+        assert_eq!(error, "Cannot index boolean with number");
+        let error = index_value(&json("[1]"), &json("\"k\"")).unwrap_err();
+        assert_eq!(error, "Cannot index array with string \"k\"");
+        let error = index_value(&json("1"), &json("null")).unwrap_err();
+        assert_eq!(error, "Cannot index number with null");
+        let error = index_value(&json("\"s\""), &json("[1]")).unwrap_err();
+        assert_eq!(error, "Cannot index string with array");
+        let error = index_value(&json("{\"a\":1}"), &json("{}")).unwrap_err();
+        assert_eq!(error, "Cannot index object with object");
+    }
+
+    #[test]
+    fn slicing_null_passes_through_and_other_scalars_error() {
+        assert_eq!(slice_value(&Value::Null, None, None).unwrap(), Value::Null);
+        let error = slice_value(&json("true"), Some(0.0), None).unwrap_err();
+        assert_eq!(error, "Cannot index boolean with object");
+    }
+
+    #[test]
+    fn slice_bounds_reject_non_numbers() {
+        let env = Env::default();
+        let error =
+            evaluate_bounds(Some(&Expr::Literal(json("\"x\""))), &Value::Null, &env).unwrap_err();
+        assert_eq!(error, "Array/string slice indices must be integers");
+    }
+}
