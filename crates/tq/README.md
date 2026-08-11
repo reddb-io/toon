@@ -28,7 +28,10 @@ Format matrix:
 
 ## Query
 
-The default subcommand is the query pipeline. `.` keeps the current value; field, index, slice, and builtin filters are evaluated by the CLI test suite.
+The default subcommand is the query pipeline. `.` keeps the current value;
+field, index, slice, and builtin filters are evaluated by the CLI test suite.
+The supported language surface, including the UTC-only time builtins, is
+documented in the [tq language reference](../../docs/tq-language.md).
 
 Input:
 
