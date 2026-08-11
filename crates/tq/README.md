@@ -2,7 +2,7 @@
 
 > **Attribution:** This is RedDB's CLI for TOON - not the original project. The TOON format was created by Johann Schopplich; see the [official repo](https://github.com/toon-format/toon), [toon-format/spec](https://github.com/toon-format/spec), and [toonformat.dev](https://toonformat.dev) for the format spec and original project.
 
-`tq` is a jq-style query CLI and converter for JSON, YAML, TOON, and TOONL.
+`tq` is a jq-style query CLI and converter for JSON, YAML, XML, TOON, and TOONL.
 
 It is shipped by the `reddb-io-tq` crate and uses the `reddb-io-toon` library. The TOON extension behavior is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md), and TOONL v0.2 is specified in [`docs/toonl-reddb-spec.md`](../../docs/toonl-reddb-spec.md).
 
@@ -13,7 +13,7 @@ cargo install reddb-io-tq --version 0.20.0
 ## Usage
 
 ```text
-tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--strict|--no-strict] [--delimiter comma|tab|pipe] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
+tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--strict|--no-strict] [--delimiter comma|tab|pipe] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
 tq trim --keep-last N [--in-place] [FILE]
 tq close [--per-lane|--interleaved] [FILE]
 tq check [-p toon|toonl] [FILE]
@@ -23,8 +23,8 @@ Format matrix:
 
 | Flag | Formats | Notes |
 | --- | --- | --- |
-| `-p` | `toon`, `json`, `toonl`, `yaml`, `yml` | Selects input. File input defaults from `.toon`, `.json`, `.toonl`, `.yaml`, or `.yml`. |
-| `-o` | `toon`, `json`, `toonl` | Selects output. YAML is input-only. |
+| `-p` | `toon`, `json`, `toonl`, `yaml`, `yml`, `xml` | Selects input. File input defaults from `.toon`, `.json`, `.toonl`, `.yaml`, `.yml`, or `.xml`; an XML-shaped stdin document is also detected. |
+| `-o` | `toon`, `json`, `toonl`, `xml` | Selects output. YAML is input-only. |
 
 ## Query
 
@@ -73,6 +73,51 @@ Output:
 ```json
 {"users":[{"id":1,"name":"Ada"}]}
 ```
+
+## XML conversion
+
+XML input uses one explicit tree shape, so element names are never guessed as
+object keys and repeated elements are never guessed to be arrays. As with YAML,
+XML input defaults to TOON output. Use `-p xml` for stdin, or pass an `.xml`
+file; `tq` also recognizes stdin beginning with unambiguous XML markup.
+
+```bash
+printf '%s' '<items xmlns:x="urn:item"><x:item id="1"/>tail</items>' \
+  | tq -p xml .
+```
+
+```toon
+xml:
+  declaration: null
+  children[1]:
+    - type: element
+      name: items
+      attributes[1]{name,value}:
+        "xmlns:x","urn:item"
+      children[2]:
+        - type: element
+          name: "x:item"
+          attributes[1]{name,value}:
+            id,"1"
+          children: []
+          empty: true
+        - type: text
+          value: tail
+      empty: false
+```
+
+The canonical value is `{xml: {declaration, children}}`. A declaration records
+`version` and optional `encoding` and `standalone` fields. Every child is an
+ordered node with a `type`: `element`, `text`, `cdata`, `comment`, or
+`processing_instruction`. Elements retain their qualified `name`, ordered
+`attributes` as `{name, value}` records (including `xmlns` declarations),
+ordered `children`, and an `empty` flag that distinguishes `<x/>` from
+`<x></x>`. Processing instructions use `target` and `value` fields.
+
+`tq -o xml` accepts only this canonical tree. This deliberate requirement
+prevents an element-vs-array heuristic when converting JSON or TOON. DTDs are
+rejected, parsing is depth- and node-bounded, and malformed input returns a
+bounded diagnostic with a non-zero status.
 
 Useful query flags:
 
