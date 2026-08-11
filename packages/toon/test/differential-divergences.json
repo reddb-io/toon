@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "ratchetRule": "Remove an entry as soon as its probe converges; every recorded probe must still diverge, and every unrecorded divergence fails the fuzzer.",
+  "entries": [
+    {
+      "id": "decode-leading-quote-removed-from-multiline-root",
+      "spec": "TOON v4.1 §4 and §7.1 token and quoted-string validation; tracked by Spec #301 and issue #302.",
+      "disposition": "The local strict decoder rejects the malformed root while upstream accepts it as an unquoted string. Retain strict local behavior pending an upstream decision.",
+      "signature": {
+        "direction": "decode-mutation",
+        "mutation": "remove-first-quote",
+        "localAccepted": false,
+        "upstreamAccepted": true
+      },
+      "probe": {
+        "json": "\"line\\n\"",
+        "delimiter": ",",
+        "mutation": "remove-first-quote"
+      }
+    },
+    {
+      "id": "decode-truncated-nested-empty-array-header",
+      "spec": "TOON v4.1 §6 and §14.2 malformed array-header validation; tracked by Spec #301 and issue #302.",
+      "disposition": "The local strict decoder rejects the truncated nested header while upstream treats it as a string item. Retain strict local behavior pending an upstream decision.",
+      "signature": {
+        "direction": "decode-mutation",
+        "mutation": "truncate",
+        "localAccepted": false,
+        "upstreamAccepted": true
+      },
+      "probe": {
+        "json": "[[]]",
+        "delimiter": ",",
+        "mutation": "truncate"
+      }
+    }
+  ]
+}
