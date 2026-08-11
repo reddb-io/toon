@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "issue": 302,
+  "description": "Synthetic minimized fixture proving edge-value replay",
+  "json": "{\"\":{},\"a,b|c\\td:e\":\"中🙂\",\"negativeZero\":-0,\"huge\":9007199254740992,\"exponentSmall\":1e-7,\"empty\":[]}"
+}
