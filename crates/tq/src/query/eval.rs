@@ -378,7 +378,12 @@ fn keyed_array_values(
     env: &Env,
 ) -> Result<Vec<(serde_json::Value, Value)>, String> {
     let Value::Array(array) = input else {
-        return Err("cannot order non-array".to_owned());
+        if matches!(input, Value::Object(_)) {
+            return Err(
+                "object and array cannot be sorted, as they are not both arrays".to_owned(),
+            );
+        }
+        return Err(format!("Cannot iterate over {}", value_kind(input)));
     };
 
     array
@@ -393,20 +398,12 @@ fn keyed_array_values(
 
 fn sort_key(filter: &Expr, input: &Value, env: &Env) -> Result<serde_json::Value, String> {
     let values = filter.eval(input, env)?;
-    if values.len() == 1 {
-        Ok(values
+    Ok(serde_json::Value::Array(
+        values
             .into_iter()
-            .next()
-            .expect("one sort key exists")
-            .to_json_value())
-    } else {
-        Ok(serde_json::Value::Array(
-            values
-                .into_iter()
-                .map(|value| value.to_json_value())
-                .collect(),
-        ))
-    }
+            .map(|value| value.to_json_value())
+            .collect(),
+    ))
 }
 
 fn compare_key_json(left: &serde_json::Value, right: &serde_json::Value) -> std::cmp::Ordering {
@@ -445,7 +442,7 @@ fn evaluate_to_entries(input: &Value) -> Result<Value, String> {
                 .map(|(key, value)| entry_value(Value::String(key), Value::from_json_value(value)))
                 .collect()
         }
-        _ => return Err("to_entries cannot be applied to this value".to_owned()),
+        _ => return Err("value has no keys".to_owned()),
     };
     Ok(Value::Array(Array::List(entries)))
 }
@@ -465,28 +462,44 @@ fn evaluate_from_entries(input: &Value) -> Result<Value, String> {
     let mut object = serde_json::Map::new();
     for entry in array.values() {
         let Value::Object(document) = entry else {
-            return Err("from_entries expects object entries".to_owned());
+            return Err(format!(
+                "Cannot index {} with string \"key\"",
+                value_kind(&entry)
+            ));
         };
         let key = document
             .get("key")
             .or_else(|| document.get("Key"))
             .or_else(|| document.get("name"))
             .or_else(|| document.get("Name"))
-            .ok_or_else(|| "from_entries entry missing key".to_owned())?;
+            .cloned()
+            .unwrap_or(Value::Null);
         let value = document
             .get("value")
             .or_else(|| document.get("Value"))
-            .ok_or_else(|| "from_entries entry missing value".to_owned())?;
-        object.insert(entry_key_string(key)?, value.to_json_value());
+            .cloned()
+            .unwrap_or(Value::Null);
+        object.insert(entry_key_string(&key)?, value.to_json_value());
     }
 
     Ok(Value::from_json_value(serde_json::Value::Object(object)))
 }
 
+fn value_kind(value: &Value) -> &'static str {
+    match value {
+        Value::Array(_) => "array",
+        Value::Bool(_) => "boolean",
+        Value::Null => "null",
+        Value::Number(_) => "number",
+        Value::Object(_) => "object",
+        Value::String(_) => "string",
+    }
+}
+
 fn entry_key_string(value: &Value) -> Result<String, String> {
     match value {
         Value::Number(value) | Value::String(value) => Ok(value.clone()),
-        _ => Err("from_entries keys must be strings or numbers".to_owned()),
+        _ => Err(format!("Cannot use {} as object key", value_kind(value))),
     }
 }
 

@@ -15,11 +15,11 @@ fn reports_type_and_arity_errors_per_builtin() {
         (".flag|length", "boolean has no length"),
         (".phrase|keys", "keys cannot be applied to this value"),
         (".phrase|has(\"x\")", "has() cannot check this value"),
+        (".phrase|to_entries", "has no keys"),
         (
-            ".phrase|to_entries",
-            "to_entries cannot be applied to this value",
+            ".tags|from_entries",
+            "Cannot index string with string \"key\"",
         ),
-        (".tags|from_entries", "from_entries expects object entries"),
         (
             ".phrase|from_entries",
             "from_entries cannot be applied to this value",
@@ -33,7 +33,7 @@ fn reports_type_and_arity_errors_per_builtin() {
             "join cannot be applied to this value",
         ),
         (".phrase|unique", "unique cannot be applied to this value"),
-        (".phrase|sort_by(.x)", "cannot order non-array"),
+        (".phrase|sort_by(.x)", "Cannot iterate over string"),
         (".phrase|map(.x)", "cannot iterate over non-array"),
         (".flag|test(\"x\")", "test cannot be applied to this value"),
         (".phrase|split(1)", "split argument must be a string"),
@@ -49,7 +49,7 @@ fn reports_type_and_arity_errors_per_builtin() {
     assert_error(
         &["-p", "json", "-o", "json", "-c", "from_entries"],
         r#"[{"key":null,"value":1}]"#,
-        "from_entries keys must be strings or numbers",
+        "Cannot use null",
     );
     assert_error(
         &["-p", "json", "-o", "json", "-c", ".a * .a"],
