@@ -110,6 +110,8 @@ pub(super) fn parse_xml_value(input: &str) -> Result<Value, String> {
             Event::Comment(event) => {
                 count_node(&mut nodes, reader.error_position())?;
                 let value = decode(&reader, event.as_ref(), "comment")?;
+                validate_comment(&value)
+                    .map_err(|message| xml_error(reader.error_position(), &message))?;
                 append_node(&mut stack, &mut children, leaf_value("comment", value));
             }
             Event::PI(event) => {
@@ -452,6 +454,9 @@ fn write_leaf(
 ) -> Result<(), String> {
     exact_keys(node, &["type", "value"], "XML leaf node")?;
     let value = string(required(node, "value", "XML leaf node")?, "XML node value")?;
+    if kind == "comment" {
+        validate_comment(value)?;
+    }
     let event = match kind {
         "text" => Event::Text(BytesText::new(value)),
         "cdata" => Event::CData(BytesCData::new(value)),
@@ -545,6 +550,14 @@ fn exact_keys(
 
 fn write_error(error: std::io::Error) -> String {
     format!("XML output: {error}")
+}
+
+fn validate_comment(value: &str) -> Result<(), String> {
+    if value.contains("--") || value.ends_with('-') {
+        Err("invalid comment: XML comments cannot contain `--` or end with `-`".to_owned())
+    } else {
+        Ok(())
+    }
 }
 
 fn xml_error(position: u64, message: &str) -> String {
