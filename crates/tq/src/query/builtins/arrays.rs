@@ -80,7 +80,15 @@ fn min_max(input: &Value, max: bool) -> Result<Value, String> {
 }
 
 fn call_unique_by(arguments: &[Expr], input: &Value, env: &Env) -> Result<Vec<Value>, String> {
-    let values = array_values(input, "Cannot iterate over number")?;
+    let Value::Array(array) = input else {
+        if matches!(input, Value::Object(_)) {
+            return Err(
+                "object and array cannot be sorted, as they are not both arrays".to_owned(),
+            );
+        }
+        return Err(format!("Cannot iterate over {}", value_description(input)));
+    };
+    let values = array.values();
     let mut keyed = values
         .into_iter()
         .map(|value| Ok((filter_key(&arguments[0], &value, env)?, value)))
@@ -94,16 +102,12 @@ fn call_unique_by(arguments: &[Expr], input: &Value, env: &Env) -> Result<Vec<Va
 
 fn filter_key(filter: &Expr, input: &Value, env: &Env) -> Result<serde_json::Value, String> {
     let values = filter.eval(input, env)?;
-    if let [value] = values.as_slice() {
-        Ok(value.to_json_value())
-    } else {
-        Ok(serde_json::Value::Array(
-            values
-                .into_iter()
-                .map(|value| value.to_json_value())
-                .collect(),
-        ))
-    }
+    Ok(serde_json::Value::Array(
+        values
+            .into_iter()
+            .map(|value| value.to_json_value())
+            .collect(),
+    ))
 }
 
 fn call_flatten(arguments: &[Expr], input: &Value, env: &Env) -> Result<Vec<Value>, String> {
