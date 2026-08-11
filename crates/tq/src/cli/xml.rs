@@ -145,7 +145,7 @@ pub(super) fn parse_xml_value(input: &str) -> Result<Value, String> {
     document.insert("declaration".to_owned(), declaration);
     document.insert("children".to_owned(), JsonValue::Array(children));
     let mut wrapper = Map::new();
-    wrapper.insert("$xml".to_owned(), JsonValue::Object(document));
+    wrapper.insert("xml".to_owned(), JsonValue::Object(document));
     Ok(Value::from_json_value(JsonValue::Object(wrapper)))
 }
 
@@ -153,13 +153,13 @@ pub(super) fn format_xml_value(value: &Value) -> Result<String, String> {
     let json = value.to_json_value();
     let wrapper = object(
         &json,
-        "expected canonical XML document with a `$xml` object",
+        "expected canonical XML document with an `xml` object",
     )?;
-    exact_keys(wrapper, &["$xml"], "canonical XML wrapper")?;
-    let document = object(
-        required(wrapper, "$xml", "canonical XML wrapper")?,
-        "`$xml` must be an object",
-    )?;
+    let xml = wrapper
+        .get("xml")
+        .ok_or_else(|| "expected canonical XML document with an `xml` object".to_owned())?;
+    exact_keys(wrapper, &["xml"], "canonical XML wrapper")?;
+    let document = object(xml, "`xml` must be an object")?;
     exact_keys(
         document,
         &["declaration", "children"],
