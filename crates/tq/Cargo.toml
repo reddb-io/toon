@@ -24,6 +24,10 @@ name = "corpus"
 path = "../../tests/runners/rust/tq/corpus.rs"
 
 [[test]]
+name = "parity"
+path = "../../tests/runners/rust/tq/parity.rs"
+
+[[test]]
 name = "upgrade"
 path = "../../tests/runners/rust/tq/upgrade.rs"
 

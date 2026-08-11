@@ -10,6 +10,7 @@ tests/
   corpus/              — shared machine-readable corpora (JSON)
     toon/              — encode/decode fixtures (encode/, decode/ subdirs)
     toonl/             — TOONL stream fixtures (v0_1.json, v0_2.json)
+    tq/parity/         — jq 1.7.1 parity cases grouped by theme
     truncation.json    — truncation-detection corpus
     json-limits.json   — JSON boundary and adversarial round-trip corpus
     wire-efficiency/   — byte-size efficiency corpora (corpora.json + per-mode files)
@@ -35,6 +36,7 @@ point to the same `tests/corpus/` files.
 | `corpus/truncation.json` | truncation-detection structured report | _(api.rs covers the API; no dedicated Rust runner)_ | `packages/toon/test/toon.test.mjs` | ours |
 | `corpus/json-limits.json` | numbers, unicode strings, depth limits, adversarial round-trip | `runners/rust/toon/json_limits.rs` | `packages/toon/test/json-limits.test.mjs` | ours |
 | `corpus/wire-efficiency/` | encoded byte sizes for tabular and map-collapse modes | `runners/rust/toon/wire_efficiency.rs` | `packages/toon/test/wire-efficiency.test.mjs` | ours |
+| `corpus/tq/parity/` | hermetic tq outputs and optional jq 1.7.1 validation | `runners/rust/tq/parity.rs` | — | jq 1.7.1, vendored |
 | `golden/tq/` | CLI argument handling, filter pipeline, output modes | `runners/rust/tq/golden.rs` | — | ours |
 | _every file above_ | the `tq` binary never hangs, panics or dies on a signal on any corpus file, and valid documents survive a round trip | `runners/rust/tq/corpus.rs` | — | ours |
 
@@ -45,6 +47,7 @@ point to the same `tests/corpus/` files.
 | `runners/rust/toon/expected-failures.txt` | Official spec fixtures (vendor/toon-spec) that this implementation does not yet satisfy. Ratchet — entries may only be removed. |
 | `runners/rust/toon/vendor-toon-expected-failures.txt` | Behavioral divergences from the reference TypeScript implementation (vendor/toon). Currently empty. |
 | `runners/rust/tq/corpus.rs` → `YAML_READER_DIVERGENCES` | Corpus files the `tq` YAML reader rejects but its JSON reader accepts. Ratchet — an entry that starts passing fails the suite as stale. |
+| `../docs/tq-jq-parity.md` | Human ledger for deliberate tq divergences from jq 1.7.1. |
 
 ## Vendor submodules
 
