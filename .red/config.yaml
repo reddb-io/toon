@@ -41,6 +41,7 @@ plugins:
           - pnpm -r test
         landing:                  # before push/PR/queue
           - cargo clippy --workspace -- -D warnings
+          - cargo test --workspace
           - pnpm -r test
   #   trunk: main                 # the Trunk (ADR 0083): the focal branch agent work
   #                               # bases on and lands to when no lock/pin names one
