@@ -34,6 +34,20 @@ const truncationCorpus = JSON.parse(
   readFileSync(new URL('../../../tests/corpus/truncation.json', import.meta.url), 'utf8'),
 )
 
+test('canonical v4 encoders own extension emission', () => {
+  const typescriptEncoder = readFileSync(
+    new URL('../src/encode/serialize.ts', import.meta.url),
+    'utf8',
+  )
+  const rustEncoder = readFileSync(
+    new URL('../../../crates/toon/src/lib_parts/encode_v4.rs', import.meta.url),
+    'utf8',
+  )
+
+  assert.doesNotMatch(typescriptEncoder, /toon_parts\/serialize|serializeLegacyExtensions/)
+  assert.doesNotMatch(rustEncoder, /try_to_legacy_toon/)
+})
+
 test('v4 codec cyclic discriminated arrays reconstruct only with opt-in', () => {
   const fixture = cyclicCorpus.cases[0]
   const encoded = encode(fixture.expected, { cyclicDiscriminatedArrays: true })
