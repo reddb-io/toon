@@ -40,6 +40,7 @@ plugins:
           - cargo llvm-cov --workspace --fail-under-lines 95
           - pnpm -r test
         landing:                  # before push/PR/queue
+          - cargo fmt --all -- --check
           - cargo clippy --workspace -- -D warnings
           - cargo test --workspace
           - pnpm -r test

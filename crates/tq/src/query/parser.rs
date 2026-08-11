@@ -186,10 +186,9 @@ impl Parser {
     fn parse_primary(&mut self) -> Result<Expr, String> {
         match self.next() {
             Some(Token::Dot) => Ok(Expr::Identity),
-            Some(Token::FieldDot) => Ok(Expr::Field(
-                Box::new(Expr::Identity),
-                self.expect_ident()?,
-            )),
+            Some(Token::FieldDot) => {
+                Ok(Expr::Field(Box::new(Expr::Identity), self.expect_ident()?))
+            }
             Some(Token::Ident(value)) => self.parse_identifier(value),
             Some(Token::LBracket) => self.parse_array_constructor(),
             Some(Token::LBrace) => self.parse_object_constructor(),
