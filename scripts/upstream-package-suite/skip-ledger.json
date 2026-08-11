@@ -1,4 +1,29 @@
 {
   "policy": "Ratchet rule: entries may only be removed. Additions require an explicit compatibility review and a rationale tied to an upstream-internal implementation detail.",
-  "entries": []
+  "entries": [
+    {
+      "test": "decodeStream.test.ts",
+      "rationale": "Imports upstream's private decode/event-builder module and asserts its private event shape. Our public stream events intentionally add source-line metadata, and our value builder is exposed through the public package entry instead."
+    },
+    {
+      "test": "decode-errors.test.ts",
+      "case": "reports line number when a parent key is missing its colon",
+      "rationale": "Asserts the upstream parser's exact diagnostic wording ('missing colon'); our public error reports the same line and source with different wording."
+    },
+    {
+      "test": "decode-errors.test.ts",
+      "case": "reports a malformed array length marker with line and source",
+      "rationale": "Asserts the upstream parser's exact diagnostic wording ('invalid array length'); our public error preserves the line and source but calls this a malformed header length."
+    },
+    {
+      "test": "decode-errors.test.ts",
+      "case": "attaches line context to errors raised during value parsing",
+      "rationale": "Asserts the upstream parser's exact unterminated-string wording; our public error attaches the same line and source under the 'invalid quoted string' diagnostic."
+    },
+    {
+      "test": "decode-errors.test.ts",
+      "case": "reports blank lines inside an array with the line number of the blank",
+      "rationale": "Asserts the upstream scanner's internal blank-line cursor convention; our parser rejects the same malformed array while reporting the following material line."
+    }
+  ]
 }
