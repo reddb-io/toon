@@ -704,6 +704,29 @@ impl Value {
         }
     }
 
+    /// Sorts every object's fields lexicographically, including objects nested in arrays.
+    pub fn sort_object_keys(&mut self) {
+        match self {
+            Self::Array(Array::List(values)) => {
+                values.iter_mut().for_each(Self::sort_object_keys);
+            }
+            Self::Array(array @ Array::Tabular(_)) => {
+                let mut values = array.values();
+                values.iter_mut().for_each(Self::sort_object_keys);
+                *array = Array::List(values);
+            }
+            Self::Object(document) => {
+                for field in &mut document.fields {
+                    field.value.sort_object_keys();
+                }
+                document
+                    .fields
+                    .sort_by(|left, right| left.key.cmp(&right.key));
+            }
+            Self::Bool(_) | Self::Null | Self::Number(_) | Self::String(_) => {}
+        }
+    }
+
     pub fn to_canonical_toon(&self) -> String {
         self.try_to_canonical_toon().expect("TOON encoding failed")
     }

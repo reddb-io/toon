@@ -47,6 +47,124 @@ fn golden_cli_cases() {
 }
 
 #[test]
+fn join_output_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "json", "-j", ".[]"],
+        "[\"Ada\",\"Bob\"]",
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, b"AdaBob");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn join_output_compact_json_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "json", "-j", "-c", ".[]"],
+        "[{\"b\":2},{\"a\":1}]",
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, br#"{"b":2}{"a":1}"#);
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn join_output_raw_toon_golden_case() {
+    let output = run_tq(&["-p", "json", "-o", "toon", "-j", "-r", ".[]"], "[1,2]");
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, b"12");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn sort_keys_compact_json_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "json", "-S", "-c", "."],
+        r#"{"z":{"b":1,"a":2},"a":[{"d":4,"c":3}]}"#,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        output.stdout,
+        br#"{"a":[{"c":3,"d":4}],"z":{"a":2,"b":1}}
+"#
+    );
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn sort_keys_toon_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "toon", "-S", "."],
+        r#"{"z":{"b":1,"a":2},"a":[{"d":4,"c":3}]}"#,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, b"a[1]{c,d}:\n  3,4\nz:\n  a: 2\n  b: 1\n");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn exit_status_false_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "json", "-e", "-r", "-c", "false"],
+        "null",
+    );
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stdout, b"false\n");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn exit_status_no_output_golden_case() {
+    let output = run_tq(&["-p", "json", "-o", "toon", "-e", "select(false)"], "null");
+
+    assert_eq!(output.status.code(), Some(4));
+    assert_eq!(output.stdout, b"");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn exit_status_toonl_stream_golden_case() {
+    let output = run_tq(
+        &["-p", "toonl", "-o", "json", "-c", "-e", ".active"],
+        "[]{id,active}:\n1,true\n2,false\n[=2]\n",
+    );
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stdout, b"true\nfalse\n");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn combined_output_flags_golden_case() {
+    let output = run_tq(
+        &[
+            "-p", "json", "-o", "json", "-j", "-S", "-e", "-r", "-c", ".[]",
+        ],
+        r#"[{"b":2,"a":1},true]"#,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, br#"{"a":1,"b":2}true"#);
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn output_flags_usage_golden_case() {
+    let output = run_tq(&["--not-a-flag"], "");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stdout, b"");
+    assert!(stderr.contains("[-j] [-S] [-e]"), "{stderr}");
+}
+
+#[test]
 fn toon_json_toon_round_trips_to_same_canonical_form() {
     let input = "name: Ada\nusers[2]{id,name}:\n  1,Ada\n  2,Bob\n";
     let to_json = run_tq(&["-o", "json", "."], input);

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 const USAGE: &str = concat!(
-    "usage: tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
+    "usage: tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
     "subcommands: trim, close, check, upgrade"
 );
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
@@ -23,6 +23,9 @@ pub(super) struct Options {
     pub(super) input_format: Format,
     pub(super) output_format: Format,
     pub(super) raw_output: bool,
+    pub(super) join_output: bool,
+    pub(super) sort_keys: bool,
+    pub(super) exit_status: bool,
     pub(super) compact: bool,
     pub(super) slurp: bool,
     pub(super) delimiter: char,
@@ -56,6 +59,9 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
     let mut input_format = None;
     let mut output_format = None;
     let mut raw_output = false;
+    let mut join_output = false;
+    let mut sort_keys = false;
+    let mut exit_status = false;
     let mut compact = false;
     let mut slurp = false;
     let mut delimiter = ',';
@@ -78,6 +84,9 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
                 output_format = Some(parse_output_format(&format)?);
             }
             "-r" => raw_output = true,
+            "-j" => join_output = true,
+            "-S" => sort_keys = true,
+            "-e" => exit_status = true,
             "-c" => compact = true,
             "-s" | "--slurp" => slurp = true,
             "--delimiter" => {
@@ -121,6 +130,9 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
         input_format,
         output_format: output_format.unwrap_or_else(|| default_output_format(input_format)),
         raw_output,
+        join_output,
+        sort_keys,
+        exit_status,
         compact,
         slurp,
         delimiter,
