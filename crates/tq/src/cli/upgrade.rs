@@ -5,6 +5,11 @@
 // upgraded itself always land on the same asset.
 
 use std::cmp::Ordering;
+use std::env;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+use std::process::{self, ExitCode};
 
 const UPGRADE_USAGE: &str = "usage: tq upgrade [--check] [VERSION]";
 
@@ -32,7 +37,7 @@ impl Channel {
 }
 
 #[derive(Debug)]
-struct UpgradeOptions {
+pub(super) struct UpgradeOptions {
     check_only: bool,
     pin: Option<String>,
 }
@@ -63,7 +68,9 @@ impl Release {
     }
 }
 
-fn parse_upgrade_args(args: impl Iterator<Item = String>) -> Result<UpgradeOptions, String> {
+pub(super) fn parse_upgrade_args(
+    args: impl Iterator<Item = String>,
+) -> Result<UpgradeOptions, String> {
     let mut check_only = false;
     let mut positional = Vec::new();
     let mut args = args.peekable();
@@ -94,7 +101,11 @@ fn upgrade_env() -> Result<UpgradeEnv, String> {
     let channel = match env::var("TQ_CHANNEL").ok().as_deref() {
         None | Some("") | Some("stable") => Channel::Stable,
         Some("next") => Channel::Next,
-        Some(other) => return Err(format!("unsupported TQ_CHANNEL `{other}`; expected stable or next")),
+        Some(other) => {
+            return Err(format!(
+                "unsupported TQ_CHANNEL `{other}`; expected stable or next"
+            ))
+        }
     };
 
     Ok(UpgradeEnv {
@@ -112,7 +123,7 @@ fn non_empty_env(key: &str) -> Option<String> {
     env::var(key).ok().filter(|value| !value.is_empty())
 }
 
-fn run_upgrade(options: UpgradeOptions) -> Result<(String, ExitCode), String> {
+pub(super) fn run_upgrade(options: UpgradeOptions) -> Result<(String, ExitCode), String> {
     let environment = upgrade_env()?;
     // An explicit argument wins over TQ_VERSION, the same precedence the
     // installer gives its command line.
@@ -276,7 +287,11 @@ fn asset_candidates(os: &str, arch: &str) -> Result<Vec<String>, String> {
     Ok(names.iter().map(|name| (*name).to_owned()).collect())
 }
 
-fn select_asset<'a>(release: &'a Release, os: &str, arch: &str) -> Result<&'a ReleaseAsset, String> {
+fn select_asset<'a>(
+    release: &'a Release,
+    os: &str,
+    arch: &str,
+) -> Result<&'a ReleaseAsset, String> {
     let candidates = asset_candidates(os, arch)?;
     candidates
         .iter()
@@ -358,7 +373,11 @@ fn sha256_hex(bytes: &[u8]) -> String {
 fn http_get(environment: &UpgradeEnv, url: &str, accept: Option<&str>) -> Result<Vec<u8>, String> {
     let mut request = ureq::get(url).header(
         "User-Agent",
-        concat!("tq/", env!("CARGO_PKG_VERSION"), " (+https://github.com/reddb-io/toon)"),
+        concat!(
+            "tq/",
+            env!("CARGO_PKG_VERSION"),
+            " (+https://github.com/reddb-io/toon)"
+        ),
     );
     if let Some(token) = &environment.token {
         request = request.header("Authorization", format!("Bearer {token}"));
@@ -566,15 +585,19 @@ mod upgrade_unit_tests {
 
         assert_eq!(
             parsed,
-            release("v1.2.3", &[("tq-linux-x86_64-static", 7), ("SHA256SUMS", 8)])
+            release(
+                "v1.2.3",
+                &[("tq-linux-x86_64-static", 7), ("SHA256SUMS", 8)]
+            )
         );
         assert_eq!(parsed.version(), "1.2.3");
     }
 
     #[test]
     fn parses_the_first_element_of_a_release_list() {
-        let parsed = parse_release(r#"[{"tag_name":"v0.2.0-next.4","assets":[]},{"tag_name":"v0.1.0"}]"#)
-            .expect("parse the release list");
+        let parsed =
+            parse_release(r#"[{"tag_name":"v0.2.0-next.4","assets":[]},{"tag_name":"v0.1.0"}]"#)
+                .expect("parse the release list");
 
         assert_eq!(parsed, release("v0.2.0-next.4", &[]));
         assert_eq!(parsed.version(), "0.2.0-next.4");
@@ -582,7 +605,10 @@ mod upgrade_unit_tests {
 
     #[test]
     fn a_release_without_assets_parses_to_an_empty_asset_list() {
-        assert_eq!(parse_release(r#"{"tag_name":"v1.0.0"}"#).expect("parse"), release("v1.0.0", &[]));
+        assert_eq!(
+            parse_release(r#"{"tag_name":"v1.0.0"}"#).expect("parse"),
+            release("v1.0.0", &[])
+        );
     }
 
     #[test]
@@ -623,7 +649,10 @@ mod upgrade_unit_tests {
             asset_candidates("linux", "aarch64").expect("linux aarch64"),
             ["tq-linux-aarch64-static", "tq-linux-aarch64"]
         );
-        assert_eq!(asset_candidates("macos", "x86_64").expect("macos intel"), ["tq-macos-x86_64"]);
+        assert_eq!(
+            asset_candidates("macos", "x86_64").expect("macos intel"),
+            ["tq-macos-x86_64"]
+        );
         assert_eq!(
             asset_candidates("macos", "aarch64").expect("macos arm"),
             ["tq-macos-aarch64"]
@@ -633,7 +662,11 @@ mod upgrade_unit_tests {
             ["tq-windows-x86_64.exe"]
         );
 
-        for (os, arch) in [("linux", "riscv64"), ("freebsd", "x86_64"), ("windows", "aarch64")] {
+        for (os, arch) in [
+            ("linux", "riscv64"),
+            ("freebsd", "x86_64"),
+            ("windows", "aarch64"),
+        ] {
             assert!(asset_candidates(os, arch)
                 .expect_err("unsupported")
                 .contains(&format!("unsupported platform {os}/{arch}")));
@@ -647,13 +680,17 @@ mod upgrade_unit_tests {
             &[("tq-linux-x86_64", 1), ("tq-linux-x86_64-static", 2)],
         );
         assert_eq!(
-            select_asset(&both, "linux", "x86_64").expect("static wins").name,
+            select_asset(&both, "linux", "x86_64")
+                .expect("static wins")
+                .name,
             "tq-linux-x86_64-static"
         );
 
         let gnu_only = release("v1.0.0", &[("tq-linux-x86_64", 1)]);
         assert_eq!(
-            select_asset(&gnu_only, "linux", "x86_64").expect("gnu fallback").name,
+            select_asset(&gnu_only, "linux", "x86_64")
+                .expect("gnu fallback")
+                .name,
             "tq-linux-x86_64"
         );
     }
@@ -663,15 +700,24 @@ mod upgrade_unit_tests {
         let error = select_asset(&release("v1.0.0", &[("SHA256SUMS", 1)]), "linux", "aarch64")
             .expect_err("no asset");
 
-        assert!(error.contains("no tq asset for linux/aarch64 in release v1.0.0"), "{error}");
-        assert!(error.contains("tq-linux-aarch64-static, tq-linux-aarch64"), "{error}");
+        assert!(
+            error.contains("no tq asset for linux/aarch64 in release v1.0.0"),
+            "{error}"
+        );
+        assert!(
+            error.contains("tq-linux-aarch64-static, tq-linux-aarch64"),
+            "{error}"
+        );
     }
 
     #[test]
     fn release_asset_looks_a_name_up_by_hand() {
         let published = release("v1.0.0", &[("SHA256SUMS", 3)]);
 
-        assert_eq!(release_asset(&published, "SHA256SUMS").expect("found").id, 3);
+        assert_eq!(
+            release_asset(&published, "SHA256SUMS").expect("found").id,
+            3
+        );
         assert!(release_asset(&published, "checksums.txt")
             .expect_err("absent")
             .contains("release v1.0.0 publishes no checksums.txt"));
@@ -693,8 +739,16 @@ mod upgrade_unit_tests {
             ("0.12.0-rc", "0.12.0-1"),
             ("0.12.0-rc.2", "0.12.0-rc.1"),
         ] {
-            assert_eq!(compare_versions(left, right), Ordering::Greater, "{left} > {right}");
-            assert_eq!(compare_versions(right, left), Ordering::Less, "{right} < {left}");
+            assert_eq!(
+                compare_versions(left, right),
+                Ordering::Greater,
+                "{left} > {right}"
+            );
+            assert_eq!(
+                compare_versions(right, left),
+                Ordering::Less,
+                "{right} < {left}"
+            );
         }
 
         for (left, right) in [
@@ -708,7 +762,11 @@ mod upgrade_unit_tests {
             ("1", "1.0.0"),
             ("0.12.0-next.3", "0.12.0-next.3"),
         ] {
-            assert_eq!(compare_versions(left, right), Ordering::Equal, "{left} == {right}");
+            assert_eq!(
+                compare_versions(left, right),
+                Ordering::Equal,
+                "{left} == {right}"
+            );
         }
     }
 
@@ -728,9 +786,11 @@ mod upgrade_unit_tests {
 
         verify_checksum(b"payload", &sums, "tq-linux-x86_64-static").expect("matching checksum");
 
-        assert!(verify_checksum(b"tampered", &sums, "tq-linux-x86_64-static")
-            .expect_err("mismatch")
-            .contains("checksum verification failed for tq-linux-x86_64-static"));
+        assert!(
+            verify_checksum(b"tampered", &sums, "tq-linux-x86_64-static")
+                .expect_err("mismatch")
+                .contains("checksum verification failed for tq-linux-x86_64-static")
+        );
         assert!(verify_checksum(b"payload", &sums, "tq-windows-x86_64.exe")
             .expect_err("absent")
             .contains("no checksum for tq-windows-x86_64.exe in SHA256SUMS"));
@@ -770,7 +830,10 @@ mod upgrade_unit_tests {
     fn upgrade_arguments_reject_unknown_flags_and_extra_positionals() {
         for args in [vec!["-z"], vec!["--nope"], vec!["1.0.0", "2.0.0"]] {
             let args = args.into_iter().map(str::to_owned);
-            assert_eq!(parse_upgrade_args(args).expect_err("rejected"), UPGRADE_USAGE);
+            assert_eq!(
+                parse_upgrade_args(args).expect_err("rejected"),
+                UPGRADE_USAGE
+            );
         }
     }
 
@@ -786,7 +849,10 @@ mod upgrade_unit_tests {
             Path::new("/usr/local/bin"),
             &io::Error::from(io::ErrorKind::PermissionDenied),
         );
-        assert!(denied.contains("cannot write to /usr/local/bin"), "{denied}");
+        assert!(
+            denied.contains("cannot write to /usr/local/bin"),
+            "{denied}"
+        );
         assert!(denied.contains("re-run with sudo"), "{denied}");
         assert!(denied.contains("TQ_INSTALL_DIR"), "{denied}");
 

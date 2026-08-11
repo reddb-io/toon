@@ -1,70 +1,28 @@
-fn evaluate(document: &Value, query: &str) -> Result<Vec<Value>, String> {
-    Parser::new(query)?.parse()?.eval(document)
-}
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
-enum Expr {
-    Array(Vec<Expr>),
-    Binary(BinaryOp, Box<Expr>, Box<Expr>),
-    Builtin(Builtin),
-    Comma(Vec<Expr>),
-    Field(Box<Expr>, String),
-    Identity,
-    Index(Box<Expr>, usize),
-    Iter(Box<Expr>),
-    Literal(Value),
-    Object(Vec<(String, Expr)>),
-    Pipe(Box<Expr>, Box<Expr>),
-    Slice(Box<Expr>, Option<usize>, Option<usize>),
-}
+use reddb_io_toon::{Array, Value};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BinaryOp {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Equal,
-    NotEqual,
-    Less,
-    LessEqual,
-    Greater,
-    GreaterEqual,
-}
+use super::ast::{BinaryOp, Expr};
+use super::builtins;
 
-#[derive(Debug, Clone, PartialEq)]
-enum Builtin {
-    Add,
-    FromEntries,
-    GroupBy(Box<Expr>),
-    Has(Box<Expr>),
-    Join(Box<Expr>),
-    Keys,
-    Length,
-    Map(Box<Expr>),
-    MaxBy(Box<Expr>),
-    MinBy(Box<Expr>),
-    Select(Box<Expr>),
-    SortBy(Box<Expr>),
-    Split(Box<Expr>),
-    Test(Box<Expr>),
-    ToEntries,
-    Unique,
+#[derive(Debug, Default)]
+pub(super) struct Env {
+    _frames: Vec<HashMap<String, Value>>,
 }
 
 impl Expr {
-    fn eval(&self, input: &Value) -> Result<Vec<Value>, String> {
+    pub(super) fn eval(&self, input: &Value, env: &Env) -> Result<Vec<Value>, String> {
         match self {
             Self::Array(items) => {
                 let mut values = Vec::new();
                 for item in items {
-                    values.extend(item.eval(input)?);
+                    values.extend(item.eval(input, env)?);
                 }
                 Ok(vec![Value::Array(Array::List(values))])
             }
             Self::Binary(operator, left, right) => {
-                let left_values = left.eval(input)?;
-                let right_values = right.eval(input)?;
+                let left_values = left.eval(input, env)?;
+                let right_values = right.eval(input, env)?;
                 let mut output = Vec::new();
                 for left_value in &left_values {
                     for right_value in &right_values {
@@ -73,16 +31,16 @@ impl Expr {
                 }
                 Ok(output)
             }
-            Self::Builtin(builtin) => evaluate_builtin(builtin, input),
+            Self::Call(name, arguments) => builtins::evaluate(name, arguments, input, env),
             Self::Comma(expressions) => {
                 let mut output = Vec::new();
                 for expression in expressions {
-                    output.extend(expression.eval(input)?);
+                    output.extend(expression.eval(input, env)?);
                 }
                 Ok(output)
             }
             Self::Field(base, key) => Ok(base
-                .eval(input)?
+                .eval(input, env)?
                 .into_iter()
                 .map(|value| match value {
                     Value::Object(document) => document.get(key).cloned().unwrap_or(Value::Null),
@@ -91,7 +49,7 @@ impl Expr {
                 .collect()),
             Self::Identity => Ok(vec![input.clone()]),
             Self::Index(base, index) => Ok(base
-                .eval(input)?
+                .eval(input, env)?
                 .into_iter()
                 .map(|value| match value {
                     Value::Array(array) => array.get(*index).unwrap_or(Value::Null),
@@ -99,7 +57,7 @@ impl Expr {
                 })
                 .collect()),
             Self::Iter(base) => Ok(base
-                .eval(input)?
+                .eval(input, env)?
                 .into_iter()
                 .flat_map(|value| match value {
                     Value::Array(array) => array.values(),
@@ -107,16 +65,16 @@ impl Expr {
                 })
                 .collect()),
             Self::Literal(value) => Ok(vec![value.clone()]),
-            Self::Object(fields) => evaluate_object(fields, input),
+            Self::Object(fields) => evaluate_object(fields, input, env),
             Self::Pipe(left, right) => {
                 let mut output = Vec::new();
-                for value in left.eval(input)? {
-                    output.extend(right.eval(&value)?);
+                for value in left.eval(input, env)? {
+                    output.extend(right.eval(&value, env)?);
                 }
                 Ok(output)
             }
             Self::Slice(base, start, end) => Ok(base
-                .eval(input)?
+                .eval(input, env)?
                 .into_iter()
                 .map(|value| match value {
                     Value::Array(array) => Value::Array(array.slice(*start, *end)),
@@ -127,10 +85,14 @@ impl Expr {
     }
 }
 
-fn evaluate_object(fields: &[(String, Expr)], input: &Value) -> Result<Vec<Value>, String> {
+fn evaluate_object(
+    fields: &[(String, Expr)],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
     let mut objects = vec![serde_json::Map::new()];
     for (key, expression) in fields {
-        let values = expression.eval(input)?;
+        let values = expression.eval(input, env)?;
         let mut next_objects = Vec::new();
         for object in objects {
             for value in &values {
@@ -149,58 +111,129 @@ fn evaluate_object(fields: &[(String, Expr)], input: &Value) -> Result<Vec<Value
         .collect())
 }
 
-fn evaluate_builtin(builtin: &Builtin, input: &Value) -> Result<Vec<Value>, String> {
-    match builtin {
-        Builtin::Add => evaluate_add(input).map(|value| vec![value]),
-        Builtin::FromEntries => evaluate_from_entries(input).map(|value| vec![value]),
-        Builtin::GroupBy(filter) => evaluate_group_by(input, filter).map(|value| vec![value]),
-        Builtin::Has(key_filter) => {
-            let keys = key_filter.eval(input)?;
-            keys.into_iter()
-                .map(|key| evaluate_has(input, &key))
-                .collect()
-        }
-        Builtin::Join(separator_filter) => {
-            evaluate_join(input, &single_string_arg(separator_filter, input, "join")?)
-                .map(|value| vec![value])
-        }
-        Builtin::Keys => evaluate_keys(input).map(|value| vec![value]),
-        Builtin::Length => evaluate_length(input).map(|value| vec![value]),
-        Builtin::Map(filter) => {
-            let Value::Array(array) = input else {
-                return Err("cannot iterate over non-array".to_owned());
-            };
-            let mut values = Vec::new();
-            for value in array.values() {
-                values.extend(filter.eval(&value)?);
-            }
-            Ok(vec![Value::Array(Array::List(values))])
-        }
-        Builtin::Select(filter) => {
-            let mut values = Vec::new();
-            for value in filter.eval(input)? {
-                if is_truthy(&value) {
-                    values.push(input.clone());
-                }
-            }
-            Ok(values)
-        }
-        Builtin::MaxBy(filter) => evaluate_min_max_by(input, filter, true).map(|value| vec![value]),
-        Builtin::MinBy(filter) => {
-            evaluate_min_max_by(input, filter, false).map(|value| vec![value])
-        }
-        Builtin::SortBy(filter) => evaluate_sort_by(input, filter).map(|value| vec![value]),
-        Builtin::Split(separator_filter) => {
-            evaluate_split(input, &single_string_arg(separator_filter, input, "split")?)
-                .map(|value| vec![value])
-        }
-        Builtin::Test(pattern_filter) => {
-            evaluate_test(input, &single_string_arg(pattern_filter, input, "test")?)
-                .map(|value| vec![value])
-        }
-        Builtin::ToEntries => evaluate_to_entries(input).map(|value| vec![value]),
-        Builtin::Unique => evaluate_unique(input).map(|value| vec![value]),
+pub(super) fn call_add(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
+    evaluate_add(input).map(|value| vec![value])
+}
+
+pub(super) fn call_from_entries(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
+    evaluate_from_entries(input).map(|value| vec![value])
+}
+
+pub(super) fn call_group_by(
+    arguments: &[Expr],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    evaluate_group_by(input, &arguments[0], env).map(|value| vec![value])
+}
+
+pub(super) fn call_has(arguments: &[Expr], input: &Value, env: &Env) -> Result<Vec<Value>, String> {
+    arguments[0]
+        .eval(input, env)?
+        .into_iter()
+        .map(|key| evaluate_has(input, &key))
+        .collect()
+}
+
+pub(super) fn call_join(
+    arguments: &[Expr],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    evaluate_join(
+        input,
+        &single_string_arg(&arguments[0], input, env, "join")?,
+    )
+    .map(|value| vec![value])
+}
+
+pub(super) fn call_keys(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
+    evaluate_keys(input).map(|value| vec![value])
+}
+
+pub(super) fn call_length(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
+    evaluate_length(input).map(|value| vec![value])
+}
+
+pub(super) fn call_map(arguments: &[Expr], input: &Value, env: &Env) -> Result<Vec<Value>, String> {
+    let Value::Array(array) = input else {
+        return Err("cannot iterate over non-array".to_owned());
+    };
+    let mut values = Vec::new();
+    for value in array.values() {
+        values.extend(arguments[0].eval(&value, env)?);
     }
+    Ok(vec![Value::Array(Array::List(values))])
+}
+
+pub(super) fn call_max_by(
+    arguments: &[Expr],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    evaluate_min_max_by(input, &arguments[0], env, true).map(|value| vec![value])
+}
+
+pub(super) fn call_min_by(
+    arguments: &[Expr],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    evaluate_min_max_by(input, &arguments[0], env, false).map(|value| vec![value])
+}
+
+pub(super) fn call_select(
+    arguments: &[Expr],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    let mut values = Vec::new();
+    for value in arguments[0].eval(input, env)? {
+        if is_truthy(&value) {
+            values.push(input.clone());
+        }
+    }
+    Ok(values)
+}
+
+pub(super) fn call_sort_by(
+    arguments: &[Expr],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    evaluate_sort_by(input, &arguments[0], env).map(|value| vec![value])
+}
+
+pub(super) fn call_split(
+    arguments: &[Expr],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    evaluate_split(
+        input,
+        &single_string_arg(&arguments[0], input, env, "split")?,
+    )
+    .map(|value| vec![value])
+}
+
+pub(super) fn call_test(
+    arguments: &[Expr],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    evaluate_test(
+        input,
+        &single_string_arg(&arguments[0], input, env, "test")?,
+    )
+    .map(|value| vec![value])
+}
+
+pub(super) fn call_to_entries(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
+    evaluate_to_entries(input).map(|value| vec![value])
+}
+
+pub(super) fn call_unique(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
+    evaluate_unique(input).map(|value| vec![value])
 }
 
 fn evaluate_add(input: &Value) -> Result<Value, String> {
@@ -218,16 +251,16 @@ fn evaluate_add(input: &Value) -> Result<Value, String> {
     Ok(total)
 }
 
-fn evaluate_sort_by(input: &Value, filter: &Expr) -> Result<Value, String> {
-    let mut keyed = keyed_array_values(input, filter)?;
+fn evaluate_sort_by(input: &Value, filter: &Expr, env: &Env) -> Result<Value, String> {
+    let mut keyed = keyed_array_values(input, filter, env)?;
     keyed.sort_by(|left, right| compare_key_json(&left.0, &right.0));
     Ok(Value::Array(Array::List(
         keyed.into_iter().map(|(_, value)| value).collect(),
     )))
 }
 
-fn evaluate_group_by(input: &Value, filter: &Expr) -> Result<Value, String> {
-    let mut keyed = keyed_array_values(input, filter)?;
+fn evaluate_group_by(input: &Value, filter: &Expr, env: &Env) -> Result<Value, String> {
+    let mut keyed = keyed_array_values(input, filter, env)?;
     keyed.sort_by(|left, right| compare_key_json(&left.0, &right.0));
 
     let mut groups: Vec<Value> = Vec::new();
@@ -260,8 +293,13 @@ fn evaluate_unique(input: &Value) -> Result<Value, String> {
     Ok(Value::Array(Array::List(values)))
 }
 
-fn evaluate_min_max_by(input: &Value, filter: &Expr, max: bool) -> Result<Value, String> {
-    let keyed = keyed_array_values(input, filter)?;
+fn evaluate_min_max_by(
+    input: &Value,
+    filter: &Expr,
+    env: &Env,
+    max: bool,
+) -> Result<Value, String> {
+    let keyed = keyed_array_values(input, filter, env)?;
     let selected = if max {
         keyed
             .into_iter()
@@ -277,6 +315,7 @@ fn evaluate_min_max_by(input: &Value, filter: &Expr, max: bool) -> Result<Value,
 fn keyed_array_values(
     input: &Value,
     filter: &Expr,
+    env: &Env,
 ) -> Result<Vec<(serde_json::Value, Value)>, String> {
     let Value::Array(array) = input else {
         return Err("cannot order non-array".to_owned());
@@ -286,14 +325,14 @@ fn keyed_array_values(
         .values()
         .into_iter()
         .map(|value| {
-            let key = sort_key(filter, &value)?;
+            let key = sort_key(filter, &value, env)?;
             Ok((key, value))
         })
         .collect()
 }
 
-fn sort_key(filter: &Expr, input: &Value) -> Result<serde_json::Value, String> {
-    let values = filter.eval(input)?;
+fn sort_key(filter: &Expr, input: &Value, env: &Env) -> Result<serde_json::Value, String> {
+    let values = filter.eval(input, env)?;
     if values.len() == 1 {
         Ok(values
             .into_iter()
@@ -436,8 +475,13 @@ fn evaluate_test(input: &Value, pattern: &str) -> Result<Value, String> {
     Ok(Value::Bool(regex.is_match(value)))
 }
 
-fn single_string_arg(filter: &Expr, input: &Value, builtin: &str) -> Result<String, String> {
-    let values = filter.eval(input)?;
+fn single_string_arg(
+    filter: &Expr,
+    input: &Value,
+    env: &Env,
+    builtin: &str,
+) -> Result<String, String> {
+    let values = filter.eval(input, env)?;
     match values.as_slice() {
         [Value::String(value)] => Ok(value.clone()),
         [_] => Err(format!("{builtin} argument must be a string")),
@@ -656,4 +700,3 @@ fn number_value(value: f64) -> Result<Value, String> {
             .ok_or_else(|| "number is not finite".to_owned())
     }
 }
-

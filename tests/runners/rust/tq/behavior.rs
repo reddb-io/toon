@@ -231,6 +231,7 @@ fn reports_type_and_arity_errors_per_builtin() {
 fn reports_filter_syntax_errors() {
     let cases = [
         (". | tostring", "unsupported identifier `tostring`"),
+        ("map(.;.)", "unsupported identifier `map`"),
         (".users[x]", "expected array index"),
         (".[", "expected array index"),
         (". .", "expected identifier"),
