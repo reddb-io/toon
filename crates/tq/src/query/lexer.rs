@@ -1,5 +1,7 @@
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Token {
+    Alternative,
+    Assign,
     Colon,
     Comma,
     Dot,
@@ -17,6 +19,7 @@ pub(super) enum Token {
     Number(String),
     Pipe,
     Plus,
+    Percent,
     RBrace,
     RBracket,
     RParen,
@@ -36,11 +39,44 @@ pub(super) fn lex(query: &str) -> Result<Vec<Token>, String> {
             ':' => tokens.push(Token::Colon),
             ',' => tokens.push(Token::Comma),
             '.' => tokens.push(Token::Dot),
-            '|' => tokens.push(Token::Pipe),
-            '+' => tokens.push(Token::Plus),
-            '-' => tokens.push(Token::Minus),
-            '*' => tokens.push(Token::Star),
-            '/' => tokens.push(Token::Slash),
+            '|' => tokens.push(if consume_char(&mut chars, '=') {
+                Token::Assign
+            } else {
+                Token::Pipe
+            }),
+            '+' => tokens.push(if consume_char(&mut chars, '=') {
+                Token::Assign
+            } else {
+                Token::Plus
+            }),
+            '%' => tokens.push(if consume_char(&mut chars, '=') {
+                Token::Assign
+            } else {
+                Token::Percent
+            }),
+            '-' => tokens.push(if consume_char(&mut chars, '=') {
+                Token::Assign
+            } else {
+                Token::Minus
+            }),
+            '*' => tokens.push(if consume_char(&mut chars, '=') {
+                Token::Assign
+            } else {
+                Token::Star
+            }),
+            '/' => {
+                if consume_char(&mut chars, '/') {
+                    tokens.push(if consume_char(&mut chars, '=') {
+                        Token::Assign
+                    } else {
+                        Token::Alternative
+                    });
+                } else if consume_char(&mut chars, '=') {
+                    tokens.push(Token::Assign);
+                } else {
+                    tokens.push(Token::Slash);
+                }
+            }
             '(' => tokens.push(Token::LParen),
             ')' => tokens.push(Token::RParen),
             '[' => tokens.push(Token::LBracket),
@@ -49,8 +85,11 @@ pub(super) fn lex(query: &str) -> Result<Vec<Token>, String> {
             '}' => tokens.push(Token::RBrace),
             ';' => tokens.push(Token::Semicolon),
             '=' => {
-                expect_char(&mut chars, '=')?;
-                tokens.push(Token::EqualEqual);
+                if consume_char(&mut chars, '=') {
+                    tokens.push(Token::EqualEqual);
+                } else {
+                    tokens.push(Token::Assign);
+                }
             }
             '!' => {
                 expect_char(&mut chars, '=')?;

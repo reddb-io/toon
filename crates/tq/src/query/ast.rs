@@ -2,6 +2,7 @@ use reddb_io_toon::Value;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Expr {
+    Alternative(Box<Expr>, Box<Expr>),
     Array(Vec<Expr>),
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
     Call(String, Vec<Expr>),
@@ -19,13 +20,16 @@ pub(super) enum Expr {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum BinaryOp {
     Add,
+    And,
     Subtract,
     Multiply,
+    Or,
     Divide,
     Equal,
     NotEqual,
     Less,
     LessEqual,
+    Modulo,
     Greater,
     GreaterEqual,
 }

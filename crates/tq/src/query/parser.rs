@@ -36,15 +36,50 @@ impl Parser {
     }
 
     fn parse_comma(&mut self) -> Result<Expr, String> {
-        let mut expressions = vec![self.parse_comparison()?];
+        let mut expressions = vec![self.parse_alternative()?];
         while self.consume(&Token::Comma) {
-            expressions.push(self.parse_comparison()?);
+            expressions.push(self.parse_alternative()?);
         }
         if expressions.len() == 1 {
             Ok(expressions.pop().expect("one expression exists"))
         } else {
             Ok(Expr::Comma(expressions))
         }
+    }
+
+    fn parse_alternative(&mut self) -> Result<Expr, String> {
+        let mut expression = self.parse_assignment()?;
+        while self.consume(&Token::Alternative) {
+            let right = self.parse_assignment()?;
+            expression = Expr::Alternative(Box::new(expression), Box::new(right));
+        }
+        Ok(expression)
+    }
+
+    fn parse_assignment(&mut self) -> Result<Expr, String> {
+        let expression = self.parse_or()?;
+        if self.consume(&Token::Assign) {
+            return Err("assignment operators are not supported yet".to_owned());
+        }
+        Ok(expression)
+    }
+
+    fn parse_or(&mut self) -> Result<Expr, String> {
+        let mut expression = self.parse_and()?;
+        while self.consume_keyword("or") {
+            let right = self.parse_and()?;
+            expression = Expr::Binary(BinaryOp::Or, Box::new(expression), Box::new(right));
+        }
+        Ok(expression)
+    }
+
+    fn parse_and(&mut self) -> Result<Expr, String> {
+        let mut expression = self.parse_comparison()?;
+        while self.consume_keyword("and") {
+            let right = self.parse_comparison()?;
+            expression = Expr::Binary(BinaryOp::And, Box::new(expression), Box::new(right));
+        }
+        Ok(expression)
     }
 
     fn parse_comparison(&mut self) -> Result<Expr, String> {
@@ -79,6 +114,8 @@ impl Parser {
                 BinaryOp::Multiply
             } else if self.consume(&Token::Slash) {
                 BinaryOp::Divide
+            } else if self.consume(&Token::Percent) {
+                BinaryOp::Modulo
             } else {
                 break;
             };
@@ -239,9 +276,9 @@ impl Parser {
     }
 
     fn parse_pipe_item(&mut self) -> Result<Expr, String> {
-        let mut expression = self.parse_comparison()?;
+        let mut expression = self.parse_alternative()?;
         while self.consume(&Token::Pipe) {
-            let right = self.parse_comparison()?;
+            let right = self.parse_alternative()?;
             expression = Expr::Pipe(Box::new(expression), Box::new(right));
         }
         Ok(expression)
@@ -286,6 +323,15 @@ impl Parser {
 
     fn consume(&mut self, expected: &Token) -> bool {
         if self.peek() == Some(expected) {
+            self.index += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn consume_keyword(&mut self, expected: &str) -> bool {
+        if matches!(self.peek(), Some(Token::Ident(value)) if value == expected) {
             self.index += 1;
             true
         } else {

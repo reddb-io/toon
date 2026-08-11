@@ -1,0 +1,115 @@
+# Logic, alternative, modulo, and their precedence relationships.
+case: "operators-and"
+filter: ".a and .b"
+input: "{\"a\":true,\"b\":false}"
+output: "false\n"
+
+case: "operators-and-short-circuits"
+filter: "false and (true | length)"
+input: "null"
+output: "false\n"
+
+case: "operators-or"
+filter: ".a or .b"
+input: "{\"a\":false,\"b\":true}"
+output: "true\n"
+
+case: "operators-or-short-circuits"
+filter: "true or (true | length)"
+input: "null"
+output: "true\n"
+
+case: "operators-logic-stream-products"
+filter: "((false, true) and (true, false)), ((false, true) or (true, false))"
+input: "null"
+output: "false\ntrue\nfalse\ntrue\nfalse\ntrue\n"
+
+case: "operators-modulo"
+filter: "17 % 5"
+input: "null"
+output: "2\n"
+
+case: "operators-alternative-false"
+filter: ".a // .b"
+input: "{\"a\":false,\"b\":7}"
+output: "7\n"
+
+case: "operators-alternative-suppresses-error"
+filter: "true | length // 0"
+input: "null"
+output: "0\n"
+divergence: "tq's alternative contract suppresses errors from its left-hand filter"
+jq-output: "error: boolean (true) has no length"
+
+case: "operators-alternative-null"
+filter: ".a // .b"
+input: "{\"a\":null,\"b\":8}"
+output: "8\n"
+
+case: "operators-alternative-empty"
+filter: "select(false) // 9"
+input: "null"
+output: "9\n"
+
+case: "operators-alternative-keeps-truthy-stream"
+filter: "(false, 1, null, 2) // 9"
+input: "null"
+output: "1\n2\n"
+
+case: "operators-everyday-select"
+filter: "map(select(.a and .b // false))"
+input: "[{\"a\":true,\"b\":true},{\"a\":true},{\"a\":false,\"b\":true}]"
+output: "[{\"a\":true,\"b\":true}]\n"
+
+# Low to high: pipe, comma, alternative, assignment, or, and, comparison,
+# additive, multiplicative, unary, postfix. Assignment is pinned by the
+# parser-diagnostic test until that language slice lands.
+case: "precedence-pipe-below-comma"
+filter: "1, 2 | . + 1"
+input: "null"
+output: "2\n3\n"
+
+case: "precedence-comma-below-alternative"
+filter: "false, null // 1"
+input: "null"
+output: "false\n1\n"
+
+case: "precedence-alternative-below-or"
+filter: "1 // false or false"
+input: "null"
+output: "1\n"
+
+case: "precedence-or-below-and"
+filter: "true or false and false"
+input: "null"
+output: "true\n"
+
+case: "precedence-and-below-comparison"
+filter: "true and 1 == 1"
+input: "null"
+output: "true\n"
+
+case: "precedence-comparison-below-additive"
+filter: "1 == 2 - 1"
+input: "null"
+output: "true\n"
+
+case: "precedence-additive-below-multiplicative"
+filter: "1 + 2 * 3"
+input: "null"
+output: "7\n"
+
+case: "precedence-unary-below-postfix"
+filter: "-.n"
+input: "{\"n\":2}"
+output: "-2\n"
+
+case: "operators-not"
+filter: ".a | not"
+input: "{\"a\":null}"
+output: "true\n"
+
+case: "operators-keywords-remain-field-names"
+filter: "[.and, .or, .not]"
+input: "{\"and\":1,\"or\":2,\"not\":3}"
+output: "[1,2,3]\n"
