@@ -1,5 +1,6 @@
-include!("main_parts/cli.rs");
-include!("main_parts/upgrade.rs");
-include!("main_parts/toonl_trim.rs");
-include!("main_parts/query_engine.rs");
-include!("main_parts/query_parser_and_output.rs");
+mod cli;
+mod query;
+
+fn main() -> std::process::ExitCode {
+    cli::main()
+}
