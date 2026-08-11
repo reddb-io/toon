@@ -4,16 +4,33 @@ use serde::Serialize;
 use super::args::{Format, Options};
 
 pub(super) fn format_values(values: &[Value], options: &Options) -> Result<String, String> {
+    let sorted_values;
+    let values = if options.sort_keys {
+        sorted_values = values
+            .iter()
+            .cloned()
+            .map(|mut value| {
+                value.sort_object_keys();
+                value
+            })
+            .collect::<Vec<_>>();
+        &sorted_values
+    } else {
+        values
+    };
+
     if options.output_format == Format::Toonl {
         return encode_toonl_values(values).map_err(|error| error.to_string());
     }
 
     let mut output = String::new();
     for value in values {
-        if options.raw_output {
+        if options.raw_output || options.join_output {
             if let Value::String(value) = value {
                 output.push_str(value);
-                output.push('\n');
+                if !options.join_output {
+                    output.push('\n');
+                }
                 continue;
             }
         }
@@ -21,24 +38,29 @@ pub(super) fn format_values(values: &[Value], options: &Options) -> Result<Strin
         match options.output_format {
             Format::Json => {
                 output.push_str(&format_json(value, options.compact, options.indent_size)?);
-                output.push('\n');
+                if !options.join_output {
+                    output.push('\n');
+                }
             }
             Format::Toon => {
-                output.push_str(
-                    &encode_with_options(
-                        value,
-                        EncodeV4Options {
-                            primitive_array_columns: options.primitive_array_columns,
-                            object_array_columns: options.object_array_columns,
-                            cyclic_discriminated_arrays: options.cyclic_discriminated_arrays,
-                            delimiter: options.delimiter,
-                            indent_size: options.indent_size,
-                            ..EncodeV4Options::default()
-                        },
-                    )
-                    .map_err(|error| error.to_string())?,
-                );
-                if !output.ends_with('\n') {
+                let encoded = encode_with_options(
+                    value,
+                    EncodeV4Options {
+                        primitive_array_columns: options.primitive_array_columns,
+                        object_array_columns: options.object_array_columns,
+                        cyclic_discriminated_arrays: options.cyclic_discriminated_arrays,
+                        delimiter: options.delimiter,
+                        indent_size: options.indent_size,
+                        ..EncodeV4Options::default()
+                    },
+                )
+                .map_err(|error| error.to_string())?;
+                if options.join_output {
+                    output.push_str(encoded.trim_end_matches('\n'));
+                } else {
+                    output.push_str(&encoded);
+                }
+                if !options.join_output && !output.ends_with('\n') {
                     output.push('\n');
                 }
             }

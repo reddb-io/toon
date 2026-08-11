@@ -63,7 +63,7 @@ fn run() -> Result<(String, ExitCode), String> {
     let options = parse_args(args.into_iter())?;
 
     if options.input_format == Format::Toonl {
-        return run_toonl(&options).map(|output| (output, ExitCode::SUCCESS));
+        return run_toonl(&options);
     }
 
     let input = read_input(&options)?;
@@ -91,7 +91,19 @@ fn run() -> Result<(String, ExitCode), String> {
         }
         Format::Toonl => unreachable!("TOONL input is handled before reading into a string"),
     };
-    format_values(&values, &options).map(|output| (output, ExitCode::SUCCESS))
+    let code = output_exit_code(&values, options.exit_status);
+    format_values(&values, &options).map(|output| (output, code))
+}
+
+fn output_exit_code(values: &[Value], enabled: bool) -> ExitCode {
+    if !enabled {
+        return ExitCode::SUCCESS;
+    }
+    match values.last() {
+        None => ExitCode::from(4),
+        Some(Value::Bool(false) | Value::Null) => ExitCode::FAILURE,
+        Some(_) => ExitCode::SUCCESS,
+    }
 }
 
 fn run_trim(options: TrimOptions) -> Result<String, String> {
@@ -150,7 +162,7 @@ fn run_check(options: CheckOptions) -> Result<(String, ExitCode), String> {
     Ok((format!("{output}\n"), code))
 }
 
-fn run_toonl(options: &Options) -> Result<String, String> {
+fn run_toonl(options: &Options) -> Result<(String, ExitCode), String> {
     let reader = input_reader(options)?;
     let mut rows = Vec::new();
     let mut values = Vec::new();
@@ -168,7 +180,8 @@ fn run_toonl(options: &Options) -> Result<String, String> {
         values = crate::query::evaluate(&Value::Array(Array::List(rows)), &options.query)?;
     }
 
-    format_values(&values, options)
+    let code = output_exit_code(&values, options.exit_status);
+    format_values(&values, options).map(|output| (output, code))
 }
 
 fn parse_yaml_value(input: &str) -> Result<Value, String> {

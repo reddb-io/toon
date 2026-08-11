@@ -13,7 +13,7 @@ cargo install reddb-io-tq --version 0.20.0
 ## Usage
 
 ```text
-tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-s|--slurp] [--strict|--no-strict] [--delimiter comma|tab|pipe] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
+tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--strict|--no-strict] [--delimiter comma|tab|pipe] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
 tq trim --keep-last N [--in-place] [FILE]
 tq close [--per-lane|--interleaved] [FILE]
 tq check [-p toon|toonl] [FILE]
@@ -78,6 +78,10 @@ Useful query flags:
 
 - `-r` prints raw scalar strings.
 - `-c` prints compact JSON.
+- `-j` implies raw string output and omits the newline after each result.
+- `-S` sorts object keys recursively before encoding the selected output format.
+- `-e` returns status 0 when the last result is truthy, 1 when it is `false` or
+  `null`, and 4 when the query produces no result.
 - `-s` or `--slurp` collects TOONL rows into one array before evaluating the query.
 
 ## TOON v4.1 output and extensions
