@@ -5,6 +5,12 @@ use reddb_io_toon::{Array, Value};
 use super::ast::{BinaryOp, Expr};
 use super::builtins;
 
+// Evaluation errors remain strings throughout tq. `error(v)` reserves this
+// prefix for non-string jq payloads; only recovery filters decode it, so a
+// caught object or array can round-trip without widening every builtin's
+// Result type. The suffix is compact JSON produced by serde_json.
+const TAGGED_ERROR_PREFIX: &str = "\u{1e}tq:error:json:";
+
 #[derive(Debug, Default)]
 pub(super) struct Env {
     _frames: Vec<HashMap<String, Value>>,
@@ -95,6 +101,10 @@ impl Expr {
                 }
                 Ok(output)
             }
+            Self::Conditional(branches, fallback) => {
+                evaluate_conditional(branches, fallback, input, env)
+            }
+            Self::Empty => Ok(Vec::new()),
             Self::Field(base, key) => Ok(base
                 .eval(input, env)?
                 .into_iter()
@@ -122,6 +132,9 @@ impl Expr {
                 .collect()),
             Self::Literal(value) => Ok(vec![value.clone()]),
             Self::Object(fields) => evaluate_object(fields, input, env),
+            Self::Optional(expression) => {
+                Ok(evaluate_recovering(expression, input, env).values)
+            }
             Self::Pipe(left, right) => {
                 let mut output = Vec::new();
                 for value in left.eval(input, env)? {
@@ -137,8 +150,166 @@ impl Expr {
                     _ => Value::Null,
                 })
                 .collect()),
+            Self::Try(expression, handler) => {
+                recover_try(expression, handler.as_deref(), input, env).finish()
+            }
         }
     }
+}
+
+struct Recovery {
+    values: Vec<Value>,
+    error: Option<String>,
+}
+
+impl Recovery {
+    fn success(values: Vec<Value>) -> Self {
+        Self {
+            values,
+            error: None,
+        }
+    }
+
+    fn from_result(result: Result<Vec<Value>, String>) -> Self {
+        match result {
+            Ok(values) => Self::success(values),
+            Err(error) => Self {
+                values: Vec::new(),
+                error: Some(error),
+            },
+        }
+    }
+
+    fn finish(self) -> Result<Vec<Value>, String> {
+        self.error.map_or(Ok(self.values), Err)
+    }
+}
+
+fn evaluate_recovering(expression: &Expr, input: &Value, env: &Env) -> Recovery {
+    match expression {
+        Expr::Comma(expressions) => {
+            let mut recovery = Recovery::success(Vec::new());
+            for expression in expressions {
+                append_recovery(&mut recovery, evaluate_recovering(expression, input, env));
+                if recovery.error.is_some() {
+                    break;
+                }
+            }
+            recovery
+        }
+        Expr::Conditional(branches, fallback) => {
+            recover_conditional(branches, fallback, input, env)
+        }
+        Expr::Optional(expression) => {
+            let mut recovery = evaluate_recovering(expression, input, env);
+            recovery.error = None;
+            recovery
+        }
+        Expr::Pipe(left, right) => {
+            let left = evaluate_recovering(left, input, env);
+            let mut recovery = Recovery::success(Vec::new());
+            for value in left.values {
+                append_recovery(&mut recovery, evaluate_recovering(right, &value, env));
+                if recovery.error.is_some() {
+                    return recovery;
+                }
+            }
+            recovery.error = left.error;
+            recovery
+        }
+        Expr::Try(expression, handler) => recover_try(expression, handler.as_deref(), input, env),
+        expression => Recovery::from_result(expression.eval(input, env)),
+    }
+}
+
+fn recover_try(
+    expression: &Expr,
+    handler: Option<&Expr>,
+    input: &Value,
+    env: &Env,
+) -> Recovery {
+    let mut recovery = evaluate_recovering(expression, input, env);
+    let Some(error) = recovery.error.take() else {
+        return recovery;
+    };
+    if let Some(handler) = handler {
+        append_recovery(
+            &mut recovery,
+            evaluate_recovering(handler, &decode_error_payload(&error), env),
+        );
+    }
+    recovery
+}
+
+fn recover_conditional(
+    branches: &[(Expr, Expr)],
+    fallback: &Expr,
+    input: &Value,
+    env: &Env,
+) -> Recovery {
+    let Some(((condition, selected), remaining)) = branches.split_first() else {
+        return evaluate_recovering(fallback, input, env);
+    };
+    let condition = evaluate_recovering(condition, input, env);
+    let mut recovery = Recovery::success(Vec::new());
+    for value in condition.values {
+        let next = if is_truthy(&value) {
+            evaluate_recovering(selected, input, env)
+        } else {
+            recover_conditional(remaining, fallback, input, env)
+        };
+        append_recovery(&mut recovery, next);
+        if recovery.error.is_some() {
+            return recovery;
+        }
+    }
+    recovery.error = condition.error;
+    recovery
+}
+
+fn append_recovery(target: &mut Recovery, next: Recovery) {
+    target.values.extend(next.values);
+    target.error = next.error;
+}
+
+fn evaluate_conditional(
+    branches: &[(Expr, Expr)],
+    fallback: &Expr,
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    let Some(((condition, selected), remaining)) = branches.split_first() else {
+        return fallback.eval(input, env);
+    };
+
+    let mut output = Vec::new();
+    for value in condition.eval(input, env)? {
+        if is_truthy(&value) {
+            output.extend(selected.eval(input, env)?);
+        } else {
+            output.extend(evaluate_conditional(remaining, fallback, input, env)?);
+        }
+    }
+    Ok(output)
+}
+
+fn encode_error_payload(value: &Value) -> String {
+    match value {
+        Value::String(message) => message.clone(),
+        value => format!(
+            "{TAGGED_ERROR_PREFIX}{}",
+            serde_json::to_string(&value.to_json_value())
+                .expect("tq values always serialize as JSON")
+        ),
+    }
+}
+
+fn decode_error_payload(error: &str) -> Value {
+    error
+        .strip_prefix(TAGGED_ERROR_PREFIX)
+        .and_then(|json| serde_json::from_str(json).ok())
+        .map(Value::from_json_value)
+        .unwrap_or_else(|| Value::String(error.to_owned()))
 }
 
 fn evaluate_object(
@@ -169,6 +340,22 @@ fn evaluate_object(
 
 pub(super) fn call_add(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
     evaluate_add(input).map(|value| vec![value])
+}
+
+pub(super) fn call_error(
+    arguments: &[Expr],
+    input: &Value,
+    env: &Env,
+) -> Result<Vec<Value>, String> {
+    let payload = if let Some(argument) = arguments.first() {
+        let Some(value) = argument.eval(input, env)?.into_iter().next() else {
+            return Ok(Vec::new());
+        };
+        value
+    } else {
+        input.clone()
+    };
+    Err(encode_error_payload(&payload))
 }
 
 pub(super) fn call_from_entries(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {

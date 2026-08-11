@@ -7,14 +7,18 @@ pub(super) enum Expr {
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
     Call(String, Vec<Expr>),
     Comma(Vec<Expr>),
+    Conditional(Vec<(Expr, Expr)>, Box<Expr>),
+    Empty,
     Field(Box<Expr>, String),
     Identity,
     Index(Box<Expr>, usize),
     Iter(Box<Expr>),
     Literal(Value),
     Object(Vec<(String, Expr)>),
+    Optional(Box<Expr>),
     Pipe(Box<Expr>, Box<Expr>),
     Slice(Box<Expr>, Option<usize>, Option<usize>),
+    Try(Box<Expr>, Option<Box<Expr>>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

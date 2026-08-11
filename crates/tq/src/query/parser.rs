@@ -140,7 +140,7 @@ impl Parser {
     fn parse_postfix(&mut self) -> Result<Expr, String> {
         let mut expression = self.parse_primary()?;
         loop {
-            if self.consume(&Token::Dot) {
+            if self.consume(&Token::FieldDot) {
                 let key = self.expect_ident()?;
                 expression = Expr::Field(Box::new(expression), key);
                 continue;
@@ -173,6 +173,11 @@ impl Parser {
                 continue;
             }
 
+            if self.consume(&Token::Question) {
+                expression = Expr::Optional(Box::new(expression));
+                continue;
+            }
+
             break;
         }
         Ok(expression)
@@ -180,14 +185,11 @@ impl Parser {
 
     fn parse_primary(&mut self) -> Result<Expr, String> {
         match self.next() {
-            Some(Token::Dot) => {
-                let mut expression = Expr::Identity;
-                if matches!(self.peek(), Some(Token::Ident(_))) {
-                    let key = self.expect_ident()?;
-                    expression = Expr::Field(Box::new(expression), key);
-                }
-                Ok(expression)
-            }
+            Some(Token::Dot) => Ok(Expr::Identity),
+            Some(Token::FieldDot) => Ok(Expr::Field(
+                Box::new(Expr::Identity),
+                self.expect_ident()?,
+            )),
             Some(Token::Ident(value)) => self.parse_identifier(value),
             Some(Token::LBracket) => self.parse_array_constructor(),
             Some(Token::LBrace) => self.parse_object_constructor(),
@@ -204,11 +206,45 @@ impl Parser {
 
     fn parse_identifier(&mut self, name: String) -> Result<Expr, String> {
         match name.as_str() {
+            "empty" => Ok(Expr::Empty),
             "false" => Ok(Expr::Literal(Value::Bool(false))),
+            "if" => self.parse_conditional(),
             "null" => Ok(Expr::Literal(Value::Null)),
             "true" => Ok(Expr::Literal(Value::Bool(true))),
+            "try" => self.parse_try(),
             _ => self.parse_call(name),
         }
+    }
+
+    fn parse_conditional(&mut self) -> Result<Expr, String> {
+        let mut branches = Vec::new();
+        let condition = self.parse_pipe()?;
+        self.expect_keyword("then")?;
+        branches.push((condition, self.parse_pipe()?));
+
+        while self.consume_keyword("elif") {
+            let condition = self.parse_pipe()?;
+            self.expect_keyword("then")?;
+            branches.push((condition, self.parse_pipe()?));
+        }
+
+        let fallback = if self.consume_keyword("else") {
+            self.parse_pipe()?
+        } else {
+            Expr::Identity
+        };
+        self.expect_keyword("end")?;
+        Ok(Expr::Conditional(branches, Box::new(fallback)))
+    }
+
+    fn parse_try(&mut self) -> Result<Expr, String> {
+        let expression = self.parse_assignment()?;
+        let handler = self
+            .consume_keyword("catch")
+            .then(|| self.parse_assignment())
+            .transpose()?
+            .map(Box::new);
+        Ok(Expr::Try(Box::new(expression), handler))
     }
 
     fn parse_call(&mut self, name: String) -> Result<Expr, String> {
@@ -336,6 +372,14 @@ impl Parser {
             true
         } else {
             false
+        }
+    }
+
+    fn expect_keyword(&mut self, expected: &str) -> Result<(), String> {
+        if self.consume_keyword(expected) {
+            Ok(())
+        } else {
+            Err(format!("expected keyword `{expected}`"))
         }
     }
 

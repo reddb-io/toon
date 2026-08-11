@@ -1,0 +1,102 @@
+# Conditionals, empty streams, and jq-compatible error recovery.
+case: "conditionals-true-branch"
+filter: "if true then \"yes\" else \"no\" end"
+input: "null"
+output: "\"yes\"\n"
+
+case: "conditionals-elif-chain"
+filter: "if false then 1 elif true then 2 elif true then 3 else 4 end"
+input: "null"
+output: "2\n"
+
+case: "conditionals-optional-else-is-identity"
+filter: "if false then 1 end"
+input: "{\"kept\":true}"
+output: "{\"kept\":true}\n"
+
+case: "conditionals-streaming-predicate"
+filter: "if (true, false) then 1 else 2 end"
+input: "null"
+output: "1\n2\n"
+
+case: "errors-empty-produces-no-output"
+filter: "empty"
+input: "null"
+output: ""
+
+case: "errors-empty-inside-stream"
+filter: "1, empty, 2"
+input: "null"
+output: "1\n2\n"
+
+case: "errors-try-catches-string"
+filter: "try error(\"boom\") catch ."
+input: "null"
+output: "\"boom\"\n"
+
+case: "errors-error-zero-uses-input"
+filter: "42 | try error catch ."
+input: "null"
+output: "42\n"
+
+case: "errors-object-payload-roundtrip"
+filter: "try error({\"kind\":\"boom\",\"code\":7}) catch ."
+input: "null"
+output: "{\"kind\":\"boom\",\"code\":7}\n"
+
+case: "errors-array-payload-roundtrip"
+filter: "try error([1,{\"ok\":false}]) catch ."
+input: "null"
+output: "[1,{\"ok\":false}]\n"
+
+case: "errors-try-without-catch-is-empty"
+filter: "try error(\"ignored\")"
+input: "null"
+output: ""
+
+case: "errors-try-precedes-comma"
+filter: "try error(\"ignored\"), 1"
+input: "null"
+output: "1\n"
+
+case: "errors-try-precedes-alternative"
+filter: "try error(\"ignored\") // 1"
+input: "null"
+output: "1\n"
+
+case: "errors-postfix-question-suppresses-error"
+filter: "error(\"ignored\")?"
+input: "null"
+output: ""
+
+case: "errors-try-keeps-output-before-error"
+filter: "try (1, error(\"boom\"), 2) catch ."
+input: "null"
+output: "1\n\"boom\"\n"
+
+case: "errors-question-keeps-output-before-error"
+filter: "(1, error(\"boom\"), 2)?"
+input: "null"
+output: "1\n"
+
+case: "errors-question-on-iteration"
+filter: "[1,\"x\",2][] | (if type == \"number\" then . else error(\"bad\") end)?"
+input: "null"
+output: "1\n2\n"
+
+case: "errors-try-on-iteration-keeps-prefix"
+filter: "try ([1,\"x\",2][] | if type == \"number\" then . else error(\"bad\") end) catch ."
+input: "null"
+output: "1\n\"bad\"\n"
+
+case: "errors-nested-try-preserves-payload"
+filter: "try (try error({\"nested\":true}) catch error(.)) catch ."
+input: "null"
+output: "{\"nested\":true}\n"
+
+case: "errors-alternative-catches-structured-error"
+filter: "error({\"ignored\":true}) // 7"
+input: "null"
+output: "7\n"
+divergence: "tq's alternative contract suppresses errors from its left-hand filter"
+jq-output: "error: (not a string)"
