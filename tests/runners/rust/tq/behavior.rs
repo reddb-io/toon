@@ -35,7 +35,10 @@ fn reports_type_and_arity_errors_per_builtin() {
         (".phrase|unique", "unique cannot be applied to this value"),
         (".phrase|sort_by(.x)", "Cannot iterate over string"),
         (".phrase|map(.x)", "cannot iterate over non-array"),
-        (".flag|test(\"x\")", "test cannot be applied to this value"),
+        (
+            ".flag|test(\"x\")",
+            "cannot be matched, as it is not a string",
+        ),
         (".phrase|split(1)", "split argument must be a string"),
         (".users[0].score / 0", "division by zero"),
         (".tags + 1", "cannot add these values"),
