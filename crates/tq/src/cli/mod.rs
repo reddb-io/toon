@@ -12,6 +12,7 @@ mod args;
 mod output;
 mod toonl_trim;
 mod upgrade;
+mod xml;
 
 use args::{
     parse_args, parse_check_args, parse_close_args, parse_trim_args, CheckOptions, CloseOptions,
@@ -20,6 +21,7 @@ use args::{
 use output::format_values;
 use toonl_trim::{trim_toonl_keep_last, write_in_place_atomically};
 use upgrade::{parse_upgrade_args, run_upgrade};
+use xml::parse_xml_value;
 
 pub(crate) fn main() -> ExitCode {
     match run() {
@@ -67,7 +69,15 @@ fn run() -> Result<(String, ExitCode), String> {
     }
 
     let input = read_input(&options)?;
-    let values = match options.input_format {
+    let input_format = if options.input_format == Format::Toon
+        && !options.input_format_explicit
+        && looks_like_xml(&input)
+    {
+        Format::Xml
+    } else {
+        options.input_format
+    };
+    let values = match input_format {
         Format::Json => {
             let document = Value::from_json_str(&input).map_err(|error| error.to_string())?;
             crate::query::evaluate(&document, &options.query)?
@@ -87,6 +97,10 @@ fn run() -> Result<(String, ExitCode), String> {
                 },
             )
             .map_err(|error| error.to_string())?;
+            crate::query::evaluate(&document, &options.query)?
+        }
+        Format::Xml => {
+            let document = parse_xml_value(&input)?;
             crate::query::evaluate(&document, &options.query)?
         }
         Format::Toonl => unreachable!("TOONL input is handled before reading into a string"),
@@ -150,7 +164,9 @@ fn run_check(options: CheckOptions) -> Result<(String, ExitCode), String> {
     let report = match options.input_format {
         Format::Toon => detect_truncation_v4(&input, &DecodeOptions::default()),
         Format::Toonl => detect_toonl_truncation(&input),
-        Format::Json | Format::Yaml => unreachable!("check rejects non-TOON input"),
+        Format::Json | Format::Xml | Format::Yaml => {
+            unreachable!("check rejects non-TOON input")
+        }
     };
     let output =
         serde_json::to_string_pretty(&report.to_json_value()).map_err(|error| error.to_string())?;
@@ -187,6 +203,17 @@ fn run_toonl(options: &Options) -> Result<(String, ExitCode), String> {
 fn parse_yaml_value(input: &str) -> Result<Value, String> {
     let value = serde_norway::from_str(input).map_err(|error| error.to_string())?;
     Ok(Value::from_json_value(value))
+}
+
+fn looks_like_xml(input: &str) -> bool {
+    let input = input.strip_prefix('\u{feff}').unwrap_or(input).trim_start();
+    let Some(after_open) = input.strip_prefix('<') else {
+        return false;
+    };
+    matches!(
+        after_open.chars().next(),
+        Some('!' | '?' | ':' | '_' | 'A'..='Z' | 'a'..='z')
+    )
 }
 
 fn read_stdin() -> Result<String, String> {
