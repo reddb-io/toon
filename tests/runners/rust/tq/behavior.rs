@@ -66,7 +66,7 @@ fn reports_filter_syntax_errors() {
     let cases = [
         (". | tostring", "unsupported identifier `tostring`"),
         ("map(.;.)", "unsupported identifier `map`"),
-        (".users[x]", "expected array index"),
+        (".users[x]", "unsupported identifier `x`"),
         (".[", "expected array index"),
         (". .", "unexpected trailing filter input"),
         (". |", "unexpected token"),
@@ -779,13 +779,13 @@ fn run_tq(args: &[&str], stdin: &str) -> std::process::Output {
 }
 
 #[test]
-fn slicing_a_non_array_yields_null() {
+fn slicing_a_string_yields_the_substring() {
     let output = run_tq(&["-p", "json", "-o", "json", "-c", ".phrase[1:2]"], SAMPLE);
 
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         String::from_utf8(output.stdout).expect("stdout is utf-8"),
-        "null\n"
+        "\"d\"\n"
     );
 }
 
