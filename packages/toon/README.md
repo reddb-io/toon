@@ -12,6 +12,14 @@ that build before publishing. Performance notes and token-efficiency
 measurements live in [`benchmarks/`](../../benchmarks/README.md), not in this
 package README.
 
+For the upstream TOON surface, `@reddb-io/toon` is drop-in compatible with the
+vendored `@toon-format/toon` revision. CI enforces that guarantee by running the
+vendored upstream package unit suite against this package through an
+import-mapping shim. Upstream-internal cases that cannot express public API
+compatibility are recorded with rationales in the ratcheting
+[`skip-ledger.json`](../../scripts/upstream-package-suite/skip-ledger.json);
+ledger entries may only be removed.
+
 ```bash
 pnpm add @reddb-io/toon
 ```
