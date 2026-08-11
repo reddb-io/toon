@@ -276,18 +276,6 @@ pub(super) fn call_split(
     .map(|value| vec![value])
 }
 
-pub(super) fn call_test(
-    arguments: &[Expr],
-    input: &Value,
-    env: &Env,
-) -> Result<Vec<Value>, String> {
-    evaluate_test(
-        input,
-        &single_string_arg(&arguments[0], input, env, "test")?,
-    )
-    .map(|value| vec![value])
-}
-
 pub(super) fn call_to_entries(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
     evaluate_to_entries(input).map(|value| vec![value])
 }
@@ -538,14 +526,6 @@ fn evaluate_join(input: &Value, separator: &str) -> Result<Value, String> {
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Value::String(parts.join(separator)))
-}
-
-fn evaluate_test(input: &Value, pattern: &str) -> Result<Value, String> {
-    let Value::String(value) = input else {
-        return Err("test cannot be applied to this value".to_owned());
-    };
-    let regex = regex::Regex::new(pattern).map_err(|error| format!("invalid regex: {error}"))?;
-    Ok(Value::Bool(regex.is_match(value)))
 }
 
 fn single_string_arg(

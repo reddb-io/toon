@@ -1,0 +1,201 @@
+# Regex and string builtins.
+case: "strings-ascii-downcase"
+filter: "ascii_downcase"
+input: "\"ÄAZz\""
+output: "\"Äazz\"\n"
+
+case: "strings-ascii-upcase"
+filter: "ascii_upcase"
+input: "\"ÄaZz\""
+output: "\"ÄAZZ\"\n"
+
+case: "strings-ltrimstr"
+filter: "ltrimstr(\"foo\")"
+input: "\"foofoobar\""
+output: "\"foobar\"\n"
+
+case: "strings-rtrimstr"
+filter: "rtrimstr(\"foo\")"
+input: "\"barfoofoo\""
+output: "\"barfoo\"\n"
+
+case: "strings-trimstr"
+filter: "trimstr(\"foo\")"
+input: "\"foo-middle-foo\""
+output: "\"-middle-\"\n"
+divergence: "trimstr is part of tq's requested jq-style surface but absent from jq 1.7.1"
+jq-output: "error: trimstr/1 is not defined"
+
+case: "strings-trim"
+filter: "trim"
+input: "\" \\tHello\\n \""
+output: "\"Hello\"\n"
+divergence: "trim is part of tq's requested jq-style surface but absent from jq 1.7.1"
+jq-output: "error: trim/0 is not defined"
+
+case: "strings-startswith"
+filter: "startswith(\"Ada\")"
+input: "\"Ada Lovelace\""
+output: "true\n"
+
+case: "regex-match-named-captures"
+filter: "match(\"(?<word>[A-Za-z]+)-(?<n>[0-9]+)\")"
+input: "\"abc-12\""
+output: "{\"offset\":0,\"length\":6,\"string\":\"abc-12\",\"captures\":[{\"offset\":0,\"length\":3,\"string\":\"abc\",\"name\":\"word\"},{\"offset\":4,\"length\":2,\"string\":\"12\",\"name\":\"n\"}]}\n"
+
+case: "regex-capture-named-groups"
+filter: "capture(\"(?<letter>[a-z]+)-(?<number>[0-9]+)\")"
+input: "\"abc-12\""
+output: "{\"letter\":\"abc\",\"number\":\"12\"}\n"
+
+case: "regex-scan-capture-stream"
+filter: "scan(\"([a-z]+)-([0-9]+)\")"
+input: "\"a-1 b-22\""
+output: "[\"a\",\"1\"]\n[\"b\",\"22\"]\n"
+
+case: "regex-splits-stream"
+filter: "splits(\"[,;]\")"
+input: "\"a,b;c\""
+output: "\"a\"\n\"b\"\n\"c\"\n"
+
+case: "regex-split-array"
+filter: "split(\"[,;]\";\"\")"
+input: "\"a,b;c\""
+output: "[\"a\",\"b\",\"c\"]\n"
+
+case: "regex-sub-replacement-filter"
+filter: "sub(\"(?<word>[a-z]+)\";.word|ascii_upcase)"
+input: "\"hello world\""
+output: "\"HELLO world\"\n"
+
+case: "regex-gsub-replacement-filter"
+filter: "gsub(\"(?<word>[a-z]+)\";.word|ascii_upcase)"
+input: "\"hello world\""
+output: "\"HELLO WORLD\"\n"
+
+case: "regex-gsub-replacement-filter-stream"
+filter: "gsub(\"a\";(\"x\",\"y\"))"
+input: "\"aa\""
+output: "\"xx\"\n\"yy\"\n"
+
+case: "regex-match-global-unicode-offsets"
+filter: "match(\"a\";\"ig\")"
+input: "\"éaA\""
+output: "{\"offset\":1,\"length\":1,\"string\":\"a\",\"captures\":[]}\n{\"offset\":2,\"length\":1,\"string\":\"A\",\"captures\":[]}\n"
+
+case: "regex-test-ignore-empty-matches"
+filter: "test(\"a*\";\"n\")"
+input: "\"bbb\""
+output: "false\n"
+
+case: "regex-capture-unmatched-group"
+filter: "capture(\"(?<x>a)?(?<y>b)\")"
+input: "\"b\""
+output: "{\"x\":null,\"y\":\"b\"}\n"
+
+case: "regex-scan-whole-matches"
+filter: "scan(\"a+\")"
+input: "\"baacaa\""
+output: "\"aa\"\n\"aa\"\n"
+
+case: "regex-splits-preserves-empty-parts"
+filter: "splits(\"x\")"
+input: "\"xaxbxx\""
+output: "\"\"\n\"a\"\n\"b\"\n\"\"\n\"\"\n"
+
+case: "regex-sub-global-flag"
+filter: "sub(\"a\";\"x\";\"g\")"
+input: "\"aba\""
+output: "\"xbx\"\n"
+
+case: "regex-non-string-input-error"
+filter: "test(\"x\")"
+input: "1"
+error: "cannot be matched, as it is not a string"
+
+case: "regex-non-string-pattern-error"
+filter: "test(1)"
+input: "\"x\""
+error: "not a string"
+
+case: "regex-non-string-flags-error"
+filter: "test(\"x\";1)"
+input: "\"x\""
+error: "is not a string"
+
+case: "regex-invalid-modifier-error"
+filter: "test(\"x\";\"z\")"
+input: "\"x\""
+error: "is not a valid modifier string"
+
+case: "regex-invalid-pattern-error"
+filter: "test(\"(\")"
+input: "\"x\""
+error: "Regex failure:"
+
+case: "regex-replacement-non-string-error"
+filter: "sub(\"x\";1)"
+input: "\"x\""
+error: "cannot be added"
+
+case: "strings-ascii-non-string-error"
+filter: "ascii_downcase"
+input: "1"
+error: "explode input must be a string"
+
+case: "strings-startswith-input-error"
+filter: "startswith(\"x\")"
+input: "1"
+error: "startswith() requires string inputs"
+
+case: "strings-endswith-argument-error"
+filter: "endswith(1)"
+input: "\"x\""
+error: "endswith() requires string inputs"
+
+case: "strings-explode-input-error"
+filter: "explode"
+input: "1"
+error: "explode input must be a string"
+
+case: "strings-implode-input-error"
+filter: "implode"
+input: "\"x\""
+error: "implode input must be an array"
+
+case: "strings-implode-codepoint-error"
+filter: "implode"
+input: "[65,\"x\"]"
+error: "unicode codepoint needs to be numeric"
+
+case: "strings-ltrimstr-type-mismatch-is-unchanged"
+filter: "ltrimstr(\"x\")"
+input: "1"
+output: "1\n"
+
+case: "strings-deferred-utf8bytelength-is-clear"
+filter: "utf8bytelength"
+input: "\"é\""
+error: "unsupported identifier `utf8bytelength`"
+divergence: "utf8bytelength is deferred from this themed slice"
+jq-output: "2\n"
+
+case: "strings-explode-unicode-codepoints"
+filter: "explode"
+input: "\"A💩\""
+output: "[65,128169]\n"
+
+case: "strings-implode-unicode-codepoints"
+filter: "implode"
+input: "[65,128169]"
+output: "\"A💩\"\n"
+
+case: "regex-test-case-insensitive-flag"
+filter: "test(\"ada\";\"i\")"
+input: "\"Ada Lovelace\""
+output: "true\n"
+
+case: "strings-endswith"
+filter: "endswith(\"lace\")"
+input: "\"Ada Lovelace\""
+output: "true\n"
