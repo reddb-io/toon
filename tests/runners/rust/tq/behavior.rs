@@ -67,7 +67,7 @@ fn reports_filter_syntax_errors() {
         (". | tostring", "unsupported identifier `tostring`"),
         ("map(.;.)", "unsupported identifier `map`"),
         (".users[x]", "unsupported identifier `x`"),
-        (".[", "expected array index"),
+        (".[", "unexpected token `None`"),
         (". .", "unexpected trailing filter input"),
         (". |", "unexpected token"),
         ("\"unterminated", "unterminated string literal"),
