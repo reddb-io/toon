@@ -39,7 +39,10 @@ export function parseScalar(value, line) {
   if (value === 'true') return true
   if (value === 'false') return false
   if (value === 'null') return null
-  if (isNumberToken(value)) return Number(value)
+  if (isNumberToken(value)) {
+    const number = Number(value)
+    return Object.is(number, -0) ? 0 : number
+  }
   return value
 }
 
