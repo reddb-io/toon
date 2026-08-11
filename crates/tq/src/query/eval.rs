@@ -13,12 +13,68 @@ pub(super) struct Env {
 impl Expr {
     pub(super) fn eval(&self, input: &Value, env: &Env) -> Result<Vec<Value>, String> {
         match self {
+            Self::Alternative(left, right) => {
+                let values = left
+                    .eval(input, env)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(is_truthy)
+                    .collect::<Vec<_>>();
+                if values.is_empty() {
+                    right.eval(input, env)
+                } else {
+                    Ok(values)
+                }
+            }
             Self::Array(items) => {
                 let mut values = Vec::new();
                 for item in items {
                     values.extend(item.eval(input, env)?);
                 }
                 Ok(vec![Value::Array(Array::List(values))])
+            }
+            Self::Binary(BinaryOp::And, left, right) => {
+                let left_values = left.eval(input, env)?;
+                if left_values.iter().all(|value| !is_truthy(value)) {
+                    return Ok(left_values
+                        .into_iter()
+                        .map(|_| Value::Bool(false))
+                        .collect());
+                }
+                let right_values = right.eval(input, env)?;
+                let mut output = Vec::new();
+                for left_value in left_values {
+                    if is_truthy(&left_value) {
+                        output.extend(
+                            right_values
+                                .iter()
+                                .map(|right_value| Value::Bool(is_truthy(right_value))),
+                        );
+                    } else {
+                        output.push(Value::Bool(false));
+                    }
+                }
+                Ok(output)
+            }
+            Self::Binary(BinaryOp::Or, left, right) => {
+                let left_values = left.eval(input, env)?;
+                if left_values.iter().all(is_truthy) {
+                    return Ok(left_values.into_iter().map(|_| Value::Bool(true)).collect());
+                }
+                let right_values = right.eval(input, env)?;
+                let mut output = Vec::new();
+                for left_value in left_values {
+                    if is_truthy(&left_value) {
+                        output.push(Value::Bool(true));
+                    } else {
+                        output.extend(
+                            right_values
+                                .iter()
+                                .map(|right_value| Value::Bool(is_truthy(right_value))),
+                        );
+                    }
+                }
+                Ok(output)
             }
             Self::Binary(operator, left, right) => {
                 let left_values = left.eval(input, env)?;
@@ -180,6 +236,10 @@ pub(super) fn call_min_by(
     env: &Env,
 ) -> Result<Vec<Value>, String> {
     evaluate_min_max_by(input, &arguments[0], env, false).map(|value| vec![value])
+}
+
+pub(super) fn call_not(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
+    Ok(vec![Value::Bool(!is_truthy(input))])
 }
 
 pub(super) fn call_select(
@@ -530,8 +590,10 @@ fn evaluate_length(input: &Value) -> Result<Value, String> {
 fn evaluate_binary(operator: BinaryOp, left: &Value, right: &Value) -> Result<Value, String> {
     match operator {
         BinaryOp::Add => add_values(left, right),
+        BinaryOp::And => Ok(Value::Bool(is_truthy(left) && is_truthy(right))),
         BinaryOp::Subtract => subtract_values(left, right),
         BinaryOp::Multiply => number_value(parse_number_value(left)? * parse_number_value(right)?),
+        BinaryOp::Or => Ok(Value::Bool(is_truthy(left) || is_truthy(right))),
         BinaryOp::Divide => {
             let divisor = parse_number_value(right)?;
             if divisor == 0.0 {
@@ -543,6 +605,13 @@ fn evaluate_binary(operator: BinaryOp, left: &Value, right: &Value) -> Result<Va
         BinaryOp::NotEqual => Ok(Value::Bool(left.to_json_value() != right.to_json_value())),
         BinaryOp::Less => Ok(Value::Bool(compare_values(left, right)?.is_lt())),
         BinaryOp::LessEqual => Ok(Value::Bool(!compare_values(left, right)?.is_gt())),
+        BinaryOp::Modulo => {
+            let divisor = parse_number_value(right)?;
+            if divisor == 0.0 {
+                return Err("division by zero".to_owned());
+            }
+            number_value(parse_number_value(left)? % divisor)
+        }
         BinaryOp::Greater => Ok(Value::Bool(compare_values(left, right)?.is_gt())),
         BinaryOp::GreaterEqual => Ok(Value::Bool(!compare_values(left, right)?.is_lt())),
     }

@@ -47,6 +47,8 @@ cases should land together.
 | `types-toarray-wraps-scalar` | Wraps a scalar in a one-element array. | `toarray/0` is not defined. | tq provides the requested scalar-to-array coercion. |
 | `types-toarray-keeps-array` | Returns an array unchanged. | `toarray/0` is not defined. | tq provides the requested scalar-to-array coercion. |
 | `types-toarray-normalizes-generated-numbers` | Wraps the generated value and emits jq-compatible JSON. | `toarray/0` is not defined. | tq provides the requested scalar-to-array coercion. |
+| `divergence-chainable-comparison` | `1 < 2 < 3` evaluates left-associatively to `true`. | Rejects chained comparisons as a syntax error. | tq retains its established accepts-more comparison grammar. |
+| `operators-alternative-suppresses-error` | `true \| length // 0` produces `0`. | Propagates the `length` type error. | tq's alternative contract suppresses errors raised by its left-hand filter. |
 
 Array `to_entries` is explicitly not a divergence: jq 1.7.1 and tq both emit
 zero-based numeric keys. Its ordinary parity pin is

@@ -790,6 +790,7 @@ fn slicing_a_non_array_yields_null() {
 fn reports_the_remaining_evaluator_and_parser_errors() {
     let cases = [
         (".n * .phrase", r#"{"n":2,"phrase":"x"}"#, "expected number"),
+        ("17 % 0", "null", "division by zero"),
         ("join(\",\")", "[[1],2]", "join cannot stringify this value"),
         (
             "split((\"a\",\"b\"))",
@@ -800,8 +801,15 @@ fn reports_the_remaining_evaluator_and_parser_errors() {
         ("{1:2}", "{}", "expected object key"),
         ("map(.", "{}", "expected `RParen`"),
         (". as $x", "{}", "unsupported character `$`"),
-        // A lone `=` or `!` that is not doubled up is an unfinished operator.
-        (".a=1", "{}", "expected `=`"),
+        (".a=1", "{}", "assignment operators are not supported yet"),
+        (".a|=1", "{}", "assignment operators are not supported yet"),
+        (".a+=1", "{}", "assignment operators are not supported yet"),
+        (".a-=1", "{}", "assignment operators are not supported yet"),
+        (".a*=1", "{}", "assignment operators are not supported yet"),
+        (".a/=1", "{}", "assignment operators are not supported yet"),
+        (".a%=1", "{}", "assignment operators are not supported yet"),
+        (".a//=1", "{}", "assignment operators are not supported yet"),
+        // A lone `!` that is not doubled up is an unfinished operator.
         (".a!1", "{}", "expected `=`"),
     ];
 
