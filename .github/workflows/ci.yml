@@ -64,6 +64,8 @@ jobs:
         run: pnpm check:versions
       - name: Test offline upstream drift decisions
         run: pnpm test:upstream
+      - name: Test drop-in package compatibility
+        run: pnpm test:upstream-package
       - name: Check source file length
         run: scripts/check-file-length.sh
       - name: Verify deterministic accuracy benchmark
