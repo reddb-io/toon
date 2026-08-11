@@ -2,6 +2,7 @@ use reddb_io_toon::{encode_toonl_values, encode_with_options, EncodeV4Options, V
 use serde::Serialize;
 
 use super::args::{Format, Options};
+use super::xml::format_xml_value;
 
 pub(super) fn format_values(values: &[Value], options: &Options) -> Result<String, String> {
     let sorted_values;
@@ -61,6 +62,12 @@ pub(super) fn format_values(values: &[Value], options: &Options) -> Result<Strin
                     output.push_str(&encoded);
                 }
                 if !options.join_output && !output.ends_with('\n') {
+                    output.push('\n');
+                }
+            }
+            Format::Xml => {
+                output.push_str(&format_xml_value(value)?);
+                if !options.join_output {
                     output.push('\n');
                 }
             }

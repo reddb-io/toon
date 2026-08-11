@@ -1,7 +1,7 @@
 use std::path::Path;
 
 const USAGE: &str = concat!(
-    "usage: tq [-p toon|json|toonl|yaml|yml] [-o toon|json|toonl] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
+    "usage: tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
     "subcommands: trim, close, check, upgrade"
 );
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
@@ -13,6 +13,7 @@ pub(super) enum Format {
     Json,
     Toon,
     Toonl,
+    Xml,
     Yaml,
 }
 
@@ -21,6 +22,7 @@ pub(super) struct Options {
     pub(super) query: String,
     pub(super) input_path: Option<String>,
     pub(super) input_format: Format,
+    pub(super) input_format_explicit: bool,
     pub(super) output_format: Format,
     pub(super) raw_output: bool,
     pub(super) join_output: bool,
@@ -122,12 +124,14 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
 
     let query = positional.remove(0);
     let input_path = positional.pop();
+    let input_format_explicit = input_format.is_some();
     let input_format = input_format.unwrap_or_else(|| detect_input_format(input_path.as_deref()));
 
     Ok(Options {
         query,
         input_path,
         input_format,
+        input_format_explicit,
         output_format: output_format.unwrap_or_else(|| default_output_format(input_format)),
         raw_output,
         join_output,
@@ -230,7 +234,7 @@ pub(super) fn parse_check_args(args: impl Iterator<Item = String>) -> Result<Che
             "-p" => {
                 let format = args.next().ok_or_else(|| CHECK_USAGE.to_owned())?;
                 let format = parse_input_format(&format)?;
-                if matches!(format, Format::Json | Format::Yaml) {
+                if matches!(format, Format::Json | Format::Xml | Format::Yaml) {
                     return Err(CHECK_USAGE.to_owned());
                 }
                 input_format = Some(format);
@@ -250,7 +254,7 @@ pub(super) fn parse_check_args(args: impl Iterator<Item = String>) -> Result<Che
 
     let input_path = positional.pop();
     let input_format = input_format.unwrap_or_else(|| detect_input_format(input_path.as_deref()));
-    if matches!(input_format, Format::Json | Format::Yaml) {
+    if matches!(input_format, Format::Json | Format::Xml | Format::Yaml) {
         return Err(CHECK_USAGE.to_owned());
     }
     Ok(CheckOptions {
@@ -271,13 +275,14 @@ fn parse_output_format(value: &str) -> Result<Format, String> {
         "json" => Ok(Format::Json),
         "toon" => Ok(Format::Toon),
         "toonl" => Ok(Format::Toonl),
+        "xml" => Ok(Format::Xml),
         _ => Err(format!("unsupported format `{value}`")),
     }
 }
 
 fn default_output_format(input_format: Format) -> Format {
     match input_format {
-        Format::Yaml => Format::Toon,
+        Format::Xml | Format::Yaml => Format::Toon,
         format => format,
     }
 }
@@ -288,6 +293,7 @@ fn detect_input_format(path: Option<&str>) -> Format {
         .and_then(|value| value.to_str())
     {
         Some("toonl") => Format::Toonl,
+        Some("xml") => Format::Xml,
         Some("yaml" | "yml") => Format::Yaml,
         _ => Format::Toon,
     }
