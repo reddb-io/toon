@@ -34,8 +34,8 @@ The validator checks both the documented jq result and that tq still differs.
 
 ## Divergence ledger
 
-These differences are intentional. Changes to this table and to
-`divergences.cases` should land together.
+These differences are intentional. Changes to this table and their corpus
+cases should land together.
 
 | Corpus case | tq behavior | jq 1.7.1 behavior | Rationale |
 | --- | --- | --- | --- |
@@ -44,6 +44,9 @@ These differences are intentional. Changes to this table and to
 | `divergence-iteration-on-object` | `.[]` over an object yields `null`. | Streams the object's values. | tq iteration is deliberately array-only. |
 | `divergence-number-has-on-object` | `has(1)` stringifies the key and returns `false`. | Errors on a numeric object key. | tq uses the same string-key lookup model as TOON objects. |
 | `divergence-number-has-on-numeric-key` | `has(1)` stringifies the key and returns `true` for key `"1"`. | Errors on a numeric object key. | tq uses the same string-key lookup model as TOON objects. |
+| `types-toarray-wraps-scalar` | Wraps a scalar in a one-element array. | `toarray/0` is not defined. | tq provides the requested scalar-to-array coercion. |
+| `types-toarray-keeps-array` | Returns an array unchanged. | `toarray/0` is not defined. | tq provides the requested scalar-to-array coercion. |
+| `types-toarray-normalizes-generated-numbers` | Wraps the generated value and emits jq-compatible JSON. | `toarray/0` is not defined. | tq provides the requested scalar-to-array coercion. |
 
 Array `to_entries` is explicitly not a divergence: jq 1.7.1 and tq both emit
 zero-based numeric keys. Its ordinary parity pin is
