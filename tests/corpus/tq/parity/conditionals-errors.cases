@@ -100,3 +100,13 @@ input: "null"
 output: "7\n"
 divergence: "tq's alternative contract suppresses errors from its left-hand filter"
 jq-output: "error: (not a string)"
+
+case: "if-without-end-is-a-syntax-error"
+filter: "if . then 1 else 2"
+input: "true"
+error: "expected keyword `end`"
+
+case: "empty-call-parens-are-a-syntax-error"
+filter: "select()"
+input: "true"
+error: "unexpected token"

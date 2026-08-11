@@ -13,13 +13,6 @@ output: "null\n"
 divergence: "tq treats an array index on a non-array as null"
 jq-output: "error: Cannot index object with number"
 
-case: "divergence-iteration-on-object"
-filter: ".[]"
-input: "{\"a\":1}"
-output: "null\n"
-divergence: "tq iteration is array-only and yields null for other values"
-jq-output: "1\n"
-
 case: "divergence-number-has-on-object"
 filter: "has(1)"
 input: "{\"team\":\"core\"}"

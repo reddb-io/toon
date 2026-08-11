@@ -3,7 +3,6 @@ use reddb_io_toon::Value;
 use super::ast::{BinaryOp, Expr};
 use super::builtins;
 use super::lexer::{lex, Token};
-use super::values::parse_usize;
 
 pub(super) struct Parser {
     tokens: Vec<Token>,
@@ -155,13 +154,13 @@ impl Parser {
                 let start = if self.peek() == Some(&Token::Colon) {
                     None
                 } else {
-                    Some(self.expect_usize()?)
+                    Some(Box::new(self.parse_pipe()?))
                 };
                 if self.consume(&Token::Colon) {
                     let end = if self.peek() == Some(&Token::RBracket) {
                         None
                     } else {
-                        Some(self.expect_usize()?)
+                        Some(Box::new(self.parse_pipe()?))
                     };
                     self.expect(Token::RBracket)?;
                     expression = Expr::Slice(Box::new(expression), start, end);
@@ -337,13 +336,6 @@ impl Parser {
         match self.next() {
             Some(Token::Ident(value)) => Ok(value),
             token => Err(format!("expected identifier, got `{token:?}`")),
-        }
-    }
-
-    fn expect_usize(&mut self) -> Result<usize, String> {
-        match self.next() {
-            Some(Token::Number(value)) => parse_usize(&value),
-            token => Err(format!("expected array index, got `{token:?}`")),
         }
     }
 

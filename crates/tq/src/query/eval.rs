@@ -114,22 +114,8 @@ impl Expr {
                 })
                 .collect()),
             Self::Identity => Ok(vec![input.clone()]),
-            Self::Index(base, index) => Ok(base
-                .eval(input, env)?
-                .into_iter()
-                .map(|value| match value {
-                    Value::Array(array) => array.get(*index).unwrap_or(Value::Null),
-                    _ => Value::Null,
-                })
-                .collect()),
-            Self::Iter(base) => Ok(base
-                .eval(input, env)?
-                .into_iter()
-                .flat_map(|value| match value {
-                    Value::Array(array) => array.values(),
-                    _ => vec![Value::Null],
-                })
-                .collect()),
+            Self::Index(base, index) => super::indexing::evaluate_index(base, index, input, env),
+            Self::Iter(base) => super::indexing::evaluate_iteration(base, input, env),
             Self::Literal(value) => Ok(vec![value.clone()]),
             Self::Object(fields) => evaluate_object(fields, input, env),
             Self::Optional(expression) => Ok(evaluate_recovering(expression, input, env).values),
@@ -140,14 +126,9 @@ impl Expr {
                 }
                 Ok(output)
             }
-            Self::Slice(base, start, end) => Ok(base
-                .eval(input, env)?
-                .into_iter()
-                .map(|value| match value {
-                    Value::Array(array) => Value::Array(array.slice(*start, *end)),
-                    _ => Value::Null,
-                })
-                .collect()),
+            Self::Slice(base, start, end) => {
+                super::indexing::evaluate_slice(base, start.as_deref(), end.as_deref(), input, env)
+            }
             Self::Try(expression, handler) => {
                 recover_try(expression, handler.as_deref(), input, env).finish()
             }
