@@ -8,6 +8,7 @@ pub(super) enum Token {
     EqualEqual,
     Greater,
     GreaterEqual,
+    FieldDot,
     Ident(String),
     LBrace,
     LBracket,
@@ -20,6 +21,7 @@ pub(super) enum Token {
     Pipe,
     Plus,
     Percent,
+    Question,
     RBrace,
     RBracket,
     RParen,
@@ -38,7 +40,15 @@ pub(super) fn lex(query: &str) -> Result<Vec<Token>, String> {
             character if character.is_whitespace() => {}
             ':' => tokens.push(Token::Colon),
             ',' => tokens.push(Token::Comma),
-            '.' => tokens.push(Token::Dot),
+            '.' => tokens.push(
+                if matches!(chars.peek(), Some((next, character))
+                    if *next == index + 1 && is_ident_start(*character))
+                {
+                    Token::FieldDot
+                } else {
+                    Token::Dot
+                },
+            ),
             '|' => tokens.push(if consume_char(&mut chars, '=') {
                 Token::Assign
             } else {
@@ -54,6 +64,7 @@ pub(super) fn lex(query: &str) -> Result<Vec<Token>, String> {
             } else {
                 Token::Percent
             }),
+            '?' => tokens.push(Token::Question),
             '-' => tokens.push(if consume_char(&mut chars, '=') {
                 Token::Assign
             } else {
