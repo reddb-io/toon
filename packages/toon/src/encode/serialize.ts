@@ -1,11 +1,10 @@
-import { canonicalKey, primitiveText } from '../lexical.js'
+import { canonicalKey, needsQuotes, primitiveText, quoteString } from '../lexical.js'
 import { toonError } from '../errors.js'
 import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js'
 import { isPlainObject, isPrimitive, normalizeValue } from './normalize.js'
 import { applyReplacer, type EncodeReplacer } from './replacer.js'
-import { collectLeaves, keyedFields, tabularFields, type FieldNode } from './shape.js'
+import { keyedFields, tabularFields, type FieldNode } from './shape.js'
 import { cyclicDiscriminatedArrayWire } from '../toon_parts/cyclic.js'
-import { serialize as serializeLegacyExtensions } from '../toon_parts/serialize.js'
 
 export interface EncodeOptions {
   delimiter?: ',' | '|' | '\t'
@@ -23,6 +22,8 @@ interface ResolvedOptions {
   delimiter: ',' | '|' | '\t'
   indentSize: number
   maxDepth: number
+  primitiveArrayColumns: boolean
+  objectArrayColumns: boolean
 }
 
 /** Encodes normalized JSON using the canonical v4.1 forms. */
@@ -43,20 +44,16 @@ export function encodeLines(input: unknown, options: EncodeOptions = {}): Iterab
   const value = options.replacer
     ? applyReplacer(normalized, options.replacer)
     : normalized
-  const resolved = { delimiter, indentSize, maxDepth }
+  const resolved = {
+    delimiter,
+    indentSize,
+    maxDepth,
+    primitiveArrayColumns: options.primitiveArrayColumns === true,
+    objectArrayColumns: options.objectArrayColumns === true,
+  }
   if (options.cyclicDiscriminatedArrays === true) {
     const cyclic = cyclicDiscriminatedArrayWire(value)
     if (cyclic !== undefined) return cyclic.trimEnd().split('\n')
-  }
-  if (options.primitiveArrayColumns === true || options.objectArrayColumns === true) {
-    const extension = serializeLegacyExtensions(value, {
-      delimiter,
-      primitiveArrayColumns: options.primitiveArrayColumns === true,
-      objectArrayColumns: options.objectArrayColumns === true,
-      maxDepth,
-    })
-    const withoutExtension = serializeLegacyExtensions(value, { delimiter, maxDepth })
-    if (extension !== withoutExtension) return extension.trimEnd().split('\n')
   }
   return encodeValue(value, resolved)
 }
@@ -64,7 +61,7 @@ export function encodeLines(input: unknown, options: EncodeOptions = {}): Iterab
 function encodeValue(value: any, options: ResolvedOptions): string[] {
   if (isPrimitive(value)) return [primitiveText(value, options.delimiter)]
   if (Array.isArray(value)) return encodeArray(undefined, value, 0, options)
-  const fields = keyedFields(value)
+  const fields = keyedFields(value, options)
   return fields === undefined
     ? encodeObject(value, 0, options)
     : encodeKeyed(undefined, value, fields, 0, options)
@@ -80,7 +77,7 @@ function encodeField(key: string, value: any, depth: number, options: ResolvedOp
   if (isPrimitive(value)) return [`${prefix}: ${primitiveText(value, options.delimiter)}`]
   if (Array.isArray(value)) return encodeArray(key, value, depth, options)
 
-  const fields = keyedFields(value)
+  const fields = keyedFields(value, options)
   if (fields !== undefined) return encodeKeyed(key, value, fields, depth, options)
   const lines = [`${prefix}:`]
   if (Object.keys(value).length > 0) lines.push(...encodeObject(value, depth + 1, options))
@@ -101,12 +98,9 @@ function encodeKeyed(
     indentation(depth, options) + header(key, entries.length, fields, options.delimiter, true),
   ]
   for (const [entryKey, entryValue] of entries) {
-    lines.push(
-      indentation(depth + 1, options) +
-        canonicalKey(entryKey) +
-        ': ' +
-        encodeCells(collectLeaves(entryValue, fields), options.delimiter),
-    )
+    const row = encodeTabularRow(entryValue, fields, depth + 2, options)
+    lines.push(indentation(depth + 1, options) + canonicalKey(entryKey) + ': ' + row.cells)
+    lines.push(...row.children)
   }
   return lines
 }
@@ -125,10 +119,8 @@ function encodeArray(
       prefix + header(key, value.length, undefined, options.delimiter) + ' ' + encodeCells(value, options.delimiter),
     ]
   }
-  if (value.every(isPlainObject)) {
-    const fields = tabularFields(value)
-    if (fields !== undefined) return encodeTabular(key, value, fields, depth, options)
-  }
+  const fields = tabularFields(value, options)
+  if (fields !== undefined) return encodeTabular(key, value, fields, depth, options)
 
   const lines = [prefix + header(key, value.length, undefined, options.delimiter)]
   for (const item of value) lines.push(...encodeListItem(item, depth + 1, options))
@@ -137,7 +129,7 @@ function encodeArray(
 
 function encodeTabular(
   key: string | undefined,
-  rows: Record<string, any>[],
+  rows: any[],
   fields: FieldNode[],
   depth: number,
   options: ResolvedOptions,
@@ -145,7 +137,9 @@ function encodeTabular(
   checkFieldDepth(fields, depth + 1, options)
   const lines = [indentation(depth, options) + header(key, rows.length, fields, options.delimiter)]
   for (const row of rows) {
-    lines.push(indentation(depth + 1, options) + encodeCells(collectLeaves(row, fields), options.delimiter))
+    const encoded = encodeTabularRow(row, fields, depth + 2, options)
+    lines.push(indentation(depth + 1, options) + encoded.cells)
+    lines.push(...encoded.children)
   }
   return lines
 }
@@ -224,20 +218,22 @@ function encodeFirstContainer(
     ]
   }
   if (Array.isArray(value) && value.every(isPlainObject)) {
-    const fields = tabularFields(value)
+    const fields = tabularFields(value, options)
     if (fields !== undefined) {
       checkFieldDepth(fields, depth + 1, options)
       const lines = [
         indentation(depth, options) + '- ' + header(key, value.length, fields, options.delimiter),
       ]
       for (const row of value) {
-        lines.push(indentation(depth + 2, options) + encodeCells(collectLeaves(row, fields), options.delimiter))
+        const encoded = encodeTabularRow(row, fields, depth + 3, options)
+        lines.push(indentation(depth + 2, options) + encoded.cells)
+        lines.push(...encoded.children)
       }
       return lines
     }
   }
   if (isPlainObject(value)) {
-    const fields = keyedFields(value)
+    const fields = keyedFields(value, options)
     if (fields !== undefined) {
       checkFieldDepth(fields, depth + 1, options)
       const entries = Object.entries(value)
@@ -245,12 +241,9 @@ function encodeFirstContainer(
         indentation(depth, options) + '- ' + header(key, entries.length, fields, options.delimiter, true),
       ]
       for (const [entryKey, entryValue] of entries) {
-        lines.push(
-          indentation(depth + 2, options) +
-            canonicalKey(entryKey) +
-            ': ' +
-            encodeCells(collectLeaves(entryValue, fields), options.delimiter),
-        )
+        const encoded = encodeTabularRow(entryValue, fields, depth + 3, options)
+        lines.push(indentation(depth + 2, options) + canonicalKey(entryKey) + ': ' + encoded.cells)
+        lines.push(...encoded.children)
       }
       return lines
     }
@@ -274,11 +267,60 @@ function header(
 
 function formatFields(fields: FieldNode[], delimiter: string): string {
   return fields
-    .map((field) =>
-      canonicalKey(field.name) +
-      (field.children === undefined ? '' : `{${formatFields(field.children, delimiter)}}`),
-    )
+    .map((field) => {
+      const name = canonicalKey(field.name)
+      if (field.listDelimiter !== undefined) return `${name}[${field.listDelimiter}]`
+      if (field.fixedLength !== undefined) {
+        const delimiterMarker = delimiter === ',' ? '' : delimiter
+        return `${name}[${field.fixedLength}${delimiterMarker}]`
+      }
+      return name + (field.children === undefined ? '' : `{${formatFields(field.children, delimiter)}}`)
+    })
     .join(delimiter)
+}
+
+function encodeTabularRow(
+  value: any,
+  fields: FieldNode[],
+  childDepth: number,
+  options: ResolvedOptions,
+): { cells: string; children: string[] } {
+  const cells: string[] = []
+  const children: string[] = []
+
+  for (const field of fields) {
+    const nested = field.self === true ? value : value[field.name]
+    if (field.childTable === true) {
+      cells.push(String(nested.length))
+      for (const child of nested) {
+        const encoded = encodeTabularRow(child, field.children ?? [], childDepth + 1, options)
+        children.push(indentation(childDepth, options) + encoded.cells, ...encoded.children)
+      }
+    } else if (field.fixedLength !== undefined) {
+      cells.push(...nested.map((item) => primitiveText(item, options.delimiter)))
+    } else if (field.listDelimiter !== undefined) {
+      cells.push(
+        nested
+          .map((item) => primitiveListItemText(item, options.delimiter, field.listDelimiter))
+          .join(field.listDelimiter),
+      )
+    } else if (field.children !== undefined) {
+      const encoded = encodeTabularRow(nested, field.children, childDepth, options)
+      cells.push(encoded.cells)
+      children.push(...encoded.children)
+    } else {
+      cells.push(primitiveText(nested, options.delimiter))
+    }
+  }
+
+  return { cells: cells.join(options.delimiter), children }
+}
+
+function primitiveListItemText(value: any, activeDelimiter: string, listDelimiter: string): string {
+  if (typeof value !== 'string') return primitiveText(value, activeDelimiter)
+  return needsQuotes(value, activeDelimiter) || value.includes(listDelimiter)
+    ? quoteString(value)
+    : value
 }
 
 function encodeCells(values: any[], delimiter: string): string {
