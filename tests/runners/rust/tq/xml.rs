@@ -220,6 +220,22 @@ fn malformed_xml_document_shapes_fail_cleanly() {
             "empty XML element cannot contain children",
         ),
         (
+            r#"{"xml":{"declaration":null,"children":[{"type":"element","name":"r","attributes":[],"children":[],"empty":true,"extra":0}]}}"#,
+            "XML element has unsupported field",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"element","name":"r","attributes":{},"children":[],"empty":true}]}}"#,
+            "XML element attributes",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"element","name":"r","attributes":[],"children":{},"empty":true}]}}"#,
+            "XML element children",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"element","name":"r","attributes":[],"children":[],"empty":"yes"}]}}"#,
+            "empty flag must be a boolean",
+        ),
+        (
             r#"{"xml":{"declaration":null,"children":[{"type":"element","name":"r","attributes":[null],"children":[],"empty":true}]}}"#,
             "attribute must be an object",
         ),
@@ -228,12 +244,20 @@ fn malformed_xml_document_shapes_fail_cleanly() {
             "attribute name must be a string",
         ),
         (
+            r#"{"xml":{"declaration":null,"children":[{"type":"element","name":"r","attributes":[{"name":"id","value":1}],"children":[],"empty":true}]}}"#,
+            "attribute value must be a string",
+        ),
+        (
             r#"{"xml":{"declaration":null,"children":[{"type":"text"},{"type":"element","name":"r","attributes":[],"children":[],"empty":true}]}}"#,
             "leaf node is missing `value`",
         ),
         (
             r#"{"xml":{"declaration":null,"children":[{"type":"comment","value":"a--b"},{"type":"element","name":"r","attributes":[],"children":[],"empty":true}]}}"#,
             "invalid comment",
+        ),
+        (
+            r#"{"xml":{"declaration":null,"children":[{"type":"processing_instruction","target":"build"},{"type":"element","name":"r","attributes":[],"children":[],"empty":true}]}}"#,
+            "processing instruction is missing `value`",
         ),
     ];
     for (input, expected) in output_cases {
