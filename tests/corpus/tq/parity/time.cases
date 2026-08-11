@@ -1,0 +1,105 @@
+# UTC time builtins. Formats stay inside tq's documented portable subset.
+case: "time-now-is-a-number"
+filter: "now|type"
+input: "null"
+output: "\"number\"\n"
+
+case: "time-todate-epoch"
+filter: "todate"
+input: "0"
+output: "\"1970-01-01T00:00:00Z\"\n"
+
+case: "time-todate-leap-day"
+filter: "todate"
+input: "951827696"
+output: "\"2000-02-29T12:34:56Z\"\n"
+
+case: "time-todate-requires-date-input"
+filter: "todate"
+input: "\"not a timestamp\""
+error: "strftime/1 requires parsed datetime inputs"
+
+case: "time-fromdate-leap-day"
+filter: "fromdate"
+input: "\"2000-02-29T12:34:56Z\""
+output: "951827696\n"
+
+case: "time-fromdate-requires-string"
+filter: "fromdate"
+input: "0"
+error: "strptime/1 requires string inputs and arguments"
+
+case: "time-fromdate-rejects-mismatch"
+filter: "fromdate"
+input: "\"not a date\""
+error: "does not match format"
+
+case: "time-mktime-normalizes-components"
+filter: "mktime"
+input: "[1970,0,1,24,61,61,0,0]"
+output: "90121\n"
+
+case: "time-mktime-requires-array"
+filter: "mktime"
+input: "0"
+error: "mktime requires array inputs"
+
+case: "time-mktime-requires-parsed-datetime"
+filter: "mktime"
+input: "[1970,0,1,0,0,0]"
+error: "mktime requires parsed datetime inputs"
+
+case: "time-gmtime-preserves-fractional-seconds"
+filter: "gmtime"
+input: "0.75"
+output: "[1970,0,1,0,0,0.75,4,0]\n"
+
+case: "time-gmtime-requires-number"
+filter: "gmtime"
+input: "\"not a timestamp\""
+error: "gmtime() requires numeric inputs"
+
+case: "time-gmtime-rejects-non-finite"
+filter: "infinite|gmtime"
+input: "null"
+error: "error converting number of seconds since epoch to datetime"
+
+case: "time-strftime-formats-array"
+filter: "strftime(\"%Y-%m-%d %H:%M:%S %j %w %%\")"
+input: "[2000,1,29,12,34,56,2,59]"
+output: "\"2000-02-29 12:34:56 060 2 %\"\n"
+
+case: "time-strftime-converts-timestamp"
+filter: "strftime(\"%F %T\")"
+input: "0"
+output: "\"1970-01-01 00:00:00\"\n"
+
+case: "time-strftime-requires-string-format"
+filter: "strftime(0)"
+input: "[1970,0,1,0,0,0,4,0]"
+error: "strftime/1 requires a string format"
+
+case: "time-strftime-requires-parsed-datetime"
+filter: "strftime(\"%Y\")"
+input: "\"not a datetime\""
+error: "strftime/1 requires parsed datetime inputs"
+
+case: "time-strptime-parses-iso-date"
+filter: "strptime(\"%Y-%m-%dT%H:%M:%SZ\")"
+input: "\"2000-02-29T12:34:56Z\""
+output: "[2000,1,29,12,34,56,2,59]\n"
+
+case: "time-strptime-parses-date-only"
+filter: "strptime(\"%Y-%m-%d\")"
+input: "\"2000-02-29\""
+output: "[2000,1,29,0,0,0,2,59]\n"
+
+case: "time-strptime-requires-strings"
+filter: "strptime(0)"
+input: "\"2000\""
+error: "strptime/1 requires string inputs and arguments"
+
+case: "time-strptime-rejects-mismatch"
+filter: "strptime(\"%Y-%m-%d\")"
+input: "\"not a date\""
+error: "does not match format"
