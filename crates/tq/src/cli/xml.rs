@@ -455,7 +455,7 @@ fn write_leaf(
     let event = match kind {
         "text" => Event::Text(BytesText::new(value)),
         "cdata" => Event::CData(BytesCData::new(value)),
-        "comment" => Event::Comment(BytesText::new(value)),
+        "comment" => Event::Comment(BytesText::from_escaped(value)),
         _ => unreachable!("write_leaf only handles leaf node types"),
     };
     writer.write_event(event).map_err(write_error)
