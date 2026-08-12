@@ -191,7 +191,7 @@ people[2:]{first,last}:
 ```
 
 The remaining flags map to opt-in fields on
-`reddb_io_toon::EncodeV4Options`; their wire formats are userland-only and
+`reddb_io_toon::EncodeOptions`; their wire formats are userland-only and
 fall back losslessly to canonical v4.1 when a value is ineligible.
 
 ## `--primitive-array-columns`
