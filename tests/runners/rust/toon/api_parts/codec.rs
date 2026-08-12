@@ -768,10 +768,10 @@ fn encodes_objects_and_scalars() {
 }
 
 #[test]
-fn v4_api_covers_strings_readers_events_options_and_positioned_errors() {
+fn api_covers_strings_readers_events_options_and_positioned_errors() {
     use reddb_io_toon::{
         decode, decode_event_reader, decode_with_options, encode, encode_with_options,
-        DecodeOptions, EncodeV4Options, ToonEvent,
+        DecodeOptions, EncodeOptions, ToonEvent,
     };
 
     let input = "# people by handle\npeople[1:]{first,last}:\n  ada: Ada,Lovelace\n";
@@ -806,7 +806,7 @@ fn v4_api_covers_strings_readers_events_options_and_positioned_errors() {
         "people[2:]{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper";
     assert_eq!(encode(&value).expect("canonical encode"), expected_wire);
     assert_eq!(
-        encode_with_options(&value, EncodeV4Options::default()).expect("option encode"),
+        encode_with_options(&value, EncodeOptions::default()).expect("option encode"),
         expected_wire
     );
 
