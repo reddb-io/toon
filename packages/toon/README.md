@@ -29,7 +29,7 @@ entries may only be removed.
 
 The binary boundary is intentional: use `toon` for the upstream converter
 contract (`-o` names an output file, while `-e` and `-d` select conversion
-direction). Use [`tq`](../tq/README.md) for the jq-compatible query contract,
+direction). Use [`tq`](../../crates/tq/README.md) for the jq-compatible query contract,
 where `-o` selects an output format and `-e` controls jq-style exit status.
 
 ```bash
