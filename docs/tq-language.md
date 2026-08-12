@@ -5,6 +5,27 @@ vendored compatibility corpus in `tests/corpus/tq/parity/` is the executable
 compatibility contract; deliberate differences are recorded in
 [`tq-jq-parity.md`](tq-jq-parity.md).
 
+## User-defined functions
+
+`def name: body;` and `def name(a; $b): body;` define a filter over everything
+that follows the semicolon, with jq's scoping:
+
+- A bare parameter is a filter, evaluated in the caller's scope every time the
+  body names it, so `def twice(f): f | f; twice(. + 1)` composes the argument.
+- A `$name` parameter also binds one value at a time, exactly as jq's
+  `def f(a): a as $a | …` sugar does, and stays callable as the filter `a`.
+- A body sees the definition itself, so it can recurse, plus everything defined
+  and bound before it. A later definition of the same name and arity shadows the
+  earlier one for later callers only, and a definition shadows a builtin of the
+  same name and arity.
+
+Evaluation nesting is bounded. tq evaluates a nested filter as a nested call, so
+a runaway definition such as `def f: f; f` reports
+`exceeded the maximum filter recursion depth` and stops the query instead of
+exhausting the process stack. jq has no such limit, so a filter whose recursion
+is deeper than the budget is a deliberate divergence: it fails in tq where jq
+grinds on.
+
 ## UTC time builtins
 
 Time handling is UTC-only and does not read the process timezone or locale.
