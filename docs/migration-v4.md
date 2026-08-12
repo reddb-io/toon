@@ -30,9 +30,9 @@ output is now canonical **v4.1**.
 
 ## TypeScript cutover
 
-The package root is the canonical surface. `parse` and `serialize` remain
-deprecated names for canonical `decode` and `encode`; they no longer select the
-former codec. Legacy parsing moved to an explicit subpath.
+The package root exposes the canonical `decode` and `encode` names; the
+deprecated root `parse` and `serialize` aliases have been removed. Legacy
+parsing remains available from an explicit subpath.
 
 Before the cutover, a root import plus path expansion could produce a nested
 object:
