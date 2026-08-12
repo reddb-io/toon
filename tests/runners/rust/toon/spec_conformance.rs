@@ -98,7 +98,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                         }
                     } else {
                         match (
-                            Value::parse_legacy_with_options(input, options),
+                            Value::parse_with_options(input, options),
                             should_error,
                         ) {
                             // A rejection the spec asked for.
@@ -172,9 +172,9 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             .and_then(Json::as_str)
                             .expect("encode expected TOON");
                         let value = Value::from_json_value(input.clone());
-                        value.to_legacy_toon_with_options(encoder_options(test.get("options")))
+                        value.to_toon_with_options(encoder_options(test.get("options")))
                             == expected
-                            && Value::parse_legacy_with_options(expected, options)
+                            && Value::parse_with_options(expected, options)
                                 .is_ok_and(|actual| actual.to_json_value() == *input)
                     } else {
                         let expected = test
@@ -399,10 +399,6 @@ fn decoder_options(options: Option<&Json>) -> ParseOptions {
             .get("strict")
             .and_then(Json::as_bool)
             .unwrap_or(defaults.strict),
-        expand_paths: options
-            .get("expandPaths")
-            .and_then(Json::as_str)
-            .is_some_and(|mode| mode == "safe"),
         ..defaults
     }
 }
@@ -706,14 +702,14 @@ fn stream_decoder_options(options: Option<&Json>) -> DecodeStreamOptions {
 }
 
 fn round_trips_to(value: &Value, decoded: &Json) -> bool {
-    Value::parse_legacy_with_options(&value.to_legacy_toon(), canonical_options())
+    Value::parse_with_options(&value.to_canonical_toon(), canonical_options())
         .is_ok_and(|reparsed| reparsed.to_json_value() == *decoded)
 }
 
 fn parse_round_trips(input: &str, options: ParseOptions) -> Result<(), String> {
-    let value = Value::parse_legacy_with_options(input, options).map_err(|err| err.to_string())?;
-    let canonical = value.to_legacy_toon();
-    let reparsed = Value::parse_legacy_with_options(&canonical, canonical_options())
+    let value = Value::parse_with_options(input, options).map_err(|err| err.to_string())?;
+    let canonical = value.to_canonical_toon();
+    let reparsed = Value::parse_with_options(&canonical, canonical_options())
         .map_err(|err| format!("canonical output did not parse: {err}"))?;
     if reparsed.to_json_value() != value.to_json_value() {
         return Err("canonical output did not preserve the decoded value".to_owned());
