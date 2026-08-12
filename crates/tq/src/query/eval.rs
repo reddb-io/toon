@@ -87,6 +87,15 @@ impl Default for Env {
 }
 
 impl Env {
+    /// The base environment plus the variables named on the command line. They
+    /// live in their own frame, so a query-level binding of the same name still
+    /// shadows the flag inside its scope.
+    pub(super) fn with_variables(variables: &[(String, Value)]) -> Self {
+        let mut env = Self::default();
+        env.frames.push(variables.iter().cloned().collect());
+        env
+    }
+
     fn bind(&self, pattern: &Pattern, value: &Value) -> Result<Self, String> {
         let mut child = self.clone();
         let mut frame = HashMap::new();
