@@ -13,6 +13,29 @@ now; this file is how it got there.
 
 ### Changed
 
+- **Breaking (Rust):** the one codec now owns the unsuffixed API names.
+  `EncodeV4Options` is `EncodeOptions`, `encode_v4` is `encode_with_options`,
+  `encode_v4_with_replacer` is `encode_with_replacer`, `decode_value_v4` is
+  `decode_with_options`, and `detect_truncation_v4` is
+  `detect_truncation_with_options`. The dialect suffix existed only to
+  distinguish the canonical engine from the pre-v4 one, and that engine is gone.
+- **Breaking (Rust):** the compatibility-shaped option structs are gone.
+  `ParseOptions` is removed in favour of `DecodeOptions`, and the adapters that
+  converted between the two option shapes are removed with it.
+  `Document::parse_with_options` and `Value::parse_with_options` now take
+  `&DecodeOptions`, while `to_toon_with_options` and `try_to_toon_with_options`
+  take the encoder's own `EncodeOptions`. No public entry point silently
+  converts between two option shapes any more.
+- **Breaking (Rust):** `Document::parse_with_options` and
+  `Value::parse_with_options` no longer default `cyclic_discriminated_arrays` to
+  `true`. They now behave exactly like `decode_with_options`, which defaults it
+  to `false`; pass
+  `DecodeOptions { cyclic_discriminated_arrays: true, ..Default::default() }`
+  to keep the previous reconstruction.
+- **Breaking (Rust):** `EncodeOptions` no longer carries
+  `nested_tabular_headers` or `keyed_map_collapse`. Both forms graduated into
+  official v4.1 syntax and were already unconditional on the canonical encoder,
+  so the fields were no-ops.
 - **Breaking:** `tq` now follows jq when iterating with `.[]`: objects emit
   their values in field order, while `null` and scalar inputs raise an error.
   Use `.[]?` to suppress those iteration errors. The former array-only
