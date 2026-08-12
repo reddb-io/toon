@@ -23,7 +23,9 @@ source "$(dirname "$0")/workspace-members.sh"
 # Reads the first `version = "x"` of a Cargo manifest — the [workspace.package]
 # one in the root, which every member inherits.
 WORKSPACE_VERSION="$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)"
-DEP_VERSION="$(sed -n 's|reddb-io-toon = { path = "../toon", version = "\([^"]*\)".*|\1|p' crates/tq/Cargo.toml)"
+# tq declares reddb-io-toon more than once (dependencies and dev-dependencies);
+# every declaration must agree, so collapse them and fail on any disagreement.
+DEP_VERSION="$(sed -n 's|reddb-io-toon = { path = "../toon", version = "\([^"]*\)".*|\1|p' crates/tq/Cargo.toml | sort -u)"
 NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/toon/package.json)"
 ROOT_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' package.json)"
 TS_SOURCE_VERSION="$(sed -n "s|^export const VERSION = '\([^']*\)'.*|\1|p" packages/toon/src/version.ts)"
