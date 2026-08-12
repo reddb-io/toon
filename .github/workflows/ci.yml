@@ -70,6 +70,8 @@ jobs:
         run: pnpm benchmark:accuracy:verify
       - name: Test
         run: pnpm -r test
+      - name: TypeScript coverage
+        run: pnpm --filter @reddb-io/toon test:coverage
 
   encoder-parity:
     name: Rust ↔ TypeScript encoder parity
