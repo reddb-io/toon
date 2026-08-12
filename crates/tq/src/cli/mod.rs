@@ -9,6 +9,7 @@ use reddb_io_toon::{
 };
 
 mod args;
+mod jq_check;
 mod output;
 mod token_stats;
 mod toonl_trim;
@@ -17,9 +18,10 @@ mod xml;
 
 use crate::query::{Halt, Inputs, Variables};
 use args::{
-    parse_args, parse_check_args, parse_close_args, parse_trim_args, CheckOptions, CloseOptions,
-    Format, Options, TrimOptions,
+    parse_args, parse_check_args, parse_close_args, parse_jq_check_args, parse_trim_args,
+    CheckOptions, CloseOptions, Format, Options, TrimOptions,
 };
+use jq_check::run_jq_check;
 use output::format_values;
 use toonl_trim::{trim_toonl_keep_last, write_in_place_atomically};
 use upgrade::{parse_upgrade_args, run_upgrade};
@@ -69,6 +71,9 @@ fn run() -> Result<(String, ExitCode), String> {
     }
     if args.first().is_some_and(|arg| arg == "check") {
         return run_check(parse_check_args(args.into_iter().skip(1))?);
+    }
+    if args.first().is_some_and(|arg| arg == "jq-check") {
+        return run_jq_check(parse_jq_check_args(args.into_iter().skip(1))?);
     }
     if args.first().is_some_and(|arg| arg == "upgrade") {
         return run_upgrade(parse_upgrade_args(args.into_iter().skip(1))?);

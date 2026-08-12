@@ -1,0 +1,289 @@
+# Compatibility decisions from `tq jq-check`.
+#
+# Fields are JSON strings, one per line, cases separated by a blank line:
+#
+#   case:        unique fixture name
+#   filter:      the jq filter handed to `tq jq-check`
+#   options:     optional, whitespace-separated CLI options for the invocation
+#   compatible:  "yes" or "no"
+#   parity:      required when yes — the parity corpus case that pins the
+#                filter's jq-1.7.1 result. The suite replays it.
+#   reason:      required when no — the reason kind the decision must carry
+#
+# A positive fixture's `parity` case must itself be free of a `divergence`
+# field, so every yes here is backed by a vendored jq-1.7.1 expectation. The
+# options an option fixture carries are orthogonal to the replay, which always
+# runs the parity case exactly as `parity.rs` does.
+
+# --- parser constructs -------------------------------------------------------
+
+case: "compat-projection-and-object-construction"
+filter: ".users[]|select(.active)|{name:.name,next:(.score+1)}"
+compatible: "yes"
+parity: "core-active-projection"
+
+case: "compat-pipe-and-array-construction"
+filter: "[.users[].name]"
+compatible: "yes"
+parity: "core-array-construction"
+
+case: "compat-conditional-chain"
+filter: "if false then 1 elif true then 2 elif true then 3 else 4 end"
+compatible: "yes"
+parity: "conditionals-elif-chain"
+
+case: "compat-try-catch"
+filter: "try error(\"boom\") catch ."
+compatible: "yes"
+parity: "errors-try-catches-string"
+
+case: "compat-reduce"
+filter: "reduce .[] as $x (0; . + $x)"
+compatible: "yes"
+parity: "reduce-sums-generator-output"
+
+case: "compat-foreach"
+filter: "foreach .[] as $x (0; . + $x; {item: $x, total: .})"
+compatible: "yes"
+parity: "foreach-emits-extracted-intermediate-states"
+
+case: "compat-destructuring-binding"
+filter: ". as {user: {name: $name}, scores: [$first]} | [$name, $first]"
+compatible: "yes"
+parity: "binding-nested-object-destructuring"
+
+case: "compat-user-definition-with-mixed-parameters"
+filter: "def pair(g; $x): [g, $x]; pair(.a; .b)"
+compatible: "yes"
+parity: "def-mixes-filter-and-value-parameters"
+
+case: "compat-path-expression"
+filter: "path(.a[1:2])"
+compatible: "yes"
+parity: "paths-path-of-slice"
+
+case: "compat-alternative-operator"
+filter: ".a // .b"
+compatible: "yes"
+parity: "operators-alternative-false"
+
+case: "compat-assignment"
+filter: ".a = 1"
+compatible: "yes"
+parity: "assign-set-existing-field"
+
+case: "compat-string-interpolation"
+filter: "\"name: \\(.name)\""
+compatible: "yes"
+parity: "interp-field"
+
+case: "compat-chained-comparison-is-divergent"
+filter: "1 < 2 < 3"
+compatible: "no"
+reason: "divergent-syntax"
+
+case: "compat-interpolated-object-key-does-not-parse"
+filter: "{\"\\(.a)\": 1}"
+compatible: "no"
+reason: "unsupported-syntax"
+
+case: "compat-unterminated-filter-does-not-parse"
+filter: ".users["
+compatible: "no"
+reason: "unsupported-syntax"
+
+# --- builtins ----------------------------------------------------------------
+
+case: "compat-aggregation-builtins"
+filter: ".users|group_by(.team)|map({team:.[0].team,names:map(.name)})"
+compatible: "yes"
+parity: "aggregation-group-by"
+
+case: "compat-entries-roundtrip"
+filter: ".meta|to_entries|from_entries"
+compatible: "yes"
+parity: "aggregation-entries-roundtrip"
+
+case: "compat-regex-builtin"
+filter: "match(\"(?<word>[A-Za-z]+)-(?<n>[0-9]+)\")"
+compatible: "yes"
+parity: "regex-match-named-captures"
+
+case: "compat-string-builtin"
+filter: "startswith(\"Ada\")"
+compatible: "yes"
+parity: "strings-startswith"
+
+case: "compat-has-with-a-string-key"
+filter: ".meta|has(\"team\")"
+compatible: "yes"
+parity: "core-object-has"
+
+case: "compat-walk-builtin"
+filter: "walk([.])"
+compatible: "yes"
+parity: "object-walk-child-first"
+
+case: "compat-unsupported-trigonometry"
+filter: "sin"
+compatible: "no"
+reason: "unsupported-builtin"
+
+case: "compat-unsupported-byte-length"
+filter: "utf8bytelength"
+compatible: "no"
+reason: "unsupported-builtin"
+
+case: "compat-unsupported-input-line-number"
+filter: "input_line_number"
+compatible: "no"
+reason: "unsupported-builtin"
+
+case: "compat-unsupported-repeat-arity"
+filter: "repeat(.;2)"
+compatible: "no"
+reason: "unsupported-builtin"
+
+case: "compat-unsupported-unbounded-range"
+filter: "range"
+compatible: "no"
+reason: "unsupported-builtin"
+
+case: "compat-unsupported-builtin-inside-a-definition-body"
+filter: "def f: sin; f"
+compatible: "no"
+reason: "unsupported-builtin"
+
+case: "compat-divergent-toarray"
+filter: "toarray"
+compatible: "no"
+reason: "divergent-builtin"
+
+case: "compat-divergent-trim"
+filter: "trim"
+compatible: "no"
+reason: "divergent-builtin"
+
+case: "compat-divergent-trimstr"
+filter: "trimstr(\"foo\")"
+compatible: "no"
+reason: "divergent-builtin"
+
+case: "compat-divergent-leaf-paths"
+filter: "[leaf_paths]"
+compatible: "no"
+reason: "divergent-builtin"
+
+case: "compat-divergent-halt"
+filter: "1,2,halt"
+compatible: "no"
+reason: "divergent-builtin"
+
+case: "compat-divergent-numeric-has-key"
+filter: "has(1)"
+compatible: "no"
+reason: "divergent-builtin"
+
+# --- jq options --------------------------------------------------------------
+
+case: "compat-option-compact-and-raw"
+filter: ".meta|keys"
+options: "-c -r"
+compatible: "yes"
+parity: "core-object-keys"
+
+case: "compat-option-join-sort-and-exit-status"
+filter: ".meta|keys"
+options: "-j -S -e"
+compatible: "yes"
+parity: "core-object-keys"
+
+case: "compat-option-null-input"
+filter: ".meta|keys"
+options: "-n"
+compatible: "yes"
+parity: "core-object-keys"
+
+case: "compat-option-null-input-long"
+filter: ".meta|keys"
+options: "--null-input"
+compatible: "yes"
+parity: "core-object-keys"
+
+case: "compat-option-raw-and-slurped-input"
+filter: ".meta|keys"
+options: "--raw-input --slurp"
+compatible: "yes"
+parity: "core-object-keys"
+
+case: "compat-option-short-raw-and-slurped-input"
+filter: ".meta|keys"
+options: "-R -s"
+compatible: "yes"
+parity: "core-object-keys"
+
+case: "compat-option-named-arguments"
+filter: ".meta|keys"
+options: "--arg name Ada --argjson score 3"
+compatible: "yes"
+parity: "core-object-keys"
+
+case: "compat-option-json-transport"
+filter: ".meta|keys"
+options: "-p json -o json"
+compatible: "yes"
+parity: "core-object-keys"
+
+case: "compat-option-unsupported-stream"
+filter: ".meta|keys"
+options: "--stream"
+compatible: "no"
+reason: "unsupported-option"
+
+case: "compat-option-unsupported-seq"
+filter: ".meta|keys"
+options: "--seq"
+compatible: "no"
+reason: "unsupported-option"
+
+case: "compat-option-unsupported-tab"
+filter: ".meta|keys"
+options: "--tab"
+compatible: "no"
+reason: "unsupported-option"
+
+case: "compat-option-unsupported-ascii-output"
+filter: ".meta|keys"
+options: "-a"
+compatible: "no"
+reason: "unsupported-option"
+
+case: "compat-option-unsupported-long-raw-output"
+filter: ".meta|keys"
+options: "--raw-output"
+compatible: "no"
+reason: "unsupported-option"
+
+case: "compat-option-unsupported-slurpfile"
+filter: ".meta|keys"
+options: "--slurpfile rows rows.json"
+compatible: "no"
+reason: "unsupported-option"
+
+case: "compat-option-non-json-input-transport"
+filter: ".meta|keys"
+options: "-p toon"
+compatible: "no"
+reason: "unsupported-option"
+
+case: "compat-option-non-json-output-transport"
+filter: ".meta|keys"
+options: "-o toon"
+compatible: "no"
+reason: "unsupported-option"
+
+case: "compat-option-tq-only-statistics"
+filter: ".meta|keys"
+options: "--stats"
+compatible: "no"
+reason: "unsupported-option"

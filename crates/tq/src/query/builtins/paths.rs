@@ -10,7 +10,8 @@ pub(super) const BUILTINS: &[Builtin] = &[
     Builtin::new("delpaths", 1, call_delpaths),
     Builtin::new("fromstream", 1, call_fromstream),
     Builtin::new("getpath", 1, call_getpath),
-    Builtin::new("leaf_paths", 0, call_leaf_paths),
+    Builtin::new("leaf_paths", 0, call_leaf_paths)
+        .divergent("`leaf_paths/0` is jq 1.6 spelling that jq 1.7.1 removed"),
     Builtin::new("path", 1, call_path),
     Builtin::new("paths", 0, call_paths),
     Builtin::new("paths", 1, call_paths),

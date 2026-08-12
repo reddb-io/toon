@@ -15,8 +15,9 @@ pub(super) const BUILTINS: &[Builtin] = &[
     Builtin::new("rtrimstr", 1, call_rtrimstr),
     Builtin::new("split", 1, eval::call_split),
     Builtin::new("startswith", 1, call_startswith),
-    Builtin::new("trim", 0, call_trim),
-    Builtin::new("trimstr", 1, call_trimstr),
+    Builtin::new("trim", 0, call_trim).divergent("`trim/0` is not defined by jq 1.7.1"),
+    Builtin::new("trimstr", 1, call_trimstr)
+        .divergent("`trimstr/1` is not defined by jq 1.7.1"),
 ];
 
 fn call_ascii_downcase(_: &[Expr], input: &Value, _: &Env) -> Result<Vec<Value>, String> {
