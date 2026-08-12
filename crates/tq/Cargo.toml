@@ -28,6 +28,10 @@ name = "corpus"
 path = "../../tests/runners/rust/tq/corpus.rs"
 
 [[test]]
+name = "compat"
+path = "../../tests/runners/rust/tq/compat.rs"
+
+[[test]]
 name = "docs"
 path = "../../tests/runners/rust/tq/docs.rs"
 

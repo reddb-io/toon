@@ -18,7 +18,7 @@ pub(super) const BUILTINS: &[Builtin] = &[
     Builtin::new("objects", 0, call_objects),
     Builtin::new("scalars", 0, call_scalars),
     Builtin::new("strings", 0, call_strings),
-    Builtin::new("toarray", 0, call_toarray),
+    Builtin::new("toarray", 0, call_toarray).divergent("`toarray/0` is not defined by jq 1.7.1"),
     Builtin::new("type", 0, call_type),
     Builtin::new("values", 0, call_values),
 ];

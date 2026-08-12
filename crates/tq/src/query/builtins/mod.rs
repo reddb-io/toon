@@ -21,12 +21,43 @@ pub(super) struct Builtin {
     name: &'static str,
     arity: usize,
     call: BuiltinFn,
+    /// The divergence ledger's summary, when this builtin is one jq 1.7.1
+    /// answers differently or does not define at all. The compatibility
+    /// classifier reads it from this table, so a divergent builtin cannot be
+    /// registered without the classifier learning about it.
+    divergence: Option<&'static str>,
 }
 
 impl Builtin {
     pub(super) const fn new(name: &'static str, arity: usize, call: BuiltinFn) -> Self {
-        Self { name, arity, call }
+        Self {
+            name,
+            arity,
+            call,
+            divergence: None,
+        }
     }
+
+    /// Marks this builtin as a row of the divergence ledger in
+    /// `docs/tq-jq-parity.md`. `reason` is what a negative compatibility
+    /// decision reports.
+    pub(super) const fn divergent(self, reason: &'static str) -> Self {
+        Self {
+            divergence: Some(reason),
+            ..self
+        }
+    }
+}
+
+/// What the evaluator's registry can say about one call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Support {
+    /// Dispatched, and pinned to jq 1.7.1 by the parity corpus.
+    Compatible,
+    /// Dispatched, but the divergence ledger records the difference.
+    Divergent(&'static str),
+    /// Not dispatched at this arity.
+    Unknown,
 }
 
 const TABLES: &[&[Builtin]] = &[
@@ -45,6 +76,17 @@ const TABLES: &[&[Builtin]] = &[
 
 pub(super) fn supports(name: &str, arity: usize) -> bool {
     lookup(name, arity).is_some()
+}
+
+/// The registry's own verdict on a call, for the compatibility classifier.
+pub(super) fn classify(name: &str, arity: usize) -> Support {
+    match lookup(name, arity) {
+        Some(builtin) => match builtin.divergence {
+            Some(reason) => Support::Divergent(reason),
+            None => Support::Compatible,
+        },
+        None => Support::Unknown,
+    }
 }
 
 pub(super) fn evaluate(

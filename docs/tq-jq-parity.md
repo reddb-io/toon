@@ -77,3 +77,83 @@ Object iteration is no longer a divergence either. `.[]` over an object once
 yielded `null` and was ledgered as `divergence-iteration-on-object`; it now
 streams the object's values and raises on `null` and scalars, exactly as jq
 does, so the row and its case were retired together.
+
+## The compatibility decision
+
+`tq jq-check` answers, without running anything, whether tq can execute a jq
+invocation with jq-compatible observable behavior. It exists for command
+proxies that want to substitute tq for jq only where the substitution is
+backed by this corpus.
+
+```bash
+tq jq-check [jq option]... [--] <filter>
+```
+
+The filter is the last argument, or the single argument after `--`. Nothing is
+read from stdin and the filter is never evaluated, so a negative decision costs
+no partial interpretation.
+
+### The contract
+
+A positive decision promises this, and only this:
+
+> For every input on which jq 1.7.1 succeeds, `tq -p json -o json` with the
+> same options and filter produces jq's exact output.
+
+The `-p json -o json` transport is part of the promise, because tq's own
+default is TOON. `jq-check` accepts `-p json` and `-o json` for that reason and
+refuses any other transport.
+
+The promise is deliberately silent about inputs on which jq 1.7.1 *fails*.
+Several ledger rows above are cases where tq answers and jq raises — a named
+path on an array, a numeric index on an object, `//` over an erroring left-hand
+filter. Those keep a positive decision, and the ledger's `jq-output` column is
+what proves each one is of that shape: the `compat` test target refuses any
+ledger row whose recorded jq result is not an error unless `jq-check` also
+refuses its filter.
+
+Where tq would differ on an input jq accepts, the decision is always negative.
+
+### Output
+
+One JSON object on stdout. Exit `0` when compatible, `1` when not.
+
+```json
+{
+  "jq_version": "1.7.1",
+  "filter": "sin",
+  "options": [],
+  "compatible": false,
+  "reasons": [
+    { "kind": "unsupported-builtin", "detail": "`sin/0` is not implemented" }
+  ]
+}
+```
+
+`reasons` is empty exactly when `compatible` is `true`. Each `kind` is one of a
+stable set; `detail` is prose and may be reworded.
+
+| Reason kind | Meaning |
+| --- | --- |
+| `unsupported-option` | An option tq does not honor with jq-compatible behavior, including a non-JSON transport and tq's own options. |
+| `unsupported-syntax` | The filter does not parse, so tq cannot run it at all. |
+| `unsupported-builtin` | The filter names something the builtin registry does not dispatch at that arity. |
+| `divergent-builtin` | The filter names a builtin the ledger above records. |
+| `divergent-syntax` | The filter uses a construct jq 1.7.1 reads differently, or rejects. |
+
+### How the decision is derived
+
+Nothing here is a hand-maintained allowlist. Options are matched against the
+one table `tq`'s own argument parser dispatches from, and calls are resolved
+through the evaluator's builtin registry, where a ledger row is recorded on the
+registry entry itself. A builtin added to the registry is classified the moment
+it lands; a `Builtin::new(…).divergent(…)` entry is refused from then on.
+
+Two decisions are conservative by construction, because the filter alone cannot
+settle them:
+
+- `has` with a literal numeric key is refused. It is jq-compatible over an
+  array and the ledgered divergence over an object.
+- A `def` shadowing a builtin is trusted: the decision follows the same
+  resolution order evaluation does, so the definition is classified, not the
+  builtin it hides.

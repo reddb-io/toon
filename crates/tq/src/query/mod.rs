@@ -3,6 +3,7 @@ use reddb_io_toon::Value;
 mod assign;
 mod ast;
 mod builtins;
+pub(crate) mod compat;
 mod eval;
 mod halt;
 mod indexing;

@@ -2,13 +2,65 @@ use std::path::Path;
 
 const USAGE: &str = concat!(
     "usage: tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-n|--null-input] [-s|--slurp] [-R|--raw-input] [--arg name value] [--argjson name json] [--stats] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
-    "subcommands: trim, close, check, upgrade"
+    "subcommands: trim, close, check, jq-check, upgrade"
 );
 const ARG_ERROR: &str = "`--arg` expects a variable name and a value";
 const ARGJSON_ERROR: &str = "`--argjson` expects a variable name and JSON text";
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
 const CLOSE_USAGE: &str = "usage: tq close [--per-lane|--interleaved] [FILE]";
 const CHECK_USAGE: &str = "usage: tq check [-p toon|toonl] [FILE]";
+const JQ_CHECK_USAGE: &str = "usage: tq jq-check [jq option]... [--] <filter>";
+
+/// One jq 1.7.1 command-line option tq honors with jq-compatible behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum JqOption {
+    Compact,
+    RawOutput,
+    JoinOutput,
+    SortKeys,
+    ExitStatus,
+    NullInput,
+    RawInput,
+    Slurp,
+    Arg,
+    ArgJson,
+}
+
+impl JqOption {
+    /// How many operands the option takes after its own name.
+    const fn operands(self) -> usize {
+        match self {
+            Self::Arg | Self::ArgJson => 2,
+            _ => 0,
+        }
+    }
+}
+
+/// The jq options tq accepts, with every spelling jq gives them. Argument
+/// parsing and `tq jq-check` both dispatch from this one table, so the
+/// compatibility decision cannot claim an option the parser rejects, and a
+/// newly accepted option is classified the moment it lands here.
+const JQ_OPTIONS: &[(&str, JqOption)] = &[
+    ("-c", JqOption::Compact),
+    ("-r", JqOption::RawOutput),
+    ("-j", JqOption::JoinOutput),
+    ("-S", JqOption::SortKeys),
+    ("-e", JqOption::ExitStatus),
+    ("-n", JqOption::NullInput),
+    ("--null-input", JqOption::NullInput),
+    ("-R", JqOption::RawInput),
+    ("--raw-input", JqOption::RawInput),
+    ("-s", JqOption::Slurp),
+    ("--slurp", JqOption::Slurp),
+    ("--arg", JqOption::Arg),
+    ("--argjson", JqOption::ArgJson),
+];
+
+fn jq_option(argument: &str) -> Option<JqOption> {
+    JQ_OPTIONS
+        .iter()
+        .find_map(|(name, option)| (*name == argument).then_some(*option))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Format {
@@ -87,6 +139,30 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
     let mut args = args.peekable();
 
     while let Some(arg) = args.next() {
+        if let Some(option) = jq_option(&arg) {
+            match option {
+                JqOption::Compact => compact = true,
+                JqOption::RawOutput => raw_output = true,
+                JqOption::JoinOutput => join_output = true,
+                JqOption::SortKeys => sort_keys = true,
+                JqOption::ExitStatus => exit_status = true,
+                JqOption::NullInput => null_input = true,
+                JqOption::RawInput => raw_input = true,
+                JqOption::Slurp => slurp = true,
+                JqOption::Arg => {
+                    let (name, value) = parse_named_pair(&mut args, ARG_ERROR)?;
+                    variables.push((name, serde_json::Value::String(value)));
+                }
+                JqOption::ArgJson => {
+                    let (name, text) = parse_named_pair(&mut args, ARGJSON_ERROR)?;
+                    let value = serde_json::from_str(&text).map_err(|error| {
+                        format!("`--argjson` value for `${name}` is not valid JSON: {error}")
+                    })?;
+                    variables.push((name, value));
+                }
+            }
+            continue;
+        }
         match arg.as_str() {
             "-p" => {
                 let format = args.next().ok_or_else(|| USAGE.to_owned())?;
@@ -95,25 +171,6 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
             "-o" => {
                 let format = args.next().ok_or_else(|| USAGE.to_owned())?;
                 output_format = Some(parse_output_format(&format)?);
-            }
-            "-r" => raw_output = true,
-            "-j" => join_output = true,
-            "-S" => sort_keys = true,
-            "-e" => exit_status = true,
-            "-c" => compact = true,
-            "-n" | "--null-input" => null_input = true,
-            "-R" | "--raw-input" => raw_input = true,
-            "-s" | "--slurp" => slurp = true,
-            "--arg" => {
-                let (name, value) = parse_named_pair(&mut args, ARG_ERROR)?;
-                variables.push((name, serde_json::Value::String(value)));
-            }
-            "--argjson" => {
-                let (name, text) = parse_named_pair(&mut args, ARGJSON_ERROR)?;
-                let value = serde_json::from_str(&text).map_err(|error| {
-                    format!("`--argjson` value for `${name}` is not valid JSON: {error}")
-                })?;
-                variables.push((name, value));
             }
             "--stats" => stats = true,
             "--delimiter" => {
@@ -284,6 +341,85 @@ pub(super) fn parse_close_args(args: impl Iterator<Item = String>) -> Result<Clo
     Ok(CloseOptions {
         interleaved,
         input_path: positional.pop(),
+    })
+}
+
+#[derive(Debug)]
+pub(super) struct JqCheckOptions {
+    pub(super) filter: String,
+    /// Every option the invocation carried, in the order given.
+    pub(super) options: Vec<String>,
+    /// One detail per option tq does not honor with jq-compatible behavior.
+    pub(super) rejected: Vec<String>,
+}
+
+/// `tq jq-check [jq option]... [--] <filter>`. The filter is the last argument,
+/// or the single argument after `--`.
+///
+/// Only jq's own options and the `-p json`/`-o json` transport selection can
+/// keep a decision positive. Anything else is reported rather than refused, so
+/// a command proxy always reads a decision instead of a usage error.
+pub(super) fn parse_jq_check_args(
+    args: impl Iterator<Item = String>,
+) -> Result<JqCheckOptions, String> {
+    let args = args.collect::<Vec<_>>();
+    let (leading, filter) = match args.iter().position(|arg| arg == "--") {
+        Some(index) => {
+            let tail = &args[index + 1..];
+            if tail.len() != 1 {
+                return Err(JQ_CHECK_USAGE.to_owned());
+            }
+            (&args[..index], tail[0].clone())
+        }
+        None => {
+            let (last, leading) = args.split_last().ok_or_else(|| JQ_CHECK_USAGE.to_owned())?;
+            (leading, last.clone())
+        }
+    };
+
+    let mut options = Vec::new();
+    let mut rejected = Vec::new();
+    let mut index = 0;
+    while index < leading.len() {
+        let argument = &leading[index];
+        let operand = leading.get(index + 1);
+
+        let taken = if let Some(option) = jq_option(argument) {
+            let operands = option.operands();
+            if index + operands >= leading.len() {
+                return Err(JQ_CHECK_USAGE.to_owned());
+            }
+            1 + operands
+        } else if argument == "-p" || argument == "-o" {
+            let value = operand.ok_or_else(|| JQ_CHECK_USAGE.to_owned())?;
+            if value != "json" {
+                rejected.push(format!(
+                    "`{argument} {value}` selects a non-JSON transport; jq-compatible \
+                     behavior needs `-p json -o json`"
+                ));
+            }
+            2
+        } else if argument.starts_with('-') && argument != "-" {
+            rejected.push(format!(
+                "`{argument}` is not a jq 1.7.1 option tq honors"
+            ));
+            1
+        } else if rejected.is_empty() {
+            // Nothing consumes it, so the invocation is not shaped as expected.
+            return Err(JQ_CHECK_USAGE.to_owned());
+        } else {
+            // An operand of the option just reported; the decision is settled.
+            1
+        };
+
+        options.extend(leading[index..index + taken].iter().cloned());
+        index += taken;
+    }
+
+    Ok(JqCheckOptions {
+        filter,
+        options,
+        rejected,
     })
 }
 

@@ -492,6 +492,32 @@ Output:
 
 Complete input exits successfully. Truncated or invalid input exits non-zero and reports `complete`, `kind`, `line`, `declared`, `actual`, and `message`. The report model is specified in [detectTruncation](../../docs/proposals/detect-truncation.md).
 
+## jq-check
+
+`tq jq-check` decides whether tq can execute a jq 1.7.1 invocation with
+jq-compatible observable behavior, without running the filter. It is meant for
+command proxies substituting tq for jq.
+
+```bash
+tq jq-check -c -- '.users[]|select(.active)|.name'
+```
+
+```json
+{
+  "jq_version": "1.7.1",
+  "filter": ".users[]|select(.active)|.name",
+  "options": ["-c"],
+  "compatible": true,
+  "reasons": []
+}
+```
+
+The filter is the last argument, or the single argument after `--`. Exit `0`
+means compatible and `1` means not; a negative decision lists `reasons`, each
+with a stable `kind` and prose `detail`. The full contract, the reason
+vocabulary, and what a positive decision does and does not promise are in
+[docs/tq-jq-parity.md](../../docs/tq-jq-parity.md).
+
 ## License
 
 [MIT](../../LICENSE).

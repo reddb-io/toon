@@ -92,6 +92,18 @@ now; this file is how it got there.
 
 ### Added
 
+- **`tq jq-check`, a machine-readable jq-compatibility decision.** Given a
+  filter and the jq options that affect evaluation, it answers whether tq can
+  execute that invocation with jq-compatible observable behavior, printing one
+  JSON object and exiting `0` or `1` without evaluating the filter. A positive
+  decision promises that tq reproduces jq 1.7.1's exact output on every input
+  jq accepts. The decision is derived from the evaluator's own capability
+  registry and the argument parser's jq-option table rather than a second
+  allowlist, so a builtin gains its classification the moment it is registered,
+  and a `Builtin::new(…).divergent(…)` entry is refused from then on. The
+  contract, the reason vocabulary, and the fixture corpus in
+  `tests/corpus/tq/compat/` are described in
+  [docs/tq-jq-parity.md](docs/tq-jq-parity.md).
 - **A jq-style query language in `tq`**, built slice by slice and pinned by the
   vendored jq 1.7.1 parity corpus in `tests/corpus/tq/parity/`. The
   [tq language reference](docs/tq-language.md) is the normative description,
