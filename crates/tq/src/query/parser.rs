@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use reddb_io_toon::Value;
 
 use super::ast::{BinaryOp, Expr, Pattern};
@@ -7,6 +9,21 @@ use super::lexer::{lex, Token};
 pub(super) struct Parser {
     tokens: Vec<Token>,
     index: usize,
+}
+
+/// A declared parameter. Both spellings bind a filter under the bare name; the
+/// `$name` spelling additionally binds one value per generated output.
+enum Parameter {
+    Filter(String),
+    Value(String),
+}
+
+impl Parameter {
+    fn name(&self) -> &String {
+        match self {
+            Self::Filter(name) | Self::Value(name) => name,
+        }
+    }
 }
 
 impl Parser {
@@ -26,6 +43,9 @@ impl Parser {
     }
 
     fn parse_pipe(&mut self) -> Result<Expr, String> {
+        if self.consume_keyword("def") {
+            return self.parse_definition(false);
+        }
         let expression = self.parse_comma()?;
         if self.consume_keyword("as") {
             let pattern = self.parse_pattern()?;
@@ -338,6 +358,53 @@ impl Parser {
         })
     }
 
+    /// `def name(parameters): body; rest`. The body always ends at the
+    /// semicolon, and jq scopes the definition over everything after it, so the
+    /// tail parses in the caller's context: a full pipeline at the top level,
+    /// one comma-delimited item inside an array or object constructor.
+    fn parse_definition(&mut self, item: bool) -> Result<Expr, String> {
+        let name = self.expect_ident()?;
+        let parameters = self.parse_definition_parameters()?;
+        self.expect(Token::Colon)?;
+        let body = self.parse_pipe()?;
+        self.expect(Token::Semicolon)?;
+        let rest = if item {
+            self.parse_pipe_item()?
+        } else {
+            self.parse_pipe()?
+        };
+        Ok(Expr::Def {
+            name,
+            parameters: parameters
+                .iter()
+                .map(|parameter| parameter.name().clone())
+                .collect(),
+            body: Rc::new(bind_value_parameters(&parameters, body)),
+            rest: Box::new(rest),
+        })
+    }
+
+    fn parse_definition_parameters(&mut self) -> Result<Vec<Parameter>, String> {
+        if !self.consume(&Token::LParen) {
+            return Ok(Vec::new());
+        }
+
+        let mut parameters = Vec::new();
+        loop {
+            parameters.push(match self.next() {
+                Some(Token::Ident(name)) => Parameter::Filter(name),
+                Some(Token::Variable(name)) => Parameter::Value(name),
+                token => return Err(format!("expected function parameter, got `{token:?}`")),
+            });
+            if self.consume(&Token::Semicolon) {
+                continue;
+            }
+            self.expect(Token::RParen)?;
+            break;
+        }
+        Ok(parameters)
+    }
+
     fn parse_call(&mut self, name: String) -> Result<Expr, String> {
         // Keep the historic bare spelling for zero-arity builtins. Leaving a
         // following parenthesis untouched preserves its existing diagnostic.
@@ -403,6 +470,9 @@ impl Parser {
     }
 
     fn parse_pipe_item(&mut self) -> Result<Expr, String> {
+        if self.consume_keyword("def") {
+            return self.parse_definition(true);
+        }
         let expression = self.parse_alternative()?;
         if self.consume_keyword("as") {
             let pattern = self.parse_pattern()?;
@@ -482,4 +552,20 @@ impl Parser {
     fn peek(&self) -> Option<&Token> {
         self.tokens.get(self.index)
     }
+}
+
+/// jq reads `def f($a): body` as `def f(a): a as $a | body`, so a value
+/// parameter is a filter parameter whose output is bound one value at a time.
+fn bind_value_parameters(parameters: &[Parameter], body: Expr) -> Expr {
+    parameters
+        .iter()
+        .rev()
+        .fold(body, |body, parameter| match parameter {
+            Parameter::Filter(_) => body,
+            Parameter::Value(name) => Expr::Bind(
+                Box::new(Expr::Call(name.clone(), Vec::new())),
+                Pattern::Variable(name.clone()),
+                Box::new(body),
+            ),
+        })
 }
