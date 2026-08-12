@@ -20,6 +20,13 @@ compatibility are recorded with rationales in the ratcheting
 [`skip-ledger.json`](../../scripts/upstream-package-suite/skip-ledger.json);
 ledger entries may only be removed.
 
+The published `toon` command is also drop-in compatible with the vendored
+upstream CLI suite. CI maps the upstream expectations onto this package's
+TypeScript bin and repeats its child-process cases against the Rust `toon` bin.
+Tests coupled to upstream-private helpers are documented in the ratcheting
+[`skip-ledger.json`](../../scripts/upstream-cli-suite/skip-ledger.json), whose
+entries may only be removed.
+
 ```bash
 pnpm add @reddb-io/toon
 ```
