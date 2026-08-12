@@ -19,6 +19,7 @@
     "check:upstream": "node scripts/upstream-drift.mjs",
     "test:upstream": "node --test scripts/upstream-drift.test.mjs scripts/upstream-release-watch.test.mjs",
     "test:upstream-package": "vitest run --config scripts/upstream-package-suite/vitest.config.mjs",
+    "test:upstream-cli": "pnpm --filter @reddb-io/toon build && cargo build --bin toon && vitest run --config scripts/upstream-cli-suite/vitest.config.mjs && TOON_CLI_TARGET=rust vitest run --config scripts/upstream-cli-suite/vitest.config.mjs",
     "lint": "pnpm -r --if-present lint",
     "version": "bash scripts/sync-version.sh \"$npm_package_version\" && git add -- Cargo.toml Cargo.lock crates/tq/Cargo.toml package.json packages/toon/package.json packages/toon/src/version.ts packages/toon/dist/version.js packages/vscode-toon/package.json",
     "check:versions": "node --test scripts/release-version.test.mjs && bash scripts/check-versions.sh"

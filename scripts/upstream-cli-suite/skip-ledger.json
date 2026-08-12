@@ -1,0 +1,17 @@
+{
+  "policy": "Ratchet rule: entries may only be removed. Additions require an explicit compatibility review and a rationale tied to an upstream-internal implementation detail.",
+  "entries": [
+    {
+      "test": "errors.test.ts",
+      "rationale": "Exercises the upstream citty-specific command wrapper and its private CliError class directly. Public error and exit behavior remains covered through cli.test.ts and cli-process.test.ts against the shipped bins."
+    },
+    {
+      "test": "format-error.test.ts",
+      "rationale": "Imports the upstream CLI's private diagnostic formatter instead of invoking a bin. The equivalent public diagnostics remain covered through cli.test.ts against the shipped TypeScript bin."
+    },
+    {
+      "test": "json-from-events.test.ts",
+      "rationale": "Imports the upstream CLI's private streaming JSON writer rather than exercising CLI behavior. Decode output remains covered through cli.test.ts and cli-process.test.ts against the shipped bins."
+    }
+  ]
+}
