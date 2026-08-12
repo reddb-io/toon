@@ -7,6 +7,7 @@
 // `tests/corpus/events/` are the parity contract between the two ports.
 
 use std::collections::HashSet;
+use std::cell::Cell;
 use std::io::Cursor;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::thread::JoinHandle;
@@ -52,6 +53,30 @@ struct StreamCtx {
     strict: bool,
     object_array_columns: bool,
     max_depth: usize,
+    truncation_span: Cell<Option<ArraySpanState>>,
+}
+
+#[derive(Clone, Copy)]
+struct ArraySpanState {
+    line: usize,
+    declared: usize,
+    actual: usize,
+    unit: &'static str,
+}
+
+fn record_array_span(
+    ctx: &StreamCtx,
+    line: usize,
+    declared: usize,
+    actual: usize,
+    unit: &'static str,
+) {
+    ctx.truncation_span.set(Some(ArraySpanState {
+        line,
+        declared,
+        actual,
+        unit,
+    }));
 }
 
 #[derive(Debug, Clone)]
@@ -482,10 +507,27 @@ pub fn decode_events(
         strict: options.strict,
         object_array_columns: options.object_array_columns,
         max_depth: options.max_depth,
+        truncation_span: Cell::new(None),
     };
     let mut events = Vec::new();
     let error = decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut events).err();
     (events, error)
+}
+
+fn decode_events_for_truncation(
+    input: &str,
+    options: &DecodeStreamOptions,
+) -> (Option<ParseError>, Option<ArraySpanState>) {
+    let ctx = StreamCtx {
+        indent_size: options.indent.max(1),
+        strict: options.strict,
+        object_array_columns: options.object_array_columns,
+        max_depth: options.max_depth,
+        truncation_span: Cell::new(None),
+    };
+    let mut events = Vec::new();
+    let error = decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut events).err();
+    (error, ctx.truncation_span.get())
 }
 
 trait EventSink {
@@ -572,6 +614,7 @@ where
         strict: options.strict,
         object_array_columns: options.object_array_columns,
         max_depth: options.max_depth,
+        truncation_span: Cell::new(None),
     };
     let error_sender = sender.clone();
     let worker = std::thread::Builder::new()
@@ -859,7 +902,10 @@ fn emit_array<R: BufRead, S: EventSink>(
 
     if let Some(inline) = &info.inline {
         let values = split_stream_cells(inline, info.delimiter, header.number);
-        assert_stream_count(values.len(), info.length, header.number, ctx)?;
+        if ctx.strict && values.len() != info.length {
+            record_array_span(ctx, header.number, info.length, values.len(), "items");
+            return Err(stream_error(header.number, "array count mismatch"));
+        }
         for value in values {
             out.emit(ToonEvent::Primitive {
                 value: parse_scalar(&value, header.number)?,
@@ -901,6 +947,7 @@ fn emit_array<R: BufRead, S: EventSink>(
 
     let end_line = reader.last_number(header.number);
     if ctx.strict && items != info.length {
+        record_array_span(ctx, end_line, info.length, items, "rows");
         return Err(stream_error(end_line, "array count mismatch"));
     }
     out.emit(ToonEvent::EndArray { line: end_line })?;
@@ -1040,6 +1087,7 @@ fn emit_tabular_rows<R: BufRead, S: EventSink>(
     }
     let end_line = reader.last_number(header.number);
     if ctx.strict && rows != info.length {
+        record_array_span(ctx, end_line, info.length, rows, "rows");
         return Err(stream_error(end_line, "array count mismatch"));
     }
     out.emit(ToonEvent::EndArray { line: end_line })?;
@@ -1154,6 +1202,7 @@ fn emit_keyed_object<R: BufRead, S: EventSink>(
     }
     let end_line = reader.last_number(header.number);
     if ctx.strict && rows != info.length {
+        record_array_span(ctx, end_line, info.length, rows, "rows");
         return Err(stream_error(end_line, "array count mismatch"));
     }
     out.emit(ToonEvent::EndObject { line: end_line })?;
