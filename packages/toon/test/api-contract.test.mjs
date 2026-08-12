@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
+import * as rootApi from '../dist/index.js'
 import {
   DEFAULT_DELIMITER,
   DELIMITERS,
@@ -12,15 +13,13 @@ import {
   encodeLines,
   encodeToonlLines,
   escapeString,
-  parse,
   rawString,
-  serialize,
 } from '../dist/index.js'
 import { parse as parseLegacy, serialize as serializeLegacy } from '../dist/legacy.js'
 
-test('the package root exposes the canonical v4.1 API and aliases', () => {
-  assert.equal(parse, decode)
-  assert.equal(serialize, encode)
+test('the package root exposes only the canonical v4.1 codec names', () => {
+  assert.equal('parse' in rootApi, false)
+  assert.equal('serialize' in rootApi, false)
   assert.deepEqual(decodeFromLines(['name: Ada', 'active: true']), {
     name: 'Ada',
     active: true,
@@ -85,6 +84,7 @@ test('generated declarations expose the canonical JSON, delimiter, event, and op
   ]) {
     assert.match(declarations, new RegExp(`\\b${name}\\b`))
   }
+  assert.doesNotMatch(declarations, /export declare const (?:parse|serialize)\b/)
 
   const optionDeclarations = readFileSync(new URL('../dist/types.d.ts', import.meta.url), 'utf8')
   assert.match(optionDeclarations, /reviver\?: DecodeReviver/)
