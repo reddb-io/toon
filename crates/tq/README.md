@@ -176,8 +176,6 @@ TOON input is strict v4.1 by default; `--no-strict` is an explicit legacy
 recovery mode. Output is canonical v4.1 unless one of the three local wire
 extension flags below is enabled. Nested field groups and keyed tabular form
 are already canonical v4.1 and are selected automatically for eligible values.
-For script compatibility, the CLI still accepts `--nested-tabular-headers` and
-`--keyed-map-collapse` as deprecated no-op switches; neither changes output.
 
 For example, canonical conversion needs no feature flag:
 
