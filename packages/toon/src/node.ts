@@ -31,6 +31,9 @@ export async function writeToonlFile(path, records, options) {
     writer.end()
     await finished(writer)
   } catch (error) {
+    // Destroying with buffered writes emits 'error'; without a listener that
+    // becomes an uncaught exception on top of the rejection callers observe.
+    writer.once('error', () => {})
     writer.destroy()
     throw error
   }

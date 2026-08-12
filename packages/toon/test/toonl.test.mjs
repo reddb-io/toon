@@ -423,3 +423,32 @@ test('node subpath reads and writes TOONL files as record streams', async () => 
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+test('writeToonlFile writes an empty file for an empty record stream', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'toon-node-'))
+  const path = join(directory, 'empty.toonl')
+
+  try {
+    await writeToonlFile(path, [])
+
+    assert.equal(readFileSync(path, 'utf8'), '')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('writeToonlFile destroys the writer when the record stream throws', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'toon-node-'))
+  const path = join(directory, 'broken.toonl')
+
+  async function* failing() {
+    yield { id: 1 }
+    throw new Error('record source failed')
+  }
+
+  try {
+    await assert.rejects(writeToonlFile(path, failing()), /record source failed/)
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})

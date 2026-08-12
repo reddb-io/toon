@@ -213,3 +213,18 @@ case: "builtins-identity-field"
 filter: ".flag"
 input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
 output: "true\n"
+
+case: "to-entries-on-array-uses-index-keys"
+filter: ".a | to_entries"
+input: "{\"a\":[10,20]}"
+output: "[{\"key\":0,\"value\":10},{\"key\":1,\"value\":20}]\n"
+
+case: "keys-sorts-object-keys"
+filter: "keys"
+input: "{\"b\":1,\"a\":2}"
+output: "[\"a\",\"b\"]\n"
+
+case: "length-of-object-null-and-number"
+filter: "[(.o|length), (.n|length), (.x|length)]"
+input: "{\"o\":{\"a\":1,\"b\":2},\"n\":null,\"x\":-3.5}"
+output: "[2,0,3.5]\n"

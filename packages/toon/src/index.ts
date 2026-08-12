@@ -40,11 +40,7 @@ export type {
 export { appendSummaryField, projectFields } from './helpers.js'
 
 export const decode = decodeValue
-/** @deprecated Use {@link decode}. */
-export const parse = decode
 export { encode }
-/** @deprecated Use {@link encode}. */
-export const serialize = encode
 export {
   JsonlToToonl,
   ToonlDecodeStream,

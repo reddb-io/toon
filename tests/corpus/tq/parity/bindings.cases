@@ -1,0 +1,70 @@
+# jq-compatible lexical bindings and folds.
+case: "binding-preserves-input"
+filter: ".name as $x | {input: ., bound: $x}"
+input: "{\"name\":\"Ada\",\"role\":\"engineer\"}"
+output: "{\"input\":{\"name\":\"Ada\",\"role\":\"engineer\"},\"bound\":\"Ada\"}\n"
+
+case: "array-destructuring-null-fills-leaves"
+filter: "null as [$x, {$y}] | [$x, $y]"
+input: "null"
+output: "[null,null]\n"
+
+case: "object-destructuring-null-fills-leaves"
+filter: "null as {a: $x, b: [$y]} | [$x, $y]"
+input: "null"
+output: "[null,null]\n"
+
+case: "binding-array-destructuring"
+filter: ". as [$first, $second] | {first: $first, second: $second}"
+input: "[1,2]"
+output: "{\"first\":1,\"second\":2}\n"
+
+case: "binding-nested-object-destructuring"
+filter: ". as {user: {name: $name}, scores: [$first]} | [$name, $first]"
+input: "{\"user\":{\"name\":\"Ada\"},\"scores\":[41,42]}"
+output: "[\"Ada\",41]\n"
+
+case: "reduce-sums-generator-output"
+filter: "reduce .[] as $x (0; . + $x)"
+input: "[1,2,3,4]"
+output: "10\n"
+
+case: "foreach-emits-extracted-intermediate-states"
+filter: "foreach .[] as $x (0; . + $x; {item: $x, total: .})"
+input: "[1,2,3]"
+output: "{\"item\":1,\"total\":1}\n{\"item\":2,\"total\":3}\n{\"item\":3,\"total\":6}\n"
+
+case: "environment-builtin-matches-env-variable"
+filter: "env == $ENV"
+input: "null"
+output: "true\n"
+
+case: "binding-object-pattern-shorthand"
+filter: ". as {$name, nested: {$value}} | [$name, $value]"
+input: "{\"name\":\"Ada\",\"nested\":{\"value\":42}}"
+output: "[\"Ada\",42]\n"
+
+case: "bindings-multi-output-cartesian-product"
+filter: "(1, 2) as $x | (\"a\", \"b\") as $y | [$x, $y]"
+input: "null"
+output: "[1,\"a\"]\n[1,\"b\"]\n[2,\"a\"]\n[2,\"b\"]\n"
+
+case: "bindings-shadow-inner-variable"
+filter: ". as $x | (. + 1) as $x | $x"
+input: "7"
+output: "8\n"
+
+case: "reduce-destructures-generator-values"
+filter: "reduce .[] as {value: $x} (0; . + $x)"
+input: "[{\"value\":2},{\"value\":3}]"
+output: "5\n"
+
+case: "foreach-default-extract-matches-state"
+filter: "foreach .[] as $x (0; . + $x)"
+input: "[1,2,3]"
+output: "1\n3\n6\n"
+
+case: "binding-on-pipe-right-preserves-current-input"
+filter: ".user | .name as $x | {input: ., bound: $x}"
+input: "{\"user\":{\"name\":\"Ada\",\"role\":\"engineer\"}}"
+output: "{\"input\":{\"name\":\"Ada\",\"role\":\"engineer\"},\"bound\":\"Ada\"}\n"

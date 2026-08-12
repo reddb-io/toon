@@ -12,6 +12,14 @@ that build before publishing. Performance notes and token-efficiency
 measurements live in [`benchmarks/`](../../benchmarks/README.md), not in this
 package README.
 
+For the upstream TOON surface, `@reddb-io/toon` is drop-in compatible with the
+vendored `@toon-format/toon` revision. CI enforces that guarantee by running the
+vendored upstream package unit suite against this package through an
+import-mapping shim. Upstream-internal cases that cannot express public API
+compatibility are recorded with rationales in the ratcheting
+[`skip-ledger.json`](../../scripts/upstream-package-suite/skip-ledger.json);
+ledger entries may only be removed.
+
 ```bash
 pnpm add @reddb-io/toon
 ```
@@ -42,9 +50,6 @@ round-trip true
 - `decode(input, options?)` decodes a TOON document to a JSON value. `decodeFromLines(lines, options?)` accepts pre-split lines.
 - `decodeStream` and `decodeStreamSync` expose positioned JSON-semantic events without building a value tree.
 - `encode(value, options?)` encodes canonical TOON. `encodeLines(value, options?)` yields its lines without trailing newlines.
-- `parse` and `serialize` are deprecated names for the canonical `decode` and
-  `encode` functions. They do not select the former codec; import the explicit
-  `@reddb-io/toon/legacy` subpath when old recovery behavior is required.
 - `DELIMITERS`, `DEFAULT_DELIMITER`, `rawString`, `escapeString`, and `ToonDecodeError` match the canonical v4.1 helper surface.
 - `detectTruncation(input, { format?: 'toon' | 'toonl', ...parseOptions })` returns a structured completeness report instead of throwing. Complete input reports `complete: true`; truncated TOON arrays, cut nested bodies, TOONL trailer mismatches, and missing TOONL trailers report `kind`, `line`, `declared`, `actual`, and `message`.
 

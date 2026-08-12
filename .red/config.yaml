@@ -38,6 +38,7 @@ plugins:
           - scripts/check-file-length.sh
           - cargo clippy --workspace -- -D warnings
           - cargo llvm-cov --workspace --fail-under-lines 95
+          - pnpm --filter @reddb-io/toon test:coverage
           - pnpm -r test
         landing:                  # before push/PR/queue
           - cargo fmt --all -- --check
