@@ -5,6 +5,7 @@ pub(super) enum Token {
     Colon,
     Comma,
     Dot,
+    DotDot,
     EqualEqual,
     Greater,
     GreaterEqual,
@@ -41,15 +42,21 @@ pub(super) fn lex(query: &str) -> Result<Vec<Token>, String> {
             character if character.is_whitespace() => {}
             ':' => tokens.push(Token::Colon),
             ',' => tokens.push(Token::Comma),
-            '.' => tokens.push(
-                if matches!(chars.peek(), Some((next, character))
-                    if *next == index + 1 && is_ident_start(*character))
+            // `..` is one token, but only when the dots touch: `. .` stays two
+            // identities, and `.a` still opens a field.
+            '.' => {
+                let next = chars.peek().copied();
+                if matches!(next, Some((position, '.')) if position == index + 1) {
+                    chars.next();
+                    tokens.push(Token::DotDot);
+                } else if matches!(next, Some((position, character))
+                    if position == index + 1 && is_ident_start(character))
                 {
-                    Token::FieldDot
+                    tokens.push(Token::FieldDot);
                 } else {
-                    Token::Dot
-                },
-            ),
+                    tokens.push(Token::Dot);
+                }
+            }
             '|' => tokens.push(if consume_char(&mut chars, '=') {
                 Token::Assign
             } else {

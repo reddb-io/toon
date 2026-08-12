@@ -44,7 +44,7 @@ struct Budget {
 }
 
 /// Releases one unit of the nesting budget, on the error paths too.
-struct Depth(Rc<Budget>);
+pub(super) struct Depth(Rc<Budget>);
 
 impl Drop for Depth {
     fn drop(&mut self) {
@@ -96,7 +96,7 @@ impl Env {
         env
     }
 
-    fn bind(&self, pattern: &Pattern, value: &Value) -> Result<Self, String> {
+    pub(super) fn bind(&self, pattern: &Pattern, value: &Value) -> Result<Self, String> {
         let mut child = self.clone();
         let mut frame = HashMap::new();
         bind_pattern(pattern, value, &mut frame)?;
@@ -108,7 +108,7 @@ impl Env {
         self.frames.iter().rev().find_map(|frame| frame.get(name))
     }
 
-    fn enter(&self) -> Result<Depth, String> {
+    pub(super) fn enter(&self) -> Result<Depth, String> {
         if self.budget.exhausted.get() {
             return Err(DEPTH_ERROR.to_owned());
         }
@@ -121,7 +121,7 @@ impl Env {
         Ok(Depth(Rc::clone(&self.budget)))
     }
 
-    fn define(&self, name: &str, parameters: &[String], body: &Rc<Expr>) -> Self {
+    pub(super) fn define(&self, name: &str, parameters: &[String], body: &Rc<Expr>) -> Self {
         let mut child = self.clone();
         child.functions.push(Rc::new(Function {
             name: name.to_owned(),
@@ -133,13 +133,15 @@ impl Env {
         child
     }
 
-    /// The latest definition wins, so a redefinition shadows an earlier one and
-    /// a user function shadows the builtin of the same name and arity.
-    fn function(&self, name: &str, arity: usize) -> Option<&Rc<Function>> {
-        self.functions
-            .iter()
-            .rev()
-            .find(|function| function.name == name && function.parameters.len() == arity)
+    /// The body of a user-defined filter and the environment it runs in, or
+    /// `None` when the name belongs to a builtin instead. The latest definition
+    /// wins, so a redefinition shadows an earlier one and a user function
+    /// shadows the builtin of the same name and arity.
+    pub(super) fn resolve_call(&self, name: &str, arguments: &[Expr]) -> Option<(Rc<Expr>, Self)> {
+        let function = self.functions.iter().rev().find(|function| {
+            function.name == name && function.parameters.len() == arguments.len()
+        })?;
+        Some((Rc::clone(&function.body), self.call(function, arguments)))
     }
 
     /// The environment a call body runs in: the definition site, the callee
@@ -252,8 +254,8 @@ impl Expr {
                 }
                 Ok(output)
             }
-            Self::Call(name, arguments) => match env.function(name, arguments.len()) {
-                Some(function) => function.body.eval(input, &env.call(function, arguments)),
+            Self::Call(name, arguments) => match env.resolve_call(name, arguments) {
+                Some((body, scope)) => body.eval(input, &scope),
                 None => builtins::evaluate(name, arguments, input, env),
             },
             Self::Comma(expressions) => {
@@ -811,7 +813,10 @@ fn sort_key(filter: &Expr, input: &Value, env: &Env) -> Result<serde_json::Value
     ))
 }
 
-fn compare_key_json(left: &serde_json::Value, right: &serde_json::Value) -> std::cmp::Ordering {
+pub(super) fn compare_key_json(
+    left: &serde_json::Value,
+    right: &serde_json::Value,
+) -> std::cmp::Ordering {
     compare_json_values(left, right).unwrap_or(std::cmp::Ordering::Equal)
 }
 
@@ -1144,7 +1149,7 @@ fn json_rank(value: &serde_json::Value) -> u8 {
     }
 }
 
-fn is_truthy(value: &Value) -> bool {
+pub(super) fn is_truthy(value: &Value) -> bool {
     !matches!(value, Value::Bool(false) | Value::Null)
 }
 

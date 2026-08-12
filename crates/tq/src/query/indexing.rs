@@ -54,7 +54,7 @@ pub(super) fn evaluate_slice(
     Ok(output)
 }
 
-fn index_value(input: &Value, key: &Value) -> Result<Value, String> {
+pub(super) fn index_value(input: &Value, key: &Value) -> Result<Value, String> {
     match (input, key) {
         (Value::Array(array), Value::Number(index)) => {
             let index = normalize_index(parse_number(index)?, array.len());
@@ -75,7 +75,7 @@ fn index_value(input: &Value, key: &Value) -> Result<Value, String> {
     }
 }
 
-fn evaluate_bounds(
+pub(super) fn evaluate_bounds(
     expression: Option<&Expr>,
     input: &Value,
     env: &Env,
@@ -93,7 +93,11 @@ fn evaluate_bounds(
         .collect()
 }
 
-fn slice_value(input: &Value, start: Option<f64>, end: Option<f64>) -> Result<Value, String> {
+pub(super) fn slice_value(
+    input: &Value,
+    start: Option<f64>,
+    end: Option<f64>,
+) -> Result<Value, String> {
     match input {
         Value::Array(array) => {
             let (start, end) = slice_bounds(array.len(), start, end);
@@ -119,7 +123,7 @@ fn normalize_index(index: f64, len: usize) -> Option<usize> {
     (index >= 0.0 && index < len as f64).then_some(index as usize)
 }
 
-fn slice_bounds(len: usize, start: Option<f64>, end: Option<f64>) -> (usize, usize) {
+pub(super) fn slice_bounds(len: usize, start: Option<f64>, end: Option<f64>) -> (usize, usize) {
     let start = normalize_bound(start.unwrap_or(0.0), len);
     let end = normalize_bound(end.unwrap_or(len as f64), len).max(start);
     (start, end)
@@ -154,7 +158,7 @@ fn index_description(value: &Value) -> String {
     }
 }
 
-fn value_kind(value: &Value) -> &'static str {
+pub(super) fn value_kind(value: &Value) -> &'static str {
     match value {
         Value::Array(_) => "array",
         Value::Bool(_) => "boolean",

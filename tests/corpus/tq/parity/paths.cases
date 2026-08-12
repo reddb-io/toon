@@ -1,0 +1,431 @@
+# The path layer: path/paths, getpath/setpath/delpaths/del, recursion, streams.
+case: "paths-path-of-nested-field"
+filter: "path(.a.b)"
+input: "{\"a\":{\"b\":1}}"
+output: "[\"a\",\"b\"]\n"
+
+case: "paths-path-of-index"
+filter: "path(.a[0])"
+input: "{\"a\":[1]}"
+output: "[\"a\",0]\n"
+
+case: "paths-path-of-iteration"
+filter: "[path(.[])]"
+input: "[1,2]"
+output: "[[0],[1]]\n"
+
+case: "paths-path-of-object-iteration"
+filter: "path(.[])"
+input: "{\"a\":1}"
+output: "[\"a\"]\n"
+
+case: "paths-path-of-slice"
+filter: "path(.a[1:2])"
+input: "{\"a\":[1,2,3]}"
+output: "[\"a\",{\"start\":1,\"end\":2}]\n"
+
+case: "paths-path-of-comma"
+filter: "[path(.a,.b)]"
+input: "{\"a\":1}"
+output: "[[\"a\"],[\"b\"]]\n"
+
+case: "paths-path-of-select"
+filter: "path(select(.a))"
+input: "{\"a\":1}"
+output: "[]\n"
+
+case: "paths-path-of-conditional"
+filter: "path(if .a then .b else .c end)"
+input: "{\"a\":true}"
+output: "[\"b\"]\n"
+
+case: "paths-path-of-alternative"
+filter: "path(.a // .b)"
+input: "{\"a\":null,\"b\":2}"
+output: "[\"b\"]\n"
+
+case: "paths-path-of-getpath"
+filter: "path(getpath([\"a\",\"b\"]))"
+input: "null"
+output: "[\"a\",\"b\"]\n"
+
+case: "paths-path-of-optional"
+filter: "path(.a?)"
+input: "{\"a\":1}"
+output: "[\"a\"]\n"
+
+case: "paths-path-of-empty-is-empty"
+filter: "[path(empty)]"
+input: "{\"a\":1}"
+output: "[]\n"
+
+case: "paths-path-of-user-function"
+filter: "def field: .a; path(field.b)"
+input: "{\"a\":{\"b\":1}}"
+output: "[\"a\",\"b\"]\n"
+
+case: "paths-path-of-binding"
+filter: "path(\"a\" as $key | .[$key])"
+input: "{\"a\":1}"
+output: "[\"a\"]\n"
+
+case: "paths-path-of-recursive-descent"
+filter: "[path(..)]"
+input: "{\"a\":[1]}"
+output: "[[],[\"a\"],[\"a\",0]]\n"
+
+case: "paths-path-of-filtered-descent"
+filter: "[path(..|select(type==\"number\"))]"
+input: "{\"a\":[1]}"
+output: "[[\"a\",0]]\n"
+
+case: "paths-non-path-literal-is-rejected"
+filter: "path(1)"
+input: "{\"a\":1}"
+error: "Invalid path expression"
+
+case: "paths-non-path-builtin-is-rejected"
+filter: "path(.a|length)"
+input: "{\"a\":[1]}"
+error: "Invalid path expression"
+
+case: "paths-iteration-over-scalar-is-rejected"
+filter: "path(.a[])"
+input: "{\"a\":1}"
+error: "Cannot iterate over number"
+
+case: "paths-enumerates-descendant-paths"
+filter: "[paths]"
+input: "{\"a\":[1]}"
+output: "[[\"a\"],[\"a\",0]]\n"
+
+case: "paths-enumerates-in-document-order"
+filter: "[paths]"
+input: "{\"b\":2,\"a\":1}"
+output: "[[\"b\"],[\"a\"]]\n"
+
+case: "paths-of-scalar-is-empty"
+filter: "[paths]"
+input: "1"
+output: "[]\n"
+
+case: "paths-filtered-by-node-type"
+filter: "[paths(type==\"number\")]"
+input: "{\"a\":[1]}"
+output: "[[\"a\",0]]\n"
+
+case: "paths-getpath-reads-nested-value"
+filter: "getpath([\"a\",\"b\"])"
+input: "{\"a\":{\"b\":5}}"
+output: "5\n"
+
+case: "paths-getpath-missing-key-is-null"
+filter: "getpath([\"a\",\"x\"])"
+input: "{\"a\":{\"b\":5}}"
+output: "null\n"
+
+case: "paths-getpath-through-null-is-null"
+filter: "getpath([\"a\",\"b\"])"
+input: "null"
+output: "null\n"
+
+case: "paths-getpath-streams-every-path"
+filter: "[getpath([\"a\"],[\"b\"])]"
+input: "{\"a\":1,\"b\":2}"
+output: "[1,2]\n"
+
+case: "paths-getpath-slice-component"
+filter: "getpath([{\"start\":0,\"end\":2}])"
+input: "[1,2,3]"
+output: "[1,2]\n"
+
+case: "paths-getpath-through-scalar-is-rejected"
+filter: "getpath([\"a\"])"
+input: "1"
+error: "Cannot index number"
+
+case: "paths-getpath-requires-an-array"
+filter: "getpath(\"a\")"
+input: "{\"a\":1}"
+error: "Path must be specified as"
+
+case: "paths-setpath-adds-a-field"
+filter: "setpath([\"a\"];1)"
+input: "{}"
+output: "{\"a\":1}\n"
+
+case: "paths-setpath-builds-missing-objects"
+filter: "setpath([\"a\",\"b\"];1)"
+input: "null"
+output: "{\"a\":{\"b\":1}}\n"
+
+case: "paths-setpath-pads-arrays"
+filter: "setpath([2];9)"
+input: "[1]"
+output: "[1,null,9]\n"
+
+case: "paths-setpath-builds-an-array-from-null"
+filter: "setpath([0];9)"
+input: "null"
+output: "[9]\n"
+
+case: "paths-setpath-negative-index"
+filter: "setpath([-1];9)"
+input: "[1,2]"
+output: "[1,9]\n"
+
+case: "paths-setpath-out-of-bounds-negative-index"
+filter: "setpath([-5];9)"
+input: "[1,2]"
+error: "Out of bounds negative array index"
+
+case: "paths-setpath-replaces-a-slice"
+filter: "setpath([{\"start\":1,\"end\":2}];[8,9])"
+input: "[1,2,3]"
+output: "[1,8,9,3]\n"
+
+case: "paths-delpaths-removes-fields"
+filter: "delpaths([[\"a\"],[\"b\"]])"
+input: "{\"a\":1,\"b\":2,\"c\":3}"
+output: "{\"c\":3}\n"
+
+case: "paths-delpaths-removes-elements-back-to-front"
+filter: "delpaths([[1],[0]])"
+input: "[1,2,3]"
+output: "[3]\n"
+
+case: "paths-delpaths-deduplicates"
+filter: "delpaths([[\"a\"],[\"a\"]])"
+input: "{\"a\":1}"
+output: "{}\n"
+
+case: "paths-delpaths-requires-arrays"
+filter: "delpaths([\"a\"])"
+input: "{\"a\":1}"
+error: "Path must be specified as"
+
+case: "paths-del-removes-a-field"
+filter: "del(.a)"
+input: "{\"a\":1,\"b\":2}"
+output: "{\"b\":2}\n"
+
+case: "paths-del-missing-field-is-a-no-op"
+filter: "del(.b)"
+input: "{\"a\":1}"
+output: "{\"a\":1}\n"
+
+case: "paths-del-removes-an-element"
+filter: "del(.[1])"
+input: "[1,2,3]"
+output: "[1,3]\n"
+
+case: "paths-del-out-of-range-element-is-a-no-op"
+filter: "del(.[5])"
+input: "[1,2]"
+output: "[1,2]\n"
+
+case: "paths-del-through-null-is-null"
+filter: "del(.a)"
+input: "null"
+output: "null\n"
+
+case: "paths-del-selected-elements"
+filter: "del(.[]|select(.==2))"
+input: "[1,2,3]"
+output: "[1,3]\n"
+
+case: "paths-del-nested-element"
+filter: "del(.a[0])"
+input: "{\"a\":[1,2]}"
+output: "{\"a\":[2]}\n"
+
+case: "paths-del-a-slice"
+filter: "del(.[1:3])"
+input: "[1,2,3,4]"
+output: "[1,4]\n"
+
+case: "paths-del-identity-is-null"
+filter: "del(.)"
+input: "{\"a\":1}"
+output: "null\n"
+
+case: "paths-del-overlapping-paths"
+filter: "del(.a,.a.b)"
+input: "{\"a\":{\"b\":1}}"
+output: "{}\n"
+
+case: "paths-recursive-descent-streams-every-value"
+filter: "[..]"
+input: "{\"a\":[1]}"
+output: "[{\"a\":[1]},[1],1]\n"
+
+case: "paths-recursive-descent-over-a-scalar"
+filter: "[..]"
+input: "\"x\""
+output: "[\"x\"]\n"
+
+case: "paths-recursive-descent-selects-numbers"
+filter: "[..|numbers]"
+input: "{\"a\":[1,{\"b\":2}]}"
+output: "[1,2]\n"
+
+case: "paths-recurse-matches-descent"
+filter: "[recurse]"
+input: "[[1]]"
+output: "[[[1]],[1],1]\n"
+
+case: "paths-recurse-with-a-filter"
+filter: "[recurse(.foo[])]"
+input: "{\"foo\":[{\"foo\":[]},{\"foo\":[{\"foo\":[]}]}]}"
+output: "[{\"foo\":[{\"foo\":[]},{\"foo\":[{\"foo\":[]}]}]},{\"foo\":[]},{\"foo\":[{\"foo\":[]}]},{\"foo\":[]}]\n"
+
+case: "paths-recurse-with-an-optional-filter"
+filter: "[recurse(.[]?)]"
+input: "{\"a\":{\"b\":{\"c\":1}}}"
+output: "[{\"a\":{\"b\":{\"c\":1}}},{\"b\":{\"c\":1}},{\"c\":1},1]\n"
+
+case: "paths-recurse-until-empty"
+filter: "[recurse(if . < 4 then .+1 else empty end)]"
+input: "1"
+output: "[1,2,3,4]\n"
+
+case: "paths-recurse-with-a-condition"
+filter: "[recurse(.+1; . < 4)]"
+input: "1"
+output: "[1,2,3]\n"
+
+case: "paths-pick-a-field"
+filter: "pick(.a)"
+input: "{\"a\":1,\"b\":2}"
+output: "{\"a\":1}\n"
+
+case: "paths-pick-several-paths"
+filter: "pick(.a,.b.c)"
+input: "{\"a\":1,\"b\":{\"c\":2,\"d\":3}}"
+output: "{\"a\":1,\"b\":{\"c\":2}}\n"
+
+case: "paths-pick-an-element-pads"
+filter: "pick(.[1])"
+input: "[1,2,3]"
+output: "[null,2]\n"
+
+case: "paths-pick-identity-keeps-everything"
+filter: "pick(.)"
+input: "{\"a\":{\"b\":1}}"
+output: "{\"a\":{\"b\":1}}\n"
+
+case: "paths-tostream-of-a-scalar"
+filter: "[tostream]"
+input: "1"
+output: "[[[],1]]\n"
+
+case: "paths-tostream-of-an-empty-array"
+filter: "[tostream]"
+input: "[]"
+output: "[[[],[]]]\n"
+
+case: "paths-tostream-closes-each-container"
+filter: "[tostream]"
+input: "{\"a\":[1,2]}"
+output: "[[[\"a\",0],1],[[\"a\",1],2],[[\"a\",1]],[[\"a\"]]]\n"
+
+case: "paths-tostream-nests-closing-events"
+filter: "[tostream]"
+input: "{\"a\":{\"b\":{\"c\":1}}}"
+output: "[[[\"a\",\"b\",\"c\"],1],[[\"a\",\"b\",\"c\"]],[[\"a\",\"b\"]],[[\"a\"]]]\n"
+
+case: "paths-fromstream-rebuilds-a-document"
+filter: "fromstream(tostream)"
+input: "{\"a\":[1,2]}"
+output: "{\"a\":[1,2]}\n"
+
+case: "paths-fromstream-rebuilds-nested-arrays"
+filter: "fromstream(tostream)"
+input: "[1,[2,3]]"
+output: "[1,[2,3]]\n"
+
+case: "paths-fromstream-emits-a-top-level-scalar"
+filter: "fromstream([[],1])"
+input: "{\"a\":1}"
+output: "1\n"
+
+case: "paths-leaf-paths-keeps-scalars"
+filter: "[leaf_paths]"
+input: "{\"a\":[1],\"b\":\"x\"}"
+output: "[[\"a\",0],[\"b\"]]\n"
+divergence: "tq keeps jq 1.6's leaf_paths, which jq 1.7.1 removed"
+jq-output: "error: leaf_paths/0 is not defined"
+
+case: "paths-field-through-scalar"
+filter: "path(.a.b)"
+input: "{\"a\":1}"
+output: "[\"a\",\"b\"]\n"
+divergence: "tq's lenient named-path model reaches through a scalar in path mode too"
+jq-output: "error: Cannot index number with string \"b\""
+
+case: "paths-path-of-try"
+filter: "path(try .a catch .b)"
+input: "{\"a\":1}"
+output: "[\"a\"]\n"
+
+case: "paths-path-of-alternative-keeps-a-truthy-left"
+filter: "path(.a // .b)"
+input: "{\"a\":1,\"b\":2}"
+output: "[\"a\"]\n"
+
+case: "paths-path-of-a-nested-definition"
+filter: "path(def f: .a; f)"
+input: "{\"a\":1}"
+output: "[\"a\"]\n"
+
+case: "paths-path-of-a-conditional-fallback"
+filter: "path(if .a then .b else .c end)"
+input: "{\"a\":false}"
+output: "[\"c\"]\n"
+
+case: "paths-path-of-recurse-with-a-filter"
+filter: "[path(recurse(.[]?))]"
+input: "{\"a\":{\"b\":1}}"
+output: "[[],[\"a\"],[\"a\",\"b\"]]\n"
+
+case: "paths-path-of-recurse-with-a-condition"
+filter: "[path(recurse(.[]?; type==\"object\"))]"
+input: "{\"a\":{\"b\":1}}"
+output: "[[],[\"a\"]]\n"
+
+case: "paths-path-of-a-filter-with-no-result"
+filter: "[path(.a|numbers)]"
+input: "{\"a\":\"x\"}"
+output: "[]\n"
+
+case: "paths-del-nested-through-an-array"
+filter: "del(.a[0].b)"
+input: "{\"a\":[{\"b\":1,\"c\":2}]}"
+output: "{\"a\":[{\"c\":2}]}\n"
+
+case: "paths-del-a-negative-index"
+filter: "del(.[-1])"
+input: "[1,2,3]"
+output: "[1,2]\n"
+
+case: "paths-setpath-a-slice-of-null"
+filter: "setpath([{\"start\":0,\"end\":0}];[1])"
+input: "null"
+output: "[1]\n"
+
+case: "paths-path-of-an-optional-error"
+filter: "[path((.[])?)]"
+input: "1"
+output: "[]\n"
+
+case: "paths-path-of-a-bare-try"
+filter: "[path(try (.[]))]"
+input: "1"
+output: "[]\n"
+
+case: "paths-try-handler-cannot-produce-a-path"
+filter: "[path(try .[] catch .b)]"
+input: "1"
+error: "Cannot iterate over number"
+divergence: "tq reports the error the try body raised; jq reports that the handler is not a path"
+jq-output: "error: Invalid path expression"
