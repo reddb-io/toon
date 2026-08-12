@@ -1,4 +1,4 @@
-use reddb_io_toon::{EncodeOptions, ParseOptions, Value};
+use reddb_io_toon::{LegacyEncodeOptions, LegacyParseOptions, Value};
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
 use std::fs;
@@ -101,10 +101,10 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
         );
 
         if let Some(expected_nested) = expected.get("nestedHeaderToon").and_then(Json::as_str) {
-            let nested_toon = value.to_legacy_toon_with_options(EncodeOptions {
+            let nested_toon = value.to_legacy_toon_with_options(LegacyEncodeOptions {
                 nested_tabular_headers: true,
                 keyed_map_collapse: false,
-                ..EncodeOptions::default()
+                ..LegacyEncodeOptions::default()
             });
             assert_eq!(nested_toon, expected_nested, "{name}: nested-header TOON");
 
@@ -161,12 +161,12 @@ fn read_fixture(path: &PathBuf) -> Json {
     serde_json::from_str(&json).unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
 }
 
-fn parse_options(options: Option<&Json>) -> ParseOptions {
-    let defaults = ParseOptions::default();
+fn parse_options(options: Option<&Json>) -> LegacyParseOptions {
+    let defaults = LegacyParseOptions::default();
     let Some(options) = options.and_then(Json::as_object) else {
         return defaults;
     };
-    ParseOptions {
+    LegacyParseOptions {
         max_depth: options
             .get("maxDepth")
             .and_then(Json::as_u64)
