@@ -53,17 +53,11 @@ decode('a.b: 1')
 // { 'a.b': 1 }
 ```
 
-If a stored document temporarily requires the old observable behavior, make
-that dependency visible at the import boundary:
+A stored document that depends on the old observable behavior has to be
+converted before decoding: the pre-v4 engine and the `@reddb-io/toon/legacy`
+subpath that published it were removed in 0.26.0.
 
-```js
-import { parse } from '@reddb-io/toon/legacy'
-
-parse('a.b: 1', { expandPaths: 'safe' })
-// { a: { b: 1 } }
-```
-
-New code should use `decode`, `decodeFromLines`, `decodeStream`, `encode`, or
+Use `decode`, `decodeFromLines`, `decodeStream`, `encode`, or
 `encodeLines`. The `reviver` option is an experimental TypeScript-only frontier
 pinned to upstream PR #294; it is not part of the v4.1 migration contract.
 
@@ -85,23 +79,11 @@ assert_eq!(value.to_json_value(), serde_json::json!({"a.b": 1}));
 # Ok::<(), reddb_io_toon::DecodeError>(())
 ```
 
-An explicit compatibility read uses a method containing `legacy`:
-
-```rust
-use reddb_io_toon::{LegacyParseOptions, Value};
-
-let value = Value::parse_legacy_with_options(
-    "a.b: 1\n",
-    LegacyParseOptions { expand_paths: true, ..LegacyParseOptions::default() },
-)?;
-assert_eq!(value.to_json_value(), serde_json::json!({"a": {"b": 1}}));
-# Ok::<(), reddb_io_toon::DecodeError>(())
-```
-
-Methods named `to_legacy_toon*` are the corresponding old-output boundary.
-Compatibility-shaped `EncodeOptions` passed to common model methods still
-route through the v4.1 encoder; only explicitly named legacy methods select the
-former encoder.
+There is no compatibility read. `parse_legacy*`, `to_legacy_toon*`,
+`LegacyParseOptions`, `LegacyEncodeOptions`, `detect_truncation_legacy*`, and
+`ParseOptions::expand_paths` were removed in 0.26.0 along with the engine
+behind them. `EncodeOptions` passed to common model methods routes through the
+v4.1 encoder, as it already did.
 
 ## Breaking changes
 
@@ -110,10 +92,9 @@ former encoder.
 **What changed.** In v3.3 the decoder exposed a spec option
 `expandPaths: "safe"` (§13.4) that split dotted keys back into nested objects
 *after* base parsing. v4.1 removes path expansion from the specification
-entirely. Canonical decode treats a dotted key as a single literal key. The
-behavior survives only on the explicit TypeScript legacy subpath and Rust
-methods whose names contain `legacy`; output it produces is not canonical
-v4.1 and should not be relied on for new work.
+entirely. Canonical decode treats a dotted key as a single literal key, and
+since 0.26.0 nothing else does: the engine that implemented expansion, and the
+API that reached it, are gone.
 
 **Before/after decode** of `a.b.c: 1`:
 
@@ -190,22 +171,22 @@ invariant are strict errors rather than best-effort recoveries:
 
 ```text
 # declared 3 elements, supplied 2
-items[3]: a,b            ->   ToonError "array length mismatch"
+items[3]: a,b            ->   decode error "array count mismatch"
 
 # duplicate sibling key
 a: 1
-a: 2                     ->   ToonError "duplicate key"   (strict)
+a: 2                     ->   decode error "duplicate object key"   (strict)
                          ->   { "a": 2 }  (last-write-wins, strict: false)
 
 # tab used for indentation
 a:
-<TAB>b: 1                ->   ToonError "invalid indentation"
+<TAB>b: 1                ->   decode error "tab used as indentation"
 ```
 
 **Migration.** Fix the source documents, or pass `{ strict: false }` (JS) /
-`strict: false` (Rust) to opt back into the lenient recovery behavior
-(last-write-wins on duplicates, tolerant indentation). Non-strict decoding is
-explicitly a legacy-compatibility mode, not a supported long-term target.
+`strict: false` (Rust) to opt into the lenient recovery behavior
+(last-write-wins on duplicates, tolerant indentation). Non-strict decode is an
+upstream v4.1.1 option, not a second engine.
 
 ## Absorbed mechanisms (design history, not a break)
 
