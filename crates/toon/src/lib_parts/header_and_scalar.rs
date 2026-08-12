@@ -840,7 +840,7 @@ fn insert_field(
     key: &str,
     quoted: bool,
     value: Value,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
     line: usize,
 ) -> Result<(), ParseError> {
     if options.expand_paths && !quoted && key.contains('.') {
@@ -860,7 +860,7 @@ fn insert_path(
     document: &mut Document,
     segments: &[&str],
     value: Value,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
     line: usize,
 ) -> Result<(), ParseError> {
     check_parse_depth(segments.len().saturating_sub(1), line, options)?;
