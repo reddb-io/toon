@@ -247,22 +247,34 @@ impl TextReader {
     }
 
     fn transcode(&mut self) -> io::Result<()> {
+        let mut pending = std::mem::take(&mut self.pending);
+        let result = self.transcode_pending(&mut pending);
+        self.pending = pending;
+
+        if self.at_eof {
+            self.recorder.finish();
+        }
+        result
+    }
+
+    fn transcode_pending(&mut self, pending: &mut Vec<u8>) -> io::Result<()> {
         loop {
-            match std::str::from_utf8(&self.pending) {
+            match std::str::from_utf8(pending) {
                 Ok(text) => {
-                    self.emit(&text.to_owned());
-                    self.pending.clear();
-                    break;
+                    self.emit(text);
+                    pending.clear();
+                    return Ok(());
                 }
                 Err(error) => {
                     let valid = error.valid_up_to();
-                    let text = String::from_utf8_lossy(&self.pending[..valid]).into_owned();
-                    self.emit(&text);
                     // An incomplete trailing sequence is only ill-formed once
                     // no further byte can complete it.
-                    let Some(width) = error.error_len().or(self.at_eof.then_some(1)) else {
-                        self.pending.drain(..valid);
-                        break;
+                    let width = error.error_len().or_else(|| self.at_eof.then_some(1));
+                    self.emit(std::str::from_utf8(&pending[..valid]).expect("prefix is valid"));
+
+                    let Some(width) = width else {
+                        pending.drain(..valid);
+                        return Ok(());
                     };
                     if self.strict {
                         self.recorder.invalid_utf8.store(true, Ordering::Relaxed);
@@ -271,16 +283,11 @@ impl TextReader {
                             "input is not valid UTF-8",
                         ));
                     }
-                    self.pending.drain(..valid + width);
+                    pending.drain(..valid + width);
                     self.emit("\u{FFFD}");
                 }
             }
         }
-
-        if self.at_eof {
-            self.recorder.finish();
-        }
-        Ok(())
     }
 
     fn emit(&mut self, text: &str) {
