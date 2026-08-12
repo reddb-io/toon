@@ -52,6 +52,9 @@ cases should land together.
 | `strings-trimstr` | Removes the requested affix from both ends. | `trimstr/1` is not defined. | tq provides the requested newer jq string surface while the corpus remains pinned to jq 1.7.1. |
 | `strings-trim` | Removes leading and trailing Unicode whitespace. | `trim/0` is not defined. | tq provides the requested newer jq string surface while the corpus remains pinned to jq 1.7.1. |
 | `strings-deferred-utf8bytelength-is-clear` | Reports an unsupported identifier. | Returns the string's UTF-8 byte length. | The themed slice keeps deferred string builtins explicit instead of silently accepting them. |
+| `paths-leaf-paths-keeps-scalars` | `leaf_paths` lists the paths of every scalar. | `leaf_paths/0` is not defined. | tq keeps jq 1.6's spelling, which jq 1.7 removed; the path layer implements it directly. |
+| `paths-field-through-scalar` | `path(.a.b)` reaches through a scalar and reports `["a","b"]`. | Errors because a number cannot be indexed by a string. | The same lenient named-path model as `divergence-string-path-on-array`, applied in path mode. |
+| `paths-try-handler-cannot-produce-a-path` | Reports the error the `try` body raised. | Reports that the `catch` handler is not a path expression. | Neither filter has a path; tq keeps the original diagnostic rather than describing the handler. |
 
 Array `to_entries` is explicitly not a divergence: jq 1.7.1 and tq both emit
 zero-based numeric keys. Its ordinary parity pin is
