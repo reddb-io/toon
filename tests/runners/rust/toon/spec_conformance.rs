@@ -57,10 +57,9 @@ fn official_toon_spec_fixtures_do_not_regress() {
             let id = fixture_id(id_root, &fixture_path, name);
             seen.insert(id.clone());
 
-            // Every case declares the decoder options it is written against, and
-            // a conformance run has to honour them: `expandPaths` cases are
-            // otherwise unsatisfiable, since the same input must be rejected
-            // under `strict` and resolve last-write-wins without it.
+            // Every case declares the decoder options it is written against,
+            // and a conformance run has to honour them: a case written for
+            // non-strict decoding is unsatisfiable under strict mode.
             let options = decoder_options(test.get("options"));
 
             let actual_passed = match category {
@@ -98,7 +97,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                         }
                     } else {
                         match (
-                            Value::parse_legacy_with_options(input, options),
+                            Value::parse_with_options(input, options),
                             should_error,
                         ) {
                             // A rejection the spec asked for.
@@ -172,9 +171,9 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             .and_then(Json::as_str)
                             .expect("encode expected TOON");
                         let value = Value::from_json_value(input.clone());
-                        value.to_legacy_toon_with_options(encoder_options(test.get("options")))
+                        value.to_toon_with_options(encoder_options(test.get("options")))
                             == expected
-                            && Value::parse_legacy_with_options(expected, options)
+                            && Value::parse_with_options(expected, options)
                                 .is_ok_and(|actual| actual.to_json_value() == *input)
                     } else {
                         let expected = test
@@ -399,10 +398,6 @@ fn decoder_options(options: Option<&Json>) -> ParseOptions {
             .get("strict")
             .and_then(Json::as_bool)
             .unwrap_or(defaults.strict),
-        expand_paths: options
-            .get("expandPaths")
-            .and_then(Json::as_str)
-            .is_some_and(|mode| mode == "safe"),
         ..defaults
     }
 }
@@ -484,6 +479,12 @@ fn canonical_options() -> ParseOptions {
 fn reject_v3_strict(input: &str) -> Result<(), String> {
     for (index, line) in input.lines().enumerate() {
         let trimmed = line.trim_start();
+        // The v4.1 keyed-table header carries its row count as `[n:]`, whose
+        // inner colon hides the header from the first-colon scan below. No v3
+        // reader accepts that marker either.
+        if is_keyed_table_header(trimmed) {
+            return Err(format!("line {}: invalid keyed map header", index + 1));
+        }
         if let Some(colon) = trimmed.find(':') {
             let key_part = &trimmed[..colon];
             if key_part.contains('{') && key_part.ends_with('}') && !key_part.contains('[') {
@@ -497,6 +498,27 @@ fn reject_v3_strict(input: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Whether a line is a v4.1 keyed-table header: `key[n:]{fields}:`, optionally
+/// carrying an active delimiter after the colon inside the brackets.
+fn is_keyed_table_header(line: &str) -> bool {
+    let Some(head) = line.strip_suffix(':') else {
+        return false;
+    };
+    if !head.ends_with('}') {
+        return false;
+    }
+    let Some(open) = head.find('[') else {
+        return false;
+    };
+    let Some(close) = head[open..].find(']') else {
+        return false;
+    };
+    let marker = head[open + 1..open + close].trim_end_matches(['|', '\t']);
+    marker
+        .strip_suffix(':')
+        .is_some_and(|count| !count.is_empty() && count.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
 fn fixture_paths(root: &Path) -> Vec<PathBuf> {
@@ -706,14 +728,14 @@ fn stream_decoder_options(options: Option<&Json>) -> DecodeStreamOptions {
 }
 
 fn round_trips_to(value: &Value, decoded: &Json) -> bool {
-    Value::parse_legacy_with_options(&value.to_legacy_toon(), canonical_options())
+    Value::parse_with_options(&value.to_canonical_toon(), canonical_options())
         .is_ok_and(|reparsed| reparsed.to_json_value() == *decoded)
 }
 
 fn parse_round_trips(input: &str, options: ParseOptions) -> Result<(), String> {
-    let value = Value::parse_legacy_with_options(input, options).map_err(|err| err.to_string())?;
-    let canonical = value.to_legacy_toon();
-    let reparsed = Value::parse_legacy_with_options(&canonical, canonical_options())
+    let value = Value::parse_with_options(input, options).map_err(|err| err.to_string())?;
+    let canonical = value.to_canonical_toon();
+    let reparsed = Value::parse_with_options(&canonical, canonical_options())
         .map_err(|err| format!("canonical output did not parse: {err}"))?;
     if reparsed.to_json_value() != value.to_json_value() {
         return Err("canonical output did not preserve the decoded value".to_owned());

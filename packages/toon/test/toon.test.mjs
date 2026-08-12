@@ -4,8 +4,13 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { ToonError } from '../dist/index.js'
-import { detectTruncation, parse, parseDocument, serialize } from '../dist/legacy.js'
+import {
+  ToonDecodeError,
+  ToonError,
+  decode as parse,
+  detectTruncation,
+  encode as serialize,
+} from '../dist/index.js'
 
 /** `assert.throws` returns nothing, so capture the error to inspect its line. */
 function caught(fn) {
@@ -37,7 +42,7 @@ test('parses flat fields and serializes canonical TOON', () => {
   const document = parse('name : Ada\nactive: true\ncount: 3\n')
 
   assert.deepEqual(document, { name: 'Ada', active: true, count: 3 })
-  assert.equal(serialize(document), 'name: Ada\nactive: true\ncount: 3\n')
+  assert.equal(serialize(document), 'name: Ada\nactive: true\ncount: 3')
 })
 
 test('detects truncation with the shared structured report corpus', () => {
@@ -67,7 +72,7 @@ test('parses tabular arrays and serializes canonical TOON', () => {
   })
   assert.equal(
     serialize(document),
-    'users[2]{id,name,active}:\n  1,Ada,true\n  2,Bob Smith,false\n',
+    'users[2]{id,name,active}:\n  1,Ada,true\n  2,Bob Smith,false',
   )
 })
 
@@ -84,20 +89,16 @@ test('parses nested tabular headers', () => {
   })
 })
 
-test('serializes nested tabular headers only when opted in', () => {
+test('serializes nested tabular headers as the canonical form', () => {
   const document = {
     orders: [
       { id: 1, customer: { name: 'Ada', country: 'UK' }, total: 10.5 },
       { id: 2, customer: { name: 'Bob', country: 'US' }, total: 20 },
     ],
   }
-  const expanded =
-    'orders[2]:\n  - id: 1\n    customer:\n      name: Ada\n      country: UK\n    total: 10.5\n  - id: 2\n    customer:\n      name: Bob\n      country: US\n    total: 20\n'
-  const nested =
-    'orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n'
+  const nested = 'orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20'
 
-  assert.equal(serialize(document), expanded)
-  assert.equal(serialize(document, { nestedTabularHeaders: true }), nested)
+  assert.equal(serialize(document), nested)
   assert.deepEqual(parse(nested), document)
 })
 
@@ -110,8 +111,8 @@ test('nested tabular serialization falls back on recursive shape mismatch', () =
   }
 
   assert.equal(
-    serialize(document, { nestedTabularHeaders: true }),
-    'rows[2]:\n  - id: 1\n    point:\n      x: 1\n      y: 2\n  - id: 2\n    point:\n      x: 3\n      z: 4\n',
+    serialize(document),
+    'rows[2]:\n  - id: 1\n    point:\n      x: 1\n      y: 2\n  - id: 2\n    point:\n      x: 3\n      z: 4',
   )
 })
 
@@ -123,16 +124,16 @@ test('nested tabular headers validate leaf arity and shape', () => {
   assert.throws(() => parse('orders[1]{id,customer{}}:\n  1\n'), /invalid array header/)
   assert.throws(
     () => parse('orders[1]{customer{name},customer{name}}:\n  Ada,Bob\n'),
-    /duplicate key/,
+    /duplicate field name in header/,
   )
   assert.throws(() => parse('orders[1]{id,customer{name,country}:\n  1,Ada,UK\n'), {
-    message: /invalid array header/,
+    message: /malformed tabular header fields/,
   })
 })
 
-test('parses keyed map collapse rows', () => {
+test('parses keyed map rows', () => {
   const input =
-    'people{first,last,meta{active,score}}:\n  joe: Joe,Schmoe,true,7\n  mary: Mary,Jane,false,9\n'
+    'people[2:]{first,last,meta{active,score}}:\n  joe: Joe,Schmoe,true,7\n  mary: Mary,Jane,false,9\n'
 
   assert.deepEqual(parse(input), {
     people: {
@@ -142,25 +143,20 @@ test('parses keyed map collapse rows', () => {
   })
 })
 
-test('serializes keyed map collapse only when opted in', () => {
+test('serializes a uniform object map as a keyed table', () => {
   const document = {
     people: {
       joe: { first: 'Joe', last: 'Schmoe' },
       mary: { first: 'Mary', last: 'Jane' },
     },
   }
+  const keyed = 'people[2:]{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane'
 
-  assert.equal(
-    serialize(document),
-    'people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    last: Jane\n',
-  )
-  assert.equal(
-    serialize(document, { keyedMapCollapse: true }),
-    'people{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane\n',
-  )
+  assert.equal(serialize(document), keyed)
+  assert.deepEqual(parse(keyed), document)
 })
 
-test('keyed map collapse falls back for non-uniform maps', () => {
+test('the keyed table form falls back for non-uniform maps', () => {
   const document = {
     people: {
       joe: { first: 'Joe', last: 'Schmoe' },
@@ -169,14 +165,14 @@ test('keyed map collapse falls back for non-uniform maps', () => {
   }
 
   assert.equal(
-    serialize(document, { keyedMapCollapse: true }),
-    'people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin\n',
+    serialize(document),
+    'people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin',
   )
 })
 
 test('parses inline list arrays', () => {
   assert.deepEqual(parse('tags[3]: admin,ops,dev\n'), { tags: ['admin', 'ops', 'dev'] })
-  assert.equal(serialize({ tags: ['admin', 'ops', 'dev'] }), 'tags[3]: admin,ops,dev\n')
+  assert.equal(serialize({ tags: ['admin', 'ops', 'dev'] }), 'tags[3]: admin,ops,dev')
 })
 
 test('the root form can be a scalar, an array or an object', () => {
@@ -189,17 +185,17 @@ test('the root form can be a scalar, an array or an object', () => {
 test('errors carry the offending line', () => {
   const error = caught(() => parse('person: Ada\n  city: London\n'))
 
-  assert.ok(error instanceof ToonError)
+  assert.ok(error instanceof ToonDecodeError)
   assert.equal(error.line, 2)
-  assert.equal(error.reason, 'invalid indentation')
-  assert.match(error.message, /line 2: invalid indentation/)
+  assert.equal(error.reason, 'over-indented line')
+  assert.match(error.message, /Line 2: over-indented line/)
 })
 
 test('decode enforces maxDepth and supports an explicit opt-out', () => {
   assert.deepEqual(parse('a:\n  b:\n    c: 1\n', { maxDepth: 2 }), { a: { b: { c: 1 } } })
 
   const custom = caught(() => parse('a:\n  b:\n    c: 1\n', { maxDepth: 1 }))
-  assert.ok(custom instanceof ToonError)
+  assert.ok(custom instanceof ToonDecodeError)
   assert.equal(custom.line, 3)
   assert.equal(custom.reason, 'maximum nesting depth exceeded (maxDepth 1)')
 
@@ -209,7 +205,7 @@ test('decode enforces maxDepth and supports an explicit opt-out', () => {
   )
 
   const hostile = caught(() => parse(deeplyNestedToon(1001)))
-  assert.ok(hostile instanceof ToonError)
+  assert.ok(hostile instanceof ToonDecodeError)
   assert.equal(hostile.line, 1002)
   assert.match(hostile.message, /maxDepth 1000/)
 
@@ -231,21 +227,22 @@ test('serialize enforces maxDepth and supports an explicit opt-out', () => {
 test('rejects array length mismatches', () => {
   const error = caught(() => parse('tags[2]: admin,ops,dev\n'))
 
-  assert.ok(error instanceof ToonError)
+  assert.ok(error instanceof ToonDecodeError)
   assert.equal(error.line, 1)
-  assert.equal(error.reason, 'array length mismatch')
+  assert.equal(error.reason, 'expected 2 inline-form values, but got 3')
 })
 
 test('strict mode rejects duplicate keys; non-strict takes the last write', () => {
-  assert.throws(() => parse('a: 1\na: 2\n'), /duplicate key/)
+  assert.throws(() => parse('a: 1\na: 2\n'), /duplicate object key/)
   assert.deepEqual(parse('a: 1\na: 2\n', { strict: false }), { a: 2 })
 })
 
-test('expandPaths turns dotted keys into nested objects', () => {
+test('a dotted key is one literal key', () => {
+  // The removed pre-v4 parser split these into nested objects behind an
+  // `expandPaths` switch. The canonical decoder has no such mode.
   assert.deepEqual(parse('a.b: 1\n'), { 'a.b': 1 })
-  assert.deepEqual(parse('a.b: 1\n', { expandPaths: 'safe' }), { a: { b: 1 } })
-  // A quoted key is a literal key, never a path.
-  assert.deepEqual(parse('"a.b": 1\n', { expandPaths: 'safe' }), { 'a.b': 1 })
+  assert.deepEqual(parse('"a.b": 1\n'), { 'a.b': 1 })
+  assert.equal(serialize({ 'a.b': 1 }), 'a.b: 1')
 })
 
 test('the indent option changes what counts as a level', () => {
@@ -255,15 +252,10 @@ test('the indent option changes what counts as a level', () => {
   assert.throws(() => parse('person:\n    city: London\n', { indent: 3 }), /invalid indentation/)
 })
 
-test('parseDocument insists on an object root', () => {
-  assert.deepEqual(parseDocument('name: Ada\n'), { name: 'Ada' })
-  assert.throws(() => parseDocument('hello'), /expected `key: value`/)
-})
-
 test('serialize quotes exactly what the spec requires', () => {
   assert.equal(
     serialize({ empty: '', numeric: '05', literal: 'true', spaced: ' pad ', dashed: '-x' }),
-    'empty: ""\nnumeric: "05"\nliteral: "true"\nspaced: " pad "\ndashed: "-x"\n',
+    'empty: ""\nnumeric: "05"\nliteral: "true"\nspaced: " pad "\ndashed: "-x"',
   )
   // Quoted-looking scalars survive the round-trip as strings, not numbers.
   assert.deepEqual(parse(serialize({ numeric: '05' })), { numeric: '05' })
@@ -283,7 +275,7 @@ test('nested empty-object list items round-trip as a bare hyphen', () => {
   // The bare `-` marker for an empty object list item applies recursively
   // inside nested expanded arrays, with no trailing space (upstream spec
   // PR #53).
-  const input = 'items[2]:\n  - [1]:\n    -\n  - [2]:\n    - x\n    -\n'
+  const input = 'items[2]:\n  - [1]:\n    -\n  - [2]:\n    - x\n    -'
 
   assert.deepEqual(parse(input), { items: [[{}], ['x', {}]] })
   assert.equal(serialize({ items: [[{}], ['x', {}]] }), input)

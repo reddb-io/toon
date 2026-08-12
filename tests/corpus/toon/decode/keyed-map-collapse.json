@@ -3,18 +3,24 @@
   "tests": [
     {
       "name": "keyed map collapse decodes uniform object map",
-      "input": "people{first,last,meta{active,score}}:\n  joe: Joe,Schmoe,true,7\n  mary: Mary,Jane,false,9\n",
+      "input": "people[2:]{first,last,meta{active,score}}:\n  joe: Joe,Schmoe,true,7\n  mary: Mary,Jane,false,9\n",
       "expected": {
         "people": {
           "joe": {
             "first": "Joe",
             "last": "Schmoe",
-            "meta": { "active": true, "score": 7 }
+            "meta": {
+              "active": true,
+              "score": 7
+            }
           },
           "mary": {
             "first": "Mary",
             "last": "Jane",
-            "meta": { "active": false, "score": 9 }
+            "meta": {
+              "active": false,
+              "score": 9
+            }
           }
         }
       },
@@ -22,11 +28,15 @@
     },
     {
       "name": "keyed map row keys use standard quoting",
-      "input": "registry{role}:\n  \"#admin\": superuser\n  \"-guest\": viewer\n",
+      "input": "registry[2:]{role}:\n  \"#admin\": superuser\n  \"-guest\": viewer\n",
       "expected": {
         "registry": {
-          "#admin": { "role": "superuser" },
-          "-guest": { "role": "viewer" }
+          "#admin": {
+            "role": "superuser"
+          },
+          "-guest": {
+            "role": "viewer"
+          }
         }
       },
       "failClosedV3Strict": true

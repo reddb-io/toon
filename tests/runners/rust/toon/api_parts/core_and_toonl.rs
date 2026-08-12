@@ -8,12 +8,22 @@ use reddb_io_toon::{
 };
 use serde_json::json;
 
+/// The canonical decoder with the cyclic discriminated-array extension on, which
+/// is the option set most of these tests read against.
+fn cyclic_options() -> ParseOptions {
+    ParseOptions {
+        cyclic_discriminated_arrays: true,
+        ..ParseOptions::default()
+    }
+}
+
 fn parse(input: &str) -> Value {
-    Value::parse_legacy(input).unwrap_or_else(|error| panic!("parse {input:?}: {error}"))
+    Value::parse_with_options(input, cyclic_options())
+        .unwrap_or_else(|error| panic!("parse {input:?}: {error}"))
 }
 
 fn error(input: &str) -> String {
-    Value::parse_legacy(input)
+    Value::parse_with_options(input, cyclic_options())
         .expect_err(&format!("{input:?} is rejected"))
         .to_string()
 }
@@ -85,7 +95,6 @@ fn defaults_to_two_space_indent_strict_mode_and_literal_dotted_keys() {
 
     assert_eq!(options.indent, 2);
     assert!(options.strict);
-    assert!(!options.expand_paths);
     assert_eq!(json_of("user.name: Ada"), json!({"user.name": "Ada"}));
 }
 
@@ -96,23 +105,23 @@ fn honours_a_custom_indent_width() {
         ..ParseOptions::default()
     };
 
-    let value = Value::parse_legacy_with_options("a:\n    b: 1\n", options)
+    let value = Value::parse_with_options("a:\n    b: 1\n", options)
         .expect("four-space indent");
     assert_eq!(value.to_json_value(), json!({"a": {"b": 1}}));
 
     // The same document is misindented when a level is two spaces wide.
-    assert_eq!(error("a:\n    b: 1\n"), "line 2: invalid indentation");
+    assert_eq!(error("a:\n    b: 1\n"), "line 2: over-indented line");
 }
 
 #[test]
-fn an_indent_of_zero_is_clamped_rather_than_dividing_by_zero() {
+fn an_indent_of_zero_is_rejected_rather_than_dividing_by_zero() {
     let options = ParseOptions {
         indent: 0,
         ..ParseOptions::default()
     };
 
-    let value = Value::parse_legacy_with_options("a: 1\n", options).expect("clamped indent");
-    assert_eq!(value.to_json_value(), json!({"a": 1}));
+    let error = Value::parse_with_options("a: 1\n", options).expect_err("no zero-width level");
+    assert_eq!(error.to_string(), "line 1: invalid indentation");
 }
 
 #[test]
@@ -143,12 +152,12 @@ fn non_strict_mode_tolerates_off_grid_indentation_and_resolves_duplicates_last_w
     };
 
     let indented =
-        Value::parse_legacy_with_options("a:\n   b: 1\n", options)
+        Value::parse_with_options("a:\n   b: 1\n", options)
             .expect("three-space indent is floored");
     assert_eq!(indented.to_json_value(), json!({"a": {"b": 1}}));
 
     let duplicate =
-        Value::parse_legacy_with_options("name: Ada\nname: Bob\n", options)
+        Value::parse_with_options("name: Ada\nname: Bob\n", options)
             .expect("last write wins");
     assert_eq!(duplicate.to_json_value(), json!({"name": "Bob"}));
 }
@@ -160,31 +169,15 @@ fn non_strict_mode_keeps_a_malformed_header_as_a_literal_key() {
         ..ParseOptions::default()
     };
 
-    let value = Value::parse_legacy_with_options("foo[2]extra: a,b\n", options)
+    let value = Value::parse_with_options("foo[2]extra: a,b\n", options)
         .expect("literal key");
     assert_eq!(value.to_json_value(), json!({"foo[2]extra": "a,b"}));
 
     // A root line that opens with a bracket but is not a header falls through
     // to the same key-value reading.
-    let root = Value::parse_legacy_with_options("[bad]: 1\n", options)
+    let root = Value::parse_with_options("[bad]: 1\n", options)
         .expect("literal key at root");
     assert_eq!(root.to_json_value(), json!({"[bad]": 1}));
-}
-
-#[test]
-fn path_expansion_splits_dotted_keys_and_deep_merges_them() {
-    let options = ParseOptions {
-        expand_paths: true,
-        ..ParseOptions::default()
-    };
-
-    let value = Value::parse_legacy_with_options("a.b.c: 1\na.b.d: 2\na.e: 3\n", options)
-        .expect("dotted keys expand");
-
-    assert_eq!(
-        value.to_json_value(),
-        json!({"a": {"b": {"c": 1, "d": 2}, "e": 3}})
-    );
 }
 
 #[test]
@@ -193,11 +186,11 @@ fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
         max_depth: 2,
         ..ParseOptions::default()
     };
-    let value = Value::parse_legacy_with_options("a:\n  b:\n    c: 1\n", options)
+    let value = Value::parse_with_options("a:\n  b:\n    c: 1\n", options)
         .expect("at limit");
     assert_eq!(value.to_json_value(), json!({"a": {"b": {"c": 1}}}));
 
-    let error = Value::parse_legacy_with_options(
+    let error = Value::parse_with_options(
         "a:\n  b:\n    c: 1\n",
         ParseOptions {
             max_depth: 1,
@@ -210,7 +203,7 @@ fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
         "line 3: maximum nesting depth exceeded (maxDepth 1)"
     );
 
-    let header_error = Value::parse_legacy_with_options(
+    let header_error = Value::parse_with_options(
         "rows[1]{a{b{c}}}:\n  1\n",
         ParseOptions {
             max_depth: 2,
@@ -224,14 +217,14 @@ fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
     );
 
     let hostile = deeply_nested_toon(1001);
-    let error = Value::parse_legacy(&hostile).expect_err("over default limit");
+    let error = Value::parse_toon(&hostile).expect_err("over default limit");
     assert_eq!(error.line(), 1002);
     assert!(
         error.to_string().contains("maxDepth 1000"),
         "depth limit appears in {error}"
     );
 
-    Value::parse_legacy_with_options(
+    Value::parse_with_options(
         "a:\n  b:\n    c: 1\n",
         ParseOptions {
             max_depth: 0,
@@ -245,54 +238,29 @@ fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
 fn encode_enforces_max_depth_and_supports_an_explicit_opt_out() {
     let value = deeply_nested_value(1001);
     let error = value
-        .try_to_legacy_toon()
+        .try_to_canonical_toon()
         .expect_err("over default encode limit");
     assert_eq!(
         error.to_string(),
         "maximum nesting depth exceeded (maxDepth 1000)"
     );
 
-    value
-        .try_to_legacy_toon_with_options(EncodeOptions {
-            max_depth: 0,
-            ..EncodeOptions::default()
+    // With the guard off the encoder really walks all 1001 levels, and the
+    // canonical encoder carries more per-level state than the removed pre-v4
+    // writer did, so this half needs more than the default test-thread stack.
+    std::thread::Builder::new()
+        .stack_size(32 * 1024 * 1024)
+        .spawn(move || {
+            value
+                .try_to_toon_with_options(EncodeOptions {
+                    max_depth: 0,
+                    ..EncodeOptions::default()
+                })
+                .expect("maxDepth 0 disables the guard");
         })
-        .expect("maxDepth 0 disables the guard");
-}
-
-#[test]
-fn path_expansion_conflicts_error_in_strict_mode_and_resolve_last_write_wins_without_it() {
-    let strict = ParseOptions {
-        expand_paths: true,
-        ..ParseOptions::default()
-    };
-    let lenient = ParseOptions {
-        strict: false,
-        ..strict
-    };
-
-    let conflict = Value::parse_legacy_with_options("a: 1\na.b: 2\n", strict)
-        .expect_err("a primitive cannot become an object");
-    assert_eq!(conflict.message(), "path expansion conflict");
-
-    let resolved = Value::parse_legacy_with_options("a: 1\na.b: 2\n", lenient)
-        .expect("last write wins");
-    assert_eq!(resolved.to_json_value(), json!({"a": {"b": 2}}));
-}
-
-#[test]
-fn path_expansion_leaves_quoted_and_non_identifier_keys_alone() {
-    let options = ParseOptions {
-        expand_paths: true,
-        ..ParseOptions::default()
-    };
-
-    // A quoted key stays literal even when it contains the separator, and a
-    // segment that is not an IdentifierSegment blocks the whole split.
-    let value = Value::parse_legacy_with_options("\"c.d\": 1\n9a.b: 2\n", options)
-        .expect("literal keys");
-
-    assert_eq!(value.to_json_value(), json!({"c.d": 1, "9a.b": 2}));
+        .expect("spawn")
+        .join()
+        .expect("deep encode completes");
 }
 
 #[test]

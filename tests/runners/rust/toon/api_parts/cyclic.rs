@@ -44,7 +44,7 @@ fn narrows_values_to_objects_and_arrays() {
     assert_eq!(array.get(0).expect("first").to_json_value(), json!(1));
     assert!(array.get(9).is_none());
     assert_eq!(array.to_json_value(), json!([1, 2]));
-    assert_eq!(array.to_legacy_toon(), "[2]: 1,2\n");
+    assert_eq!(array.to_canonical_toon(), "[2]: 1,2");
 }
 
 #[test]
@@ -80,22 +80,16 @@ fn slices_both_array_representations_and_clamps_out_of_range_bounds() {
 
 #[test]
 fn document_parse_accepts_object_roots_and_rejects_the_others() {
-    let document = Document::parse_legacy("a: 1\n").expect("object root");
+    let document = Document::parse("a: 1\n").expect("object root");
     assert_eq!(document.to_json_value(), json!({"a": 1}));
-    assert_eq!(document.to_legacy_toon(), "a: 1\n");
+    assert_eq!(document.to_canonical_toon(), "a: 1");
 
-    assert!(Document::parse_legacy("[2]: 1,2\n").is_err());
-    assert!(Document::parse_legacy("hello\n").is_err());
+    assert!(Document::parse("[2]: 1,2\n").is_err());
+    assert!(Document::parse("hello\n").is_err());
 
-    let document = Document::parse_legacy_with_options(
-        "a.b: 1\n",
-        ParseOptions {
-            expand_paths: true,
-            ..ParseOptions::default()
-        },
-    )
-    .expect("expanded object root");
-    assert_eq!(document.to_json_value(), json!({"a": {"b": 1}}));
+    let document = Document::parse_with_options("a.b: 1\n", ParseOptions::default())
+        .expect("object root");
+    assert_eq!(document.to_json_value(), json!({"a.b": 1}));
 }
 
 // ---------------------------------------------------------------------------
@@ -107,14 +101,17 @@ fn rejects_a_keyless_header_and_a_malformed_key_outside_root_position() {
     // Only the root may carry a header with no key.
     assert_eq!(
         error("a:\n  [2]: 1,2\n"),
-        "line 2: expected non-empty field name"
+        "line 2: keyless header is only valid at the root or as a list item"
     );
-    // An unquoted key may not contain whitespace or a stray quote.
-    assert_eq!(error("a b: 1\n"), "line 1: expected non-empty field name");
+    // Whitespace inside an unquoted key is not an error: it is part of the key.
+    assert_eq!(json_of("a b: 1\n"), json!({"a b": 1}));
     // A bad header on the first line is an error at root too, not a literal key.
-    assert_eq!(error("[03]: a\n"), "line 1: invalid array header");
+    assert_eq!(error("[03]: a\n"), "line 1: malformed array header length");
     // A delimiter symbol the spec does not define.
-    assert_eq!(error("items[2x]: a,b\n"), "line 1: invalid array header");
+    assert_eq!(
+        error("items[2x]: a,b\n"),
+        "line 1: malformed array header length"
+    );
 }
 
 #[test]
@@ -122,7 +119,7 @@ fn a_key_value_line_at_row_depth_ends_the_rows() {
     // The sibling field stops the row scan, so the declared count goes unmet.
     assert_eq!(
         error("items[2]{id}:\n  1\nother: 2\n"),
-        "line 3: array length mismatch"
+        "line 2: array count mismatch"
     );
 }
 
@@ -142,7 +139,7 @@ fn a_single_column_tabular_row_that_looks_like_a_field_ends_the_rows_early() {
     // rather than a row — one short of the declared length.
     assert_eq!(
         error("items[2]{a}:\n  1\n  x: 2\n"),
-        "line 3: array length mismatch"
+        "line 2: array count mismatch"
     );
 }
 
@@ -157,7 +154,7 @@ fn non_strict_mode_reads_a_malformed_nested_array_header_as_a_literal_key() {
         ..ParseOptions::default()
     };
     let value =
-        Value::parse_legacy_with_options("items[1]:\n  - [x] : 1\n", options)
+        Value::parse_with_options("items[1]:\n  - [x] : 1\n", options)
             .expect("literal key item");
     assert_eq!(value.to_json_value(), json!({"items": [{"[x]": 1}]}));
 }
@@ -191,11 +188,14 @@ fn a_number_shaped_token_that_is_not_a_number_stays_a_string() {
 #[test]
 fn rejects_malformed_keyed_map_headers_in_strict_mode() {
     let cases = [
-        ("m{a: 1\n", "line 1: invalid keyed map header"),
-        ("m{}:\n", "line 1: invalid keyed map header"),
-        ("m{a,a}: \n", "line 1: duplicate key"),
-        ("{a}:\n", "line 1: expected non-empty field name"),
-        ("m{a}: 1\n", "line 1: expected keyed map rows"),
+        ("m[1:]{a: 1\n", "line 1: malformed tabular header fields"),
+        ("m[1:]{}:\n", "line 1: empty field entry in header"),
+        ("m[1:]{a,a}: \n", "line 1: duplicate field name in header"),
+        ("[1:]{a}:\n", "line 1: array count mismatch"),
+        (
+            "m[1:]{a}: 1\n",
+            "line 1: unexpected content after fields-bearing header colon",
+        ),
     ];
     for (input, expected) in cases {
         assert_eq!(error(input), expected, "{input:?}");
@@ -206,18 +206,18 @@ fn rejects_malformed_keyed_map_headers_in_strict_mode() {
 fn rejects_malformed_keyed_map_rows() {
     let cases = [
         (
-            "m{a,b}:\n  k: 1,2\n    j: 3,4\n",
-            "line 3: invalid indentation",
+            "m[1:]{a,b}:\n  k: 1,2\n    j: 3,4\n",
+            "line 3: over-indented line",
         ),
         (
-            "m{a,b}:\n  k: 1,2\n\n  j: 3,4\n",
-            "line 4: blank line inside keyed map",
+            "m[2:]{a,b}:\n  k: 1,2\n\n  j: 3,4\n",
+            "line 4: blank line inside a header span",
         ),
+        ("m[1:]{a,b}:\n  k: 1,2,3\n", "line 2: array count mismatch"),
         (
-            "m{a,b}:\n  k: 1,2,3\n",
-            "line 2: keyed map row length mismatch",
+            "m[2:]{a,b}:\n  k: 1,2\n  k: 3,4\n",
+            "line 3: duplicate object key",
         ),
-        ("m{a,b}:\n  k: 1,2\n  k: 3,4\n", "line 3: duplicate key"),
     ];
     for (input, expected) in cases {
         assert_eq!(error(input), expected, "{input:?}");
@@ -227,18 +227,18 @@ fn rejects_malformed_keyed_map_rows() {
 #[test]
 fn decodes_keyed_map_edge_shapes() {
     // No rows at all is an empty map, and a following sibling still parses.
-    assert_eq!(json_of("m{a,b}:\nnext: 1\n"), json!({"m": {}, "next": 1}));
+    assert_eq!(json_of("m[0:]{a,b}:\nnext: 1\n"), json!({"m": {}, "next": 1}));
     // Quoted field names and non-default delimiters stay legible.
     assert_eq!(
-        json_of("m{\"q\",b}:\n  k: 1,2\n"),
+        json_of("m[1:]{\"q\",b}:\n  k: 1,2\n"),
         json!({"m": {"k": {"q": 1, "b": 2}}})
     );
     assert_eq!(
-        json_of("m{|a|b}:\n  k: 1|2\n"),
+        json_of("m[1:|]{a|b}:\n  k: 1|2\n"),
         json!({"m": {"k": {"a": 1, "b": 2}}})
     );
     assert_eq!(
-        json_of("m{\ta\tb}:\n  k: 1\t2\n"),
+        json_of("m[1:\t]{a\tb}:\n  k: 1\t2\n"),
         json!({"m": {"k": {"a": 1, "b": 2}}})
     );
 }
@@ -246,16 +246,19 @@ fn decodes_keyed_map_edge_shapes() {
 #[test]
 fn rejects_malformed_array_column_field_lists() {
     let cases = [
-        "items[1]{,a}:\n  1\n",
-        "items[1]{a,}:\n  1\n",
-        "items[1]{a[}:\n  1\n",
-        "items[1]{a[,]}:\n  1\n",
-        "items[1]{a{}}:\n  1\n",
+        ("items[1]{,a}:\n  1\n", "line 1: empty field entry in header"),
+        ("items[1]{a,}:\n  1\n", "line 1: empty field entry in header"),
+        ("items[1]{a[}:\n  1\n", "line 1: invalid array header"),
+        ("items[1]{a[,]}:\n  1\n", "line 1: invalid array header"),
+        ("items[1]{a{}}:\n  1\n", "line 1: empty field entry in header"),
     ];
-    for input in cases {
-        assert_eq!(error(input), "line 1: invalid array header", "{input:?}");
+    for (input, expected) in cases {
+        assert_eq!(error(input), expected, "{input:?}");
     }
-    assert_eq!(error("items[1]{a,a}:\n  1,2\n"), "line 1: duplicate key");
+    assert_eq!(
+        error("items[1]{a,a}:\n  1,2\n"),
+        "line 1: duplicate field name in header"
+    );
 }
 
 #[test]
@@ -275,18 +278,12 @@ fn decodes_primitive_list_columns_with_declared_sub_delimiters() {
 #[test]
 fn rejects_malformed_structured_rows() {
     let cases = [
-        (
-            "items[1]{a,b}:\n  1,2,3\n",
-            "line 2: array row length mismatch",
-        ),
-        ("items[2]{a,b}:\n  1,2\n", "line 2: array length mismatch"),
-        (
-            "items[1]{a,b}:\n  1,2\n  3,4\n",
-            "line 3: array length mismatch",
-        ),
+        ("items[1]{a,b}:\n  1,2,3\n", "line 2: array count mismatch"),
+        ("items[2]{a,b}:\n  1,2\n", "line 2: array count mismatch"),
+        ("items[1]{a,b}:\n  1,2\n  3,4\n", "line 3: array count mismatch"),
         (
             "items[2]{a,b}:\n  1,2\n\n  3,4\n",
-            "line 4: blank line inside array",
+            "line 4: blank line inside a header span",
         ),
         (
             "items[1]{a,kids{x}}:\n  1,2\n    r1\n",
@@ -309,7 +306,7 @@ fn a_nested_object_column_cell_disambiguates_from_a_child_table() {
 
 #[test]
 fn truncation_reports_cover_invalid_indentation_and_child_tables() {
-    let report = reddb_io_toon::detect_truncation_legacy_with_options(
+    let report = reddb_io_toon::detect_truncation_with_options(
         "v: 1\n   bad: 2\n",
         ParseOptions::default(),
     );
@@ -320,40 +317,29 @@ fn truncation_reports_cover_invalid_indentation_and_child_tables() {
         Some("line 2: invalid indentation")
     );
 
-    let report = reddb_io_toon::detect_truncation_legacy_with_options(
+    // A child table that runs out mid-row is not a countable shortfall: the
+    // decoder rejects the row before the span is resolved, so the report is the
+    // decoder's error rather than a declared/actual pair.
+    let report = reddb_io_toon::detect_truncation_with_options(
         "items[2]{a,kids{x}}:\n  1,1\n    r1\n",
         ParseOptions::default(),
     );
     assert!(!report.complete);
-    assert_eq!(report.declared, Some(2));
-    assert_eq!(report.actual, Some(1));
-}
+    assert_eq!(report.line, Some(3));
+    assert_eq!(report.declared, None);
+    assert_eq!(
+        report.message.as_deref(),
+        Some("line 3: array length mismatch")
+    );
 
-#[test]
-fn tabular_arrays_decode_rows_lazily_through_the_array_accessors() {
-    let value = parse("items[2]{a,meta{x,y}}:\n  1,ha,7\n  2,hb,9\n");
-    let document = value.as_object().expect("root object");
-    let array = document
-        .get("items")
-        .expect("items")
-        .as_array()
-        .expect("tabular array");
-
-    assert_eq!(
-        array.get(1).expect("row 1").to_json_value(),
-        json!({"a": 2, "meta": {"x": "hb", "y": 9}})
+    // A table that simply stops short does carry the pair.
+    let report = reddb_io_toon::detect_truncation_with_options(
+        "items[3]{a}:\n  1\n  2\n",
+        ParseOptions::default(),
     );
-    assert_eq!(
-        array.to_json_value(),
-        json!([
-            {"a": 1, "meta": {"x": "ha", "y": 7}},
-            {"a": 2, "meta": {"x": "hb", "y": 9}}
-        ])
-    );
-    assert_eq!(
-        array.slice(Some(1), None).to_legacy_toon(),
-        "[1]:\n  - a: 2\n    meta:\n      x: hb\n      y: 9\n"
-    );
+    assert!(!report.complete);
+    assert_eq!(report.declared, Some(3));
+    assert_eq!(report.actual, Some(2));
 }
 
 #[test]
@@ -364,7 +350,7 @@ fn encoding_rejects_a_delimiter_outside_the_declared_set() {
         ..EncodeOptions::default()
     };
     let error = value
-        .try_to_legacy_toon_with_options(options)
+        .try_to_toon_with_options(options)
         .expect_err("semicolon is not a valid document delimiter");
     assert_eq!(error.to_string(), "invalid array header");
 }
@@ -397,10 +383,10 @@ fn an_empty_child_array_in_a_child_table_column_round_trips() {
 fn fallible_canonical_encoders_and_error_accessors_round_trip() {
     // Convenience wrappers around the canonical encoders.
     let value = parse("a[2]: 1,2\n");
-    assert_eq!(value.try_to_legacy_toon().expect("value"), "a[2]: 1,2\n");
+    assert_eq!(value.try_to_canonical_toon().expect("value"), "a[2]: 1,2");
     let document = value.as_object().expect("object");
     let array = document.get("a").expect("a").as_array().expect("array");
-    assert_eq!(array.try_to_legacy_toon().expect("array"), "[2]: 1,2\n");
+    assert_eq!(array.try_to_canonical_toon().expect("array"), "[2]: 1,2");
 
     // detect_truncation with default options mirrors the _with_options form.
     let report = reddb_io_toon::detect_truncation("v: 1\n   bad: 2\n");
@@ -412,7 +398,7 @@ fn fallible_canonical_encoders_and_error_accessors_round_trip() {
         ..EncodeOptions::default()
     };
     let encode_error = value
-        .try_to_legacy_toon_with_options(options)
+        .try_to_toon_with_options(options)
         .expect_err("bad delimiter");
     assert_eq!(encode_error.message(), "invalid array header");
 
@@ -442,7 +428,7 @@ fn cyclic_encode() -> EncodeOptions {
 /// Encode with the cyclic extension enabled.
 fn cyclic_toon(value: &Value) -> String {
     value
-        .try_to_legacy_toon_with_options(cyclic_encode())
+        .try_to_toon_with_options(cyclic_encode())
         .expect("cyclic encode succeeds")
 }
 
@@ -466,7 +452,7 @@ fn cycle_rows(pattern: &[serde_json::Value], repeats: usize) -> serde_json::Valu
 /// canonical form (i.e. the tabular wire is *not* emitted) for ineligible input.
 fn assert_cyclic_fallback(value: &Value) {
     let with = cyclic_toon(value);
-    let canonical = value.try_to_legacy_toon().expect("canonical encode");
+    let canonical = value.try_to_canonical_toon().expect("canonical encode");
     assert_eq!(with, canonical, "expected fallback to canonical form");
     assert!(
         !with.contains("order: cycle("),
@@ -492,8 +478,10 @@ fn cyclic_wire_round_trips_through_decode_and_encode() {
     );
     assert_eq!(json["events"].as_array().expect("array").len(), 12);
 
-    // Re-encoding with the extension reproduces the byte-identical wire.
-    assert_eq!(cyclic_toon(&value), CYCLIC_WIRE);
+    // Re-encoding with the extension reproduces the byte-identical wire. The
+    // canonical encoder does not close the document with a newline, so the
+    // fixture's trailing one is the only difference.
+    assert_eq!(format!("{}\n", cyclic_toon(&value)), CYCLIC_WIRE);
     // And the reproduced wire decodes back to the same value.
     assert_eq!(parse(CYCLIC_WIRE).to_json_value(), json);
 }
@@ -509,7 +497,7 @@ fn cyclic_decode_requires_the_opt_in_and_otherwise_leaves_the_section_literal() 
         ..ParseOptions::default()
     };
     let literal =
-        Value::parse_legacy_with_options(CYCLIC_WIRE, opted_out)
+        Value::parse_with_options(CYCLIC_WIRE, opted_out)
             .expect("literal section decode");
     let json = literal.to_json_value();
     let section = json["events"].as_object().expect("events stays an object");

@@ -15,7 +15,6 @@ import {
   escapeString,
   rawString,
 } from '../dist/index.js'
-import { parse as parseLegacy, serialize as serializeLegacy } from '../dist/legacy.js'
 
 test('the package root exposes only the canonical v4.1 codec names', () => {
   assert.equal('parse' in rootApi, false)
@@ -77,10 +76,7 @@ test('decode failures expose stable positioned source and cause semantics', () =
   )
 })
 
-test('legacy behavior is explicit and the TOONL emitter has its own name', () => {
-  assert.equal(serializeLegacy({ value: 1 }), 'value: 1\n')
-  assert.deepEqual(parseLegacy('a.b: 1\n', { expandPaths: 'safe' }), { a: { b: 1 } })
-
+test('the TOONL emitter has its own name', () => {
   const emitter = encodeToonlLines()
   assert.equal(emitter.push({ id: 1 }), '[]{id}:\n1\n')
 })

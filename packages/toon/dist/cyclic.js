@@ -1,7 +1,7 @@
-import { toonError } from '../errors.js';
-import { canonicalKey, isPrimitive, primitiveText, setKey } from '../lexical.js';
 import { CYCLIC_DISCRIMINATOR_KEYS, CYCLIC_META_KEYS, CYCLIC_TABLE_DELIMITER } from './constants.js';
-import { isPlainObject } from './common.js';
+import { isPlainObject } from './encode/normalize.js';
+import { toonError } from './errors.js';
+import { canonicalKey, isPrimitive, primitiveText, setKey } from './lexical.js';
 export function expandCyclicDiscriminatedArrays(document) {
     if (!isPlainObject(document) || Object.keys(document).length === 0) {
         return document;

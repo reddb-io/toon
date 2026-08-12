@@ -27,9 +27,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 
+- **Breaking: the pre-v4 engine and every API that reached it are gone.** TOON
+  v4.1 is now the only codec in both languages.
+  - TypeScript: the `@reddb-io/toon/legacy` subpath and the modules behind it
+    (the old parser, header reader, serializer, and option resolver) are
+    deleted. `decode` and `encode` are the whole decode and encode surface.
+  - Rust: `parse_legacy`, `parse_legacy_with_options`, `to_legacy_toon*`,
+    `try_to_legacy_toon*`, `LegacyParseOptions`, `LegacyEncodeOptions`,
+    `detect_truncation_legacy`, and `detect_truncation_legacy_with_options` are
+    deleted, along with the parser, writer, and header modules behind them.
+  - `ParseOptions::expand_paths` is deleted. Dotted-key expansion only ever ran
+    on the removed parser, so the option had nothing left behind it.
+  - `Array::Tabular` and `TabularArray` are deleted. The removed parser was
+    their only producer; the v4.1 event decoder materialises every array as
+    `Array::List`. The `test-hooks` feature and its row-decode counter go with
+    them.
+  - Observable differences for callers moving off the old API: the canonical
+    encoder emits no trailing newline, normalises a non-finite number to `null`
+    the way `JSON.stringify` does, refuses to emit an unpaired surrogate, spells
+    the keyed-table header `key[n:]{fields}:` rather than `key{fields}:`, and
+    reports the v4.1 error checklist's own messages.
+  - A test gate greps shipped source in both languages so these symbols cannot
+    return.
 - **Path expansion** (`expandPaths`) and **key folding** (`keyFolding`) were
-  removed from the spec. `expandPaths` is retained only as a non-normative
-  legacy shim (default off); the encoder never folds. See the
+  removed from the spec; the encoder never folds. See the
   [v4.1 migration notes](docs/migration-v4.md) for before/after decode behavior.
 
 ### Fixed

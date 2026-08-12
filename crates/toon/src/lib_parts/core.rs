@@ -23,8 +23,6 @@ pub struct ParseOptions {
     pub indent: usize,
     /// Enforce the §14 strict-mode error checklist.
     pub strict: bool,
-    /// Expand dotted keys into nested objects on the explicit legacy path.
-    pub expand_paths: bool,
     /// Recognize the tabular cyclic discriminated-array extension during decode.
     pub cyclic_discriminated_arrays: bool,
     /// Maximum nesting depth. `0` disables the guard for trusted input.
@@ -36,7 +34,6 @@ impl Default for ParseOptions {
         Self {
             indent: DEFAULT_INDENT,
             strict: true,
-            expand_paths: false,
             cyclic_discriminated_arrays: true,
             max_depth: DEFAULT_MAX_DEPTH,
         }
@@ -210,57 +207,11 @@ pub enum Value {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Array {
     List(Vec<Value>),
-    Tabular(TabularArray),
 }
 
-/// An array of uniform objects kept in row form so untouched rows are never
-/// materialised into [`Document`]s.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TabularArray {
-    fields: Vec<HeaderField>,
-    rows: Vec<Vec<Value>>,
-}
 
-#[derive(Debug)]
-struct Line<'a> {
-    number: usize,
-    depth: usize,
-    content: &'a str,
-    /// A blank line separates this line from the previous non-blank one.
-    blank_before: bool,
-}
 
-#[derive(Debug)]
-struct Header {
-    key: String,
-    key_quoted: bool,
-    len: usize,
-    delimiter: char,
-    fields: Option<Vec<HeaderField>>,
-    field_tree: Option<Vec<HeaderFieldTree>>,
-}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct HeaderField {
-    path: Vec<String>,
-    list_delimiter: Option<char>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct HeaderFieldTree {
-    key: String,
-    list_delimiter: Option<char>,
-    fixed_len: Option<usize>,
-    children: Vec<HeaderFieldTree>,
-}
-
-#[derive(Debug)]
-struct MapHeader {
-    key: String,
-    key_quoted: bool,
-    delimiter: char,
-    fields: Vec<HeaderField>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToonlError {
@@ -491,42 +442,6 @@ impl Document {
         serde_json::Value::Object(map)
     }
 
-    fn write_fields(
-        &self,
-        output: &mut String,
-        depth: usize,
-        options: EncodeOptions,
-    ) -> Result<(), EncodeError> {
-        check_encode_depth(depth, options)?;
-        for field in &self.fields {
-            write_indent(output, depth);
-            write_field(output, &field.key, &field.value, depth, options)?;
-        }
-        Ok(())
-    }
-}
-
-pub fn detect_truncation_legacy(input: &str) -> TruncationReport {
-    detect_truncation_legacy_with_options(input, ParseOptions::default())
-}
-
-pub fn detect_truncation_legacy_with_options(
-    input: &str,
-    options: LegacyParseOptions,
-) -> TruncationReport {
-    match Value::parse_legacy_with_options(input, options) {
-        Ok(_) => TruncationReport::complete(),
-        Err(error) if error.message() == "array length mismatch" => {
-            detect_toon_array_truncation(input, options, error.line())
-        }
-        Err(error) => TruncationReport::truncated(
-            TruncationKind::Invalid,
-            error.line(),
-            None,
-            None,
-            error.to_string(),
-        ),
-    }
 }
 
 pub fn detect_toonl_truncation(input: &str) -> TruncationReport {
@@ -583,79 +498,6 @@ pub fn detect_toonl_truncation(input: &str) -> TruncationReport {
         );
     }
     TruncationReport::complete()
-}
-
-fn detect_toon_array_truncation(
-    input: &str,
-    options: ParseOptions,
-    fallback_line: usize,
-) -> TruncationReport {
-    let Ok(lines) = collect_lines(input, &options) else {
-        return TruncationReport::truncated(
-            TruncationKind::Invalid,
-            fallback_line,
-            None,
-            None,
-            "invalid indentation",
-        );
-    };
-
-    for (index, line) in lines.iter().enumerate() {
-        let Ok(Some(colon)) = find_unquoted(line.content, ':', line.number) else {
-            continue;
-        };
-        if !line.content.contains('[') {
-            continue;
-        }
-        let Ok(header) = parse_header(line.content, Some(colon)) else {
-            continue;
-        };
-        let value_part = line.content[colon + 1..].trim();
-        if header.fields.is_none() && !value_part.is_empty() {
-            let actual = split_delimited(value_part, header.delimiter, line.number)
-                .map(|values| values.len())
-                .unwrap_or(0);
-            if actual != header.len {
-                return TruncationReport::truncated(
-                    TruncationKind::ArrayLengthMismatch,
-                    line.number,
-                    Some(header.len),
-                    Some(actual),
-                    format!("declared {} items but received {actual}", header.len),
-                );
-            }
-            continue;
-        }
-
-        let row_depth = line.depth + 1;
-        let mut actual = 0;
-        for row in lines.iter().skip(index + 1) {
-            if row.depth < row_depth {
-                break;
-            }
-            if row.depth == row_depth {
-                actual += 1;
-            }
-        }
-        if actual < header.len {
-            let detected_line = lines.last().map_or(fallback_line, |line| line.number);
-            return TruncationReport::truncated(
-                TruncationKind::ArrayLengthMismatch,
-                detected_line,
-                Some(header.len),
-                Some(actual),
-                format!("declared {} rows but received {actual}", header.len),
-            );
-        }
-    }
-
-    TruncationReport::truncated(
-        TruncationKind::UnterminatedNesting,
-        lines.last().map_or(fallback_line, |line| line.number),
-        None,
-        None,
-        "document ended before the declared nested structure was complete",
-    )
 }
 
 impl ParseError {
@@ -739,11 +581,6 @@ impl Value {
         match self {
             Self::Array(Array::List(values)) => {
                 values.iter_mut().for_each(Self::sort_object_keys);
-            }
-            Self::Array(array @ Array::Tabular(_)) => {
-                let mut values = array.values();
-                values.iter_mut().for_each(Self::sort_object_keys);
-                *array = Array::List(values);
             }
             Self::Object(document) => {
                 for field in &mut document.fields {

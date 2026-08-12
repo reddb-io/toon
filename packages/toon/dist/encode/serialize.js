@@ -1,10 +1,10 @@
 import { canonicalKey, needsQuotes, primitiveText, quoteString } from '../lexical.js';
 import { toonError } from '../errors.js';
-import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js';
+import { DEFAULT_MAX_DEPTH } from '../constants.js';
 import { isPlainObject, isPrimitive, normalizeValue } from './normalize.js';
 import { applyReplacer } from './replacer.js';
 import { keyedFields, tabularFields } from './shape.js';
-import { cyclicDiscriminatedArrayWire } from '../toon_parts/cyclic.js';
+import { cyclicDiscriminatedArrayWire } from '../cyclic.js';
 /** Encodes normalized JSON using the canonical v4.1 forms. */
 export function encode(input, options = {}) {
     return Array.from(encodeLines(input, options)).join('\n');

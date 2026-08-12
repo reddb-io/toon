@@ -94,9 +94,9 @@ an assumption-driven inventory. None adds an option row at v4.1.1:
 - **`keyFolding` and `flattenDepth`** are absent from upstream v4.1.1. Canonical
   encoders always preserve nesting; local canonical encoders do the same.
 - **`expandPaths`** is absent from upstream v4.1.1. Canonical decoders preserve
-  dotted keys literally. Local compatibility-only behavior remains behind the
-  explicit TypeScript legacy subpath and Rust legacy methods, as documented in
-  the [v4.1 migration guide](migration-v4.md#1-path-expansion-removed-from-the-spec).
+  dotted keys literally, and that is now the only behavior: the local
+  compatibility-only option went with the pre-v4 engine, as documented in the
+  [v4.1 migration guide](migration-v4.md#1-path-expansion-removed-from-the-spec).
 
 Conversely, local `maxDepth`, `reviver`, wire-extension flags, and TOONL flags
 are not upstream v4.1.1 options and therefore are outside this parity

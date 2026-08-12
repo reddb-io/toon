@@ -28,7 +28,6 @@ import {
   encodeRecords,
   parseStream,
 } from '../dist/index.js'
-import { parse as parseLegacy, serialize as serializeLegacy } from '../dist/legacy.js'
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const FIXTURE_ROOT = join(REPO_ROOT, 'vendor/toon-spec/tests/fixtures')
@@ -150,10 +149,10 @@ test('official TOON spec fixtures do not regress', () => {
 
   for (const category of ['decode', 'encode']) {
     const fixtures = [
-      ...readFixtures(join(FIXTURE_ROOT, category)).map((f) => ({ ...f, official: true })),
-      ...readFixtures(join(LOCAL_FIXTURE_ROOT, category)).map((f) => ({ ...f, official: false })),
+      ...readFixtures(join(FIXTURE_ROOT, category)),
+      ...readFixtures(join(LOCAL_FIXTURE_ROOT, category)),
     ]
-    for (const { file, fixture, official } of fixtures) {
+    for (const { file, fixture } of fixtures) {
       for (const testCase of fixture.tests) {
         const id = `${category}/${file}::${testCase.name}`
         executed += 1
@@ -163,14 +162,10 @@ test('official TOON spec fixtures do not regress', () => {
         let passed = false
         try {
           if (category === 'decode') {
-            // Official v4 fixtures exercise the event decoder; the local
-            // extension fixtures stay on the legacy parser until the
-            // extensions are re-expressed on the v4.1 base (#214).
-            const decodeFn = official ? decode : parseLegacy
             if (testCase.shouldError === true) {
               // A rejection the spec asked for.
               try {
-                decodeFn(testCase.input, options)
+                decode(testCase.input, options)
                 passed = false
               } catch {
                 passed = true
@@ -181,21 +176,16 @@ test('official TOON spec fixtures do not regress', () => {
               // to decode back to that same value — otherwise either the parser
               // returns wrong data silently, or the serializer emits TOON we
               // cannot read.
-              const value = decodeFn(testCase.input, options)
+              const value = decode(testCase.input, options)
               passed =
-                jsonEqual(value, testCase.expected) &&
-                jsonEqual(decodeFn(official ? encode(value) : serializeLegacy(value)), value)
+                jsonEqual(value, testCase.expected) && jsonEqual(decode(encode(value)), value)
               if (passed && testCase.failClosedV3Strict === true) {
                 assert.throws(() => rejectV3Strict(testCase.input), /invalid .* header/)
               }
             }
           } else {
-            const encoded = official
-              ? encode(testCase.input, encoderOptions(testCase.options))
-              : serializeLegacy(testCase.input, encoderOptions(testCase.options))
-            const decoded = official
-              ? decode(testCase.expected, options)
-              : parseLegacy(testCase.expected, options)
+            const encoded = encode(testCase.input, encoderOptions(testCase.options))
+            const decoded = decode(testCase.expected, options)
             passed = encoded === testCase.expected && jsonEqual(decoded, testCase.input)
           }
         } catch (error) {
@@ -363,7 +353,7 @@ function rejectV3Strict(input) {
   input.split(/\n/).forEach((rawLine, index) => {
     const lineNumber = index + 1
     const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
-    if (/^[ ]*[^:[\n]+{.*}:[ ]*$/.test(line)) {
+    if (/^[ ]*[^:[\n]+\[[0-9]+:[|\t]?\]\{.*\}:[ ]*$/.test(line)) {
       throw new Error(`line ${lineNumber}: invalid keyed map header`)
     }
     if (/^[ ]*[^:[\n]+\[[0-9]+[|\t]?\]\{.*\[[^\]]+\].*\}:[ ]*$/.test(line)) {
