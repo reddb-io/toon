@@ -3,8 +3,9 @@ use std::io::{self, Read, Write};
 use reddb_io_toon::{
     close_transform_stream, close_transform_stream_interleaved, detect_toonl_truncation,
     detect_truncation_with_options, encode_toonl_values, jsonl_to_toonl, toonl_to_jsonl, Array,
-    Document, EncodeOptions, ParseOptions, ToonlCursor, ToonlCursorInvalidation, ToonlEncoder,
-    ToonlReader, ToonlResumeError, ToonlStream, ToonlWriter, Value,
+    DecodeOptions, Document, LegacyEncodeOptions, LegacyParseOptions, ToonlCursor,
+    ToonlCursorInvalidation, ToonlEncoder, ToonlReader, ToonlResumeError, ToonlStream, ToonlWriter,
+    Value,
 };
 use serde_json::json;
 
@@ -81,7 +82,7 @@ impl Write for FailingWriter {
 
 #[test]
 fn defaults_to_two_space_indent_strict_mode_and_literal_dotted_keys() {
-    let options = ParseOptions::default();
+    let options = LegacyParseOptions::default();
 
     assert_eq!(options.indent, 2);
     assert!(options.strict);
@@ -91,9 +92,9 @@ fn defaults_to_two_space_indent_strict_mode_and_literal_dotted_keys() {
 
 #[test]
 fn honours_a_custom_indent_width() {
-    let options = ParseOptions {
+    let options = LegacyParseOptions {
         indent: 4,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
 
     let value = Value::parse_legacy_with_options("a:\n    b: 1\n", options)
@@ -106,9 +107,9 @@ fn honours_a_custom_indent_width() {
 
 #[test]
 fn an_indent_of_zero_is_clamped_rather_than_dividing_by_zero() {
-    let options = ParseOptions {
+    let options = LegacyParseOptions {
         indent: 0,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
 
     let value = Value::parse_legacy_with_options("a: 1\n", options).expect("clamped indent");
@@ -122,7 +123,7 @@ fn detects_truncation_with_the_shared_structured_report_corpus() {
     for fixture in corpus.as_array().expect("corpus is an array") {
         let input = fixture["input"].as_str().expect("fixture input");
         let report = match fixture["format"].as_str().expect("fixture format") {
-            "toon" => detect_truncation_with_options(input, ParseOptions::default()),
+            "toon" => detect_truncation_with_options(input, &DecodeOptions::default()),
             "toonl" => detect_toonl_truncation(input),
             format => panic!("unexpected format {format}"),
         };
@@ -137,9 +138,9 @@ fn detects_truncation_with_the_shared_structured_report_corpus() {
 
 #[test]
 fn non_strict_mode_tolerates_off_grid_indentation_and_resolves_duplicates_last_write_wins() {
-    let options = ParseOptions {
+    let options = LegacyParseOptions {
         strict: false,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
 
     let indented =
@@ -155,9 +156,9 @@ fn non_strict_mode_tolerates_off_grid_indentation_and_resolves_duplicates_last_w
 
 #[test]
 fn non_strict_mode_keeps_a_malformed_header_as_a_literal_key() {
-    let options = ParseOptions {
+    let options = LegacyParseOptions {
         strict: false,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
 
     let value = Value::parse_legacy_with_options("foo[2]extra: a,b\n", options)
@@ -173,9 +174,9 @@ fn non_strict_mode_keeps_a_malformed_header_as_a_literal_key() {
 
 #[test]
 fn path_expansion_splits_dotted_keys_and_deep_merges_them() {
-    let options = ParseOptions {
+    let options = LegacyParseOptions {
         expand_paths: true,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
 
     let value = Value::parse_legacy_with_options("a.b.c: 1\na.b.d: 2\na.e: 3\n", options)
@@ -189,9 +190,9 @@ fn path_expansion_splits_dotted_keys_and_deep_merges_them() {
 
 #[test]
 fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
-    let options = ParseOptions {
+    let options = LegacyParseOptions {
         max_depth: 2,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
     let value = Value::parse_legacy_with_options("a:\n  b:\n    c: 1\n", options)
         .expect("at limit");
@@ -199,9 +200,9 @@ fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
 
     let error = Value::parse_legacy_with_options(
         "a:\n  b:\n    c: 1\n",
-        ParseOptions {
+        LegacyParseOptions {
             max_depth: 1,
-            ..ParseOptions::default()
+            ..LegacyParseOptions::default()
         },
     )
     .expect_err("over custom limit");
@@ -212,9 +213,9 @@ fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
 
     let header_error = Value::parse_legacy_with_options(
         "rows[1]{a{b{c}}}:\n  1\n",
-        ParseOptions {
+        LegacyParseOptions {
             max_depth: 2,
-            ..ParseOptions::default()
+            ..LegacyParseOptions::default()
         },
     )
     .expect_err("header nesting is guarded too");
@@ -233,9 +234,9 @@ fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
 
     Value::parse_legacy_with_options(
         "a:\n  b:\n    c: 1\n",
-        ParseOptions {
+        LegacyParseOptions {
             max_depth: 0,
-            ..ParseOptions::default()
+            ..LegacyParseOptions::default()
         },
     )
     .expect("maxDepth 0 disables the guard");
@@ -253,20 +254,20 @@ fn encode_enforces_max_depth_and_supports_an_explicit_opt_out() {
     );
 
     value
-        .try_to_legacy_toon_with_options(EncodeOptions {
+        .try_to_legacy_toon_with_options(LegacyEncodeOptions {
             max_depth: 0,
-            ..EncodeOptions::default()
+            ..LegacyEncodeOptions::default()
         })
         .expect("maxDepth 0 disables the guard");
 }
 
 #[test]
 fn path_expansion_conflicts_error_in_strict_mode_and_resolve_last_write_wins_without_it() {
-    let strict = ParseOptions {
+    let strict = LegacyParseOptions {
         expand_paths: true,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
-    let lenient = ParseOptions {
+    let lenient = LegacyParseOptions {
         strict: false,
         ..strict
     };
@@ -282,9 +283,9 @@ fn path_expansion_conflicts_error_in_strict_mode_and_resolve_last_write_wins_wit
 
 #[test]
 fn path_expansion_leaves_quoted_and_non_identifier_keys_alone() {
-    let options = ParseOptions {
+    let options = LegacyParseOptions {
         expand_paths: true,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
 
     // A quoted key stays literal even when it contains the separator, and a
