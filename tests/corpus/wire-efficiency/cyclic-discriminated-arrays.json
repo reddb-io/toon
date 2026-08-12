@@ -4,7 +4,7 @@
   "cases": [
     {
       "name": "three-event-cycle-with-common-prefix",
-      "input": "events:\n  order: cycle(login,purchase,logout)*4\n  discriminator: type\n  rows: 12\n  common[12|]{tenant|seq|actor}:\n    acme|1|u1\n    acme|2|u1\n    acme|3|u1\n    acme|4|u2\n    acme|5|u2\n    acme|6|u2\n    acme|7|u3\n    acme|8|u3\n    acme|9|u3\n    acme|10|u4\n    acme|11|u4\n    acme|12|u4\n  login[4|]{ok}:\n    true\n    true\n    false\n    true\n  purchase[4|]{amount|currency}:\n    12.5|USD\n    4|EUR\n    99.95|USD\n    1.25|BRL\n  logout[4|]{durationMs}:\n    1200\n    900\n    1800\n    600\n",
+      "input": "events:\n  order: cycle(login,purchase,logout)*4\n  discriminator: type\n  rows: 12\n  common[12|]{tenant|seq|actor}:\n    acme|1|u1\n    acme|2|u1\n    acme|3|u1\n    acme|4|u2\n    acme|5|u2\n    acme|6|u2\n    acme|7|u3\n    acme|8|u3\n    acme|9|u3\n    acme|10|u4\n    acme|11|u4\n    acme|12|u4\n  login[4|]{ok}:\n    true\n    true\n    false\n    true\n  purchase[4|]{amount|currency}:\n    12.5|USD\n    4|EUR\n    99.95|USD\n    1.25|BRL\n  logout[4|]{durationMs}:\n    1200\n    900\n    1800\n    600",
       "expected": {
         "events": [
           {
@@ -103,36 +103,112 @@
           "discriminator": "type",
           "rows": 12,
           "common": [
-            { "tenant": "acme", "seq": 1, "actor": "u1" },
-            { "tenant": "acme", "seq": 2, "actor": "u1" },
-            { "tenant": "acme", "seq": 3, "actor": "u1" },
-            { "tenant": "acme", "seq": 4, "actor": "u2" },
-            { "tenant": "acme", "seq": 5, "actor": "u2" },
-            { "tenant": "acme", "seq": 6, "actor": "u2" },
-            { "tenant": "acme", "seq": 7, "actor": "u3" },
-            { "tenant": "acme", "seq": 8, "actor": "u3" },
-            { "tenant": "acme", "seq": 9, "actor": "u3" },
-            { "tenant": "acme", "seq": 10, "actor": "u4" },
-            { "tenant": "acme", "seq": 11, "actor": "u4" },
-            { "tenant": "acme", "seq": 12, "actor": "u4" }
+            {
+              "tenant": "acme",
+              "seq": 1,
+              "actor": "u1"
+            },
+            {
+              "tenant": "acme",
+              "seq": 2,
+              "actor": "u1"
+            },
+            {
+              "tenant": "acme",
+              "seq": 3,
+              "actor": "u1"
+            },
+            {
+              "tenant": "acme",
+              "seq": 4,
+              "actor": "u2"
+            },
+            {
+              "tenant": "acme",
+              "seq": 5,
+              "actor": "u2"
+            },
+            {
+              "tenant": "acme",
+              "seq": 6,
+              "actor": "u2"
+            },
+            {
+              "tenant": "acme",
+              "seq": 7,
+              "actor": "u3"
+            },
+            {
+              "tenant": "acme",
+              "seq": 8,
+              "actor": "u3"
+            },
+            {
+              "tenant": "acme",
+              "seq": 9,
+              "actor": "u3"
+            },
+            {
+              "tenant": "acme",
+              "seq": 10,
+              "actor": "u4"
+            },
+            {
+              "tenant": "acme",
+              "seq": 11,
+              "actor": "u4"
+            },
+            {
+              "tenant": "acme",
+              "seq": 12,
+              "actor": "u4"
+            }
           ],
           "login": [
-            { "ok": true },
-            { "ok": true },
-            { "ok": false },
-            { "ok": true }
+            {
+              "ok": true
+            },
+            {
+              "ok": true
+            },
+            {
+              "ok": false
+            },
+            {
+              "ok": true
+            }
           ],
           "purchase": [
-            { "amount": 12.5, "currency": "USD" },
-            { "amount": 4, "currency": "EUR" },
-            { "amount": 99.95, "currency": "USD" },
-            { "amount": 1.25, "currency": "BRL" }
+            {
+              "amount": 12.5,
+              "currency": "USD"
+            },
+            {
+              "amount": 4,
+              "currency": "EUR"
+            },
+            {
+              "amount": 99.95,
+              "currency": "USD"
+            },
+            {
+              "amount": 1.25,
+              "currency": "BRL"
+            }
           ],
           "logout": [
-            { "durationMs": 1200 },
-            { "durationMs": 900 },
-            { "durationMs": 1800 },
-            { "durationMs": 600 }
+            {
+              "durationMs": 1200
+            },
+            {
+              "durationMs": 900
+            },
+            {
+              "durationMs": 1800
+            },
+            {
+              "durationMs": 600
+            }
           ]
         }
       }

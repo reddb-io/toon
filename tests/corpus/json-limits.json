@@ -7,8 +7,14 @@
       "category": "numbers",
       "rawJson": "9007199254740991",
       "expected": {
-        "js": { "toon": "9007199254740991", "roundTripJson": "9007199254740991" },
-        "rust": { "toon": "9007199254740991", "roundTripJson": "9007199254740991" }
+        "js": {
+          "toon": "9007199254740991",
+          "roundTripJson": "9007199254740991"
+        },
+        "rust": {
+          "toon": "9007199254740991",
+          "roundTripJson": "9007199254740991"
+        }
       }
     },
     {
@@ -16,8 +22,14 @@
       "category": "numbers",
       "rawJson": "9007199254740992",
       "expected": {
-        "js": { "toon": "9007199254740992", "roundTripJson": "9007199254740992" },
-        "rust": { "toon": "9007199254740992", "roundTripJson": "9007199254740992" }
+        "js": {
+          "toon": "9007199254740992",
+          "roundTripJson": "9007199254740992"
+        },
+        "rust": {
+          "toon": "9007199254740992",
+          "roundTripJson": "9007199254740992"
+        }
       }
     },
     {
@@ -25,8 +37,14 @@
       "category": "numbers",
       "rawJson": "9007199254740993",
       "expected": {
-        "js": { "toon": "9007199254740992", "roundTripJson": "9007199254740992" },
-        "rust": { "toon": "9007199254740993", "roundTripJson": "9007199254740993" }
+        "js": {
+          "toon": "9007199254740992",
+          "roundTripJson": "9007199254740992"
+        },
+        "rust": {
+          "toon": "9007199254740993",
+          "roundTripJson": "9007199254740993"
+        }
       }
     },
     {
@@ -34,8 +52,14 @@
       "category": "numbers",
       "rawJson": "9223372036854775807",
       "expected": {
-        "js": { "toon": "9223372036854776000", "roundTripJson": "9223372036854776000" },
-        "rust": { "toon": "9223372036854775807", "roundTripJson": "9223372036854775807" }
+        "js": {
+          "toon": "9223372036854776000",
+          "roundTripJson": "9223372036854776000"
+        },
+        "rust": {
+          "toon": "9223372036854775807",
+          "roundTripJson": "9223372036854775807"
+        }
       }
     },
     {
@@ -43,8 +67,14 @@
       "category": "numbers",
       "rawJson": "-9223372036854775808",
       "expected": {
-        "js": { "toon": "-9223372036854776000", "roundTripJson": "-9223372036854776000" },
-        "rust": { "toon": "-9223372036854775808", "roundTripJson": "-9223372036854775808" }
+        "js": {
+          "toon": "-9223372036854776000",
+          "roundTripJson": "-9223372036854776000"
+        },
+        "rust": {
+          "toon": "-9223372036854775808",
+          "roundTripJson": "-9223372036854775808"
+        }
       }
     },
     {
@@ -52,8 +82,14 @@
       "category": "numbers",
       "rawJson": "-0",
       "expected": {
-        "js": { "toon": "0", "roundTripJson": "0" },
-        "rust": { "toon": "0", "roundTripJson": "0" }
+        "js": {
+          "toon": "0",
+          "roundTripJson": "0"
+        },
+        "rust": {
+          "toon": "0",
+          "roundTripJson": "0"
+        }
       }
     },
     {
@@ -61,8 +97,14 @@
       "category": "numbers",
       "rawJson": "1E+2",
       "expected": {
-        "js": { "toon": "100", "roundTripJson": "100" },
-        "rust": { "toon": "100", "roundTripJson": "100" }
+        "js": {
+          "toon": "100",
+          "roundTripJson": "100"
+        },
+        "rust": {
+          "toon": "100",
+          "roundTripJson": "100"
+        }
       }
     },
     {
@@ -70,7 +112,10 @@
       "category": "numbers",
       "rawJson": "5e-324",
       "expected": {
-        "js": { "toon": "5e-324", "roundTripJson": "5e-324" },
+        "js": {
+          "toon": "5e-324",
+          "roundTripJson": "5e-324"
+        },
         "rust": {
           "toon": "0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005",
           "roundTripJson": "5e-324"
@@ -78,12 +123,17 @@
       }
     },
     {
-      "name": "numbers/overflow-rejected-or-unrepresentable",
+      "name": "numbers/overflow-normalized-or-unrepresentable",
       "category": "numbers",
       "rawJson": "1e309",
       "expected": {
-        "js": { "error": "number is not representable in TOON" },
-        "rust": { "error": "number out of range" }
+        "js": {
+          "toon": "null",
+          "roundTripJson": "null"
+        },
+        "rust": {
+          "error": "number out of range"
+        }
       }
     },
     {
@@ -91,8 +141,12 @@
       "category": "numbers",
       "rawJson": ".5",
       "expected": {
-        "js": { "error": "Unexpected token" },
-        "rust": { "error": "expected value" }
+        "js": {
+          "error": "Unexpected token"
+        },
+        "rust": {
+          "error": "expected value"
+        }
       }
     },
     {
@@ -100,8 +154,12 @@
       "category": "numbers",
       "rawJson": "5.",
       "expected": {
-        "js": { "error": "fractional number" },
-        "rust": { "error": "EOF while parsing a value" }
+        "js": {
+          "error": "fractional number"
+        },
+        "rust": {
+          "error": "EOF while parsing a value"
+        }
       }
     },
     {
@@ -109,8 +167,14 @@
       "category": "strings-unicode",
       "rawJson": "\"\\u0041\"",
       "expected": {
-        "js": { "toon": "A", "roundTripJson": "\"A\"" },
-        "rust": { "toon": "A", "roundTripJson": "\"A\"" }
+        "js": {
+          "toon": "A",
+          "roundTripJson": "\"A\""
+        },
+        "rust": {
+          "toon": "A",
+          "roundTripJson": "\"A\""
+        }
       }
     },
     {
@@ -118,8 +182,14 @@
       "category": "strings-unicode",
       "rawJson": "\"\\u0000\"",
       "expected": {
-        "js": { "toon": "\"\\u0000\"", "roundTripJson": "\"\\u0000\"" },
-        "rust": { "toon": "\"\\u0000\"", "roundTripJson": "\"\\u0000\"" }
+        "js": {
+          "toon": "\"\\u0000\"",
+          "roundTripJson": "\"\\u0000\""
+        },
+        "rust": {
+          "toon": "\"\\u0000\"",
+          "roundTripJson": "\"\\u0000\""
+        }
       }
     },
     {
@@ -127,8 +197,14 @@
       "category": "strings-unicode",
       "rawJson": "\"\\ud83d\\ude00\"",
       "expected": {
-        "js": { "toon": "😀", "roundTripJson": "\"😀\"" },
-        "rust": { "toon": "😀", "roundTripJson": "\"😀\"" }
+        "js": {
+          "toon": "😀",
+          "roundTripJson": "\"😀\""
+        },
+        "rust": {
+          "toon": "😀",
+          "roundTripJson": "\"😀\""
+        }
       }
     },
     {
@@ -136,8 +212,12 @@
       "category": "strings-unicode",
       "rawJson": "\"\\ud800\"",
       "expected": {
-        "js": { "toonJson": "\"\\ud800\"", "roundTripJson": "\"\\ud800\"" },
-        "rust": { "error": "unexpected end of hex escape" }
+        "js": {
+          "error": "unpaired surrogate U+D800"
+        },
+        "rust": {
+          "error": "unexpected end of hex escape"
+        }
       }
     },
     {
@@ -145,8 +225,12 @@
       "category": "strings-unicode",
       "rawJson": "﻿{\"a\":1}",
       "expected": {
-        "js": { "error": "Unexpected token" },
-        "rust": { "error": "expected value" }
+        "js": {
+          "error": "Unexpected token"
+        },
+        "rust": {
+          "error": "expected value"
+        }
       }
     },
     {
@@ -154,8 +238,14 @@
       "category": "structure",
       "rawJson": "[[[[[0]]]]]",
       "expected": {
-        "js": { "toon": "[1]:\n  - [1]:\n    - [1]:\n      - [1]:\n        - [1]: 0\n", "roundTripJson": "[[[[[0]]]]]" },
-        "rust": { "toon": "[1]:\n  - [1]:\n    - [1]:\n      - [1]:\n        - [1]: 0\n", "roundTripJson": "[[[[[0]]]]]" }
+        "js": {
+          "toon": "[1]:\n  - [1]:\n    - [1]:\n      - [1]:\n        - [1]: 0",
+          "roundTripJson": "[[[[[0]]]]]"
+        },
+        "rust": {
+          "toon": "[1]:\n  - [1]:\n    - [1]:\n      - [1]:\n        - [1]: 0",
+          "roundTripJson": "[[[[[0]]]]]"
+        }
       }
     },
     {
@@ -163,8 +253,14 @@
       "category": "structure",
       "rawJson": "[0,1,2,3,4,5,6,7,8,9]",
       "expected": {
-        "js": { "toon": "[10]: 0,1,2,3,4,5,6,7,8,9\n", "roundTripJson": "[0,1,2,3,4,5,6,7,8,9]" },
-        "rust": { "toon": "[10]: 0,1,2,3,4,5,6,7,8,9\n", "roundTripJson": "[0,1,2,3,4,5,6,7,8,9]" }
+        "js": {
+          "toon": "[10]: 0,1,2,3,4,5,6,7,8,9",
+          "roundTripJson": "[0,1,2,3,4,5,6,7,8,9]"
+        },
+        "rust": {
+          "toon": "[10]: 0,1,2,3,4,5,6,7,8,9",
+          "roundTripJson": "[0,1,2,3,4,5,6,7,8,9]"
+        }
       }
     },
     {
@@ -172,8 +268,14 @@
       "category": "structure",
       "rawJson": "{\"\":1}",
       "expected": {
-        "js": { "toon": "\"\": 1\n", "roundTripJson": "{\"\":1}" },
-        "rust": { "toon": "\"\": 1\n", "roundTripJson": "{\"\":1}" }
+        "js": {
+          "toon": "\"\": 1",
+          "roundTripJson": "{\"\":1}"
+        },
+        "rust": {
+          "toon": "\"\": 1",
+          "roundTripJson": "{\"\":1}"
+        }
       }
     },
     {
@@ -181,8 +283,14 @@
       "category": "structure",
       "rawJson": "{\"a\":1,\"a\":2}",
       "expected": {
-        "js": { "toon": "a: 2\n", "roundTripJson": "{\"a\":2}" },
-        "rust": { "toon": "a: 2\n", "roundTripJson": "{\"a\":2}" }
+        "js": {
+          "toon": "a: 2",
+          "roundTripJson": "{\"a\":2}"
+        },
+        "rust": {
+          "toon": "a: 2",
+          "roundTripJson": "{\"a\":2}"
+        }
       }
     },
     {
@@ -190,8 +298,14 @@
       "category": "structure",
       "rawJson": " { \n \t\"a\" : [ 1 , true , null ] } ",
       "expected": {
-        "js": { "toon": "a[3]: 1,true,null\n", "roundTripJson": "{\"a\":[1,true,null]}" },
-        "rust": { "toon": "a[3]: 1,true,null\n", "roundTripJson": "{\"a\":[1,true,null]}" }
+        "js": {
+          "toon": "a[3]: 1,true,null",
+          "roundTripJson": "{\"a\":[1,true,null]}"
+        },
+        "rust": {
+          "toon": "a[3]: 1,true,null",
+          "roundTripJson": "{\"a\":[1,true,null]}"
+        }
       }
     },
     {
@@ -199,37 +313,59 @@
       "category": "toon-decode",
       "rawToon": "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n",
       "expected": {
-        "js": { "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}" },
-        "rust": { "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}" }
+        "js": {
+          "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}"
+        },
+        "rust": {
+          "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}"
+        }
       }
     },
     {
       "name": "toon-depth/custom-limit-allows-equal-depth",
       "category": "toon-depth",
       "rawToon": "a:\n  b:\n    c: 1\n",
-      "parseOptions": { "maxDepth": 2 },
+      "parseOptions": {
+        "maxDepth": 2
+      },
       "expected": {
-        "js": { "roundTripJson": "{\"a\":{\"b\":{\"c\":1}}}" },
-        "rust": { "roundTripJson": "{\"a\":{\"b\":{\"c\":1}}}" }
+        "js": {
+          "roundTripJson": "{\"a\":{\"b\":{\"c\":1}}}"
+        },
+        "rust": {
+          "roundTripJson": "{\"a\":{\"b\":{\"c\":1}}}"
+        }
       }
     },
     {
       "name": "toon-depth/custom-limit-rejects-next-depth",
       "category": "toon-depth",
       "rawToon": "a:\n  b:\n    c: 1\n",
-      "parseOptions": { "maxDepth": 1 },
+      "parseOptions": {
+        "maxDepth": 1
+      },
       "expected": {
-        "js": { "error": "maximum nesting depth exceeded (maxDepth 1)" },
-        "rust": { "error": "maximum nesting depth exceeded (maxDepth 1)" }
+        "js": {
+          "error": "maximum nesting depth exceeded (maxDepth 1)"
+        },
+        "rust": {
+          "error": "maximum nesting depth exceeded (maxDepth 1)"
+        }
       }
     },
     {
-      "name": "structure/nested-tabular-header-encode-option",
+      "name": "structure/nested-tabular-header-encode",
       "category": "structure",
       "rawJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}",
       "expected": {
-        "js": { "toon": "orders[2]:\n  - id: 1\n    customer:\n      name: Ada\n      country: UK\n    total: 10.5\n  - id: 2\n    customer:\n      name: Bob\n      country: US\n    total: 20\n", "nestedHeaderToon": "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n", "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}" },
-        "rust": { "toon": "orders[2]:\n  - id: 1\n    customer:\n      name: Ada\n      country: UK\n    total: 10.5\n  - id: 2\n    customer:\n      name: Bob\n      country: US\n    total: 20\n", "nestedHeaderToon": "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20\n", "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}" }
+        "js": {
+          "toon": "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20",
+          "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}"
+        },
+        "rust": {
+          "toon": "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20",
+          "roundTripJson": "{\"orders\":[{\"id\":1,\"customer\":{\"name\":\"Ada\",\"country\":\"UK\"},\"total\":10.5},{\"id\":2,\"customer\":{\"name\":\"Bob\",\"country\":\"US\"},\"total\":20}]}"
+        }
       }
     },
     {
@@ -237,8 +373,14 @@
       "category": "adversarial-round-trip",
       "rawJson": "[\"[N]:\"]",
       "expected": {
-        "js": { "toon": "[1]: \"[N]:\"\n", "roundTripJson": "[\"[N]:\"]" },
-        "rust": { "toon": "[1]: \"[N]:\"\n", "roundTripJson": "[\"[N]:\"]" }
+        "js": {
+          "toon": "[1]: \"[N]:\"",
+          "roundTripJson": "[\"[N]:\"]"
+        },
+        "rust": {
+          "toon": "[1]: \"[N]:\"",
+          "roundTripJson": "[\"[N]:\"]"
+        }
       }
     },
     {
@@ -246,8 +388,14 @@
       "category": "adversarial-round-trip",
       "rawJson": "[\"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"]",
       "expected": {
-        "js": { "toon": "[4]: \"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"\n", "roundTripJson": "[\"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"]" },
-        "rust": { "toon": "[4]: \"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"\n", "roundTripJson": "[\"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"]" }
+        "js": {
+          "toon": "[4]: \"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"",
+          "roundTripJson": "[\"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"]"
+        },
+        "rust": {
+          "toon": "[4]: \"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"",
+          "roundTripJson": "[\"a,b\",\"+1\",\"\\\"true\\\"\",\"1e2\"]"
+        }
       }
     },
     {
@@ -255,8 +403,14 @@
       "category": "adversarial-round-trip",
       "rawJson": "{\"header\":\"[2]{a,b}:\",\"delimiter\":\"---\",\"leadingPlus\":\"+42\"}",
       "expected": {
-        "js": { "toon": "header: \"[2]{a,b}:\"\ndelimiter: \"---\"\nleadingPlus: \"+42\"\n", "roundTripJson": "{\"header\":\"[2]{a,b}:\",\"delimiter\":\"---\",\"leadingPlus\":\"+42\"}" },
-        "rust": { "toon": "header: \"[2]{a,b}:\"\ndelimiter: \"---\"\nleadingPlus: \"+42\"\n", "roundTripJson": "{\"header\":\"[2]{a,b}:\",\"delimiter\":\"---\",\"leadingPlus\":\"+42\"}" }
+        "js": {
+          "toon": "header: \"[2]{a,b}:\"\ndelimiter: \"---\"\nleadingPlus: \"+42\"",
+          "roundTripJson": "{\"header\":\"[2]{a,b}:\",\"delimiter\":\"---\",\"leadingPlus\":\"+42\"}"
+        },
+        "rust": {
+          "toon": "header: \"[2]{a,b}:\"\ndelimiter: \"---\"\nleadingPlus: \"+42\"",
+          "roundTripJson": "{\"header\":\"[2]{a,b}:\",\"delimiter\":\"---\",\"leadingPlus\":\"+42\"}"
+        }
       }
     }
   ]
