@@ -74,6 +74,9 @@ function execute(argv, options) {
       },
     )
 
+    child.stdin.on('error', (error) => {
+      if (error.code !== 'EPIPE') reject(error)
+    })
     child.stdin.end(options.stdin ?? '')
   })
 }
