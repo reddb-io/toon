@@ -44,7 +44,7 @@ name = "xml"
 path = "../../tests/runners/rust/tq/xml.rs"
 
 [dependencies]
-reddb-io-toon = { path = "../toon", version = "0.26.1" }
+reddb-io-toon = { path = "../toon", version = "0.26.2" }
 regex = "1"
 quick-xml = "0.37"
 serde = "1"
@@ -62,4 +62,4 @@ ureq = { version = "3", default-features = false, features = ["rustls"] }
 [dev-dependencies]
 # The upgrade suite computes the checksums its fake release advertises.
 sha2 = "0.10"
-reddb-io-toon = { path = "../toon", version = "0.26.1" }
+reddb-io-toon = { path = "../toon", version = "0.26.2" }
