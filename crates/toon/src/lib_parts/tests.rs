@@ -81,7 +81,7 @@ mod tests {
     }
 
     #[test]
-    fn serializes_nested_tabular_headers_only_when_opted_in() {
+    fn serializes_nested_tabular_headers_unconditionally() {
         let document = Value::from_json_value(serde_json::json!({
             "orders": [
                 { "id": 1, "customer": { "name": "Ada", "country": "UK" }, "total": 10.5 },
@@ -90,14 +90,8 @@ mod tests {
         }));
         let nested =
             "orders[2]{id,customer{name,country},total}:\n  1,Ada,UK,10.5\n  2,Bob,US,20";
-        let options = EncodeOptions {
-            nested_tabular_headers: true,
-            keyed_map_collapse: false,
-            ..EncodeOptions::default()
-        };
-
         assert_eq!(document.to_canonical_toon(), nested);
-        assert_eq!(document.to_toon_with_options(options), nested);
+        assert_eq!(document.to_toon_with_options(EncodeOptions::default()), nested);
         assert_eq!(
             Value::parse_toon(nested).unwrap().to_json_value(),
             document.to_json_value()
@@ -114,11 +108,7 @@ mod tests {
         }));
 
         assert_eq!(
-            document.to_toon_with_options(EncodeOptions {
-                nested_tabular_headers: true,
-                keyed_map_collapse: false,
-                ..EncodeOptions::default()
-            }),
+            document.to_toon_with_options(EncodeOptions::default()),
             "rows[2]:\n  - id: 1\n    point:\n      x: 1\n      y: 2\n  - id: 2\n    point:\n      x: 3\n      z: 4"
         );
     }
@@ -165,7 +155,7 @@ mod tests {
     }
 
     #[test]
-    fn serializes_keyed_map_collapse_only_when_opted_in() {
+    fn serializes_keyed_map_collapse_unconditionally() {
         let document = Value::from_json_value(serde_json::json!({
             "people": {
                 "joe": { "first": "Joe", "last": "Schmoe" },
@@ -176,11 +166,7 @@ mod tests {
 
         assert_eq!(document.to_canonical_toon(), collapsed);
         assert_eq!(
-            document.to_toon_with_options(EncodeOptions {
-                nested_tabular_headers: false,
-                keyed_map_collapse: true,
-                ..EncodeOptions::default()
-            }),
+            document.to_toon_with_options(EncodeOptions::default()),
             collapsed
         );
     }
@@ -195,11 +181,7 @@ mod tests {
         }));
 
         assert_eq!(
-            document.to_toon_with_options(EncodeOptions {
-                nested_tabular_headers: false,
-                keyed_map_collapse: true,
-                ..EncodeOptions::default()
-            }),
+            document.to_toon_with_options(EncodeOptions::default()),
             "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin"
         );
     }
