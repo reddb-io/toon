@@ -40,6 +40,20 @@ const truncationCorpus = JSON.parse(
   readFileSync(new URL('../../../tests/corpus/truncation.json', import.meta.url), 'utf8'),
 )
 
+test('canonical v4 encoders own extension emission', () => {
+  const typescriptEncoder = readFileSync(
+    new URL('../src/encode/serialize.ts', import.meta.url),
+    'utf8',
+  )
+  const rustEncoder = readFileSync(
+    new URL('../../../crates/toon/src/lib_parts/encode_v4.rs', import.meta.url),
+    'utf8',
+  )
+
+  assert.doesNotMatch(typescriptEncoder, /toon_parts\/serialize|serializeLegacyExtensions/)
+  assert.doesNotMatch(rustEncoder, /try_to_legacy_toon/)
+})
+
 test('v4 codec cyclic discriminated arrays reconstruct only with opt-in', () => {
   const fixture = cyclicCorpus.cases[0]
   const encoded = encode(fixture.expected, { cyclicDiscriminatedArrays: true })
@@ -195,4 +209,27 @@ test('TOONL whole-document bridges use the v4 codec', () => {
 
   assert.equal(encoded, 'people[2:]{name}:\n  ada: Ada\n  linus: Linus')
   assert.deepEqual(JSON.parse(toonToJson(`# generated\n${encoded}`)), value)
+})
+
+test('object-array columns encode ragged nested object rows as a child table', () => {
+  const value = {
+    rows: [
+      { id: 1, kids: [{ a: 1, b: 2 }, { a: 3, b: 4 }] },
+      { id: 2, kids: [{ a: 5, b: 6 }] },
+    ],
+  }
+
+  const encoded = encode(value, { objectArrayColumns: true })
+
+  assert.equal(encoded, 'rows[2]{id,kids{a,b}}:\n  1,2\n    1,2\n    3,4\n  2,1\n    5,6')
+  assert.deepEqual(decode(encoded, { objectArrayColumns: true }), value)
+})
+
+test('object-array columns encode equal-length primitive rows as fixed matrix columns', () => {
+  const value = { rows: [{ id: 1, m: [1, 2] }, { id: 2, m: [3, 4] }] }
+
+  const encoded = encode(value, { objectArrayColumns: true })
+
+  assert.equal(encoded, 'rows[2]{id,m[2]}:\n  1,1,2\n  2,3,4')
+  assert.deepEqual(decode(encoded, { objectArrayColumns: true }), value)
 })
