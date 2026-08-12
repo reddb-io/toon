@@ -446,7 +446,7 @@ pub(super) fn delete_all(input: &Value, paths: Vec<Vec<Value>>) -> Result<Value,
             (key, path)
         })
         .collect::<Vec<_>>();
-    keyed.sort_by(|left, right| eval::compare_key_json(&left.0, &right.0));
+    keyed.sort_by(|left, right| super::ordering::compare_key_json(&left.0, &right.0));
     keyed.dedup_by(|left, right| left.0 == right.0);
 
     let mut result = input.clone();

@@ -37,6 +37,13 @@ test('current user-facing surfaces describe the v4.1 baseline without retired cl
     assert.doesNotMatch(source, /no build step/i, `${path} must not deny the published build`)
     assert.doesNotMatch(source, /compatibility aliases/i, `${path} must not call no-op flags aliases`)
     assert.doesNotMatch(source, /100% conformance/i, `${path} must not make an unscoped parity claim`)
+    assert.doesNotMatch(
+      source,
+      // Anchored on a flag position so section anchors like
+      // `#extension-1--nested-tabular-headers` stay linkable.
+      /(?:^|[\s`([])--(?:nested-tabular-headers|keyed-map-collapse)\b/m,
+      `${path} must not advertise a retired tq switch`,
+    )
   }
 
   for (const path of [
@@ -79,7 +86,7 @@ test('migration notes show observable TypeScript and Rust cutovers', () => {
   assert.match(migration, /Rust cutover/i)
   // The guide has to say the pre-v4 engine and its API are gone, not offer
   // them as an escape hatch.
-  assert.match(migration, /removed in 0\.26\.0/)
+  assert.match(migration, /are gone|were removed/)
   assert.match(migration, /parse_legacy/)
   assert.doesNotMatch(migration, /^import .* from '@reddb-io\/toon\/legacy'/m)
   assert.match(migration, /Before[^\n]*After/is)

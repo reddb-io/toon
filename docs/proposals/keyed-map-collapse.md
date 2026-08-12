@@ -64,7 +64,9 @@ Rules:
 
 - JS: `serialize(value, { keyedMapCollapse: true })`
 - Rust: `to_toon_with_options(EncodeOptions { keyed_map_collapse: true, .. })`
-- `tq`: `--keyed-map-collapse`
+
+`tq` needs no switch: canonical v4.1 output selects the form automatically for
+eligible values, so the Stage 3 CLI switch was retired once the form graduated.
 
 Decoding is always-on. The extension corpus covers encode/decode plus the
 single-entry (not collapsed) and non-uniform (fall-back) cases across both
@@ -110,7 +112,7 @@ round-trip is lossless either way because a non-collapsed map is an ordinary obj
 
 - **Stage 0–1 — idea / measured proposal:** upstream RFC [toon-format/spec#57](https://github.com/toon-format/spec/issues/57).
 - **Stage 2 — frozen grammar:** `key{fields}:` object-typed header, per-entry row.
-- **Stage 3 — implemented opt-in:** `keyedMapCollapse` / `keyed_map_collapse` / `--keyed-map-collapse`.
+- **Stage 3 — implemented opt-in:** `keyedMapCollapse` / `keyed_map_collapse`, plus a `tq` switch that is now retired (design history).
 - **Stage 4 — graduated:** [Extension 2](../toon-reddb-spec.md#extension-2--keyed-map-collapse).
 
 ## Links

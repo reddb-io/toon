@@ -4,11 +4,14 @@ use reddb_io_toon::Value;
 
 use super::ast::{AssignOp, BinaryOp, Expr, Pattern};
 use super::builtins;
-use super::lexer::{lex, Token};
+use super::lexer::{lex, StringPart, Token};
 
 pub(super) struct Parser {
     tokens: Vec<Token>,
     index: usize,
+    /// How many variables string interpolation has minted so far, so every
+    /// `\(…)` in one query — nested ones included — binds under its own name.
+    interpolations: usize,
 }
 
 /// A declared parameter. Both spellings bind a filter under the bare name; the
@@ -31,6 +34,7 @@ impl Parser {
         Ok(Self {
             tokens: lex(query)?,
             index: 0,
+            interpolations: 0,
         })
     }
 
@@ -240,11 +244,82 @@ impl Parser {
                 self.expect(Token::RParen)?;
                 Ok(expression)
             }
+            Some(Token::Format(name)) => self.parse_format(&name),
             Some(Token::Number(value)) => Ok(Expr::Literal(Value::Number(value))),
-            Some(Token::String(value)) => Ok(Expr::Literal(Value::String(value))),
+            Some(Token::String(parts)) => self.parse_string(None, parts),
             Some(Token::Variable(name)) => Ok(Expr::Variable(name)),
             token => Err(format!("unexpected token `{token:?}`")),
         }
+    }
+
+    /// `@format` applies the format to the input. `@format "…"` applies it to
+    /// every interpolation in that string instead, leaving its literal text
+    /// alone, exactly as jq does.
+    fn parse_format(&mut self, name: &str) -> Result<Expr, String> {
+        if let Some(Token::String(parts)) = self.peek().cloned() {
+            self.index += 1;
+            return self.parse_string(Some(name), parts);
+        }
+        Ok(Expr::Call(format!("@{name}"), Vec::new()))
+    }
+
+    /// String interpolation is sugar over concatenation: `"a\(f)b"` means
+    /// `f as $x | "a" + ($x|@text) + "b"`. Binding each interpolation in source
+    /// order, from the innermost outwards, reproduces jq's output order, where
+    /// the last `\(…)` in a string varies slowest.
+    fn parse_string(
+        &mut self,
+        format: Option<&str>,
+        parts: Vec<StringPart>,
+    ) -> Result<Expr, String> {
+        let format = format!("@{}", format.unwrap_or("text"));
+        let mut pieces = Vec::new();
+        let mut bindings = Vec::new();
+
+        for part in parts {
+            match part {
+                StringPart::Literal(text) => pieces.push(Expr::Literal(Value::String(text))),
+                StringPart::Interpolation(source) => {
+                    let source = self.parse_source(&source)?;
+                    let name = format!("@string{}", self.interpolations);
+                    self.interpolations += 1;
+                    bindings.push((name.clone(), source));
+                    pieces.push(Expr::Pipe(
+                        Box::new(Expr::Variable(name)),
+                        Box::new(Expr::Call(format.clone(), Vec::new())),
+                    ));
+                }
+            }
+        }
+
+        let mut expression = pieces
+            .into_iter()
+            .reduce(|left, right| Expr::Binary(BinaryOp::Add, Box::new(left), Box::new(right)))
+            .unwrap_or_else(|| Expr::Literal(Value::String(String::new())));
+        for (name, source) in bindings {
+            expression = Expr::Bind(
+                Box::new(source),
+                Pattern::Variable(name),
+                Box::new(expression),
+            );
+        }
+        Ok(expression)
+    }
+
+    /// Parses the source of one interpolation as a filter of its own, sharing
+    /// the interpolation counter so a nested string mints fresh names too.
+    fn parse_source(&mut self, source: &str) -> Result<Expr, String> {
+        let mut parser = Self {
+            tokens: lex(source)?,
+            index: 0,
+            interpolations: self.interpolations,
+        };
+        let expression = parser.parse_pipe()?;
+        if parser.peek().is_some() {
+            return Err("unexpected trailing filter input".to_owned());
+        }
+        self.interpolations = parser.interpolations;
+        Ok(expression)
     }
 
     fn parse_pattern(&mut self) -> Result<Pattern, String> {
@@ -268,7 +343,12 @@ impl Parser {
                     loop {
                         let (key, pattern) = match self.next() {
                             Some(Token::Variable(name)) => (name.clone(), Pattern::Variable(name)),
-                            Some(Token::Ident(key)) | Some(Token::String(key)) => {
+                            Some(Token::Ident(key)) => {
+                                self.expect(Token::Colon)?;
+                                (key, self.parse_pattern()?)
+                            }
+                            Some(Token::String(parts)) => {
+                                let key = literal_string(&parts, "pattern key")?;
                                 self.expect(Token::Colon)?;
                                 (key, self.parse_pattern()?)
                             }
@@ -473,7 +553,8 @@ impl Parser {
         let mut fields = Vec::new();
         loop {
             let key = match self.next() {
-                Some(Token::Ident(value)) | Some(Token::String(value)) => value,
+                Some(Token::Ident(value)) => value,
+                Some(Token::String(parts)) => literal_string(&parts, "object key")?,
                 token => return Err(format!("expected object key, got `{token:?}`")),
             };
             self.expect(Token::Colon)?;
@@ -569,6 +650,16 @@ impl Parser {
 
     fn peek(&self) -> Option<&Token> {
         self.tokens.get(self.index)
+    }
+}
+
+/// A key names one field, so it has to be known before the query runs. An
+/// interpolated string is reported there rather than silently truncated.
+fn literal_string(parts: &[StringPart], context: &str) -> Result<String, String> {
+    match parts {
+        [] => Ok(String::new()),
+        [StringPart::Literal(value)] => Ok(value.clone()),
+        _ => Err(format!("expected {context}, got an interpolated string")),
     }
 }
 

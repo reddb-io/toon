@@ -15,7 +15,7 @@ mod toonl_trim;
 mod upgrade;
 mod xml;
 
-use crate::query::Variables;
+use crate::query::{Halt, Inputs, Variables};
 use args::{
     parse_args, parse_check_args, parse_close_args, parse_trim_args, CheckOptions, CloseOptions,
     Format, Options, TrimOptions,
@@ -31,11 +31,21 @@ pub(crate) fn main() -> ExitCode {
             print!("{output}");
             code
         }
-        Err(error) => {
-            eprintln!("error: {error}");
-            ExitCode::FAILURE
-        }
+        // A `halt` that reached here produced nothing to write, so only its
+        // message and exit status are left to deliver.
+        Err(error) => match Halt::decode(&error) {
+            Some(halt) => report_halt(&halt),
+            None => {
+                eprintln!("error: {error}");
+                ExitCode::FAILURE
+            }
+        },
     }
+}
+
+fn report_halt(halt: &Halt) -> ExitCode {
+    eprint!("{}", halt.message);
+    ExitCode::from(halt.code)
 }
 
 fn run() -> Result<(String, ExitCode), String> {
@@ -67,15 +77,17 @@ fn run() -> Result<(String, ExitCode), String> {
     let options = parse_args(args.into_iter())?;
     let variables = Variables::new(&options.variables);
 
+    // TOONL comes first because its reader is also the stream `input`/`inputs`
+    // read from, which `-n` leaves untouched rather than unavailable.
+    if options.input_format == Format::Toonl && !options.raw_input {
+        return run_toonl(&options, &variables);
+    }
     if options.null_input {
         let values = crate::query::evaluate(&Value::Null, &options.query, &variables)?;
         return finish(values, &options);
     }
     if options.raw_input {
         return run_raw_input(&options, &variables);
-    }
-    if options.input_format == Format::Toonl {
-        return run_toonl(&options, &variables);
     }
 
     let input = read_input(&options)?;
@@ -194,42 +206,88 @@ fn run_check(options: CheckOptions) -> Result<(String, ExitCode), String> {
 
 fn run_toonl(options: &Options, variables: &Variables) -> Result<(String, ExitCode), String> {
     let reader = input_reader(options)?;
-    let mut rows = Vec::new();
-    let mut values = Vec::new();
+    let inputs =
+        Inputs::new(ToonlReader::new(reader).map(|row| row.map_err(|error| error.to_string())));
 
-    for row in ToonlReader::new(reader) {
-        let row = row.map_err(|error| error.to_string())?;
-        if options.slurp {
-            rows.push(row);
-        } else {
-            values.extend(crate::query::evaluate(&row, &options.query, variables)?);
+    if options.slurp {
+        let mut rows = Vec::new();
+        while let Some(row) = inputs.next_input() {
+            rows.push(row?);
+        }
+        let document = Value::Array(Array::List(rows));
+        return evaluate_row(&document, options, variables, &inputs, Vec::new());
+    }
+    // `-n` runs the filter once against null and leaves every row for
+    // `input`/`inputs` to draw, exactly as jq's `-n` does over a stream.
+    if options.null_input {
+        return evaluate_row(&Value::Null, options, variables, &inputs, Vec::new());
+    }
+
+    let mut values = Vec::new();
+    while let Some(row) = inputs.next_input() {
+        let row = row?;
+        match crate::query::evaluate_reading(&row, &options.query, variables, Some(&inputs)) {
+            Ok(produced) => values.extend(produced),
+            Err(error) => return halted(error, values, options),
         }
     }
 
-    if options.slurp {
-        values =
-            crate::query::evaluate(&Value::Array(Array::List(rows)), &options.query, variables)?;
-    }
-
     finish(values, options)
+}
+
+fn evaluate_row(
+    document: &Value,
+    options: &Options,
+    variables: &Variables,
+    inputs: &Inputs,
+    produced: Vec<Value>,
+) -> Result<(String, ExitCode), String> {
+    match crate::query::evaluate_reading(document, &options.query, variables, Some(inputs)) {
+        Ok(values) => finish(values, options),
+        Err(error) => halted(error, produced, options),
+    }
+}
+
+/// A halted run still writes what it produced before the halt, then exits with
+/// the status the filter asked for. Anything else is an ordinary error.
+fn halted(
+    error: String,
+    values: Vec<Value>,
+    options: &Options,
+) -> Result<(String, ExitCode), String> {
+    let Some(halt) = Halt::decode(&error) else {
+        return Err(error);
+    };
+    eprint!("{}", halt.message);
+    format_values(&values, options).map(|output| (output, ExitCode::from(halt.code)))
 }
 
 /// `--raw-input` replaces decoding entirely: each line is one string document,
 /// or the whole input is a single string under `--slurp`.
 fn run_raw_input(options: &Options, variables: &Variables) -> Result<(String, ExitCode), String> {
     let input = read_input(options)?;
-    let mut values = Vec::new();
 
     if options.slurp {
-        values = crate::query::evaluate(&Value::String(input), &options.query, variables)?;
-    } else {
-        for line in raw_input_lines(&input) {
-            let document = Value::String(line.to_owned());
-            values.extend(crate::query::evaluate(
-                &document,
-                &options.query,
-                variables,
-            )?);
+        let document = Value::String(input);
+        let values = crate::query::evaluate(&document, &options.query, variables);
+        return match values {
+            Ok(values) => finish(values, options),
+            Err(error) => halted(error, Vec::new(), options),
+        };
+    }
+
+    let lines = raw_input_lines(&input)
+        .into_iter()
+        .map(|line| Ok(Value::String(line.to_owned())))
+        .collect::<Vec<_>>();
+    let inputs = Inputs::new(lines.into_iter());
+
+    let mut values = Vec::new();
+    while let Some(line) = inputs.next_input() {
+        let document = line?;
+        match crate::query::evaluate_reading(&document, &options.query, variables, Some(&inputs)) {
+            Ok(produced) => values.extend(produced),
+            Err(error) => return halted(error, values, options),
         }
     }
 

@@ -165,6 +165,19 @@ fn output_flags_usage_golden_case() {
 }
 
 #[test]
+fn retired_nested_and_keyed_switches_are_usage_errors() {
+    for flag in ["--nested-tabular-headers", "--keyed-map-collapse"] {
+        let output = run_tq(&[flag, "-o", "toon", "."], "name: Ada\n");
+        let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+
+        assert_eq!(output.status.code(), Some(1), "{flag} is rejected");
+        assert_eq!(output.stdout, b"", "{flag} produces no output");
+        assert!(stderr.starts_with("error: usage: tq"), "{stderr}");
+        assert!(!stderr.contains(flag), "usage must not advertise {flag}: {stderr}");
+    }
+}
+
+#[test]
 fn toon_json_toon_round_trips_to_same_canonical_form() {
     let input = "name: Ada\nusers[2]{id,name}:\n  1,Ada\n  2,Bob\n";
     let to_json = run_tq(&["-o", "json", "."], input);

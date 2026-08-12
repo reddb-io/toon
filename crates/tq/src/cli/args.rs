@@ -1,7 +1,7 @@
 use std::path::Path;
 
 const USAGE: &str = concat!(
-    "usage: tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-n|--null-input] [-s|--slurp] [-R|--raw-input] [--arg name value] [--argjson name json] [--stats] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
+    "usage: tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-n|--null-input] [-s|--slurp] [-R|--raw-input] [--arg name value] [--argjson name json] [--stats] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
     "subcommands: trim, close, check, upgrade"
 );
 const ARG_ERROR: &str = "`--arg` expects a variable name and a value";
@@ -126,9 +126,6 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
             }
             "--strict" => strict = true,
             "--no-strict" => strict = false,
-            // Canonical v4.1 output always uses nested and keyed tabular forms;
-            // retain the old switches as deprecated no-ops for script compatibility.
-            "--nested-tabular-headers" | "--keyed-map-collapse" => {}
             "--primitive-array-columns" => primitive_array_columns = true,
             "--object-array-columns" => object_array_columns = true,
             "--cyclic-discriminated-arrays" => cyclic_discriminated_arrays = true,

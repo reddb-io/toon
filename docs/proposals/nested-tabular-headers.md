@@ -73,12 +73,14 @@ Enable emission per surface:
 
 - JS: `serialize(value, { nestedTabularHeaders: true })`
 - Rust: `to_toon_with_options(EncodeOptions { nested_tabular_headers: true, .. })`
-- `tq`: `--nested-tabular-headers`
+
+`tq` needs no switch: canonical v4.1 output selects the form automatically for
+eligible values, so the Stage 3 CLI switch was retired once the form graduated.
 
 Decoding needs no flag on any surface. The shared extension corpus under
 `tests/` covers encode bytes and decode values including the eligibility and
 fail-closed cases, run identically by the JS package and the Rust crate; the
-`tq` golden tests cover the flag end-to-end.
+`tq` golden tests cover the canonical output end-to-end.
 
 ## Measured numbers
 
@@ -101,7 +103,7 @@ falls back losslessly, enabling it can never corrupt a strict-decoder pipeline.
 
 - **Stage 0–1 — idea / measured proposal:** upstream RFC [toon-format/spec#46](https://github.com/toon-format/spec/issues/46).
 - **Stage 2 — frozen grammar:** recursive braced field list, leaf-arity rule.
-- **Stage 3 — implemented opt-in:** `nestedTabularHeaders` / `nested_tabular_headers` / `--nested-tabular-headers`.
+- **Stage 3 — implemented opt-in:** `nestedTabularHeaders` / `nested_tabular_headers`, plus a `tq` switch that is now retired (design history).
 - **Stage 4 — graduated:** [Extension 1](../toon-reddb-spec.md#extension-1--nested-tabular-headers).
 
 ## Links
