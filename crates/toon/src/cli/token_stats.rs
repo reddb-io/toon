@@ -1,7 +1,10 @@
 //! Token estimates compatible with tokenx 1.3.0, the estimator used by the
-//! pinned upstream TOON CLI.
+//! pinned upstream TOON CLI. Both Rust front-ends read `--stats` from here —
+//! `tq` and the `toon` bin — so a single engine decides the numbers, and
+//! `packages/toon/src/cli/tokens.ts` is its TypeScript twin.
 
-pub(super) fn format_statistics(json: &str, toon: &str) -> String {
+/// Formats the `--stats` report, matching upstream wording and rounding.
+pub fn format_statistics(json: &str, toon: &str) -> String {
     let json_tokens = estimate_token_count(json);
     let toon_tokens = estimate_token_count(toon);
     let difference = json_tokens as i64 - toon_tokens as i64;
@@ -13,7 +16,8 @@ pub(super) fn format_statistics(json: &str, toon: &str) -> String {
     )
 }
 
-fn estimate_token_count(text: &str) -> usize {
+/// Estimates the token count of `text` the way tokenx 1.3.0 does.
+pub fn estimate_token_count(text: &str) -> usize {
     let mut rest = text;
     let mut total = 0;
 
