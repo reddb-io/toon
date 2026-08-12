@@ -115,12 +115,12 @@ fn canonical_number(value: &str) -> String {
 // Encoding
 // ---------------------------------------------------------------------------
 
-fn check_encode_depth(depth: usize, options: EncodeOptions) -> Result<(), EncodeError> {
-    validate_encode_delimiter(options.delimiter)?;
-    if options.max_depth != 0 && depth > options.max_depth {
+fn check_encode_depth(depth: usize, delimiter: char, max_depth: usize) -> Result<(), EncodeError> {
+    validate_encode_delimiter(delimiter)?;
+    if max_depth != 0 && depth > max_depth {
         return Err(EncodeError {
             message: "maximum nesting depth exceeded",
-            max_depth: Some(options.max_depth),
+            max_depth: Some(max_depth),
         });
     }
     Ok(())
@@ -170,12 +170,13 @@ struct CyclicGroup {
 fn write_cyclic_discriminated_arrays(
     output: &mut String,
     document: &Document,
-    options: EncodeOptions,
+    delimiter: char,
+    max_depth: usize,
 ) -> Result<bool, EncodeError> {
-    if !options.cyclic_discriminated_arrays || document.fields.is_empty() {
+    if document.fields.is_empty() {
         return Ok(false);
     }
-    check_encode_depth(0, options)?;
+    check_encode_depth(0, delimiter, max_depth)?;
 
     let mut seen_keys = Vec::new();
     let mut sections = Vec::with_capacity(document.fields.len());
@@ -188,7 +189,7 @@ fn write_cyclic_discriminated_arrays(
             return Ok(false);
         };
         let values = array.values();
-        let Some(shape) = cyclic_array_shape(&values, 1, options)? else {
+        let Some(shape) = cyclic_array_shape(&values, 1, delimiter, max_depth)? else {
             return Ok(false);
         };
         sections.push(CyclicEncodedSection {
@@ -206,9 +207,10 @@ fn write_cyclic_discriminated_arrays(
 fn cyclic_array_shape(
     values: &[Value],
     depth: usize,
-    options: EncodeOptions,
+    delimiter: char,
+    max_depth: usize,
 ) -> Result<Option<CyclicArrayShape>, EncodeError> {
-    check_encode_depth(depth, options)?;
+    check_encode_depth(depth, delimiter, max_depth)?;
     let rows = values
         .iter()
         .map(|value| match value {
