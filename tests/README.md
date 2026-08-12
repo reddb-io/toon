@@ -19,7 +19,8 @@ tests/
       toon/            — crate `reddb-io-toon` runners + ledgers
       tq/              — crate `reddb-io-tq` runners
   golden/
-    tq/                — CLI golden test cases (31 scenarios)
+    tq/                — `tq` CLI golden test cases (31 scenarios)
+    toon-cli/          — shared `toon` bin corpus, run by BOTH front-ends
   README.md            — this file
 ```
 
@@ -38,6 +39,7 @@ point to the same `tests/corpus/` files.
 | `corpus/wire-efficiency/` | encoded byte sizes for tabular and map-collapse modes | `runners/rust/toon/wire_efficiency.rs` | `packages/toon/test/wire-efficiency.test.mjs` | ours |
 | `corpus/tq/parity/` | hermetic tq outputs and optional jq 1.7.1 validation | `runners/rust/tq/parity.rs` | — | jq 1.7.1, vendored |
 | `golden/tq/` | CLI argument handling, filter pipeline, output modes | `runners/rust/tq/golden.rs` | — | ours |
+| `golden/toon-cli/` | the `toon` bin's upstream CLI contract, asserted byte-identical across both front-ends | `runners/rust/toon/cli_golden.rs` | `packages/toon/test/cli-golden.test.mjs` | ours |
 | _every file above_ | the `tq` binary never hangs, panics or dies on a signal on any corpus file, and valid documents survive a round trip | `runners/rust/tq/corpus.rs` | — | ours |
 
 ## Expected-failure ledgers
