@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import {
+  buildValueFromEvents,
   decode,
+  decodeStreamSync,
   detectTruncation,
   encode,
   jsonToToon,
@@ -11,6 +13,10 @@ import {
   ToonError,
   toonToJson,
 } from '../dist/index.js'
+
+function decodeViaEvents(input, options) {
+  return buildValueFromEvents(decodeStreamSync(input.split(/\r?\n/), options))
+}
 
 const cyclicCorpus = JSON.parse(
   readFileSync(
@@ -60,11 +66,17 @@ test('v4 codec primitive array columns use exact extension wire and decode the c
     )
     assert.notEqual(encode(fixture.expected), encoded, fixture.name)
     assert.deepEqual(decode(fixture.input), fixture.expected, fixture.name)
+    assert.deepEqual(decodeViaEvents(fixture.input), fixture.expected, fixture.name)
   }
 
   for (const fixture of primitiveArrayCorpus.errors) {
     assert.throws(
       () => decode(fixture.input),
+      (error) => error?.line === fixture.line && error?.reason === fixture.reason,
+      fixture.name,
+    )
+    assert.throws(
+      () => decodeViaEvents(fixture.input),
       (error) => error?.line === fixture.line && error?.reason === fixture.reason,
       fixture.name,
     )
@@ -74,7 +86,13 @@ test('v4 codec primitive array columns use exact extension wire and decode the c
 test('v4 codec child tables are opt-in, fail-closed, and round-trip', () => {
   for (const fixture of childTableCorpus.cases) {
     assert.throws(() => decode(fixture.input, { objectArrayColumns: false }), undefined, fixture.name)
+    assert.throws(
+      () => decodeViaEvents(fixture.input, { objectArrayColumns: false }),
+      undefined,
+      fixture.name,
+    )
     assert.deepEqual(decode(fixture.input), fixture.expected, fixture.name)
+    assert.deepEqual(decodeViaEvents(fixture.input), fixture.expected, fixture.name)
     const delimiter = fixture.input.split('\n', 1)[0].includes('|]') ? '|' : ','
     assert.deepEqual(
       decode(encode(fixture.expected, { objectArrayColumns: true, delimiter })),
@@ -87,12 +105,18 @@ test('v4 codec child tables are opt-in, fail-closed, and round-trip', () => {
     const encoded = encode(fixture.value, { objectArrayColumns: true })
     assert.equal(encoded, fixture.expected.trimEnd(), fixture.name)
     assert.deepEqual(decode(encoded), fixture.value, fixture.name)
+    assert.deepEqual(decodeViaEvents(encoded), fixture.value, fixture.name)
     assert.equal(encoded === encode(fixture.value), fixture.sameAsCanonical, fixture.name)
   }
 
   for (const fixture of childTableCorpus.errors) {
     assert.throws(
       () => decode(fixture.input),
+      (error) => error?.line === fixture.line && error?.reason === fixture.reason,
+      fixture.name,
+    )
+    assert.throws(
+      () => decodeViaEvents(fixture.input),
       (error) => error?.line === fixture.line && error?.reason === fixture.reason,
       fixture.name,
     )

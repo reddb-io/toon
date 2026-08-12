@@ -14,6 +14,7 @@
  */
 import type { ToonEvent } from '../events.js';
 import { ToonError } from '../errors.js';
+import { type ExtensionFieldNode } from './extension_events.js';
 export interface DecodeStreamOptions {
     indent?: number;
     indentSize?: number;
@@ -22,8 +23,7 @@ export interface DecodeStreamOptions {
     objectArrayColumns?: boolean;
     maxDepth?: number;
 }
-export interface FieldNode {
-    name: string;
+export interface FieldNode extends ExtensionFieldNode {
     children?: FieldNode[];
 }
 export { ToonError };

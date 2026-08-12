@@ -17,6 +17,11 @@ import type { ToonEvent } from '../events.js'
 import { ToonDecodeError, ToonError, toonError } from '../errors.js'
 import { findUnquoted, parseKey, parseScalar } from '../lexical.js'
 import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js'
+import {
+  emitExtensionRows,
+  type ExtensionFieldNode,
+  type ExtensionLine,
+} from './extension_events.js'
 
 export interface DecodeStreamOptions {
   indent?: number
@@ -30,6 +35,7 @@ export interface DecodeStreamOptions {
 interface Ctx {
   indentSize: number
   strict: boolean
+  objectArrayColumns: boolean
   maxDepth: number
 }
 
@@ -129,8 +135,7 @@ async function* classifyLinesAsync(
 
 // #region Header grammar (§6)
 
-export interface FieldNode {
-  name: string
+export interface FieldNode extends ExtensionFieldNode {
   children?: FieldNode[]
 }
 
@@ -187,7 +192,7 @@ function parseHeader(content: string, line: number): Header | null {
   let fields: FieldNode[] | undefined
   if (rest.startsWith('{')) {
     const endBrace = matchBrace(rest, line)
-    fields = parseFieldList(rest.slice(1, endBrace), delimiter, line)
+    fields = parseHeaderFieldList(rest.slice(1, endBrace), delimiter, line)
     rest = rest.slice(endBrace + 1)
   }
   if (keyed && fields === undefined) {
@@ -230,13 +235,34 @@ function matchBrace(text: string, line: number): number {
   throw toonError(line, 'malformed tabular header fields')
 }
 
-function parseFieldList(text: string, delimiter: string, line: number): FieldNode[] {
+function parseHeaderFieldList(text: string, activeDelimiter: string, line: number): FieldNode[] {
+  if (
+    activeDelimiter !== ',' && text.includes(',') &&
+    (text.includes('[') || text.includes('{'))
+  ) {
+    return parseFieldList(text, ',', activeDelimiter, line)
+  }
+  try {
+    return parseFieldList(text, activeDelimiter, activeDelimiter, line)
+  } catch (error) {
+    if (activeDelimiter === ',') throw error
+    return parseFieldList(text, ',', activeDelimiter, line)
+  }
+}
+
+function parseFieldList(
+  text: string,
+  delimiter: string,
+  activeDelimiter: string,
+  line: number,
+): FieldNode[] {
   const entries: FieldNode[] = []
   let start = 0
-  let depth = 0
+  let braceDepth = 0
+  let bracketDepth = 0
   let inQuotes = false
   const push = (chunk: string): void => {
-    entries.push(parseFieldEntry(chunk, delimiter, line))
+    entries.push(parseFieldEntry(chunk, delimiter, activeDelimiter, line))
   }
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
@@ -246,9 +272,11 @@ function parseFieldList(text: string, delimiter: string, line: number): FieldNod
       continue
     }
     if (ch === '"') inQuotes = true
-    else if (ch === '{') depth++
-    else if (ch === '}') depth--
-    else if (ch === delimiter && depth === 0) {
+    else if (ch === '{') braceDepth++
+    else if (ch === '}') braceDepth--
+    else if (ch === '[') bracketDepth++
+    else if (ch === ']') bracketDepth--
+    else if (ch === delimiter && braceDepth === 0 && bracketDepth === 0) {
       push(text.slice(start, i))
       start = i + 1
     }
@@ -257,20 +285,52 @@ function parseFieldList(text: string, delimiter: string, line: number): FieldNod
   return entries
 }
 
-function parseFieldEntry(chunk: string, delimiter: string, line: number): FieldNode {
+function parseFieldEntry(
+  chunk: string,
+  delimiter: string,
+  activeDelimiter: string,
+  line: number,
+): FieldNode {
   const trimmed = trimSpaces(chunk)
   if (trimmed === '') throw toonError(line, 'empty field entry in header')
-  const brace = trimmed.startsWith('"')
-    ? trimmed.indexOf('{', closingQuoteIndex(trimmed, line) + 1)
-    : trimmed.indexOf('{')
-  if (brace === -1) {
+  const suffixStart = trimmed.startsWith('"') ? closingQuoteIndex(trimmed, line) + 1 : 0
+  const brace = trimmed.indexOf('{', suffixStart)
+  const bracket = trimmed.indexOf('[', suffixStart)
+  const marker = brace === -1 ? bracket : bracket === -1 ? brace : Math.min(brace, bracket)
+  if (marker === -1) {
     return { name: parseKey(trimmed, line)[0] as string }
   }
+
+  const name = parseKey(trimmed.slice(0, marker), line)[0] as string
+  if (marker === bracket) {
+    const close = trimmed.indexOf(']', bracket)
+    if (close === -1 || close !== trimmed.length - 1) throw toonError(line, 'invalid array header')
+    const content = trimmed.slice(bracket + 1, close)
+    const fixed = /^(0|[1-9]\d*)(\t|\|)?$/.exec(content)
+    if (fixed !== null) {
+      const fixedDelimiter = fixed[2] ?? ','
+      if (fixedDelimiter !== activeDelimiter) throw toonError(line, 'invalid array header')
+      return { name, fixedLength: Number(fixed[1]) }
+    }
+    if (
+      content.length !== 1 || content === activeDelimiter ||
+      /[ \t\r\n"[\]{}:]/.test(content)
+    ) {
+      throw toonError(line, 'invalid array header')
+    }
+    return { name, listDelimiter: content }
+  }
+
   const end = matchBrace(trimmed.slice(brace), line) + brace
   if (end !== trimmed.length - 1) throw toonError(line, 'malformed tabular header fields')
-  const children = parseFieldList(trimmed.slice(brace + 1, end), delimiter, line)
-  if (children.length === 0) throw toonError(line, 'empty field entry in header')
-  return { name: parseKey(trimmed.slice(0, brace), line)[0] as string, children }
+  if (end === brace + 1) throw toonError(line, 'invalid array header')
+  const children = parseFieldList(
+    trimmed.slice(brace + 1, end),
+    delimiter,
+    activeDelimiter,
+    line,
+  )
+  return { name, children }
 }
 
 function closingQuoteIndex(text: string, line: number): number {
@@ -401,6 +461,7 @@ function decodeContext(options?: DecodeStreamOptions): Ctx {
   return {
     indentSize: options?.indentSize ?? options?.indent ?? 2,
     strict: options?.strict ?? true,
+    objectArrayColumns: options?.objectArrayColumns ?? true,
     maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY
       ? 0
       : Math.max(0, Math.floor(rawMaxDepth)),
@@ -571,6 +632,28 @@ function* emitArray(reader: Reader, header: Line, info: Header, ctx: Ctx): Parse
 
   if (info.fields !== undefined) {
     assertNoDuplicateFields(info.fields, header.number, ctx)
+    if (usesExtensionEmitter(info.fields, ctx)) {
+      if (!ctx.objectArrayColumns && hasFixedField(info.fields)) {
+        throw toonError(header.number, 'invalid array header')
+      }
+      const lines: ExtensionLine[] = []
+      while (true) {
+        const line = yield* reader.peek()
+        if (line === undefined || line.depth <= header.depth) break
+        lines.push(yield* reader.take(ctx))
+      }
+      yield* emitExtensionRows(
+        info.fields,
+        lines,
+        info.length,
+        info.delimiter,
+        header.depth + 1,
+        header.number,
+        ctx,
+      )
+      yield { type: 'endArray', line: reader.lastNumber(header.number) }
+      return
+    }
     yield* emitTabularRows(reader, header, info, ctx)
     return
   }
@@ -604,6 +687,22 @@ function* emitArray(reader: Reader, header: Line, info: Header, ctx: Ctx): Parse
     throw toonError(endLine, `expected ${info.length} list items, but got ${items}`)
   }
   yield { type: 'endArray', line: endLine }
+}
+
+function usesExtensionEmitter(fields: FieldNode[], ctx: Ctx): boolean {
+  return fields.some((field) =>
+    field.listDelimiter !== undefined ||
+    field.fixedLength !== undefined ||
+    (ctx.objectArrayColumns && field.children !== undefined) ||
+    (field.children !== undefined && usesExtensionEmitter(field.children, ctx)),
+  )
+}
+
+function hasFixedField(fields: FieldNode[]): boolean {
+  return fields.some((field) =>
+    field.fixedLength !== undefined ||
+    (field.children !== undefined && hasFixedField(field.children)),
+  )
 }
 
 function* emitListItem(reader: Reader, line: Line, ctx: Ctx): ParserGenerator {
