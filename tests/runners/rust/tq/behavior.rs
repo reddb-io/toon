@@ -79,6 +79,78 @@ fn reports_filter_syntax_errors() {
 }
 
 #[test]
+fn reports_definition_syntax_and_arity_errors() {
+    let cases = [
+        ("def: 1; .", "expected identifier"),
+        ("def f(1): .; f(2)", "expected function parameter"),
+        ("def f(a: .; f(2)", "expected `RParen`"),
+        // A definition with no filter after the semicolon.
+        ("def f: 1;", "unexpected token"),
+        // A call resolves by name and arity together, so neither spelling of a
+        // mismatched call finds the definition.
+        ("def f(a): a; f", "unsupported identifier `f`"),
+        ("def f: 1; f(2)", "unsupported identifier `f`"),
+    ];
+
+    for (filter, message) in cases {
+        assert_error(&["-p", "json", "-o", "json", "-c", filter], SAMPLE, message);
+    }
+}
+
+/// jq recurses on its own stack and spins forever on a runaway definition. tq
+/// recurses on the process stack, so the budget has to report a diagnostic
+/// instead — and every recovery form has to unwind rather than retry the bomb.
+#[test]
+fn runaway_definitions_fail_cleanly_instead_of_overflowing_or_hanging() {
+    let cases = [
+        "def f: f; f",
+        "def f: try f catch f; f",
+        "def f: (f // f); f",
+        "def f: [f, {a: f}]; f",
+        "def f: f as $x | $x; f",
+        "def f(g): g | f(f(g)); f(.)",
+        "def f: walk(f); f",
+        "def f: reduce (1, 2) as $x (f; f); f",
+    ];
+
+    for filter in cases {
+        assert_error(
+            &["-p", "json", "-o", "json", "-c", filter],
+            SAMPLE,
+            "maximum filter recursion depth",
+        );
+    }
+}
+
+/// The budget bounds nesting, not total work: sibling recursions each start
+/// from the depth their caller was at.
+#[test]
+fn the_recursion_budget_is_released_as_calls_return() {
+    let output = run_tq(
+        &[
+            "-p",
+            "json",
+            "-o",
+            "json",
+            "-c",
+            "[range(20) | (def climb: if . < 60 then . + 1 | climb else . end; climb)] | unique",
+        ],
+        "null",
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "repeated deep recursion exits cleanly: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout is utf-8"),
+        "[60]\n"
+    );
+}
+
+#[test]
 fn reports_argument_and_input_errors() {
     let usage = "usage: tq";
 

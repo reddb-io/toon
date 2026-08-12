@@ -1,0 +1,100 @@
+# jq-compatible user-defined functions: def, parameters, recursion, closures.
+case: "def-zero-arity-is-callable-by-name"
+filter: "def inc: . + 1; map(inc)"
+input: "[1,2,3]"
+output: "[2,3,4]\n"
+
+case: "def-filter-parameter-runs-in-the-caller-scope"
+filter: "def apply(f): f; apply(.a)"
+input: "{\"a\":7}"
+output: "7\n"
+
+case: "def-filter-parameter-is-a-closure-not-a-value"
+filter: "def twice(f): f | f; twice(. + 1)"
+input: "1"
+output: "3\n"
+
+case: "def-filter-parameter-forwards-every-generated-value"
+filter: "def collect(g): [g]; collect(1,2)"
+input: "null"
+output: "[1,2]\n"
+
+case: "def-value-parameter-binds-one-value"
+filter: "def add_n($n): . + $n; add_n(3)"
+input: "4"
+output: "7\n"
+
+case: "def-value-parameter-iterates-the-argument-outputs"
+filter: "def echo($x): $x; echo(1,2)"
+input: "null"
+output: "1\n2\n"
+
+case: "def-value-parameter-is-also-a-filter-parameter"
+filter: "def echo($x): x; echo(3)"
+input: "null"
+output: "3\n"
+
+case: "def-mixes-filter-and-value-parameters"
+filter: "def pair(g; $x): [g, $x]; pair(.a; .b)"
+input: "{\"a\":1,\"b\":2}"
+output: "[1,2]\n"
+
+case: "def-recursion-computes-a-factorial"
+filter: "def fact: if . <= 1 then 1 else . * ((. - 1) | fact) end; fact"
+input: "5"
+output: "120\n"
+
+case: "def-recursion-carries-parameters-through-each-call"
+filter: "def rep(f; $n): if $n <= 0 then . else (f | rep(f; $n - 1)) end; rep(. + 1; 3)"
+input: "0"
+output: "3\n"
+
+case: "def-recursion-emits-every-generated-descendant"
+filter: "def descend: ., (.[]? | descend); [descend]"
+input: "[1,[2,3]]"
+output: "[[1,[2,3]],1,[2,3],2,3]\n"
+
+case: "def-hand-written-recursive-walk-matches-the-builtin"
+filter: "def mywalk(f): if type == \"object\" then (to_entries | map({key: .key, value: (.value | mywalk(f))}) | from_entries | f) elif type == \"array\" then (map(mywalk(f)) | f) else f end; def sorted: if type == \"array\" then sort else . end; [mywalk(sorted), walk(sorted)]"
+input: "{\"a\":[3,1,2],\"b\":{\"c\":[2,1]}}"
+output: "[{\"a\":[1,2,3],\"b\":{\"c\":[1,2]}},{\"a\":[1,2,3],\"b\":{\"c\":[1,2]}}]\n"
+
+case: "def-body-captures-the-enclosing-binding"
+filter: ". as $x | def f: $x; f"
+input: "5"
+output: "5\n"
+
+case: "def-nested-body-captures-a-value-parameter"
+filter: "def outer($x): def inner: $x * 2; inner; outer(5)"
+input: "null"
+output: "10\n"
+
+case: "def-nested-def-shadows-a-filter-parameter"
+filter: "def f(g): def g: 9; g; f(1)"
+input: "null"
+output: "9\n"
+
+case: "def-redefinition-shadows-the-earlier-body"
+filter: "def f: 1; def f: 2; f"
+input: "null"
+output: "2\n"
+
+case: "def-redefinition-does-not-reach-back-into-earlier-callers"
+filter: "def f: 1; def g: f; def f: 2; g"
+input: "null"
+output: "1\n"
+
+case: "def-shadows-a-builtin-of-the-same-name"
+filter: "def length: 42; length"
+input: "\"abc\""
+output: "42\n"
+
+case: "def-chains-through-a-later-definition"
+filter: "def f: . + 1; def g: f | f; g"
+input: "1"
+output: "3\n"
+
+case: "def-scopes-to-the-remaining-array-element-pipeline"
+filter: "[def f: 2; f, 3]"
+input: "null"
+output: "[2,3]\n"
