@@ -92,6 +92,13 @@ now; this file is how it got there.
 
 ### Added
 
+- **Drop-in `toon` converter binaries for TypeScript and Rust.** The
+  `@reddb-io/toon` package and `reddb-io-toon` crate now publish dedicated
+  `toon` bins that carry the pinned upstream v4.1.1 CLI contract, including
+  output-file routing, explicit encode/decode modes, and verbose diagnostics.
+  A shared golden corpus and the vendored upstream CLI suite exercise both
+  front-ends. The existing `tq` binary remains the jq-compatible query CLI,
+  where `-o` selects a format and `-e` controls jq-style exit status.
 - **`tq jq-check`, a machine-readable jq-compatibility decision.** Given a
   filter and the jq options that affect evaluation, it answers whether tq can
   execute that invocation with jq-compatible observable behavior, printing one

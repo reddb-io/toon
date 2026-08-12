@@ -1,7 +1,9 @@
 # Encode/decode options parity at upstream v4.1.1
 
 This audit compares the released upstream JavaScript package and CLI with
-`@reddb-io/toon`, the `reddb-io-toon` Rust crate, and `tq`. The immutable
+`@reddb-io/toon`, the `reddb-io-toon` Rust crate, and their dedicated `toon`
+binaries. `tq` remains a separate jq-compatible query interface and appears
+below only where it consumes the same codec options. The immutable
 implementation pin is `toon-format/toon` revision
 `a9e6d97eca931379824f3b6a1ba8fbfbda7d3c53`; the accompanying specification pin
 is `toon-format/spec` revision
@@ -26,8 +28,10 @@ the local TypeScript resolvers are in
 [`decode/stream.ts`](../packages/toon/src/decode/stream.ts#L21-L36), the Rust
 option types are in
 [`encode.rs`](../crates/toon/src/lib_parts/encode.rs#L29-L53) and
-[`stream.rs`](../crates/toon/src/lib_parts/stream.rs#L27-L48), and `tq` maps
-flags in [`args.rs`](../crates/tq/src/cli/args.rs#L58-L158).
+[`stream.rs`](../crates/toon/src/lib_parts/stream.rs#L27-L48), and the two
+`toon` front-ends map the upstream CLI in
+[`run.ts`](../packages/toon/src/cli/run.ts) and
+[`mod.rs`](../crates/toon/src/cli/mod.rs).
 
 Classifications mean:
 
@@ -36,8 +40,8 @@ Classifications mean:
   or a local accepted-input superset does not change that behavior.
 - **fixed-here**: a focused follow-up found and repaired the mismatch recorded
   by this audit.
-- **ledgered divergence**: the difference is either an intentional `tq`
-  product/API choice recorded here or an actionable gap linked to a follow-up.
+- **ledgered divergence**: an actionable mismatch remains and is linked to a
+  follow-up. The completed audit has no entries in this class.
 
 ## Library options: complete inventory
 
@@ -61,24 +65,29 @@ strict behavior is also exercised by the fixtures under
 
 ## Upstream CLI options: complete inventory
 
-The upstream CLI is a dedicated JSON/TOON converter; `tq` is a jq-style query
-and multi-format converter. Consequently, codec flags can match directly while
-file routing and mode flags use `tq`'s established format-selection contract.
+The local `toon` binary is the upstream-compatible JSON/TOON converter. It is
+published by both `@reddb-io/toon` and `reddb-io-toon`; the TypeScript and Rust
+front-ends share the same golden corpus, and the vendored upstream CLI suite is
+replayed against both. `tq` deliberately keeps its jq-style query and
+multi-format contract instead of overloading those flags.
 
-| Inventory ID | Pinned upstream behavior | `tq` disposition | Classification and evidence |
+| Inventory ID | Pinned upstream behavior | Local `toon` disposition | Classification and evidence |
 | --- | --- | --- | --- |
-| `cli.output` | `-o, --output <file>` writes conversion output to a path; omission means stdout. | `-o` selects an output format, and stdout/redirection owns the destination path. Reusing it for a path would break jq-compatible scripts. | **ledgered divergence** — deliberate CLI product contract; codec output remains redirectable. |
-| `cli.encode` | `-e, --encode` forces JSON-to-TOON mode instead of auto-detection. | `-p json -o toon` is the explicit equivalent; `-e` already implements jq exit-status semantics. | **ledgered divergence** — deliberate flag vocabulary and a real short-option collision. |
-| `cli.decode` | `-d, --decode` forces TOON-to-JSON mode instead of auto-detection. | `-p toon -o json` is the explicit equivalent. | **ledgered divergence** — deliberate multi-format selector rather than a binary mode switch. |
+| `cli.output` | `-o, --output <file>` writes conversion output to a path; omission means stdout. | Same path-writing and stdout behavior in both `toon` front-ends. | **fixed-here** — [#360](https://github.com/reddb-io/toon/issues/360) and [#361](https://github.com/reddb-io/toon/issues/361) add the dedicated TypeScript and Rust bins; [#362](https://github.com/reddb-io/toon/issues/362) replays the upstream CLI suite against both. |
+| `cli.encode` | `-e, --encode` forces JSON-to-TOON mode instead of auto-detection. | Same explicit encode override and extension-based auto-detection. | **fixed-here** — the two bins added by [#360](https://github.com/reddb-io/toon/issues/360) and [#361](https://github.com/reddb-io/toon/issues/361) share this argument contract, with upstream-suite coverage from [#362](https://github.com/reddb-io/toon/issues/362). |
+| `cli.decode` | `-d, --decode` forces TOON-to-JSON mode instead of auto-detection. | Same explicit decode override and extension-based auto-detection. | **fixed-here** — the two bins added by [#360](https://github.com/reddb-io/toon/issues/360) and [#361](https://github.com/reddb-io/toon/issues/361) share this argument contract, with upstream-suite coverage from [#362](https://github.com/reddb-io/toon/issues/362). |
 | `cli.delimiter` | `--delimiter` accepts literal comma, tab, or pipe and affects TOON encode only. | Accepts all three literals plus readable names; affects TOON output only. | **identical** — every upstream invocation has the same wire result; the extra spellings are a compatible superset. |
 | `cli.indent` | `--indent <number>`, default `2`, configures TOON encode/decode and decoded JSON indentation. Upstream uses `parseInt`, rejects negative/NaN, and admits zero. | Same decimal-prefix normalization, negative/NaN rejection, zero behavior, default, and three output roles. | **fixed-here** — [#308](https://github.com/reddb-io/toon/issues/308) pins zero, numeric-prefix, fractional, negative, and NaN-like cases. |
 | `cli.stats` | `--stats` reports estimated JSON and TOON token counts and savings in encode mode. | `--stats` reports tokenx 1.3.0-compatible estimates to stderr for JSON-to-TOON stdin and file conversions without changing stdout. | **fixed-here** — [#309](https://github.com/reddb-io/toon/issues/309) adds the flag, versioned estimator, and public CLI regression coverage. |
 | `cli.no-strict` | `--no-strict` disables strict decode validation; the positive `--strict` spelling restores it. | Supports both spellings and maps them directly to `DecodeOptions.strict`. | **identical** — defaults and observable recovery behavior match. |
-| `cli.verbose` | `--verbose` adds stack traces and cause chains to conversion errors. | Errors are intentionally a bounded `error: …` diagnostic; there is no stack-trace mode. | **ledgered divergence** — diagnostic presentation is outside codec semantics and follows `tq`'s stable jq-style boundary. |
+| `cli.verbose` | `--verbose` adds stack traces and cause chains to conversion errors. | The TypeScript bin adds the cause chain and JavaScript stack; the Rust bin adds its cause chain because Rust has no equivalent JavaScript stack. | **fixed-here** — [#360](https://github.com/reddb-io/toon/issues/360) and [#361](https://github.com/reddb-io/toon/issues/361) implement the language-appropriate verbose boundary, and [#362](https://github.com/reddb-io/toon/issues/362) pins the upstream-facing behavior. |
 
 The local CLI mapping is executable in
-[`cli/mod.rs`](../crates/tq/src/cli/mod.rs#L70-L105) and
-[`cli/output.rs`](../crates/tq/src/cli/output.rs#L45-L73). The upstream
+[`run.ts`](../packages/toon/src/cli/run.ts) and
+[`mod.rs`](../crates/toon/src/cli/mod.rs). Their shared contract lives in
+[`tests/golden/toon-cli`](../tests/golden/toon-cli/README.md), and the full
+vendored compatibility ratchet is under
+[`scripts/upstream-cli-suite`](../scripts/upstream-cli-suite/skip-ledger.json). The upstream
 `--stats` calculation is visible in
 [`conversion.ts`](../vendor/toon/packages/cli/src/conversion.ts#L29-L58), while
 its strict UTF-8 and error presentation paths are separate CLI boundary
@@ -106,14 +115,17 @@ denominator. Their authority and status are recorded in the
 
 ## Results and follow-ups
 
-All 15 pinned entries are classified: 5 identical, 6 fixed-here, and 4
-ledgered divergences. All four ledgered rows are deliberate CLI adaptations or
-diagnostic presentation differences; no actionable gap remains open.
+All 15 pinned entries are classified: 5 identical, 10 fixed-here, and 0 ledgered divergences.
+No actionable gap remains open.
 
 Issue [#308](https://github.com/reddb-io/toon/issues/308) closed the indent gap
 with package, Rust, and `tq` regression tests. The
 [#309](https://github.com/reddb-io/toon/issues/309) `cli.stats` fix includes
 stdin/file coverage, a stable tokenx 1.3.0 estimator declaration, byte-for-byte
-stdout assertions, and exact statistics diagnostics. The documentation contract
-test prevents an option or issue reference from silently disappearing from the
-inventory.
+stdout assertions, and exact statistics diagnostics. Issues
+[#360](https://github.com/reddb-io/toon/issues/360) and
+[#361](https://github.com/reddb-io/toon/issues/361) added the TypeScript and
+Rust `toon` binaries, and [#362](https://github.com/reddb-io/toon/issues/362)
+made the pinned upstream CLI suite a two-front-end ratchet. The documentation
+contract test prevents an option, classification total, or issue reference
+from silently disappearing from the inventory.
