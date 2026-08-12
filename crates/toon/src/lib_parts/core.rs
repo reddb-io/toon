@@ -2,12 +2,12 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::io::{BufRead, Write};
 
-/// Spaces per indentation level unless [`ParseOptions::indent`] says otherwise.
+/// Spaces per indentation level unless [`DecodeOptions::indent`] says otherwise.
 pub const DEFAULT_INDENT: usize = 2;
 
 /// Default maximum nesting depth for decoding and fallible encoding.
 ///
-/// A value of `0` in [`ParseOptions::max_depth`] or [`EncodeOptions::max_depth`]
+/// A value of `0` in [`DecodeOptions::max_depth`] or [`EncodeOptions::max_depth`]
 /// disables the guard for trusted input.
 pub const DEFAULT_MAX_DEPTH: usize = 1000;
 
@@ -16,9 +16,10 @@ const DOCUMENT_DELIMITER: char = ',';
 const CYCLIC_TABLE_DELIMITER: char = '|';
 const TOONL_TAGGED_LANE_LIMIT: usize = 8;
 
-/// Compatibility options for the legacy decoder.
+/// Options for the pre-v4.1 decoder reached through the `parse_legacy*`
+/// methods. Nothing on the canonical path reads them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ParseOptions {
+pub struct LegacyParseOptions {
     /// Spaces per indentation level.
     pub indent: usize,
     /// Enforce the §14 strict-mode error checklist.
@@ -31,7 +32,7 @@ pub struct ParseOptions {
     pub max_depth: usize,
 }
 
-impl Default for ParseOptions {
+impl Default for LegacyParseOptions {
     fn default() -> Self {
         Self {
             indent: DEFAULT_INDENT,
@@ -43,12 +44,15 @@ impl Default for ParseOptions {
     }
 }
 
-/// Compatibility-shaped encoder options used by model methods and legacy output.
+/// Options for the pre-v4.1 serializer reached through the `to_legacy_toon*`
+/// methods. Nothing on the canonical path reads them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EncodeOptions {
-    /// Legacy-only nested table switch; canonical v4.1 selects nested groups automatically.
+pub struct LegacyEncodeOptions {
+    /// Legacy-only nested table switch; canonical v4.1 emits nested groups
+    /// unconditionally and has no field for this.
     pub nested_tabular_headers: bool,
-    /// Legacy-only keyed map switch; canonical v4.1 selects keyed tables automatically.
+    /// Legacy-only keyed map switch; canonical v4.1 emits keyed tables
+    /// unconditionally and has no field for this.
     pub keyed_map_collapse: bool,
     /// Emit primitive-array columns inside otherwise tabular object arrays.
     pub primitive_array_columns: bool,
@@ -159,7 +163,7 @@ impl TruncationReport {
     }
 }
 
-impl Default for EncodeOptions {
+impl Default for LegacyEncodeOptions {
     fn default() -> Self {
         Self {
             nested_tabular_headers: false,
@@ -405,13 +409,16 @@ struct TaggedToonlWriterLane {
 // ---------------------------------------------------------------------------
 
 impl Document {
-    /// Parses a v4.1 document whose root is an object.
+    /// Parses a document whose root is an object.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
-        Self::parse_with_options(input, ParseOptions::default())
+        Self::parse_with_options(input, &DecodeOptions::default())
     }
 
-    pub fn parse_with_options(input: &str, options: ParseOptions) -> Result<Self, ParseError> {
-        match decode_with_options(input, &decode_options_from_legacy(options))? {
+    pub fn parse_with_options(
+        input: &str,
+        options: &DecodeOptions,
+    ) -> Result<Self, ParseError> {
+        match decode_with_options(input, options)? {
             Value::Object(document) => Ok(document),
             _ => Err(ParseError {
                 line: 1,
@@ -480,7 +487,7 @@ impl Document {
     }
 
     pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
-        encode_with_options(&Value::Object(self.clone()), encode_options_from_legacy(options))
+        encode_with_options(&Value::Object(self.clone()), options)
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
@@ -495,9 +502,9 @@ impl Document {
         &self,
         output: &mut String,
         depth: usize,
-        options: EncodeOptions,
+        options: LegacyEncodeOptions,
     ) -> Result<(), EncodeError> {
-        check_encode_depth(depth, options)?;
+        check_encode_depth(depth, options.delimiter, options.max_depth)?;
         for field in &self.fields {
             write_indent(output, depth);
             write_field(output, &field.key, &field.value, depth, options)?;
@@ -507,7 +514,7 @@ impl Document {
 }
 
 pub fn detect_truncation_legacy(input: &str) -> TruncationReport {
-    detect_truncation_legacy_with_options(input, ParseOptions::default())
+    detect_truncation_legacy_with_options(input, LegacyParseOptions::default())
 }
 
 pub fn detect_truncation_legacy_with_options(
@@ -587,7 +594,7 @@ pub fn detect_toonl_truncation(input: &str) -> TruncationReport {
 
 fn detect_toon_array_truncation(
     input: &str,
-    options: ParseOptions,
+    options: LegacyParseOptions,
     fallback_line: usize,
 ) -> TruncationReport {
     let Ok(lines) = collect_lines(input, &options) else {
@@ -703,9 +710,12 @@ impl Value {
         decode(input)
     }
 
-    /// Decodes TOON v4.1 per spec §5 root-form discovery.
-    pub fn parse_with_options(input: &str, options: ParseOptions) -> Result<Self, ParseError> {
-        decode_with_options(input, &decode_options_from_legacy(options))
+    /// Decodes TOON per spec §5 root-form discovery.
+    pub fn parse_with_options(
+        input: &str,
+        options: &DecodeOptions,
+    ) -> Result<Self, ParseError> {
+        decode_with_options(input, options)
     }
 
     pub fn from_json_str(input: &str) -> Result<Self, serde_json::Error> {
@@ -771,7 +781,7 @@ impl Value {
     }
 
     pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
-        encode_with_options(self, encode_options_from_legacy(options))
+        encode_with_options(self, options)
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
