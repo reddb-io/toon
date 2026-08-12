@@ -55,5 +55,5 @@ name = "event_fixtures"
 path = "../../tests/runners/rust/toon/event_fixtures.rs"
 
 [[test]]
-name = "encode_v4"
-path = "../../tests/runners/rust/toon/encode_v4.rs"
+name = "canonical_codec"
+path = "../../tests/runners/rust/toon/canonical_codec.rs"
