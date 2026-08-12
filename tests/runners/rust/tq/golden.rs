@@ -47,6 +47,124 @@ fn golden_cli_cases() {
 }
 
 #[test]
+fn join_output_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "json", "-j", ".[]"],
+        "[\"Ada\",\"Bob\"]",
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, b"AdaBob");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn join_output_compact_json_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "json", "-j", "-c", ".[]"],
+        "[{\"b\":2},{\"a\":1}]",
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, br#"{"b":2}{"a":1}"#);
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn join_output_raw_toon_golden_case() {
+    let output = run_tq(&["-p", "json", "-o", "toon", "-j", "-r", ".[]"], "[1,2]");
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, b"12");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn sort_keys_compact_json_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "json", "-S", "-c", "."],
+        r#"{"z":{"b":1,"a":2},"a":[{"d":4,"c":3}]}"#,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        output.stdout,
+        br#"{"a":[{"c":3,"d":4}],"z":{"a":2,"b":1}}
+"#
+    );
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn sort_keys_toon_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "toon", "-S", "."],
+        r#"{"z":{"b":1,"a":2},"a":[{"d":4,"c":3}]}"#,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, b"a[1]{c,d}:\n  3,4\nz:\n  a: 2\n  b: 1\n");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn exit_status_false_golden_case() {
+    let output = run_tq(
+        &["-p", "json", "-o", "json", "-e", "-r", "-c", "false"],
+        "null",
+    );
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stdout, b"false\n");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn exit_status_no_output_golden_case() {
+    let output = run_tq(&["-p", "json", "-o", "toon", "-e", "select(false)"], "null");
+
+    assert_eq!(output.status.code(), Some(4));
+    assert_eq!(output.stdout, b"");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn exit_status_toonl_stream_golden_case() {
+    let output = run_tq(
+        &["-p", "toonl", "-o", "json", "-c", "-e", ".active"],
+        "[]{id,active}:\n1,true\n2,false\n[=2]\n",
+    );
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stdout, b"true\nfalse\n");
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn combined_output_flags_golden_case() {
+    let output = run_tq(
+        &[
+            "-p", "json", "-o", "json", "-j", "-S", "-e", "-r", "-c", ".[]",
+        ],
+        r#"[{"b":2,"a":1},true]"#,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, br#"{"a":1,"b":2}true"#);
+    assert_eq!(output.stderr, b"");
+}
+
+#[test]
+fn output_flags_usage_golden_case() {
+    let output = run_tq(&["--not-a-flag"], "");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stdout, b"");
+    assert!(stderr.contains("[-j] [-S] [-e]"), "{stderr}");
+}
+
+#[test]
 fn toon_json_toon_round_trips_to_same_canonical_form() {
     let input = "name: Ada\nusers[2]{id,name}:\n  1,Ada\n  2,Bob\n";
     let to_json = run_tq(&["-o", "json", "."], input);
@@ -63,85 +181,6 @@ fn toon_json_toon_round_trips_to_same_canonical_form() {
         String::from_utf8(back_to_toon.stdout).expect("toon stdout is utf-8"),
         input
     );
-}
-
-#[test]
-fn jq_oracle_core_filters() {
-    let input = r#"{"users":[{"name":"Ada","score":41,"active":true},{"name":"Bob","score":7,"active":false}],"meta":{"team":"core"},"empty":null}"#;
-    let filters = [
-        ".users[]|select(.active)|{name:.name,next:(.score+1)}",
-        ".users|map(.score)|length",
-        ".meta|keys",
-        ".meta|has(\"team\")",
-        ".empty==null,(.users|length>1)",
-        "[.users[].name]",
-    ];
-
-    for filter in filters {
-        let tq = run_tq(&["-p", "json", "-o", "json", "-c", filter], input);
-        assert_eq!(
-            tq.status.code(),
-            Some(0),
-            "tq exits cleanly for {filter}: {}",
-            String::from_utf8_lossy(&tq.stderr)
-        );
-
-        let jq = run_jq(filter, input);
-        assert_eq!(
-            jq.status.code(),
-            Some(0),
-            "jq exits cleanly for {filter}: {}",
-            String::from_utf8_lossy(&jq.stderr)
-        );
-
-        assert_eq!(
-            String::from_utf8(tq.stdout).expect("tq stdout is utf-8"),
-            String::from_utf8(jq.stdout).expect("jq stdout is utf-8"),
-            "oracle match for {filter}"
-        );
-    }
-}
-
-#[test]
-fn jq_oracle_aggregation_ordering_and_strings() {
-    let input = r#"{"users":[{"name":"Ada","score":41,"team":"research"},{"name":"Bob","score":7,"team":"ops"},{"name":"Cid","score":19,"team":"research"}],"tags":["ops","core","ops","dev"],"meta":{"team":"core","level":2},"phrase":"Ada-Lovelace"}"#;
-    let filters = [
-        ".users|sort_by(.score)|map(.name)",
-        ".users|group_by(.team)|map({team:.[0].team,names:map(.name)})",
-        ".tags|unique",
-        ".users|map(.score)|add",
-        ".users|min_by(.score)|.name",
-        ".users|max_by(.score)|.name",
-        ".meta|to_entries|sort_by(.key)",
-        ".meta|to_entries|from_entries",
-        ".phrase|split(\"-\")",
-        "[.users[].name]|join(\",\")",
-        ".phrase|test(\"^Ada\")",
-    ];
-
-    for filter in filters {
-        let tq = run_tq(&["-p", "json", "-o", "json", "-c", filter], input);
-        assert_eq!(
-            tq.status.code(),
-            Some(0),
-            "tq exits cleanly for {filter}: {}",
-            String::from_utf8_lossy(&tq.stderr)
-        );
-
-        let jq = run_jq(filter, input);
-        assert_eq!(
-            jq.status.code(),
-            Some(0),
-            "jq exits cleanly for {filter}: {}",
-            String::from_utf8_lossy(&jq.stderr)
-        );
-
-        assert_eq!(
-            String::from_utf8(tq.stdout).expect("tq stdout is utf-8"),
-            String::from_utf8(jq.stdout).expect("jq stdout is utf-8"),
-            "oracle match for {filter}"
-        );
-    }
 }
 
 fn read_case(path: &std::path::Path) -> Case {
@@ -194,25 +233,4 @@ fn run_tq(args: &[&str], stdin: &str) -> std::process::Output {
     }
 
     child.wait_with_output().expect("wait for tq")
-}
-
-fn run_jq(filter: &str, stdin: &str) -> std::process::Output {
-    let mut child = Command::new("jq")
-        .args(["-c", filter])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn jq");
-
-    if let Err(error) = child
-        .stdin
-        .as_mut()
-        .expect("stdin is piped")
-        .write_all(stdin.as_bytes())
-    {
-        assert_eq!(error.kind(), io::ErrorKind::BrokenPipe, "write jq stdin");
-    }
-
-    child.wait_with_output().expect("wait for jq")
 }

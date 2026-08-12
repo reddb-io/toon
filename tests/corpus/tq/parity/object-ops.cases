@@ -1,0 +1,97 @@
+# Object transforms, recursive walking, and key-based grouping.
+case: "object-keys-unsorted"
+filter: "keys_unsorted"
+input: "{\"z\":1,\"a\":2}"
+output: "[\"z\",\"a\"]\n"
+
+case: "object-keys-unsorted-array"
+filter: "keys_unsorted"
+input: "[10,20]"
+output: "[0,1]\n"
+
+case: "object-keys-unsorted-type-error"
+filter: "keys_unsorted"
+input: "1"
+error: "has no keys"
+
+case: "object-with-entries-mapper-type-error"
+filter: "with_entries(.value)"
+input: "{\"a\":1}"
+error: "Cannot index number with string \"key\""
+
+case: "object-with-entries-missing-value"
+filter: "with_entries({key:.key})"
+input: "{\"a\":1}"
+output: "{\"a\":null}\n"
+
+case: "object-with-entries-missing-key-error"
+filter: "with_entries({value:.value})"
+input: "{\"a\":1}"
+error: "Cannot use null"
+
+case: "object-walk-child-first"
+filter: "walk([.])"
+input: "{\"a\":1,\"b\":[2]}"
+output: "[{\"a\":[1],\"b\":[[[2]]]}]\n"
+
+case: "object-walk-stream-filter"
+filter: "walk((.,.))"
+input: "{\"a\":[1,2]}"
+output: "{\"a\":[1,1,2,2]}\n{\"a\":[1,1,2,2]}\n"
+
+case: "object-walk-empty-child-result"
+filter: "walk(select(. != 2))"
+input: "{\"a\":[1,2],\"b\":2}"
+output: "{\"a\":[1]}\n"
+
+case: "object-group-by-single-and-stream-keys"
+filter: "group_by(.[])"
+input: "[[1],[0,9]]"
+output: "[[[0,9]],[[1]]]\n"
+
+case: "object-group-by-type-error"
+filter: "group_by(.)"
+input: "1"
+error: "Cannot iterate over number"
+
+case: "object-group-by-object-type-error"
+filter: "group_by(.)"
+input: "{\"a\":1}"
+error: "cannot be sorted, as they are not both arrays"
+
+case: "object-pick-deferred"
+filter: "pick(.a)"
+input: "{\"a\":1}"
+error: "unsupported identifier `pick`"
+divergence: "pick remains deferred until tq's path layer is available"
+jq-output: "{\"a\":1}\n"
+
+case: "object-unique-by-single-and-stream-keys"
+filter: "unique_by(.[])"
+input: "[[1],[0,9]]"
+output: "[[0,9],[1]]\n"
+
+case: "object-unique-by-null-type-error"
+filter: "unique_by(.)"
+input: "null"
+error: "Cannot iterate over null"
+
+case: "object-unique-by-object-type-error"
+filter: "unique_by(.)"
+input: "{\"a\":1}"
+error: "cannot be sorted, as they are not both arrays"
+
+case: "object-with-entries"
+filter: "with_entries({key:.key,value:(.value+1)})"
+input: "{\"a\":1,\"b\":2}"
+output: "{\"a\":2,\"b\":3}\n"
+
+case: "object-with-entries-stream-mapper"
+filter: "with_entries(.,{key:.key,value:(.value+10)})"
+input: "{\"a\":1}"
+output: "{\"a\":11}\n"
+
+case: "object-with-entries-input-type-error"
+filter: "with_entries(.)"
+input: "1"
+error: "has no keys"

@@ -1,0 +1,55 @@
+# Aggregation, ordering, entries, and strings over a shared sample.
+case: "aggregation-sort-by"
+filter: ".users|sort_by(.score)|map(.name)"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "[\"Bob\",\"Cid\",\"Ada\"]\n"
+
+case: "aggregation-group-by"
+filter: ".users|group_by(.team)|map({team:.[0].team,names:map(.name)})"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "[{\"team\":\"ops\",\"names\":[\"Bob\"]},{\"team\":\"research\",\"names\":[\"Ada\",\"Cid\"]}]\n"
+
+case: "aggregation-unique"
+filter: ".tags|unique"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "[\"core\",\"dev\",\"ops\"]\n"
+
+case: "aggregation-add"
+filter: ".users|map(.score)|add"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "67\n"
+
+case: "aggregation-min-by"
+filter: ".users|min_by(.score)|.name"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "\"Bob\"\n"
+
+case: "aggregation-max-by"
+filter: ".users|max_by(.score)|.name"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "\"Ada\"\n"
+
+case: "aggregation-entries-sort"
+filter: ".meta|to_entries|sort_by(.key)"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "[{\"key\":\"level\",\"value\":2},{\"key\":\"team\",\"value\":\"core\"}]\n"
+
+case: "aggregation-entries-roundtrip"
+filter: ".meta|to_entries|from_entries"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "{\"team\":\"core\",\"level\":2}\n"
+
+case: "aggregation-split"
+filter: ".phrase|split(\"-\")"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "[\"Ada\",\"Lovelace\"]\n"
+
+case: "aggregation-join"
+filter: "[.users[].name]|join(\",\")"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "\"Ada,Bob,Cid\"\n"
+
+case: "aggregation-test"
+filter: ".phrase|test(\"^Ada\")"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"},{\"name\":\"Cid\",\"score\":19,\"team\":\"research\"}],\"tags\":[\"ops\",\"core\",\"ops\",\"dev\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\"}"
+output: "true\n"

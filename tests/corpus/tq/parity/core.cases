@@ -1,0 +1,30 @@
+# Core selection, construction, and stream behavior.
+case: "core-active-projection"
+filter: ".users[]|select(.active)|{name:.name,next:(.score+1)}"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"active\":true},{\"name\":\"Bob\",\"score\":7,\"active\":false}],\"meta\":{\"team\":\"core\"},\"empty\":null}"
+output: "{\"name\":\"Ada\",\"next\":42}\n"
+
+case: "core-mapped-length"
+filter: ".users|map(.score)|length"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"active\":true},{\"name\":\"Bob\",\"score\":7,\"active\":false}],\"meta\":{\"team\":\"core\"},\"empty\":null}"
+output: "2\n"
+
+case: "core-object-keys"
+filter: ".meta|keys"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"active\":true},{\"name\":\"Bob\",\"score\":7,\"active\":false}],\"meta\":{\"team\":\"core\"},\"empty\":null}"
+output: "[\"team\"]\n"
+
+case: "core-object-has"
+filter: ".meta|has(\"team\")"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"active\":true},{\"name\":\"Bob\",\"score\":7,\"active\":false}],\"meta\":{\"team\":\"core\"},\"empty\":null}"
+output: "true\n"
+
+case: "core-multiple-results"
+filter: ".empty==null,(.users|length>1)"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"active\":true},{\"name\":\"Bob\",\"score\":7,\"active\":false}],\"meta\":{\"team\":\"core\"},\"empty\":null}"
+output: "true\ntrue\n"
+
+case: "core-array-construction"
+filter: "[.users[].name]"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"active\":true},{\"name\":\"Bob\",\"score\":7,\"active\":false}],\"meta\":{\"team\":\"core\"},\"empty\":null}"
+output: "[\"Ada\",\"Bob\"]\n"

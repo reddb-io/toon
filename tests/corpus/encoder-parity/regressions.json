@@ -1,0 +1,13 @@
+[
+  {
+    "name": "synthetic shrink keeps only the mismatch-inducing scalar",
+    "original": {
+      "discard": [1, 2, 3],
+      "nested": {
+        "discard": true,
+        "sentinel": "parity-mismatch"
+      }
+    },
+    "minimal": "mismatch"
+  }
+]

@@ -21,6 +21,7 @@ const currentSurfaces = [
   'packages/vscode-toon/syntaxes/toonl.tmLanguage.json',
   'benchmarks/README.md',
   'docs/toon-official-spec.md',
+  'docs/options-parity-v4.1.1.md',
   'docs/toon-reddb-spec.md',
   'docs/toonl-reddb-spec.md',
   'docs/proposals/README.md',
@@ -79,6 +80,53 @@ test('migration notes show observable TypeScript and Rust cutovers', () => {
   assert.match(migration, /@reddb-io\/toon\/legacy/)
   assert.match(migration, /parse_legacy/)
   assert.match(migration, /Before[^\n]*After/is)
+})
+
+test('the TypeScript TOONL implementation names the unified v0.2 contract', () => {
+  for (const path of [
+    'packages/toon/src/toonl.ts',
+    'packages/toon/dist/toonl.js',
+    'packages/toon/dist/toonl.d.ts',
+  ]) {
+    const source = read(path)
+    assert.match(source, /TOONL v0\.2[^\n]*unified/i, `${path} must identify the unified v0.2 contract`)
+    assert.match(source, /docs\/toonl-reddb-spec\.md/, `${path} must identify the normative specification`)
+  }
+})
+
+test('the v4.1.1 options audit covers every pinned library and CLI option', () => {
+  const audit = read('docs/options-parity-v4.1.1.md')
+  const optionIds = [
+    'encode.indentSize',
+    'encode.indent',
+    'encode.delimiter',
+    'encode.replacer',
+    'decode.indentSize',
+    'decode.indent',
+    'decode.strict',
+    'cli.output',
+    'cli.encode',
+    'cli.decode',
+    'cli.delimiter',
+    'cli.indent',
+    'cli.stats',
+    'cli.no-strict',
+    'cli.verbose',
+  ]
+
+  for (const optionId of optionIds) {
+    const escaped = optionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    assert.match(
+      audit,
+      new RegExp('^\\| `' + escaped + '` \\|.*\\b(?:identical|fixed-here|ledgered divergence)\\b', 'im'),
+      `${optionId} needs an audit classification`,
+    )
+  }
+
+  assert.match(audit, /a9e6d97eca931379824f3b6a1ba8fbfbda7d3c53/)
+  assert.match(audit, /62f16b369408180f1faf1cba7da1b46d1f336f12/)
+  assert.match(audit, /issues\/308/)
+  assert.match(audit, /issues\/309/)
 })
 
 test('benchmark claims point to their public-path reproduction commands', () => {

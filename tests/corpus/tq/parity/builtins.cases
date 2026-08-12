@@ -1,0 +1,230 @@
+# Builtins, arithmetic, comparisons, paths, and iteration.
+case: "builtins-number-length"
+filter: ".n|length"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "3.5\n"
+
+case: "builtins-string-length"
+filter: ".phrase|length"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "12\n"
+
+case: "builtins-null-length"
+filter: ".z|length"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "0\n"
+
+case: "builtins-object-length"
+filter: ".meta|length"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "2\n"
+
+case: "builtins-array-length"
+filter: ".tags|length"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "3\n"
+
+case: "builtins-array-keys"
+filter: ".tags|keys"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[0,1,2]\n"
+
+case: "builtins-object-keys"
+filter: ".meta|keys"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[\"level\",\"team\"]\n"
+
+case: "builtins-array-has"
+filter: ".tags|has(1)"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "true\n"
+
+case: "builtins-object-has-missing"
+filter: ".meta|has(\"nope\")"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "false\n"
+
+case: "builtins-add-numbers"
+filter: ".users[0].score + 1"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "42\n"
+
+case: "builtins-subtract-numbers"
+filter: ".users[0].score - 1"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "40\n"
+
+case: "builtins-multiply-numbers"
+filter: ".users[0].score * 2"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "82\n"
+
+case: "builtins-divide-numbers"
+filter: ".users[0].score / 2"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "20.5\n"
+
+case: "builtins-add-strings"
+filter: ".phrase + \"!\""
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "\"Ada-Lovelace!\"\n"
+
+case: "builtins-add-arrays"
+filter: ".tags + [\"x\"]"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[\"ops\",\"core\",\"ops\",\"x\"]\n"
+
+case: "builtins-add-objects"
+filter: ".meta + {\"a\":1}"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "{\"team\":\"core\",\"level\":2,\"a\":1}\n"
+
+case: "builtins-add-null"
+filter: ".z + 1"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "1\n"
+
+case: "builtins-subtract-arrays"
+filter: ".tags - [\"ops\"]"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[\"core\"]\n"
+
+case: "builtins-subtract-expressions"
+filter: "(.n) - (.n)"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "0\n"
+
+case: "builtins-greater-or-equal"
+filter: ".users[0].score >= 41"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "true\n"
+
+case: "builtins-less-than"
+filter: ".users[0].score < 7"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "false\n"
+
+case: "builtins-less-or-equal"
+filter: ".users[0].score <= 41"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "true\n"
+
+case: "builtins-not-equal"
+filter: ".users[0].name != \"Ada\""
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "false\n"
+
+case: "builtins-add-scores"
+filter: ".users|map(.score)|add"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "48\n"
+
+case: "builtins-add-strings-array"
+filter: ".tags|add"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "\"opscoreops\"\n"
+
+case: "builtins-sort-by-composite-key"
+filter: ".users|sort_by([.team,.score])|map(.name)"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[\"Bob\",\"Ada\"]\n"
+
+case: "builtins-min-by"
+filter: ".users|min_by(.score)|.name"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "\"Bob\"\n"
+
+case: "builtins-max-by"
+filter: ".users|max_by(.score)|.name"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "\"Ada\"\n"
+
+case: "builtins-group-by"
+filter: ".users|group_by(.team)|length"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "2\n"
+
+case: "builtins-unique"
+filter: ".tags|unique"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[\"core\",\"ops\"]\n"
+
+case: "builtins-unique-join"
+filter: ".tags|unique|join(\"|\")"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "\"core|ops\"\n"
+
+case: "builtins-join-numbers"
+filter: ".users|map(.score)|join(\",\")"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "\"41,7\"\n"
+
+case: "builtins-split-empty"
+filter: ".phrase|split(\"\")|length"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "12\n"
+
+case: "builtins-regex-test"
+filter: ".phrase|test(\"lace$\")"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "true\n"
+
+case: "builtins-object-to-entry-keys"
+filter: ".meta|to_entries|map(.key)"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[\"team\",\"level\"]\n"
+
+case: "builtins-object-entry-roundtrip"
+filter: ".meta|to_entries|from_entries"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "{\"team\":\"core\",\"level\":2}\n"
+
+case: "builtins-bounded-slice"
+filter: ".users[0:1]|map(.name)"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[\"Ada\"]\n"
+
+case: "builtins-open-start-slice"
+filter: ".tags[:2]"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[\"ops\",\"core\"]\n"
+
+case: "builtins-open-end-slice"
+filter: ".tags[2:]"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "[\"ops\"]\n"
+
+case: "builtins-iteration"
+filter: ".users[]|.name"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "\"Ada\"\n\"Bob\"\n"
+
+case: "builtins-iteration-add"
+filter: "[.users[]|.score]|add"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "48\n"
+
+case: "builtins-map-select"
+filter: ".users|map(select(.score > 10))|length"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "1\n"
+
+case: "builtins-identity-field"
+filter: ".flag"
+input: "{\"users\":[{\"name\":\"Ada\",\"score\":41,\"team\":\"research\"},{\"name\":\"Bob\",\"score\":7,\"team\":\"ops\"}],\"tags\":[\"ops\",\"core\",\"ops\"],\"meta\":{\"team\":\"core\",\"level\":2},\"phrase\":\"Ada-Lovelace\",\"n\":-3.5,\"z\":null,\"flag\":true}"
+output: "true\n"
+
+case: "to-entries-on-array-uses-index-keys"
+filter: ".a | to_entries"
+input: "{\"a\":[10,20]}"
+output: "[{\"key\":0,\"value\":10},{\"key\":1,\"value\":20}]\n"
+
+case: "keys-sorts-object-keys"
+filter: "keys"
+input: "{\"b\":1,\"a\":2}"
+output: "[\"a\",\"b\"]\n"
+
+case: "length-of-object-null-and-number"
+filter: "[(.o|length), (.n|length), (.x|length)]"
+input: "{\"o\":{\"a\":1,\"b\":2},\"n\":null,\"x\":-3.5}"
+output: "[2,0,3.5]\n"

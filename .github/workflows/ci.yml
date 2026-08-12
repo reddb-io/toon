@@ -70,3 +70,23 @@ jobs:
         run: pnpm benchmark:accuracy:verify
       - name: Test
         run: pnpm -r test
+      - name: TypeScript coverage
+        run: pnpm --filter @reddb-io/toon test:coverage
+
+  encoder-parity:
+    name: Rust ↔ TypeScript encoder parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Fuzz canonical encoder parity at the committed budget
+        run: pnpm test:encoder-parity

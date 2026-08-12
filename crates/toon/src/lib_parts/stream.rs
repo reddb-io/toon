@@ -50,6 +50,7 @@ impl Default for DecodeStreamOptions {
 struct StreamCtx {
     indent_size: usize,
     strict: bool,
+    object_array_columns: bool,
     max_depth: usize,
 }
 
@@ -63,7 +64,11 @@ struct StreamLine {
 }
 
 fn stream_error(line: usize, message: &'static str) -> ParseError {
-    ParseError { line, message, max_depth: None }
+    ParseError {
+        line,
+        message,
+        max_depth: None,
+    }
 }
 
 fn stream_depth_error(line: usize, max_depth: usize) -> ParseError {
@@ -80,6 +85,8 @@ fn stream_depth_error(line: usize, max_depth: usize) -> ParseError {
 struct StreamFieldNode {
     name: String,
     children: Option<Vec<StreamFieldNode>>,
+    list_delimiter: Option<char>,
+    fixed_len: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -114,7 +121,10 @@ fn parse_stream_header(content: &str, line: usize) -> Result<Option<StreamHeader
 
     let key_text = &content[..bracket];
     if !key_text.is_empty() && key_text.ends_with(|c: char| c.is_whitespace()) {
-        return Err(stream_error(line, "whitespace between key and bracket segment"));
+        return Err(stream_error(
+            line,
+            "whitespace between key and bracket segment",
+        ));
     }
     let close = match content[bracket..].find(']') {
         Some(offset) => bracket + offset,
@@ -150,7 +160,21 @@ fn parse_stream_header(content: &str, line: usize) -> Result<Option<StreamHeader
     let mut fields = None;
     if rest.starts_with('{') {
         let end_brace = match_stream_brace(rest, line)?;
-        fields = Some(parse_stream_field_list(&rest[1..end_brace], delimiter, line)?);
+        let field_text = &rest[1..end_brace];
+        let field_delimiter = if delimiter != ','
+            && field_text.contains(',')
+            && (field_text.contains('[') || field_text.contains('{'))
+        {
+            ','
+        } else {
+            delimiter
+        };
+        fields = Some(parse_stream_field_list(
+            field_text,
+            field_delimiter,
+            delimiter,
+            line,
+        )?);
         rest = &rest[end_brace + 1..];
     }
     if keyed && fields.is_none() {
@@ -161,7 +185,10 @@ fn parse_stream_header(content: &str, line: usize) -> Result<Option<StreamHeader
     }
     let inline_content = trim_u0020(&rest[1..]);
     if (fields.is_some() || keyed) && !inline_content.is_empty() {
-        return Err(stream_error(line, "unexpected content after fields-bearing header colon"));
+        return Err(stream_error(
+            line,
+            "unexpected content after fields-bearing header colon",
+        ));
     }
     let key = if key_text.is_empty() {
         None
@@ -174,7 +201,11 @@ fn parse_stream_header(content: &str, line: usize) -> Result<Option<StreamHeader
         delimiter,
         fields,
         keyed,
-        inline: if inline_content.is_empty() { None } else { Some(inline_content.to_owned()) },
+        inline: if inline_content.is_empty() {
+            None
+        } else {
+            Some(inline_content.to_owned())
+        },
     }))
 }
 
@@ -210,76 +241,6 @@ fn match_stream_brace(text: &str, line: usize) -> Result<usize, ParseError> {
         }
     }
     Err(stream_error(line, "malformed tabular header fields"))
-}
-
-fn parse_stream_field_list(
-    text: &str,
-    delimiter: char,
-    line: usize,
-) -> Result<Vec<StreamFieldNode>, ParseError> {
-    let mut entries = Vec::new();
-    let mut start = 0usize;
-    let mut depth = 0i32;
-    let mut in_quotes = false;
-    let mut skip_next = false;
-    for (i, ch) in text.char_indices() {
-        if skip_next {
-            skip_next = false;
-            continue;
-        }
-        if in_quotes {
-            match ch {
-                '\\' => skip_next = true,
-                '"' => in_quotes = false,
-                _ => {}
-            }
-            continue;
-        }
-        match ch {
-            '"' => in_quotes = true,
-            '{' => depth += 1,
-            '}' => depth -= 1,
-            c if c == delimiter && depth == 0 => {
-                entries.push(parse_stream_field_entry(&text[start..i], delimiter, line)?);
-                start = i + ch.len_utf8();
-            }
-            _ => {}
-        }
-    }
-    entries.push(parse_stream_field_entry(&text[start..], delimiter, line)?);
-    Ok(entries)
-}
-
-fn parse_stream_field_entry(
-    chunk: &str,
-    delimiter: char,
-    line: usize,
-) -> Result<StreamFieldNode, ParseError> {
-    let trimmed = trim_u0020(chunk);
-    if trimmed.is_empty() {
-        return Err(stream_error(line, "empty field entry in header"));
-    }
-    let brace = if trimmed.starts_with('"') {
-        let closing = stream_closing_quote(trimmed, line)?;
-        trimmed[closing..].find('{').map(|offset| closing + offset)
-    } else {
-        trimmed.find('{')
-    };
-    let brace = match brace {
-        Some(index) => index,
-        None => {
-            return Ok(StreamFieldNode { name: parse_key(trimmed, line)?.0, children: None });
-        }
-    };
-    let end = match_stream_brace(&trimmed[brace..], line)? + brace;
-    if end != trimmed.len() - 1 {
-        return Err(stream_error(line, "malformed tabular header fields"));
-    }
-    let children = parse_stream_field_list(&trimmed[brace + 1..end], delimiter, line)?;
-    if children.is_empty() {
-        return Err(stream_error(line, "empty field entry in header"));
-    }
-    Ok(StreamFieldNode { name: parse_key(&trimmed[..brace], line)?.0, children: Some(children) })
 }
 
 /// Byte index just past the closing quote of a leading quoted token.
@@ -433,6 +394,9 @@ impl<R: BufRead> StreamReader<R> {
                 }
                 offset += character.len_utf8();
             }
+            if ctx.indent_size == 0 {
+                return Err(stream_error(number, "invalid indentation"));
+            }
             let mut depth = if spaces % ctx.indent_size == 0 {
                 spaces / ctx.indent_size
             } else if ctx.strict {
@@ -517,8 +481,9 @@ pub fn decode_events(
     options: &DecodeStreamOptions,
 ) -> (Vec<ToonEvent>, Option<ParseError>) {
     let ctx = StreamCtx {
-        indent_size: options.indent.max(1),
+        indent_size: options.indent,
         strict: options.strict,
+        object_array_columns: options.object_array_columns,
         max_depth: options.max_depth,
     };
     let mut events = Vec::new();
@@ -606,8 +571,9 @@ where
 {
     let (sender, receiver) = sync_channel(0);
     let ctx = StreamCtx {
-        indent_size: options.indent.max(1),
+        indent_size: options.indent,
         strict: options.strict,
+        object_array_columns: options.object_array_columns,
         max_depth: options.max_depth,
     };
     let error_sender = sender.clone();
@@ -620,7 +586,10 @@ where
             }
         })
         .expect("failed to spawn TOON event decoder");
-    EventDecoder { receiver, worker: Some(worker) }
+    EventDecoder {
+        receiver,
+        worker: Some(worker),
+    }
 }
 
 pub fn decode_event_stream(input: &str, options: &DecodeStreamOptions) -> EventDecoder {
@@ -649,7 +618,10 @@ fn decode_events_into<R: BufRead, S: EventSink>(
     // Root form discovery (§5).
     if first.content == "[]" {
         reader.take(ctx)?;
-        out.emit(ToonEvent::StartArray { length: 0, line: first.number })?;
+        out.emit(ToonEvent::StartArray {
+            length: 0,
+            line: first.number,
+        })?;
         out.emit(ToonEvent::EndArray { line: first.number })?;
         return expect_stream_end(&mut reader, ctx);
     }
@@ -689,15 +661,7 @@ fn decode_events_into<R: BufRead, S: EventSink>(
         }
         out.emit(ToonEvent::StartObject { line: first.number })?;
         let mut seen = HashSet::new();
-        return emit_entry(
-            &mut reader,
-            &first,
-            &first.content,
-            0,
-            ctx,
-            &mut seen,
-            out,
-        );
+        return emit_entry(&mut reader, &first, &first.content, 0, ctx, &mut seen, out);
     }
 
     reader.take(ctx)?;
@@ -744,7 +708,9 @@ fn emit_object_from_first<R: BufRead, S: EventSink>(
         let content = line.content.clone();
         emit_entry(reader, &line, &content, 0, ctx, &mut seen, out)?;
     }
-    out.emit(ToonEvent::EndObject { line: reader.last_number(first.number) })?;
+    out.emit(ToonEvent::EndObject {
+        line: reader.last_number(first.number),
+    })?;
     Ok(())
 }
 
@@ -772,7 +738,9 @@ fn emit_object<R: BufRead, S: EventSink>(
         let content = line.content.clone();
         emit_entry(reader, &line, &content, depth, ctx, &mut seen, out)?;
     }
-    out.emit(ToonEvent::EndObject { line: reader.last_number(start_line) })?;
+    out.emit(ToonEvent::EndObject {
+        line: reader.last_number(start_line),
+    })?;
     Ok(())
 }
 
@@ -811,8 +779,14 @@ fn emit_entry<R: BufRead, S: EventSink>(
             }
             Some(key) => {
                 record_stream_key(seen, key, line.number, ctx)?;
-                out.emit(ToonEvent::Key { key: key.clone(), line: line.number })?;
-                let standing = StreamLine { depth, ..line.clone() };
+                out.emit(ToonEvent::Key {
+                    key: key.clone(),
+                    line: line.number,
+                })?;
+                let standing = StreamLine {
+                    depth,
+                    ..line.clone()
+                };
                 if header.keyed {
                     emit_keyed_object(reader, &standing, &header, ctx, out)?;
                 } else {
@@ -828,7 +802,10 @@ fn emit_entry<R: BufRead, S: EventSink>(
     let key = decode_stream_key(trim_u0020(&content[..colon]), line.number)?;
     let rest = trim_u0020(&content[colon + 1..]);
     record_stream_key(seen, &key, line.number, ctx)?;
-    out.emit(ToonEvent::Key { key, line: line.number })?;
+    out.emit(ToonEvent::Key {
+        key,
+        line: line.number,
+    })?;
 
     if rest.is_empty() {
         let child = reader.peek(ctx)?;
@@ -845,7 +822,10 @@ fn emit_entry<R: BufRead, S: EventSink>(
         return Ok(());
     }
     if rest == "[]" {
-        out.emit(ToonEvent::StartArray { length: 0, line: line.number })?;
+        out.emit(ToonEvent::StartArray {
+            length: 0,
+            line: line.number,
+        })?;
         out.emit(ToonEvent::EndArray { line: line.number })?;
         return Ok(());
     }
@@ -867,10 +847,16 @@ fn emit_array<R: BufRead, S: EventSink>(
     ctx: &StreamCtx,
     out: &mut S,
 ) -> Result<(), ParseError> {
-    out.emit(ToonEvent::StartArray { length: info.length, line: header.number })?;
+    out.emit(ToonEvent::StartArray {
+        length: info.length,
+        line: header.number,
+    })?;
 
     if let Some(fields) = &info.fields {
         assert_no_duplicate_stream_fields(fields, header.number, ctx)?;
+        if has_complex_stream_fields(fields) {
+            return emit_complex_tabular_rows(reader, header, info, fields, ctx, out);
+        }
         return emit_tabular_rows(reader, header, info, fields, ctx, out);
     }
 
@@ -883,7 +869,9 @@ fn emit_array<R: BufRead, S: EventSink>(
                 line: header.number,
             })?;
         }
-        out.emit(ToonEvent::EndArray { line: header.number })?;
+        out.emit(ToonEvent::EndArray {
+            line: header.number,
+        })?;
         return Ok(());
     }
 
@@ -936,7 +924,10 @@ fn emit_list_item<R: BufRead, S: EventSink>(
     let trimmed = trim_u0020(&line.content[2..]).to_owned();
 
     if trimmed == "[]" {
-        out.emit(ToonEvent::StartArray { length: 0, line: line.number })?;
+        out.emit(ToonEvent::StartArray {
+            length: 0,
+            line: line.number,
+        })?;
         out.emit(ToonEvent::EndArray { line: line.number })?;
         return Ok(());
     }
@@ -973,9 +964,8 @@ fn emit_list_item<R: BufRead, S: EventSink>(
         }
     }
 
-    let is_object_item =
-        header.as_ref().map(|h| h.key.is_some()).unwrap_or(false)
-            || is_stream_key_value(&trimmed, line.number)?;
+    let is_object_item = header.as_ref().map(|h| h.key.is_some()).unwrap_or(false)
+        || is_stream_key_value(&trimmed, line.number)?;
     if is_object_item {
         // Object as list item: the first field stands at depth d+1 (§10).
         out.emit(ToonEvent::StartObject { line: line.number })?;
@@ -996,7 +986,9 @@ fn emit_list_item<R: BufRead, S: EventSink>(
             let content = next.content.clone();
             emit_entry(reader, &next, &content, line.depth + 1, ctx, &mut seen, out)?;
         }
-        out.emit(ToonEvent::EndObject { line: reader.last_number(line.number) })?;
+        out.emit(ToonEvent::EndObject {
+            line: reader.last_number(line.number),
+        })?;
         return Ok(());
     }
 
@@ -1079,13 +1071,19 @@ fn emit_row_object<S: EventSink>(
 ) -> Result<(), ParseError> {
     out.emit(ToonEvent::StartObject { line })?;
     for field in fields {
-        out.emit(ToonEvent::Key { key: field.name.clone(), line })?;
+        out.emit(ToonEvent::Key {
+            key: field.name.clone(),
+            line,
+        })?;
         match &field.children {
             None => {
                 let empty = String::new();
                 let cell = cells.get(*cursor).unwrap_or(&empty);
                 *cursor += 1;
-                out.emit(ToonEvent::Primitive { value: parse_scalar(cell, line)?, line })?;
+                out.emit(ToonEvent::Primitive {
+                    value: parse_scalar(cell, line)?,
+                    line,
+                })?;
             }
             Some(children) => emit_row_object(children, cells, cursor, line, out)?,
         }
@@ -1105,11 +1103,16 @@ fn emit_keyed_object<R: BufRead, S: EventSink>(
     ctx: &StreamCtx,
     out: &mut S,
 ) -> Result<(), ParseError> {
-    let fields = info.fields.as_ref().expect("keyed header always carries fields");
+    let fields = info
+        .fields
+        .as_ref()
+        .expect("keyed header always carries fields");
     assert_no_duplicate_stream_fields(fields, header.number, ctx)?;
     let leaf_count = count_stream_leaves(fields);
     let entry_depth = header.depth + 1;
-    out.emit(ToonEvent::StartObject { line: header.number })?;
+    out.emit(ToonEvent::StartObject {
+        line: header.number,
+    })?;
     let mut seen = HashSet::new();
     let mut rows = 0usize;
     loop {
@@ -1140,7 +1143,10 @@ fn emit_keyed_object<R: BufRead, S: EventSink>(
         rows += 1;
         let key = decode_stream_key(trim_u0020(&line.content[..colon]), line.number)?;
         record_stream_key(&mut seen, &key, line.number, ctx)?;
-        out.emit(ToonEvent::Key { key, line: line.number })?;
+        out.emit(ToonEvent::Key {
+            key,
+            line: line.number,
+        })?;
         let cells = split_stream_cells(&line.content[colon + 1..], info.delimiter, line.number);
         assert_stream_count(cells.len(), leaf_count, line.number, ctx)?;
         let mut cursor = 0usize;

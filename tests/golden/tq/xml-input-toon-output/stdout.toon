@@ -1,0 +1,18 @@
+xml:
+  declaration:
+    version: "1.0"
+  children[1]:
+    - type: element
+      name: root
+      attributes[1]{name,value}:
+        "xmlns:x","urn:x"
+      children[2]:
+        - type: element
+          name: "x:item"
+          attributes[1]{name,value}:
+            id,"1"
+          children: []
+          empty: true
+        - type: text
+          value: text
+      empty: false

@@ -27,7 +27,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "tsc -p tsconfig.json",
-    "test": "node --test test/api-contract.test.mjs test/toon.test.mjs test/toonl.test.mjs test/conformance.test.mjs test/encoder.test.mjs test/json-limits.test.mjs test/wire-efficiency.test.mjs test/extensions-v4.test.mjs test/docs-contract.test.mjs test/readme-examples.test.mjs test/helpers.test.mjs test/html-payload.test.mjs test/perf-smoke.test.mjs test/roundtrip-property.test.mjs test/events.test.mjs test/reviver.test.mjs test/version.test.mjs"
+    "test": "pnpm test:coverage",
+    "test:coverage": "c8 --all --include 'dist/**/*.js' --exclude dist/events.js --exclude dist/types.js --check-coverage --lines 95 node --test test/api-contract.test.mjs test/toon.test.mjs test/toonl.test.mjs test/conformance.test.mjs test/encoder.test.mjs test/json-limits.test.mjs test/wire-efficiency.test.mjs test/extensions-v4.test.mjs test/docs-contract.test.mjs test/readme-examples.test.mjs test/helpers.test.mjs test/html-payload.test.mjs test/perf-smoke.test.mjs test/roundtrip-property.test.mjs test/differential-fuzz.test.mjs test/events.test.mjs test/reviver.test.mjs test/version.test.mjs test/coverage-config.test.mjs test/legacy-corpus.test.mjs test/coverage-branches.test.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -54,6 +55,7 @@
   },
   "devDependencies": {
     "@types/node": "22.10.2",
+    "c8": "10.1.3",
     "typescript": "5.9.2"
   }
 }

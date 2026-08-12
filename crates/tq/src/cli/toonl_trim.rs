@@ -1,4 +1,30 @@
-fn trim_toonl_keep_last(input: &str, keep_last: usize) -> Result<TrimPlan, String> {
+use std::fs::{self, OpenOptions};
+use std::io::{self, Cursor, Write};
+use std::path::{Path, PathBuf};
+use std::process;
+
+use reddb_io_toon::ToonlReader;
+
+#[derive(Debug)]
+pub(super) struct TrimPlan {
+    pub(super) output: String,
+    pub(super) changed: bool,
+}
+
+#[derive(Debug)]
+struct TrimSegment {
+    header_start: usize,
+    trailer: Option<(usize, usize)>,
+}
+
+#[derive(Debug)]
+struct TrimRow {
+    start: usize,
+    live_headers: Vec<String>,
+    anonymous_segment: Option<usize>,
+}
+
+pub(super) fn trim_toonl_keep_last(input: &str, keep_last: usize) -> Result<TrimPlan, String> {
     validate_toonl(input)?;
     let scan = scan_toonl_trim_units(input)?;
 
@@ -269,7 +295,7 @@ fn line_with_lf(line: &str) -> String {
     }
 }
 
-fn write_in_place_atomically(path: &str, bytes: &[u8]) -> Result<(), String> {
+pub(super) fn write_in_place_atomically(path: &str, bytes: &[u8]) -> Result<(), String> {
     let path = Path::new(path);
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let file_name = path
@@ -316,4 +342,3 @@ fn write_temp_then_rename(path: &Path, tmp_path: &PathBuf, bytes: &[u8]) -> io::
     }
     fs::rename(tmp_path, path)
 }
-

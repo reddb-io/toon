@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
+import * as rootApi from '../dist/index.js'
 import {
   DEFAULT_DELIMITER,
   DELIMITERS,
@@ -12,15 +13,13 @@ import {
   encodeLines,
   encodeToonlLines,
   escapeString,
-  parse,
   rawString,
-  serialize,
 } from '../dist/index.js'
 import { parse as parseLegacy, serialize as serializeLegacy } from '../dist/legacy.js'
 
-test('the package root exposes the canonical v4.1 API and aliases', () => {
-  assert.equal(parse, decode)
-  assert.equal(serialize, encode)
+test('the package root exposes only the canonical v4.1 codec names', () => {
+  assert.equal('parse' in rootApi, false)
+  assert.equal('serialize' in rootApi, false)
   assert.deepEqual(decodeFromLines(['name: Ada', 'active: true']), {
     name: 'Ada',
     active: true,
@@ -43,6 +42,25 @@ test('raw strings returned for containers leave traversal intact', () => {
     replacer: (_key, value) => rawString(`"${escapeString(String(value))}"`),
   })
   assert.equal(output, 'name: "Ada"\nage: "30"')
+})
+
+test('indent options preserve upstream v4.1 edge semantics and alias precedence', () => {
+  const nested = { a: { b: { c: 1 } } }
+
+  assert.equal(encode(nested, { indentSize: 0 }), 'a:\nb:\nc: 1')
+  assert.equal(encode(nested, { indent: 0 }), 'a:\nb:\nc: 1')
+  assert.equal(encode(nested, { indentSize: 1.5 }), 'a:\n b:\n   c: 1')
+  assert.equal(
+    encode({ a: { b: 1 } }, { indentSize: 0, indent: 4 }),
+    'a:\nb: 1',
+  )
+  assert.throws(() => encode({ a: { b: 1 } }, { indentSize: -1 }), RangeError)
+
+  assert.deepEqual(
+    decode('a:\n    b: 1', { indentSize: 4, indent: 2 }),
+    { a: { b: 1 } },
+  )
+  assert.throws(() => decode('a: 1', { indentSize: 0 }), ToonDecodeError)
 })
 
 test('decode failures expose stable positioned source and cause semantics', () => {
@@ -85,6 +103,7 @@ test('generated declarations expose the canonical JSON, delimiter, event, and op
   ]) {
     assert.match(declarations, new RegExp(`\\b${name}\\b`))
   }
+  assert.doesNotMatch(declarations, /export declare const (?:parse|serialize)\b/)
 
   const optionDeclarations = readFileSync(new URL('../dist/types.d.ts', import.meta.url), 'utf8')
   assert.match(optionDeclarations, /reviver\?: DecodeReviver/)
