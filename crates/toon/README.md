@@ -4,9 +4,9 @@
 
 Rust parser, serializer, document model, encode extensions, and TOONL v0.2 stream utilities for TOON v4.1.
 
-The suffix-free API and the common `Value`, `Document`, and `Array` methods use
-the authoritative TOON v4.1 codec. The former codec is available only through
-explicit methods whose names contain `legacy`.
+TOON v4.1 is the only codec. Every entry point — the suffix-free API and the
+common `Value`, `Document`, and `Array` methods alike — decodes and encodes
+canonical v4.1.
 
 ```toml
 [dependencies]
@@ -15,7 +15,7 @@ reddb-io-toon = "0.20.0"
 
 ## Public Model
 
-`Value` is the root enum: `Object(Document)`, `Array(Array)`, `String`, `Number`, `Bool`, and `Null`. `Document` is an ordered object model with parsed fields. `Array` stores either a normal `List(Vec<Value>)` or a `Tabular(TabularArray)` so table-shaped arrays can be decoded without immediately materializing every row into nested documents.
+`Value` is the root enum: `Object(Document)`, `Array(Array)`, `String`, `Number`, `Bool`, and `Null`. `Document` is an ordered object model with parsed fields. `Array` holds `List(Vec<Value>)`.
 
 ```rust
 use reddb_io_toon::{decode, decode_iter, decode_reader, encode, Array, Value};
@@ -91,23 +91,15 @@ assert!(error.to_string().contains("maxDepth 1"));
 ## Encode options
 
 `EncodeV4Options::default()` preserves canonical TOON v4.1. The common value
-methods accept the compatibility-shaped `EncodeOptions` and still delegate to
-the same v4.1 encoder. Extension fallbacks are lossless.
-
-## Explicit legacy compatibility
-
-Use `parse_legacy`, `parse_legacy_with_options`, `to_legacy_toon`, and
-`try_to_legacy_toon_with_options` only for stored documents that depend on the
-former codec. `LegacyParseOptions` and `LegacyEncodeOptions` make that boundary
-visible at call sites; path expansion exists only there.
+methods accept `EncodeOptions` and delegate to the same v4.1 encoder. Extension
+fallbacks are lossless.
 
 ## Canonical nested and keyed tables
 
 Nested field groups and keyed tabular form are released v4.1 features, not
 RedDB extensions. Eligible values use them automatically on the canonical
-path. The compatibility-shaped `nested_tabular_headers` and
-`keyed_map_collapse` fields are deprecated no-ops; they cannot disable or
-enable official syntax.
+path. The `nested_tabular_headers` and `keyed_map_collapse` fields are
+deprecated no-ops; they cannot disable or enable official syntax.
 
 ```rust
 use reddb_io_toon::Value;
