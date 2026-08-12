@@ -40,7 +40,7 @@ name = "xml"
 path = "../../tests/runners/rust/tq/xml.rs"
 
 [dependencies]
-reddb-io-toon = { path = "../toon", version = "0.25.0" }
+reddb-io-toon = { path = "../toon", version = "0.26.0" }
 regex = "1"
 quick-xml = "0.37"
 serde = "1"
@@ -60,4 +60,4 @@ ureq = { version = "3", default-features = false, features = ["rustls"] }
 sha2 = "0.10"
 # The query suite asserts ADR 0002's laziness contract with the codec's
 # tabular row-decode counter.
-reddb-io-toon = { path = "../toon", version = "0.25.0", features = ["test-hooks"] }
+reddb-io-toon = { path = "../toon", version = "0.26.0", features = ["test-hooks"] }
