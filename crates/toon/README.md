@@ -39,8 +39,8 @@ Main entry points:
 - `decode_reader(reader)` and `decode_reader_with_options(reader, options)` accept `BufRead` input.
 - `decode_iter(input)` and `decode_event_reader(reader, options)` lazily yield positioned events.
 - `encode(value)` and `encode_with_options(value, options)` emit canonical v4.1.
-- `DecodeOptions`, `EncodeV4Options`, `DecodeError`, and `EncodeError` are the option and error surfaces.
-- `Value::parse_toon`, `Document::parse`, and the common canonical-output methods delegate to those v4.1 entry points.
+- `DecodeOptions`, `EncodeOptions`, `DecodeError`, and `EncodeError` are the option and error surfaces.
+- `Value::parse_toon`, `Document::parse`, and the common canonical-output methods delegate to those same entry points and take the same option types.
 - `Document::parse(input)` and `Document::parse_with_options(input, options)` require an object root.
 - `Value::from_json_str(input)` and `Value::from_json_value(value)` convert JSON into the same model.
 - `to_canonical_toon()` emits canonical v4.1.
@@ -90,9 +90,9 @@ assert!(error.to_string().contains("maxDepth 1"));
 
 ## Encode options
 
-`EncodeV4Options::default()` preserves canonical TOON v4.1. The common value
-methods accept the compatibility-shaped `EncodeOptions` and still delegate to
-the same v4.1 encoder. Extension fallbacks are lossless.
+`EncodeOptions::default()` preserves canonical TOON v4.1. `to_toon_with_options`
+and `try_to_toon_with_options` take that same struct, so no entry point selects a
+different encoder. Extension fallbacks are lossless.
 
 ## Explicit legacy compatibility
 
@@ -104,10 +104,8 @@ visible at call sites; path expansion exists only there.
 ## Canonical nested and keyed tables
 
 Nested field groups and keyed tabular form are released v4.1 features, not
-RedDB extensions. Eligible values use them automatically on the canonical
-path. The compatibility-shaped `nested_tabular_headers` and
-`keyed_map_collapse` fields are deprecated no-ops; they cannot disable or
-enable official syntax.
+RedDB extensions. Eligible values use them automatically, and `EncodeOptions`
+carries no switch for them: official syntax is not opt-in.
 
 ```rust
 use reddb_io_toon::Value;
@@ -286,7 +284,7 @@ Use `try_to_toon_with_options` when the delimiter may come from user input; inva
 
 ## detect_truncation
 
-`detect_truncation(input)` checks TOON with default parse options. `detect_truncation_with_options(input, options)` checks TOON with explicit parse options. The report model is specified in [detectTruncation](../../docs/proposals/detect-truncation.md).
+`detect_truncation(input)` checks TOON with default decode options. `detect_truncation_with_options(input, &options)` checks TOON with explicit `DecodeOptions`. The report model is specified in [detectTruncation](../../docs/proposals/detect-truncation.md).
 
 ```rust
 use reddb_io_toon::detect_truncation;
