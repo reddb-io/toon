@@ -275,9 +275,14 @@ input: "[[1]]"
 output: "[[[1]],[1],1]\n"
 
 case: "paths-recurse-with-a-filter"
-filter: "[recurse(.a?)]"
-input: "{\"a\":1}"
-output: "[{\"a\":1},1]\n"
+filter: "[recurse(.foo[])]"
+input: "{\"foo\":[{\"foo\":[]},{\"foo\":[{\"foo\":[]}]}]}"
+output: "[{\"foo\":[{\"foo\":[]},{\"foo\":[{\"foo\":[]}]}]},{\"foo\":[]},{\"foo\":[{\"foo\":[]}]},{\"foo\":[]}]\n"
+
+case: "paths-recurse-with-an-optional-filter"
+filter: "[recurse(.[]?)]"
+input: "{\"a\":{\"b\":{\"c\":1}}}"
+output: "[{\"a\":{\"b\":{\"c\":1}}},{\"b\":{\"c\":1}},{\"c\":1},1]\n"
 
 case: "paths-recurse-until-empty"
 filter: "[recurse(if . < 4 then .+1 else empty end)]"
