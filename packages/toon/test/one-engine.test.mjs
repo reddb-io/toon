@@ -37,6 +37,22 @@ const FORBIDDEN = [
   [/@reddb-io\/toon\/legacy/, 'the @reddb-io/toon/legacy subpath'],
 ]
 
+// The one-contract half of the same gate. #330 retired the names that only
+// existed to tell the new engine apart from the old one: the `v4` suffix and
+// the compatibility-shaped option structs the deleted engine defined.
+
+/** Dialect-era and compatibility-shaped Rust names, and the name each goes by. */
+const RETIRED_CONTRACT = [
+  [/\bEncodeV4Options\b/, 'Rust EncodeV4Options'],
+  [/\bResolvedV4\b/, 'Rust ResolvedV4'],
+  [/_v4\b/, 'a v4-suffixed Rust name'],
+  [/\bdecode_value_v4\b/, 'Rust decode_value_v4'],
+  [/\bdetect_truncation_v4\b/, 'Rust detect_truncation_v4'],
+  [/\bParseOptions\b/, 'Rust compatibility-shaped ParseOptions'],
+  [/\bdecode_options_from_legacy\b/, 'Rust decode_options_from_legacy'],
+  [/\bencode_options_from_legacy\b/, 'Rust encode_options_from_legacy'],
+]
+
 function* sourceFiles(root) {
   const absolute = join(REPO_ROOT, root)
   if (!existsSync(absolute)) return
@@ -86,5 +102,33 @@ test('the Rust crate ships one codec and no legacy modules', () => {
 
   for (const removed of ['parser.rs', 'header_and_scalar.rs', 'encoder.rs']) {
     assert.equal(existsSync(join(parts, removed)), false, `${removed} is the removed engine`)
+  }
+})
+
+test('the retired v4-suffixed and compatibility-shaped names are gone', () => {
+  const offenders = []
+
+  for (const root of SCANNED_ROOTS) {
+    for (const path of sourceFiles(root)) {
+      const source = readFileSync(path, 'utf8')
+      for (const [pattern, name] of RETIRED_CONTRACT) {
+        if (pattern.test(source)) {
+          offenders.push(`${relative(REPO_ROOT, path)}: ${name}`)
+        }
+      }
+    }
+  }
+
+  assert.deepEqual(offenders, [], `retired names returned:\n  ${offenders.join('\n  ')}`)
+})
+
+test('the crate carries one unsuffixed codec module set', () => {
+  const parts = join(REPO_ROOT, 'crates/toon/src/lib_parts')
+
+  for (const suffixed of ['encode_v4.rs', 'api_v4.rs', 'decode_v4_extensions.rs']) {
+    assert.equal(existsSync(join(parts, suffixed)), false, `${suffixed} still names a dialect`)
+  }
+  for (const unsuffixed of ['encode.rs', 'api.rs', 'truncation.rs']) {
+    assert.equal(existsSync(join(parts, unsuffixed)), true, `${unsuffixed} is the one codec module`)
   }
 })

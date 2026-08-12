@@ -21,9 +21,20 @@ struct ColumnPath {
     child_fields: Vec<HeaderFieldShape>,
 }
 
+/// The only inputs tabular shape detection reads. The encoder hands it these
+/// four values, so shape detection never depends on the encoder's own option
+/// struct. Nested field groups are canonical, so there is no switch for them.
+#[derive(Debug, Clone, Copy)]
+struct ShapeOptions {
+    primitive_array_columns: bool,
+    object_array_columns: bool,
+    delimiter: char,
+    max_depth: usize,
+}
+
 fn tabular_shape(
     values: &[Value],
-    options: EncodeOptions,
+    options: ShapeOptions,
     depth: usize,
 ) -> Result<Option<TabularShape>, EncodeError> {
     if let Some(shape) = matrix_shape(values, options) {
@@ -40,10 +51,10 @@ fn tabular_shape(
 
 fn object_shape(
     values: &[Value],
-    options: EncodeOptions,
+    options: ShapeOptions,
     depth: usize,
 ) -> Result<Option<Vec<HeaderFieldShape>>, EncodeError> {
-    check_encode_depth(depth, options)?;
+    check_encode_depth(depth, options.delimiter, options.max_depth)?;
     let Some(Value::Object(first)) = values.first() else {
         return Ok(None);
     };
@@ -121,9 +132,6 @@ fn object_shape(
                 continue;
             }
         }
-        if !options.nested_tabular_headers {
-            return Ok(None);
-        }
         let Some(children) = object_shape(&cells, options, depth + 1)? else {
             return Ok(None);
         };
@@ -133,7 +141,7 @@ fn object_shape(
     Ok(Some(fields))
 }
 
-fn matrix_shape(values: &[Value], options: EncodeOptions) -> Option<TabularShape> {
+fn matrix_shape(values: &[Value], options: ShapeOptions) -> Option<TabularShape> {
     if !options.object_array_columns {
         return None;
     }
@@ -255,11 +263,10 @@ fn canonical_string(value: &str, delimiter: char) -> String {
     }
 }
 
-/// The §7.2 quoting checklist. A leading `#` is quoted so the value never
-/// decodes as a comment line (v4.1). This legacy path trims via [`str::trim`]
-/// to stay a fixed point with the legacy decoder, which also trims Unicode
-/// whitespace; the canonical v4.1 encoder uses the stricter ASCII-only rule in
-/// [`needs_quotes_v4`].
+/// The §7.2 quoting checklist for the TOONL and cyclic row writers. A leading
+/// `#` is quoted so the value never decodes as a comment line (v4.1). This path
+/// trims via [`str::trim`], which also trims Unicode whitespace; the document
+/// encoder uses the stricter ASCII-only rule in [`canonical_needs_quotes`].
 fn needs_quotes(value: &str, delimiter: char) -> bool {
     value.is_empty()
         || value.trim() != value

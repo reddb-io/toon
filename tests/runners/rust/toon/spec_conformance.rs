@@ -1,6 +1,6 @@
 use reddb_io_toon::{
     decode_with_options, encode_toonl_values, encode_with_options, DecodeStreamOptions,
-    EncodeV4Options, ParseOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
+    EncodeOptions, DecodeOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
 };
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
@@ -97,7 +97,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                         }
                     } else {
                         match (
-                            Value::parse_with_options(input, options),
+                            Value::parse_with_options(input, &options),
                             should_error,
                         ) {
                             // A rejection the spec asked for.
@@ -142,7 +142,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             .and_then(Json::as_str)
                             .expect("encode expected TOON");
                         let value = Value::from_json_value(input.clone());
-                        match encode_with_options(&value, encode_v4_options(test.get("options"))) {
+                        match encode_with_options(&value, encode_options(test.get("options"))) {
                             Ok(encoded) => {
                                 // The round-trip fixpoint is against the encoder's
                                 // own canonical value, not the raw fixture JSON, so
@@ -173,7 +173,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                         let value = Value::from_json_value(input.clone());
                         value.to_toon_with_options(encoder_options(test.get("options")))
                             == expected
-                            && Value::parse_with_options(expected, options)
+                            && Value::parse_with_options(expected, &options)
                                 .is_ok_and(|actual| actual.to_json_value() == *input)
                     } else {
                         let expected = test
@@ -383,13 +383,13 @@ fn toonl_fixtures_are_executable_spec_examples() {
 /// Maps a fixture's `options` object onto decoder options. Encoder-only options
 /// (`delimiter`, `keyFolding`, `flattenDepth`) carry no decoder meaning and are
 /// ignored; `indent` is shared by both sides.
-fn decoder_options(options: Option<&Json>) -> ParseOptions {
-    let defaults = ParseOptions::default();
+fn decoder_options(options: Option<&Json>) -> DecodeOptions {
+    let defaults = DecodeOptions::default();
     let Some(options) = options.and_then(Json::as_object) else {
         return defaults;
     };
 
-    ParseOptions {
+    DecodeOptions {
         indent: options
             .get("indent")
             .and_then(Json::as_u64)
@@ -404,12 +404,12 @@ fn decoder_options(options: Option<&Json>) -> ParseOptions {
 
 /// Maps fixture options onto the canonical v4.1 encoder and its opt-in
 /// extensions.
-fn encode_v4_options(options: Option<&Json>) -> EncodeV4Options {
-    let defaults = EncodeV4Options::default();
+fn encode_options(options: Option<&Json>) -> EncodeOptions {
+    let defaults = EncodeOptions::default();
     let Some(options) = options.and_then(Json::as_object) else {
         return defaults;
     };
-    EncodeV4Options {
+    EncodeOptions {
         delimiter: options
             .get("delimiter")
             .and_then(Json::as_str)
@@ -445,14 +445,6 @@ fn encoder_options(options: Option<&Json>) -> reddb_io_toon::EncodeOptions {
     };
 
     reddb_io_toon::EncodeOptions {
-        nested_tabular_headers: options
-            .get("nestedTabularHeaders")
-            .and_then(Json::as_bool)
-            .unwrap_or(false),
-        keyed_map_collapse: options
-            .get("keyedMapCollapse")
-            .and_then(Json::as_bool)
-            .unwrap_or(false),
         primitive_array_columns: options
             .get("primitiveArrayColumns")
             .and_then(Json::as_bool)
@@ -472,8 +464,8 @@ fn encoder_options(options: Option<&Json>) -> reddb_io_toon::EncodeOptions {
 
 /// The canonical output is always written in the default profile, so it is
 /// re-read with default options no matter what the fixture's input used.
-fn canonical_options() -> ParseOptions {
-    ParseOptions::default()
+fn canonical_options() -> DecodeOptions {
+    DecodeOptions::default()
 }
 
 fn reject_v3_strict(input: &str) -> Result<(), String> {
@@ -728,14 +720,14 @@ fn stream_decoder_options(options: Option<&Json>) -> DecodeStreamOptions {
 }
 
 fn round_trips_to(value: &Value, decoded: &Json) -> bool {
-    Value::parse_with_options(&value.to_canonical_toon(), canonical_options())
+    Value::parse_with_options(&value.to_canonical_toon(), &canonical_options())
         .is_ok_and(|reparsed| reparsed.to_json_value() == *decoded)
 }
 
-fn parse_round_trips(input: &str, options: ParseOptions) -> Result<(), String> {
-    let value = Value::parse_with_options(input, options).map_err(|err| err.to_string())?;
+fn parse_round_trips(input: &str, options: DecodeOptions) -> Result<(), String> {
+    let value = Value::parse_with_options(input, &options).map_err(|err| err.to_string())?;
     let canonical = value.to_canonical_toon();
-    let reparsed = Value::parse_with_options(&canonical, canonical_options())
+    let reparsed = Value::parse_with_options(&canonical, &canonical_options())
         .map_err(|err| format!("canonical output did not parse: {err}"))?;
     if reparsed.to_json_value() != value.to_json_value() {
         return Err("canonical output did not preserve the decoded value".to_owned());

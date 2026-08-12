@@ -81,8 +81,38 @@ assert_eq!(value.to_json_value(), serde_json::json!({"a.b": 1}));
 
 There is no compatibility read. `parse_legacy*`, `to_legacy_toon*`,
 `LegacyParseOptions`, `LegacyEncodeOptions`, `detect_truncation_legacy*`, and
-`ParseOptions::expand_paths` were removed along with the engine behind them. `EncodeOptions` passed to common model methods routes through the
-v4.1 encoder, as it already did.
+`ParseOptions::expand_paths` were removed along with the engine behind them.
+
+The names that told the two engines apart are gone too, so nothing is suffixed
+and nothing converts between two option shapes:
+
+| Before | Now |
+| --- | --- |
+| `EncodeV4Options` | `EncodeOptions` |
+| `encode_v4(value, options)` | `encode_with_options(value, options)` |
+| `encode_v4_with_replacer(..)` | `encode_with_replacer(..)` |
+| `decode_value_v4(input, &options)` | `decode_with_options(input, &options)` |
+| `detect_truncation_v4(input, &options)` | `detect_truncation_with_options(input, &options)` |
+| `ParseOptions` | `DecodeOptions` |
+| `EncodeOptions { nested_tabular_headers, keyed_map_collapse, .. }` | no switches; both forms are canonical |
+
+`Document::parse_with_options` and `Value::parse_with_options` now take
+`&DecodeOptions`, and `to_toon_with_options` / `try_to_toon_with_options` take
+the encoder's own `EncodeOptions`. Because `DecodeOptions::default()` leaves
+`cyclic_discriminated_arrays` off, a caller that relied on the old
+`ParseOptions::default()` reconstructing cyclic sections must now ask for it:
+
+```rust
+use reddb_io_toon::{DecodeOptions, Value};
+
+let options = DecodeOptions {
+    cyclic_discriminated_arrays: true,
+    ..DecodeOptions::default()
+};
+let value = Value::parse_with_options("answer: 42\n", &options)?;
+assert_eq!(value.to_json_value(), serde_json::json!({"answer": 42}));
+# Ok::<(), reddb_io_toon::DecodeError>(())
+```
 
 ## Breaking changes
 

@@ -87,7 +87,7 @@ fn document_parse_accepts_object_roots_and_rejects_the_others() {
     assert!(Document::parse("[2]: 1,2\n").is_err());
     assert!(Document::parse("hello\n").is_err());
 
-    let document = Document::parse_with_options("a.b: 1\n", ParseOptions::default())
+    let document = Document::parse_with_options("a.b: 1\n", &DecodeOptions::default())
         .expect("object root");
     assert_eq!(document.to_json_value(), json!({"a.b": 1}));
 }
@@ -149,12 +149,12 @@ fn non_strict_mode_reads_a_malformed_nested_array_header_as_a_literal_key() {
     // a valid header (no length digits), so it falls through. In non-strict
     // mode the whole bracketed prefix becomes a literal object key instead of
     // an error.
-    let options = ParseOptions {
+    let options = DecodeOptions {
         strict: false,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     };
     let value =
-        Value::parse_with_options("items[1]:\n  - [x] : 1\n", options)
+        Value::parse_with_options("items[1]:\n  - [x] : 1\n", &options)
             .expect("literal key item");
     assert_eq!(value.to_json_value(), json!({"items": [{"[x]": 1}]}));
 }
@@ -308,7 +308,7 @@ fn a_nested_object_column_cell_disambiguates_from_a_child_table() {
 fn truncation_reports_cover_invalid_indentation_and_child_tables() {
     let report = reddb_io_toon::detect_truncation_with_options(
         "v: 1\n   bad: 2\n",
-        ParseOptions::default(),
+        &DecodeOptions::default(),
     );
     assert!(!report.complete);
     assert_eq!(report.line, Some(2));
@@ -322,7 +322,7 @@ fn truncation_reports_cover_invalid_indentation_and_child_tables() {
     // decoder's error rather than a declared/actual pair.
     let report = reddb_io_toon::detect_truncation_with_options(
         "items[2]{a,kids{x}}:\n  1,1\n    r1\n",
-        ParseOptions::default(),
+        &DecodeOptions::default(),
     );
     assert!(!report.complete);
     assert_eq!(report.line, Some(3));
@@ -335,7 +335,7 @@ fn truncation_reports_cover_invalid_indentation_and_child_tables() {
     // A table that simply stops short does carry the pair.
     let report = reddb_io_toon::detect_truncation_with_options(
         "items[3]{a}:\n  1\n  2\n",
-        ParseOptions::default(),
+        &DecodeOptions::default(),
     );
     assert!(!report.complete);
     assert_eq!(report.declared, Some(3));
@@ -492,12 +492,12 @@ fn cyclic_decode_requires_the_opt_in_and_otherwise_leaves_the_section_literal() 
     // inflated when the decoder opts in. Without the opt-in a document that
     // merely *looks* like a section is never silently re-interpreted — its
     // fields survive verbatim as ordinary structured data.
-    let opted_out = ParseOptions {
+    let opted_out = DecodeOptions {
         cyclic_discriminated_arrays: false,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     };
     let literal =
-        Value::parse_with_options(CYCLIC_WIRE, opted_out)
+        Value::parse_with_options(CYCLIC_WIRE, &opted_out)
             .expect("literal section decode");
     let json = literal.to_json_value();
     let section = json["events"].as_object().expect("events stays an object");

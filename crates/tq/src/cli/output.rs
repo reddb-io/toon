@@ -1,4 +1,4 @@
-use reddb_io_toon::{encode_toonl_values, encode_with_options, EncodeV4Options, Value};
+use reddb_io_toon::{encode_toonl_values, encode_with_options, EncodeOptions, Value};
 use serde::Serialize;
 
 use super::args::{Format, Options};
@@ -46,13 +46,13 @@ pub(super) fn format_values(values: &[Value], options: &Options) -> Result<Strin
             Format::Toon => {
                 let encoded = encode_with_options(
                     value,
-                    EncodeV4Options {
+                    EncodeOptions {
                         primitive_array_columns: options.primitive_array_columns,
                         object_array_columns: options.object_array_columns,
                         cyclic_discriminated_arrays: options.cyclic_discriminated_arrays,
                         delimiter: options.delimiter,
                         indent_size: options.indent_size,
-                        ..EncodeV4Options::default()
+                        ..EncodeOptions::default()
                     },
                 )
                 .map_err(|error| error.to_string())?;

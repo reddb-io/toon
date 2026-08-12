@@ -1,4 +1,4 @@
-use reddb_io_toon::{EncodeOptions, ParseOptions, Value};
+use reddb_io_toon::{EncodeOptions, DecodeOptions, Value};
 use serde_json::Value as Json;
 use std::fs;
 use std::path::PathBuf;
@@ -13,16 +13,16 @@ const CYCLIC_DISCRIMINATED_ARRAYS_FIXTURE: &str =
 const EXPECTED_CASE_COUNT: usize = 9;
 
 /// The canonical decoder with the cyclic discriminated-array extension on.
-fn cyclic_decode_options() -> ParseOptions {
-    ParseOptions {
+fn cyclic_decode_options() -> DecodeOptions {
+    DecodeOptions {
         cyclic_discriminated_arrays: true,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     }
 }
 
 /// Decodes a cyclic wire with the extension enabled.
 fn decode_cyclic(input: &str) -> Result<Value, reddb_io_toon::ParseError> {
-    Value::parse_with_options(input, cyclic_decode_options())
+    Value::parse_with_options(input, &cyclic_decode_options())
 }
 
 #[test]
@@ -175,9 +175,9 @@ fn object_array_column_corpus_decodes_identically_for_rust() {
         if let Some(literal) = test_case.get("canonicalLiteral") {
             let decoded = Value::parse_with_options(
                 input,
-                ParseOptions {
+                &DecodeOptions {
                     cyclic_discriminated_arrays: false,
-                    ..ParseOptions::default()
+                    ..DecodeOptions::default()
                 },
             )
             .unwrap_or_else(|error| panic!("{name}: strict v3 parse failed: {error}"))
@@ -314,9 +314,9 @@ fn cyclic_discriminated_array_decoder_handles_quoted_labels_and_nested_arrays_fo
     assert_eq!(
         Value::parse_with_options(
             input,
-            ParseOptions {
+            &DecodeOptions {
                 cyclic_discriminated_arrays: false,
-                ..ParseOptions::default()
+                ..DecodeOptions::default()
             },
         )
         .unwrap()
@@ -371,9 +371,9 @@ fn cyclic_discriminated_array_encoding_is_opt_in_and_pins_the_frozen_wire_for_ru
     assert_eq!(
         Value::parse_with_options(
             &encoded,
-            ParseOptions {
+            &DecodeOptions {
                 cyclic_discriminated_arrays: false,
-                ..ParseOptions::default()
+                ..DecodeOptions::default()
             },
         )
         .unwrap()
@@ -697,8 +697,6 @@ fn read_fixture(path: &PathBuf) -> Json {
 
 fn ext_options() -> EncodeOptions {
     EncodeOptions {
-        nested_tabular_headers: true,
-        keyed_map_collapse: true,
         primitive_array_columns: true,
         object_array_columns: true,
         cyclic_discriminated_arrays: true,
@@ -708,14 +706,6 @@ fn ext_options() -> EncodeOptions {
 
 fn encode_options(options: &Json) -> EncodeOptions {
     EncodeOptions {
-        nested_tabular_headers: options
-            .get("nestedTabularHeaders")
-            .and_then(Json::as_bool)
-            .unwrap_or(false),
-        keyed_map_collapse: options
-            .get("keyedMapCollapse")
-            .and_then(Json::as_bool)
-            .unwrap_or(false),
         primitive_array_columns: options
             .get("primitiveArrayColumns")
             .and_then(Json::as_bool)

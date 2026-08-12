@@ -2,12 +2,12 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::io::{BufRead, Write};
 
-/// Spaces per indentation level unless [`ParseOptions::indent`] says otherwise.
+/// Spaces per indentation level unless [`DecodeOptions::indent`] says otherwise.
 pub const DEFAULT_INDENT: usize = 2;
 
 /// Default maximum nesting depth for decoding and fallible encoding.
 ///
-/// A value of `0` in [`ParseOptions::max_depth`] or [`EncodeOptions::max_depth`]
+/// A value of `0` in [`DecodeOptions::max_depth`] or [`EncodeOptions::max_depth`]
 /// disables the guard for trusted input.
 pub const DEFAULT_MAX_DEPTH: usize = 1000;
 
@@ -15,49 +15,6 @@ pub const DEFAULT_MAX_DEPTH: usize = 1000;
 const DOCUMENT_DELIMITER: char = ',';
 const CYCLIC_TABLE_DELIMITER: char = '|';
 const TOONL_TAGGED_LANE_LIMIT: usize = 8;
-
-/// Compatibility options for the legacy decoder.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ParseOptions {
-    /// Spaces per indentation level.
-    pub indent: usize,
-    /// Enforce the §14 strict-mode error checklist.
-    pub strict: bool,
-    /// Recognize the tabular cyclic discriminated-array extension during decode.
-    pub cyclic_discriminated_arrays: bool,
-    /// Maximum nesting depth. `0` disables the guard for trusted input.
-    pub max_depth: usize,
-}
-
-impl Default for ParseOptions {
-    fn default() -> Self {
-        Self {
-            indent: DEFAULT_INDENT,
-            strict: true,
-            cyclic_discriminated_arrays: true,
-            max_depth: DEFAULT_MAX_DEPTH,
-        }
-    }
-}
-
-/// Compatibility-shaped encoder options used by model methods and legacy output.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EncodeOptions {
-    /// Legacy-only nested table switch; canonical v4.1 selects nested groups automatically.
-    pub nested_tabular_headers: bool,
-    /// Legacy-only keyed map switch; canonical v4.1 selects keyed tables automatically.
-    pub keyed_map_collapse: bool,
-    /// Emit primitive-array columns inside otherwise tabular object arrays.
-    pub primitive_array_columns: bool,
-    /// Emit child tables for array-valued columns inside tabular object arrays.
-    pub object_array_columns: bool,
-    /// Emit cyclic discriminated-array wire for strongly repeated event streams.
-    pub cyclic_discriminated_arrays: bool,
-    /// Active delimiter for encoded array and tabular rows: comma, pipe, or tab.
-    pub delimiter: char,
-    /// Maximum nesting depth for fallible encoding. `0` disables the guard.
-    pub max_depth: usize,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TruncationKind {
@@ -153,20 +110,6 @@ impl TruncationReport {
                 .map_or(serde_json::Value::Null, |value| value.clone().into()),
         );
         serde_json::Value::Object(map)
-    }
-}
-
-impl Default for EncodeOptions {
-    fn default() -> Self {
-        Self {
-            nested_tabular_headers: false,
-            keyed_map_collapse: false,
-            primitive_array_columns: false,
-            object_array_columns: false,
-            cyclic_discriminated_arrays: false,
-            delimiter: DOCUMENT_DELIMITER,
-            max_depth: DEFAULT_MAX_DEPTH,
-        }
     }
 }
 
@@ -358,11 +301,11 @@ struct TaggedToonlWriterLane {
 impl Document {
     /// Parses a v4.1 document whose root is an object.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
-        Self::parse_with_options(input, ParseOptions::default())
+        Self::parse_with_options(input, &DecodeOptions::default())
     }
 
-    pub fn parse_with_options(input: &str, options: ParseOptions) -> Result<Self, ParseError> {
-        match decode_with_options(input, &decode_options_from_legacy(options))? {
+    pub fn parse_with_options(input: &str, options: &DecodeOptions) -> Result<Self, ParseError> {
+        match decode_with_options(input, options)? {
             Value::Object(document) => Ok(document),
             _ => Err(ParseError {
                 line: 1,
@@ -431,7 +374,7 @@ impl Document {
     }
 
     pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
-        encode_with_options(&Value::Object(self.clone()), encode_options_from_legacy(options))
+        encode_with_options(&Value::Object(self.clone()), options)
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
@@ -546,8 +489,8 @@ impl Value {
     }
 
     /// Decodes TOON v4.1 per spec §5 root-form discovery.
-    pub fn parse_with_options(input: &str, options: ParseOptions) -> Result<Self, ParseError> {
-        decode_with_options(input, &decode_options_from_legacy(options))
+    pub fn parse_with_options(input: &str, options: &DecodeOptions) -> Result<Self, ParseError> {
+        decode_with_options(input, options)
     }
 
     pub fn from_json_str(input: &str) -> Result<Self, serde_json::Error> {
@@ -608,7 +551,7 @@ impl Value {
     }
 
     pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
-        encode_with_options(self, encode_options_from_legacy(options))
+        encode_with_options(self, options)
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
