@@ -64,13 +64,23 @@ fn reports_type_and_arity_errors_per_builtin() {
 #[test]
 fn reports_filter_syntax_errors() {
     let cases = [
-        (". | tostring", "unsupported identifier `tostring`"),
+        (". | @nope", "unsupported identifier `@nope`"),
         ("map(.;.)", "unsupported identifier `map`"),
         (".users[x]", "unsupported identifier `x`"),
         (".[", "unexpected token `None`"),
         (". .", "unexpected trailing filter input"),
         (". |", "unexpected token"),
         ("\"unterminated", "unterminated string literal"),
+        // A format name is an identifier, and an interpolation closes.
+        ("@", "expected format name after `@`"),
+        ("@1", "expected format name after `@`"),
+        ("\"\\(1", "unterminated string interpolation"),
+        ("\"\\(1,)\"", "unexpected token"),
+        ("\"\\(1 2)\"", "unexpected trailing filter input"),
+        // An object or pattern key names one field, so it cannot be built at
+        // run time. tq says so instead of dropping the interpolation.
+        ("{\"\\(.a)\": 1}", "expected object key"),
+        (". as {\"\\(.a)\": $v} | $v", "expected pattern key"),
     ];
 
     for (filter, message) in cases {

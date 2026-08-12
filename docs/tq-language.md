@@ -125,6 +125,67 @@ The paths are located once, against the document that entered the assignment,
 and the laziness rules above apply unchanged: assigning into one row of a
 tabular array materialises that array and leaves every other one undecoded.
 
+## Strings, formats, and JSON conversions
+
+A string literal interpolates: `"\(f)"` splices what `f` produces into the
+surrounding text.
+
+```console
+$ echo '{"name":"Ada"}' | tq -p json -o json -c '"hello \(.name)"'
+"hello Ada"
+```
+
+Interpolation is sugar over concatenation — `"a\(f)b"` means
+`f as $x | "a" + ($x|@text) + "b"` — so a filter that produces several values
+produces several strings, one per combination, and one that produces none
+produces no string at all. As in jq, the last `\(…)` in a string varies
+slowest: `["\(1,2)-\(3,4)"]` is `["1-3","2-3","1-4","2-4"]`.
+
+A `@format` name applies a format to the input:
+
+| Format | Result |
+| --- | --- |
+| `@text` | The input as text: a string unchanged, anything else as JSON. |
+| `@json` | The input as compact JSON. |
+| `@csv` | An array as one CSV row; strings are quoted and their quotes doubled. |
+| `@tsv` | An array as one TSV row; tab, newline, return, and backslash are escaped. |
+| `@base64` | The input's text, base64-encoded. |
+| `@base64d` | The input's text, base64-decoded. |
+| `@uri` | The input's text, percent-encoded. |
+| `@html` | The input's text with `<`, `>`, `&`, `'`, and `"` as entities. |
+| `@sh` | The input as shell words; a string is single-quoted, an array is a word list. |
+
+The same name in front of a string literal applies the format to every
+interpolation in it and leaves the literal text alone, which is what makes the
+format worth having:
+
+```console
+$ echo '{"q":"a b&c"}' | tq -p json -o json -c '@uri "https://example.com/?q=\(.q)"'
+"https://example.com/?q=a%20b%26c"
+```
+
+`@csv` and `@tsv` take an array of scalars: a nested array or object has no
+cell spelling, and neither does a non-array input. `@sh` refuses a nested array
+or object for the same reason. `@base64d` rejects a character outside the
+base64 alphabet, and a final group holding a single character, which carries
+too few bits to complete a byte.
+
+The conversions between values and their JSON text are:
+
+| Builtin | Result |
+| --- | --- |
+| `tostring` | The input as text, exactly as `@text`. |
+| `tonumber` | A number unchanged; a string parsed as one. |
+| `tojson` | The input as compact JSON text. |
+| `fromjson` | A string parsed as JSON. |
+
+`tonumber` parses its string as JSON and keeps the result only when it is a
+number, so `"[1]"` reports that it cannot be parsed as a number while `"abc"`
+reports an invalid numeric literal.
+
+Object and pattern keys stay literal. `{"\(.a)": 1}` names one field at parse
+time in jq; tq reports the interpolated key instead of building it at run time.
+
 ## UTC time builtins
 
 Time handling is UTC-only and does not read the process timezone or locale.
