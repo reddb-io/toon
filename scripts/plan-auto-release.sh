@@ -54,7 +54,7 @@ emit() {
 
 if [[ -n "$SYNC_LINE" ]] && ! git show-ref --verify --quiet "refs/tags/v${BASE_VERSION}"; then
   echo "recover: ${BASE_REF} already synced ${BASE_VERSION} but v${BASE_VERSION} is absent"
-  emit none "$BASE_VERSION" "$BASE_REF" false
+  emit none "$BASE_VERSION" "$(git rev-parse HEAD)" false
   exit 0
 fi
 

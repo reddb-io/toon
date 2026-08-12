@@ -110,10 +110,7 @@ fn reports_argument_and_input_errors() {
 fn indent_uses_upstream_parse_int_and_zero_semantics() {
     let input = r#"{"nested":{"value":1}}"#;
 
-    let zero = run_tq(
-        &["-p", "json", "-o", "toon", "--indent", "0", "."],
-        input,
-    );
+    let zero = run_tq(&["-p", "json", "-o", "toon", "--indent", "0", "."], input);
     assert_eq!(zero.status.code(), Some(0));
     assert_eq!(
         String::from_utf8(zero.stdout).expect("stdout is utf-8"),
@@ -130,10 +127,7 @@ fn indent_uses_upstream_parse_int_and_zero_semantics() {
         "nested:\n    value: 1\n"
     );
 
-    let fraction = run_tq(
-        &["-p", "json", "-o", "toon", "--indent", "1.9", "."],
-        input,
-    );
+    let fraction = run_tq(&["-p", "json", "-o", "toon", "--indent", "1.9", "."], input);
     assert_eq!(fraction.status.code(), Some(0));
     assert_eq!(
         String::from_utf8(fraction.stdout).expect("stdout is utf-8"),
