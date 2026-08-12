@@ -115,12 +115,12 @@ fn canonical_number(value: &str) -> String {
 // Encoding
 // ---------------------------------------------------------------------------
 
-fn check_encode_depth(depth: usize, options: EncodeOptions) -> Result<(), EncodeError> {
-    validate_encode_delimiter(options.delimiter)?;
-    if options.max_depth != 0 && depth > options.max_depth {
+fn check_encode_depth(depth: usize, delimiter: char, max_depth: usize) -> Result<(), EncodeError> {
+    validate_encode_delimiter(delimiter)?;
+    if max_depth != 0 && depth > max_depth {
         return Err(EncodeError {
             message: "maximum nesting depth exceeded",
-            max_depth: Some(options.max_depth),
+            max_depth: Some(max_depth),
         });
     }
     Ok(())
@@ -175,12 +175,12 @@ struct CyclicGroup {
 fn write_cyclic_discriminated_arrays(
     output: &mut String,
     document: &Document,
-    options: EncodeOptions,
+    options: LegacyEncodeOptions,
 ) -> Result<bool, EncodeError> {
     if !options.cyclic_discriminated_arrays || document.fields.is_empty() {
         return Ok(false);
     }
-    check_encode_depth(0, options)?;
+    check_encode_depth(0, options.delimiter, options.max_depth)?;
 
     let mut seen_keys = Vec::new();
     let mut sections = Vec::with_capacity(document.fields.len());
@@ -211,9 +211,9 @@ fn write_cyclic_discriminated_arrays(
 fn cyclic_array_shape(
     values: &[Value],
     depth: usize,
-    options: EncodeOptions,
+    options: LegacyEncodeOptions,
 ) -> Result<Option<CyclicArrayShape>, EncodeError> {
-    check_encode_depth(depth, options)?;
+    check_encode_depth(depth, options.delimiter, options.max_depth)?;
     let rows = values
         .iter()
         .map(|value| match value {
@@ -598,15 +598,15 @@ fn write_field(
     key: &str,
     value: &Value,
     depth: usize,
-    options: EncodeOptions,
+    options: LegacyEncodeOptions,
 ) -> Result<(), EncodeError> {
-    check_encode_depth(depth, options)?;
+    check_encode_depth(depth, options.delimiter, options.max_depth)?;
     match value {
         Value::Array(array) => {
             write_array(output, Some(key), &array.values(), depth, false, options)?;
         }
         Value::Object(document) => {
-            if let Some(shape) = keyed_map_shape(document, options, depth + 1)? {
+            if let Some(shape) = keyed_map_shape(document, options.into(), depth + 1)? {
                 write_keyed_map(output, key, document, &shape, depth, options)?;
                 return Ok(());
             }
@@ -632,9 +632,9 @@ fn write_array(
     values: &[Value],
     depth: usize,
     list_item: bool,
-    options: EncodeOptions,
+    options: LegacyEncodeOptions,
 ) -> Result<(), EncodeError> {
-    check_encode_depth(depth, options)?;
+    check_encode_depth(depth, options.delimiter, options.max_depth)?;
     if values.is_empty() {
         match key {
             Some(key) => {
@@ -664,7 +664,7 @@ fn write_array(
     if let Some(shape) = if list_item {
         None
     } else {
-        tabular_shape(values, options, depth + 1)?
+        tabular_shape(values, options.into(), depth + 1)?
     } {
         write_array_header(
             output,
@@ -713,9 +713,9 @@ fn write_list_item(
     output: &mut String,
     value: &Value,
     depth: usize,
-    options: EncodeOptions,
+    options: LegacyEncodeOptions,
 ) -> Result<(), EncodeError> {
-    check_encode_depth(depth, options)?;
+    check_encode_depth(depth, options.delimiter, options.max_depth)?;
     match value {
         Value::Object(document) if document.fields.is_empty() => output.push_str("-\n"),
         Value::Object(document) => {
@@ -786,9 +786,9 @@ fn write_keyed_map(
     document: &Document,
     shape: &TabularShape,
     depth: usize,
-    options: EncodeOptions,
+    options: LegacyEncodeOptions,
 ) -> Result<(), EncodeError> {
-    check_encode_depth(depth, options)?;
+    check_encode_depth(depth, options.delimiter, options.max_depth)?;
     output.push_str(&canonical_key(key));
     output.push('{');
     push_delimiter_prefix(output, options.delimiter);
