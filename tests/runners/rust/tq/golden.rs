@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 #[derive(Debug)]
@@ -7,42 +8,97 @@ struct Case {
     args: Vec<String>,
     stdin: String,
     stdout: String,
-    stderr: String,
+    stderr: ExpectedStderr,
     exit_code: i32,
+}
+
+/// A case pins stderr one of two ways, and which one it picks says what the
+/// bytes mean. `stderr.txt` is an exact pin, for stderr that *is* the behaviour
+/// under test: what `debug`, `stderr` and `halt_error` write is program output,
+/// so a byte of it changing is a real regression. `stderr-contains.txt` lists
+/// one required fragment per line, for tq's own `error: …` diagnostics: a case
+/// pins which construct failed, not how the sentence reads, so a parser slice
+/// is free to reword its own diagnostic without parking on this suite.
+#[derive(Debug)]
+enum ExpectedStderr {
+    Exact(String),
+    Contains(Vec<String>),
 }
 
 #[test]
 fn golden_cli_cases() {
-    let root = env!("CARGO_MANIFEST_DIR");
-    let cases_dir = std::path::Path::new(root).join("../../tests/golden/tq");
-
-    for entry in fs::read_dir(cases_dir).expect("golden cases directory exists") {
-        let entry = entry.expect("golden case directory entry is readable");
-        if !entry.file_type().expect("golden case file type").is_dir() {
-            continue;
-        }
-
-        let case = read_case(&entry.path());
+    for path in case_dirs() {
+        let name = case_name(&path);
+        let case = read_case(&path);
         let output = run_case(&case);
 
         assert_eq!(
             output.status.code(),
             Some(case.exit_code),
-            "{} exit code",
-            entry.file_name().to_string_lossy()
+            "{name} exit code"
         );
         assert_eq!(
             String::from_utf8(output.stdout).expect("stdout is utf-8"),
             case.stdout,
-            "{} stdout",
-            entry.file_name().to_string_lossy()
+            "{name} stdout"
         );
-        assert_eq!(
-            String::from_utf8(output.stderr).expect("stderr is utf-8"),
-            case.stderr,
-            "{} stderr",
-            entry.file_name().to_string_lossy()
+        assert_stderr(
+            &case.stderr,
+            &String::from_utf8(output.stderr).expect("stderr is utf-8"),
+            &name,
         );
+    }
+}
+
+/// The guard behind #313. Pinning a diagnostic byte-for-byte hands every later
+/// parser slice a failing suite for wording it changed on purpose — three
+/// attempts parked that way on #270 alone. A diagnostic goes in
+/// `stderr-contains.txt`, where the fragments name the construct that failed.
+#[test]
+fn no_golden_case_pins_exact_diagnostic_wording() {
+    for path in case_dirs() {
+        let Ok(text) = fs::read_to_string(path.join("stderr.txt")) else {
+            continue;
+        };
+
+        assert!(
+            !text.lines().any(|line| line.starts_with("error: ")),
+            "{}: stderr.txt pins tq's diagnostic wording byte-for-byte; move the \
+             fragments that identify the failure to stderr-contains.txt",
+            case_name(&path)
+        );
+    }
+}
+
+/// De-pinning wording only stays honest while the fragments left behind still
+/// tell the diagnostics apart. `error:` alone would pass every error case and
+/// assert nothing, so each fragment set has to reject every other case's
+/// stderr — the cheapest mechanical proof that a case pins its own failure.
+#[test]
+fn stderr_fragments_identify_one_case_each() {
+    let observed: Vec<(String, ExpectedStderr, String)> = case_dirs()
+        .into_iter()
+        .map(|path| {
+            let case = read_case(&path);
+            let stderr = String::from_utf8(run_case(&case).stderr).expect("stderr is utf-8");
+            (case_name(&path), case.stderr, stderr)
+        })
+        .collect();
+
+    for (name, expected, _) in &observed {
+        let ExpectedStderr::Contains(fragments) = expected else {
+            continue;
+        };
+
+        for (other, _, stderr) in &observed {
+            if other == name {
+                continue;
+            }
+            assert!(
+                !fragments.iter().all(|fragment| stderr.contains(fragment)),
+                "{name}'s fragments also match {other}, so they do not identify a failure"
+            );
+        }
     }
 }
 
@@ -196,7 +252,44 @@ fn toon_json_toon_round_trips_to_same_canonical_form() {
     );
 }
 
-fn read_case(path: &std::path::Path) -> Case {
+fn case_dirs() -> Vec<PathBuf> {
+    let root = env!("CARGO_MANIFEST_DIR");
+    let cases_dir = Path::new(root).join("../../tests/golden/tq");
+
+    let mut dirs: Vec<PathBuf> = fs::read_dir(cases_dir)
+        .expect("golden cases directory exists")
+        .map(|entry| entry.expect("golden case directory entry is readable"))
+        .filter(|entry| entry.file_type().expect("golden case file type").is_dir())
+        .map(|entry| entry.path())
+        .collect();
+    dirs.sort();
+
+    assert!(!dirs.is_empty(), "the golden case corpus should not be empty");
+    dirs
+}
+
+fn case_name(path: &Path) -> String {
+    path.file_name()
+        .expect("golden case directory has a name")
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn assert_stderr(expected: &ExpectedStderr, actual: &str, name: &str) {
+    match expected {
+        ExpectedStderr::Exact(text) => assert_eq!(actual, text, "{name} stderr"),
+        ExpectedStderr::Contains(fragments) => {
+            for fragment in fragments {
+                assert!(
+                    actual.contains(fragment.as_str()),
+                    "{name} stderr does not report {fragment:?}, got: {actual}"
+                );
+            }
+        }
+    }
+}
+
+fn read_case(path: &Path) -> Case {
     let args = fs::read_to_string(path.join("args.txt"))
         .expect("args fixture exists")
         .split_whitespace()
@@ -213,8 +306,38 @@ fn read_case(path: &std::path::Path) -> Case {
         args,
         stdin: fs::read_to_string(path.join("stdin.toon")).expect("stdin fixture exists"),
         stdout: fs::read_to_string(path.join("stdout.toon")).expect("stdout fixture exists"),
-        stderr: fs::read_to_string(path.join("stderr.txt")).expect("stderr fixture exists"),
+        stderr: read_expected_stderr(path),
         exit_code,
+    }
+}
+
+fn read_expected_stderr(path: &Path) -> ExpectedStderr {
+    let exact = fs::read_to_string(path.join("stderr.txt")).ok();
+    let contains = fs::read_to_string(path.join("stderr-contains.txt")).ok();
+
+    match (exact, contains) {
+        (Some(text), None) => ExpectedStderr::Exact(text),
+        (None, Some(text)) => {
+            let fragments: Vec<String> = text
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(ToOwned::to_owned)
+                .collect();
+            assert!(
+                !fragments.is_empty(),
+                "{}: stderr-contains.txt lists no fragment, so it asserts nothing",
+                case_name(path)
+            );
+            ExpectedStderr::Contains(fragments)
+        }
+        (Some(_), Some(_)) => panic!(
+            "{}: a case pins stderr exactly or by fragment, not both",
+            case_name(path)
+        ),
+        (None, None) => panic!(
+            "{}: a case needs stderr.txt or stderr-contains.txt",
+            case_name(path)
+        ),
     }
 }
 
