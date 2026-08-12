@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Breaking:** `tq` now follows jq when iterating with `.[]`: objects emit
+  their values in field order, while `null` and scalar inputs raise an error.
+  Use `.[]?` to suppress those iteration errors.
 - **Rebased the baseline on the official TOON spec v4.1.** The former v3.3
   baseline is retired; the `vendor/toon` / `vendor/toon-spec` submodules are
   pinned at the v4.1.1 checkpoint, and the decoders are rebuilt as event-based

@@ -428,6 +428,10 @@ impl Document {
             .map(|field| &field.value)
     }
 
+    pub fn values(&self) -> impl Iterator<Item = &Value> {
+        self.fields.iter().map(|field| &field.value)
+    }
+
     pub fn len(&self) -> usize {
         self.fields.len()
     }

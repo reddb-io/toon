@@ -17,9 +17,5 @@ export { decodeStream, decodeStreamSync } from './decode/stream.js';
 export { buildValueFromEvents, decodeFromLines } from './decode/build.js';
 export { appendSummaryField, projectFields } from './helpers.js';
 export const decode = decodeValue;
-/** @deprecated Use {@link decode}. */
-export const parse = decode;
 export { encode };
-/** @deprecated Use {@link encode}. */
-export const serialize = encode;
 export { JsonlToToonl, ToonlDecodeStream, ToonlEncodeStream, ToonlToJsonl, ToonlEncoder, ToonlReader, closeTransform, closeTransformInterleaved, decodeLines, encodeToonlLines, encodeRecords, jsonToToon, parseRecords, parseStream, recordTransform, toonToJson, } from './toonl.js';
