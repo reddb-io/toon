@@ -1,4 +1,6 @@
+use std::cell::Cell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use reddb_io_toon::{Array, Value};
 
@@ -11,10 +13,57 @@ use super::builtins;
 // Result type. The suffix is compact JSON produced by serde_json.
 const TAGGED_ERROR_PREFIX: &str = "\u{1e}tq:error:json:";
 
+// jq recurses on its own interpreter stack without a depth limit, while tq
+// evaluates a nested filter as a nested Rust call. A runaway definition
+// therefore has to be reported as an ordinary diagnostic well before it can
+// exhaust the process stack. The budget counts evaluation nesting rather than
+// user function calls alone, because that is the resource actually at stake:
+// one call level spends several nested evaluations.
+const MAX_EVAL_DEPTH: usize = 500;
+
+const DEPTH_ERROR: &str = "exceeded the maximum filter recursion depth of 500";
+
 #[derive(Debug, Clone)]
 pub(super) struct Env {
     frames: Vec<HashMap<String, Value>>,
+    functions: Vec<Rc<Function>>,
     environment: Value,
+    /// Shared by every environment derived from one query, so nesting is
+    /// counted across bindings, definitions and calls alike.
+    budget: Rc<Budget>,
+}
+
+/// The evaluation nesting budget for one query.
+#[derive(Debug, Default)]
+struct Budget {
+    depth: Cell<usize>,
+    /// Exhausting the budget ends the whole query. Reporting a recoverable
+    /// error instead would let `try`, `?` and `//` retry the runaway body at
+    /// every level it unwound through, turning a bomb into exponential work.
+    exhausted: Cell<bool>,
+}
+
+/// Releases one unit of the nesting budget, on the error paths too.
+struct Depth(Rc<Budget>);
+
+impl Drop for Depth {
+    fn drop(&mut self) {
+        self.0.depth.set(self.0.depth.get().saturating_sub(1));
+    }
+}
+
+/// A user-defined filter: the parameter names it declares, its body, and the
+/// environment it closed over where it was defined.
+#[derive(Debug)]
+struct Function {
+    name: String,
+    parameters: Vec<String>,
+    body: Rc<Expr>,
+    environment: Env,
+    /// A definition is visible inside its own body so it can recurse. An
+    /// argument closure is not: in `def f(g): g; f(g)` the inner `g` has to
+    /// stay the caller's `g` instead of shadowing itself.
+    recursive: bool,
 }
 
 impl Default for Env {
@@ -30,7 +79,9 @@ impl Default for Env {
         let environment = Value::from_json_value(serde_json::Value::Object(values));
         Self {
             frames: vec![HashMap::from([("ENV".to_owned(), environment.clone())])],
+            functions: Vec::new(),
             environment,
+            budget: Rc::new(Budget::default()),
         }
     }
 }
@@ -47,10 +98,69 @@ impl Env {
     fn get(&self, name: &str) -> Option<&Value> {
         self.frames.iter().rev().find_map(|frame| frame.get(name))
     }
+
+    fn enter(&self) -> Result<Depth, String> {
+        if self.budget.exhausted.get() {
+            return Err(DEPTH_ERROR.to_owned());
+        }
+        let depth = self.budget.depth.get() + 1;
+        if depth > MAX_EVAL_DEPTH {
+            self.budget.exhausted.set(true);
+            return Err(DEPTH_ERROR.to_owned());
+        }
+        self.budget.depth.set(depth);
+        Ok(Depth(Rc::clone(&self.budget)))
+    }
+
+    fn define(&self, name: &str, parameters: &[String], body: &Rc<Expr>) -> Self {
+        let mut child = self.clone();
+        child.functions.push(Rc::new(Function {
+            name: name.to_owned(),
+            parameters: parameters.to_vec(),
+            body: Rc::clone(body),
+            environment: self.clone(),
+            recursive: true,
+        }));
+        child
+    }
+
+    /// The latest definition wins, so a redefinition shadows an earlier one and
+    /// a user function shadows the builtin of the same name and arity.
+    fn function(&self, name: &str, arity: usize) -> Option<&Rc<Function>> {
+        self.functions
+            .iter()
+            .rev()
+            .find(|function| function.name == name && function.parameters.len() == arity)
+    }
+
+    /// The environment a call body runs in: the definition site, the callee
+    /// itself for recursion, and one closure per argument that keeps the
+    /// caller's scope so a filter parameter still sees the caller's bindings.
+    fn call(&self, function: &Rc<Function>, arguments: &[Expr]) -> Self {
+        let mut child = function.environment.clone();
+        if function.recursive {
+            child.functions.push(Rc::clone(function));
+        }
+        for (name, argument) in function.parameters.iter().zip(arguments) {
+            child.functions.push(Rc::new(Function {
+                name: name.clone(),
+                parameters: Vec::new(),
+                body: Rc::new(argument.clone()),
+                environment: self.clone(),
+                recursive: false,
+            }));
+        }
+        child
+    }
 }
 
 impl Expr {
     pub(super) fn eval(&self, input: &Value, env: &Env) -> Result<Vec<Value>, String> {
+        let _depth = env.enter()?;
+        self.evaluate(input, env)
+    }
+
+    fn evaluate(&self, input: &Value, env: &Env) -> Result<Vec<Value>, String> {
         match self {
             Self::Alternative(left, right) => {
                 let values = left
@@ -133,7 +243,10 @@ impl Expr {
                 }
                 Ok(output)
             }
-            Self::Call(name, arguments) => builtins::evaluate(name, arguments, input, env),
+            Self::Call(name, arguments) => match env.function(name, arguments.len()) {
+                Some(function) => function.body.eval(input, &env.call(function, arguments)),
+                None => builtins::evaluate(name, arguments, input, env),
+            },
             Self::Comma(expressions) => {
                 let mut output = Vec::new();
                 for expression in expressions {
@@ -144,6 +257,12 @@ impl Expr {
             Self::Conditional(branches, fallback) => {
                 evaluate_conditional(branches, fallback, input, env)
             }
+            Self::Def {
+                name,
+                parameters,
+                body,
+                rest,
+            } => rest.eval(input, &env.define(name, parameters, body)),
             Self::Empty => Ok(Vec::new()),
             Self::Environment => Ok(vec![env.environment.clone()]),
             Self::Field(base, key) => Ok(base
