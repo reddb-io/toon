@@ -803,7 +803,7 @@ fn reports_the_remaining_evaluator_and_parser_errors() {
         (".a b", "{}", "unexpected trailing filter input"),
         ("{1:2}", "{}", "expected object key"),
         ("map(.", "{}", "expected `RParen`"),
-        (". as $x", "{}", "unsupported character `$`"),
+        (". as $x", "{}", "expected `Pipe`"),
         (".a=1", "{}", "assignment operators are not supported yet"),
         (".a|=1", "{}", "assignment operators are not supported yet"),
         (".a+=1", "{}", "assignment operators are not supported yet"),

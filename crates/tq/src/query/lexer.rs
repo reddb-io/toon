@@ -29,6 +29,7 @@ pub(super) enum Token {
     Slash,
     Star,
     String(String),
+    Variable(String),
 }
 
 pub(super) fn lex(query: &str) -> Result<Vec<Token>, String> {
@@ -118,6 +119,19 @@ pub(super) fn lex(query: &str) -> Result<Vec<Token>, String> {
                     tokens.push(Token::GreaterEqual);
                 } else {
                     tokens.push(Token::Greater);
+                }
+            }
+            '$' => {
+                let Some((start, character)) = chars.peek().copied() else {
+                    return Err("expected variable name after `$`".to_owned());
+                };
+                if !is_ident_start(character) {
+                    return Err("expected variable name after `$`".to_owned());
+                }
+                let end = read_ident_end(query, start);
+                tokens.push(Token::Variable(query[start..end].to_owned()));
+                while matches!(chars.peek(), Some((next_index, _)) if *next_index < end) {
+                    chars.next();
                 }
             }
             '"' => {

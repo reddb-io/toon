@@ -1,6 +1,6 @@
 use reddb_io_toon::Value;
 
-use super::ast::{BinaryOp, Expr};
+use super::ast::{BinaryOp, Expr, Pattern};
 use super::builtins;
 use super::lexer::{lex, Token};
 
@@ -26,10 +26,16 @@ impl Parser {
     }
 
     fn parse_pipe(&mut self) -> Result<Expr, String> {
-        let mut expression = self.parse_comma()?;
-        while self.consume(&Token::Pipe) {
-            let right = self.parse_comma()?;
-            expression = Expr::Pipe(Box::new(expression), Box::new(right));
+        let expression = self.parse_comma()?;
+        if self.consume_keyword("as") {
+            let pattern = self.parse_pattern()?;
+            self.expect(Token::Pipe)?;
+            let body = self.parse_pipe()?;
+            return Ok(Expr::Bind(Box::new(expression), pattern, Box::new(body)));
+        }
+        if self.consume(&Token::Pipe) {
+            let right = self.parse_pipe()?;
+            return Ok(Expr::Pipe(Box::new(expression), Box::new(right)));
         }
         Ok(expression)
     }
@@ -198,16 +204,63 @@ impl Parser {
             }
             Some(Token::Number(value)) => Ok(Expr::Literal(Value::Number(value))),
             Some(Token::String(value)) => Ok(Expr::Literal(Value::String(value))),
+            Some(Token::Variable(name)) => Ok(Expr::Variable(name)),
             token => Err(format!("unexpected token `{token:?}`")),
+        }
+    }
+
+    fn parse_pattern(&mut self) -> Result<Pattern, String> {
+        match self.next() {
+            Some(Token::LBracket) => {
+                let mut items = Vec::new();
+                if !self.consume(&Token::RBracket) {
+                    loop {
+                        items.push(self.parse_pattern()?);
+                        if !self.consume(&Token::Comma) {
+                            self.expect(Token::RBracket)?;
+                            break;
+                        }
+                    }
+                }
+                Ok(Pattern::Array(items))
+            }
+            Some(Token::LBrace) => {
+                let mut fields = Vec::new();
+                if !self.consume(&Token::RBrace) {
+                    loop {
+                        let (key, pattern) = match self.next() {
+                            Some(Token::Variable(name)) => (name.clone(), Pattern::Variable(name)),
+                            Some(Token::Ident(key)) | Some(Token::String(key)) => {
+                                self.expect(Token::Colon)?;
+                                (key, self.parse_pattern()?)
+                            }
+                            token => {
+                                return Err(format!("expected pattern key, got `{token:?}`"));
+                            }
+                        };
+                        fields.push((key, pattern));
+                        if !self.consume(&Token::Comma) {
+                            self.expect(Token::RBrace)?;
+                            break;
+                        }
+                    }
+                }
+                Ok(Pattern::Object(fields))
+            }
+            Some(Token::Variable(name)) => Ok(Pattern::Variable(name)),
+            token => Err(format!("expected binding pattern, got `{token:?}`")),
         }
     }
 
     fn parse_identifier(&mut self, name: String) -> Result<Expr, String> {
         match name.as_str() {
             "empty" => Ok(Expr::Empty),
+            "env" => Ok(Expr::Environment),
             "false" => Ok(Expr::Literal(Value::Bool(false))),
+            "foreach" => self.parse_foreach(),
             "if" => self.parse_conditional(),
             "null" => Ok(Expr::Literal(Value::Null)),
+            "reduce" => self.parse_reduce(),
             "true" => Ok(Expr::Literal(Value::Bool(true))),
             "try" => self.parse_try(),
             _ => self.parse_call(name),
@@ -243,6 +296,46 @@ impl Parser {
             .transpose()?
             .map(Box::new);
         Ok(Expr::Try(Box::new(expression), handler))
+    }
+
+    fn parse_reduce(&mut self) -> Result<Expr, String> {
+        let generator = self.parse_comma()?;
+        self.expect_keyword("as")?;
+        let pattern = self.parse_pattern()?;
+        self.expect(Token::LParen)?;
+        let initial = self.parse_pipe()?;
+        self.expect(Token::Semicolon)?;
+        let update = self.parse_pipe()?;
+        self.expect(Token::RParen)?;
+        Ok(Expr::Reduce {
+            generator: Box::new(generator),
+            pattern,
+            initial: Box::new(initial),
+            update: Box::new(update),
+        })
+    }
+
+    fn parse_foreach(&mut self) -> Result<Expr, String> {
+        let generator = self.parse_comma()?;
+        self.expect_keyword("as")?;
+        let pattern = self.parse_pattern()?;
+        self.expect(Token::LParen)?;
+        let initial = self.parse_pipe()?;
+        self.expect(Token::Semicolon)?;
+        let update = self.parse_pipe()?;
+        let extract = if self.consume(&Token::Semicolon) {
+            self.parse_pipe()?
+        } else {
+            Expr::Identity
+        };
+        self.expect(Token::RParen)?;
+        Ok(Expr::Foreach {
+            generator: Box::new(generator),
+            pattern,
+            initial: Box::new(initial),
+            update: Box::new(update),
+            extract: Box::new(extract),
+        })
     }
 
     fn parse_call(&mut self, name: String) -> Result<Expr, String> {
@@ -310,10 +403,16 @@ impl Parser {
     }
 
     fn parse_pipe_item(&mut self) -> Result<Expr, String> {
-        let mut expression = self.parse_alternative()?;
-        while self.consume(&Token::Pipe) {
-            let right = self.parse_alternative()?;
-            expression = Expr::Pipe(Box::new(expression), Box::new(right));
+        let expression = self.parse_alternative()?;
+        if self.consume_keyword("as") {
+            let pattern = self.parse_pattern()?;
+            self.expect(Token::Pipe)?;
+            let body = self.parse_pipe_item()?;
+            return Ok(Expr::Bind(Box::new(expression), pattern, Box::new(body)));
+        }
+        if self.consume(&Token::Pipe) {
+            let right = self.parse_pipe_item()?;
+            return Ok(Expr::Pipe(Box::new(expression), Box::new(right)));
         }
         Ok(expression)
     }
