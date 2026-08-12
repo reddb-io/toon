@@ -7,10 +7,11 @@
 It is shipped by the `reddb-io-tq` crate and uses the `reddb-io-toon` library. The TOON extension behavior is specified in [`docs/toon-reddb-spec.md`](../../docs/toon-reddb-spec.md), and TOONL v0.2 is specified in [`docs/toonl-reddb-spec.md`](../../docs/toonl-reddb-spec.md).
 
 The binary boundary is deliberate: `toon`, published by both
-[`@reddb-io/toon`](../toon/README.md) and the `reddb-io-toon` crate, carries the
-drop-in upstream TOON CLI contract. `tq` carries the jq-compatible contract;
-its `-o` selects an output format and its `-e` implements jq exit-status
-semantics, so those flags are not aliases for `toon`'s converter options.
+[`@reddb-io/toon`](../../packages/toon/README.md) and the
+[`reddb-io-toon`](../toon/README.md) crate, carries the drop-in upstream TOON
+CLI contract. `tq` carries the jq-compatible contract; its `-o` selects an
+output format and its `-e` implements jq exit-status semantics, so those flags
+are not aliases for `toon`'s converter options.
 
 ```bash
 cargo install reddb-io-tq --version 0.20.0
