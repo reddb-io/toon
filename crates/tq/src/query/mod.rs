@@ -134,10 +134,19 @@ mod tests {
         let document = table_document(&["users", "orders"]);
         let variables = Variables::new(&[]);
         let filters = [
-            (".users[7].name = \"Ada\" | .users[7].name", serde_json::json!("Ada")),
-            (".users[7].name |= \"Ada\" | .users[7].name", serde_json::json!("Ada")),
+            (
+                ".users[7].name = \"Ada\" | .users[7].name",
+                serde_json::json!("Ada"),
+            ),
+            (
+                ".users[7].name |= \"Ada\" | .users[7].name",
+                serde_json::json!("Ada"),
+            ),
             (".users[7].id += 1 | .users[7].id", serde_json::json!(8)),
-            (".users[7].name //= \"Ada\" | .users[7].name", serde_json::json!("name-7")),
+            (
+                ".users[7].name //= \"Ada\" | .users[7].name",
+                serde_json::json!("name-7"),
+            ),
         ];
 
         for (filter, expected) in filters {

@@ -78,7 +78,14 @@ fn parse_fixture(path: &Path, block: &str) -> Fixture {
     let fields = fields(
         &location,
         block,
-        &["case", "filter", "options", "compatible", "parity", "reason"],
+        &[
+            "case",
+            "filter",
+            "options",
+            "compatible",
+            "parity",
+            "reason",
+        ],
     );
 
     let compatible = match field(&fields, "compatible").as_deref() {
@@ -131,13 +138,14 @@ fn decide(options: &[String], filter: &str) -> Decision {
         .output()
         .expect("run tq jq-check");
 
-    let report: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap_or_else(|error| {
-        panic!(
-            "jq-check must print one JSON object ({error}): {:?} {:?}",
-            stdout(&output),
-            stderr(&output)
-        )
-    });
+    let report: serde_json::Value =
+        serde_json::from_str(&stdout(&output)).unwrap_or_else(|error| {
+            panic!(
+                "jq-check must print one JSON object ({error}): {:?} {:?}",
+                stdout(&output),
+                stderr(&output)
+            )
+        });
     let compatible = report["compatible"]
         .as_bool()
         .expect("the report carries a boolean decision");
@@ -243,10 +251,7 @@ fn every_positive_fixture_replays_through_the_parity_oracle() {
             continue;
         };
         let case = cases.get(name).unwrap_or_else(|| {
-            panic!(
-                "{}: `{name}` is not a parity corpus case",
-                fixture.location
-            )
+            panic!("{}: `{name}` is not a parity corpus case", fixture.location)
         });
         assert!(
             case.divergence.is_none(),
@@ -335,7 +340,10 @@ fn the_decision_knows_every_builtin_the_registry_dispatches() {
         };
         let decision = decide(&[], &filter);
         assert!(
-            !decision.kinds.iter().any(|kind| kind == "unsupported-builtin"),
+            !decision
+                .kinds
+                .iter()
+                .any(|kind| kind == "unsupported-builtin"),
             "`{name}/{arity}` is registered but the decision calls it unsupported"
         );
     }
@@ -347,7 +355,11 @@ fn the_decision_reports_every_reason_it_finds() {
     assert!(!decision.compatible);
     assert_eq!(
         decision.kinds,
-        ["unsupported-option", "unsupported-builtin", "divergent-builtin"]
+        [
+            "unsupported-option",
+            "unsupported-builtin",
+            "divergent-builtin"
+        ]
     );
 }
 

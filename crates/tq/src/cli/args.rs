@@ -400,9 +400,7 @@ pub(super) fn parse_jq_check_args(
             }
             2
         } else if argument.starts_with('-') && argument != "-" {
-            rejected.push(format!(
-                "`{argument}` is not a jq 1.7.1 option tq honors"
-            ));
+            rejected.push(format!("`{argument}` is not a jq 1.7.1 option tq honors"));
             1
         } else if rejected.is_empty() {
             // Nothing consumes it, so the invocation is not shaped as expected.

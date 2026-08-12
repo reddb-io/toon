@@ -88,10 +88,7 @@ pub fn fields(location: &str, block: &str, known: &[&str]) -> Vec<(String, Strin
         let (key, encoded) = line
             .split_once(": ")
             .unwrap_or_else(|| panic!("{location}: expected `key: JSON string`"));
-        assert!(
-            known.contains(&key),
-            "{location}: unknown field `{key}`"
-        );
+        assert!(known.contains(&key), "{location}: unknown field `{key}`");
         assert!(
             !fields.iter().any(|(seen, _)| seen == key),
             "{location}: duplicate `{key}`"

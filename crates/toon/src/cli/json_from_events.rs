@@ -10,8 +10,13 @@ use super::errors::CliError;
 use super::io::{CliIo, OutputSink};
 
 enum Context {
-    Object { needs_comma: bool, expect_value: bool },
-    Array { needs_comma: bool },
+    Object {
+        needs_comma: bool,
+        expect_value: bool,
+    },
+    Array {
+        needs_comma: bool,
+    },
 }
 
 /// The event-driven JSON writer. One instance renders one document.
@@ -94,7 +99,9 @@ impl JsonWriter {
         if self.stack.is_empty() {
             return Ok(());
         }
-        Err(mismatched("incomplete event stream: unclosed objects or arrays"))
+        Err(mismatched(
+            "incomplete event stream: unclosed objects or arrays",
+        ))
     }
 
     fn close(

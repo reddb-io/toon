@@ -14,8 +14,9 @@ const HALT_ERROR_STATUS: u8 = 5;
 pub(super) const BUILTINS: &[Builtin] = &[
     Builtin::new("debug", 0, call_debug),
     Builtin::new("debug", 1, call_debug_messages),
-    Builtin::new("halt", 0, call_halt)
-        .divergent("`halt` cancels the output still pending for the document; jq 1.7.1 has already written it"),
+    Builtin::new("halt", 0, call_halt).divergent(
+        "`halt` cancels the output still pending for the document; jq 1.7.1 has already written it",
+    ),
     Builtin::new("halt_error", 0, call_halt_error),
     Builtin::new("halt_error", 1, call_halt_error_status),
     Builtin::new("input", 0, call_input),

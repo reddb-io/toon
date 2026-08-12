@@ -139,10 +139,10 @@ pub fn relative_label(cwd: &Path, target: &Path) -> String {
 }
 
 fn file_name(path: &Path) -> String {
-    path.file_name()
-        .map_or_else(|| path.to_string_lossy().into_owned(), |name| {
-            name.to_string_lossy().into_owned()
-        })
+    path.file_name().map_or_else(
+        || path.to_string_lossy().into_owned(),
+        |name| name.to_string_lossy().into_owned(),
+    )
 }
 
 fn open_file(path: &Path) -> Result<File, CliError> {
@@ -307,7 +307,10 @@ impl Read for TextReader {
 
         let count = out.len().min(self.ready.len());
         for slot in out.iter_mut().take(count) {
-            *slot = self.ready.pop_front().expect("the queue holds `count` bytes");
+            *slot = self
+                .ready
+                .pop_front()
+                .expect("the queue holds `count` bytes");
         }
         Ok(count)
     }
@@ -327,7 +330,10 @@ impl OutputSink {
         let file = match output {
             None => None,
             Some(path) => Some(File::create(path).map_err(|error| {
-                CliError::with_cause(format!("Failed to write `{}`: {error}", path.display()), error)
+                CliError::with_cause(
+                    format!("Failed to write `{}`: {error}", path.display()),
+                    error,
+                )
             })?),
         };
         Ok(Self {

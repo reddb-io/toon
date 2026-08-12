@@ -41,7 +41,11 @@ fn golden_cli_cases_match_byte_for_byte() {
             case.stderr,
             "{name} stderr"
         );
-        assert_eq!(output.status.code(), Some(case.exit_code), "{name} exit code");
+        assert_eq!(
+            output.status.code(),
+            Some(case.exit_code),
+            "{name} exit code"
+        );
 
         for (file, expected) in &case.outputs {
             let written = fs::read(workspace.path().join(file))
@@ -117,7 +121,10 @@ fn verbose_appends_the_cause_chain() {
     let verbose_stderr = String::from_utf8(verbose.stderr).expect("stderr is utf-8");
 
     assert_eq!(plain.status.code(), Some(1));
-    assert!(plain_stderr.starts_with("✖ Failed to parse JSON: "), "{plain_stderr}");
+    assert!(
+        plain_stderr.starts_with("✖ Failed to parse JSON: "),
+        "{plain_stderr}"
+    );
     assert!(!plain_stderr.contains("Caused by:"), "{plain_stderr}");
     assert!(verbose_stderr.contains("Caused by: "), "{verbose_stderr}");
 }
@@ -164,7 +171,10 @@ fn a_failure_past_the_line_window_reports_its_header_alone() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
 
     assert_eq!(output.status.code(), Some(1));
-    assert!(stderr.starts_with("✖ Failed to decode TOON at line "), "{stderr}");
+    assert!(
+        stderr.starts_with("✖ Failed to decode TOON at line "),
+        "{stderr}"
+    );
 }
 
 /// A document larger than one write batch still reaches stdout whole.
@@ -178,7 +188,11 @@ fn a_document_past_the_write_batch_is_written_whole() {
 
     assert_eq!(output.status.code(), Some(0));
     assert!(stdout.len() > 64 * 1024, "the case must exceed one batch");
-    assert!(stdout.ends_with("\"name\": \"row-7999\"\n    }\n  ]\n}\n"), "{}", &stdout[stdout.len() - 80..]);
+    assert!(
+        stdout.ends_with("\"name\": \"row-7999\"\n    }\n  ]\n}\n"),
+        "{}",
+        &stdout[stdout.len() - 80..]
+    );
 }
 
 fn case_dirs() -> Vec<PathBuf> {
@@ -189,7 +203,10 @@ fn case_dirs() -> Vec<PathBuf> {
         .collect();
     dirs.sort();
 
-    assert!(!dirs.is_empty(), "the shared CLI corpus should not be empty");
+    assert!(
+        !dirs.is_empty(),
+        "the shared CLI corpus should not be empty"
+    );
     dirs
 }
 
@@ -274,10 +291,8 @@ impl TempWorkspace {
     }
 
     fn empty(name: &str) -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "toon-cli-golden-{}-{name}",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("toon-cli-golden-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("create case working directory");
         Self { path }

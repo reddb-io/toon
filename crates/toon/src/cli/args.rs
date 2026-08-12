@@ -56,16 +56,56 @@ struct OptionDef {
 }
 
 const OPTIONS: &[OptionDef] = &[
-    OptionDef { name: "output", alias: Some('o'), kind: Kind::Value },
-    OptionDef { name: "encode", alias: Some('e'), kind: Kind::Boolean },
-    OptionDef { name: "decode", alias: Some('d'), kind: Kind::Boolean },
-    OptionDef { name: "delimiter", alias: None, kind: Kind::Value },
-    OptionDef { name: "indent", alias: None, kind: Kind::Value },
-    OptionDef { name: "strict", alias: None, kind: Kind::Boolean },
-    OptionDef { name: "stats", alias: None, kind: Kind::Boolean },
-    OptionDef { name: "verbose", alias: None, kind: Kind::Boolean },
-    OptionDef { name: "help", alias: Some('h'), kind: Kind::Boolean },
-    OptionDef { name: "version", alias: Some('v'), kind: Kind::Boolean },
+    OptionDef {
+        name: "output",
+        alias: Some('o'),
+        kind: Kind::Value,
+    },
+    OptionDef {
+        name: "encode",
+        alias: Some('e'),
+        kind: Kind::Boolean,
+    },
+    OptionDef {
+        name: "decode",
+        alias: Some('d'),
+        kind: Kind::Boolean,
+    },
+    OptionDef {
+        name: "delimiter",
+        alias: None,
+        kind: Kind::Value,
+    },
+    OptionDef {
+        name: "indent",
+        alias: None,
+        kind: Kind::Value,
+    },
+    OptionDef {
+        name: "strict",
+        alias: None,
+        kind: Kind::Boolean,
+    },
+    OptionDef {
+        name: "stats",
+        alias: None,
+        kind: Kind::Boolean,
+    },
+    OptionDef {
+        name: "verbose",
+        alias: None,
+        kind: Kind::Boolean,
+    },
+    OptionDef {
+        name: "help",
+        alias: Some('h'),
+        kind: Kind::Boolean,
+    },
+    OptionDef {
+        name: "version",
+        alias: Some('v'),
+        kind: Kind::Boolean,
+    },
 ];
 
 pub const HELP_TEXT: &str = concat!(
