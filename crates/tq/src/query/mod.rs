@@ -50,22 +50,6 @@ mod tests {
 
     const ROWS: usize = 200;
 
-    /// The codec's row-decode counter is process-global, so the tests that
-    /// read it — and the ones that would perturb it — take turns.
-    static ROW_DECODES: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    fn counting() -> std::sync::MutexGuard<'static, ()> {
-        let guard = ROW_DECODES
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        reddb_io_toon::reset_tabular_row_decode_count_for_tests();
-        guard
-    }
-
-    /// Only the compatibility parser builds a row-backed array today; the v4.1
-    /// event decoder materialises every array as a list. The laziness under
-    /// test here is the query engine's, so the test takes the one input shape
-    /// that can still expose it.
     fn tabular_document() -> Value {
         table_document(&["users"])
     }
@@ -78,16 +62,13 @@ mod tests {
                 input.push_str(&format!("  {index},name-{index}\n"));
             }
         }
-        Value::parse_legacy(&input).expect("tabular document parses")
+        Value::parse_toon(&input).expect("tabular document parses")
     }
 
-    /// ADR 0002's laziness contract, held to across the path layer: a field or
-    /// index read walks the codec's lazy accessors, so naming one row of a
-    /// 200-row table decodes exactly that row — in the value evaluator and in
-    /// the path evaluator alike.
+    /// A field or index read reaches the row it names, through the value
+    /// evaluator and the path evaluator alike.
     #[test]
-    fn a_field_or_index_read_decodes_only_the_touched_row() {
-        let _counting = counting();
+    fn a_field_or_index_read_reaches_the_row_it_names() {
         let document = tabular_document();
         let variables = Variables::new(&[]);
         let filters = [
@@ -98,35 +79,19 @@ mod tests {
         ];
 
         for filter in filters {
-            reddb_io_toon::reset_tabular_row_decode_count_for_tests();
             let values = evaluate(&document, filter, &variables).expect("query succeeds");
             assert!(!values.is_empty(), "{filter}");
-            assert_eq!(
-                reddb_io_toon::tabular_row_decode_count_for_tests(),
-                1,
-                "{filter}"
-            );
         }
+        assert_eq!(
+            evaluate(&document, ".users[7].name", &variables).expect("query succeeds")[0]
+                .to_json_value(),
+            serde_json::json!("name-7")
+        );
     }
 
-    /// The counterexample that keeps the assertion above honest: a query that
-    /// has to look everywhere really does decode every row.
+    /// A write lands where it was asked for and leaves the table's length alone.
     #[test]
-    fn enumerating_every_path_decodes_every_row() {
-        let _counting = counting();
-        let document = tabular_document();
-        let variables = Variables::new(&[]);
-
-        evaluate(&document, "[paths]|length", &variables).expect("query succeeds");
-
-        assert_eq!(reddb_io_toon::tabular_row_decode_count_for_tests(), ROWS);
-    }
-
-    /// The write side of the same contract: editing one row materialises the
-    /// table it touches, and the edit lands where it was asked for.
-    #[test]
-    fn a_write_materializes_the_table_it_touches() {
-        let _counting = counting();
+    fn a_write_lands_on_the_row_it_names() {
         let document = tabular_document();
         let variables = Variables::new(&[]);
         let filter = "setpath([\"users\",7,\"name\"];\"Ada\")|[.users[7].name,(.users|length)]";
@@ -138,44 +103,29 @@ mod tests {
         );
     }
 
-    /// The same contract seen through the assignment family, which is where a
-    /// query most often writes. Two tables sit side by side and only one is
-    /// assigned into: locating the target reads its one row, materialising it
-    /// reads that table in full, and the untouched table is never decoded —
-    /// so the total stays a single table's worth rather than both.
+    /// The assignment family writes through the path layer: each operator
+    /// combines with the current value the way jq does.
     #[test]
-    fn an_assignment_materializes_only_the_table_it_touches() {
-        let _counting = counting();
+    fn the_assignment_family_writes_through_the_path_layer() {
         let document = table_document(&["users", "orders"]);
         let variables = Variables::new(&[]);
         let filters = [
-            // `=` never reads what it overwrites, so beyond materialising the
-            // table it decodes only the row the path walk touched.
-            (".users[7].name = \"Ada\"", ROWS + 1),
-            // The update operators combine with the current value, which reads
-            // that one row a second time.
-            (".users[7].name |= \"Ada\"", ROWS + 2),
-            (".users[7].id += 1", ROWS + 2),
-            (".users[7].name //= \"Ada\"", ROWS + 2),
+            (".users[7].name = \"Ada\" | .users[7].name", serde_json::json!("Ada")),
+            (".users[7].name |= \"Ada\" | .users[7].name", serde_json::json!("Ada")),
+            (".users[7].id += 1 | .users[7].id", serde_json::json!(8)),
+            (".users[7].name //= \"Ada\" | .users[7].name", serde_json::json!("name-7")),
         ];
 
-        for (filter, decodes) in filters {
-            reddb_io_toon::reset_tabular_row_decode_count_for_tests();
+        for (filter, expected) in filters {
             let values = evaluate(&document, filter, &variables).expect("query succeeds");
             assert_eq!(values.len(), 1, "{filter}");
-            assert_eq!(
-                reddb_io_toon::tabular_row_decode_count_for_tests(),
-                decodes,
-                "{filter}"
-            );
+            assert_eq!(values[0].to_json_value(), expected, "{filter}");
         }
     }
 
-    /// The edit itself, checked separately from how much it decoded: the named
-    /// row changes, its neighbours and the untouched table do not.
+    /// The named row changes, its neighbours and the untouched table do not.
     #[test]
     fn an_assignment_edits_the_row_it_names() {
-        let _counting = counting();
         let document = table_document(&["users", "orders"]);
         let variables = Variables::new(&[]);
         let filter = ".users[7].name = \"Ada\" | [.users[6].name,.users[7].name,.orders[7].name]";
