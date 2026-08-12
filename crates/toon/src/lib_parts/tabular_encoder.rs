@@ -21,9 +21,34 @@ struct ColumnPath {
     child_fields: Vec<HeaderFieldShape>,
 }
 
+/// The only inputs tabular shape detection reads. Both writers hand it their
+/// own option struct, so shape detection never depends on either one.
+#[derive(Debug, Clone, Copy)]
+struct ShapeOptions {
+    nested_tabular_headers: bool,
+    keyed_map_collapse: bool,
+    primitive_array_columns: bool,
+    object_array_columns: bool,
+    delimiter: char,
+    max_depth: usize,
+}
+
+impl From<LegacyEncodeOptions> for ShapeOptions {
+    fn from(options: LegacyEncodeOptions) -> Self {
+        Self {
+            nested_tabular_headers: options.nested_tabular_headers,
+            keyed_map_collapse: options.keyed_map_collapse,
+            primitive_array_columns: options.primitive_array_columns,
+            object_array_columns: options.object_array_columns,
+            delimiter: options.delimiter,
+            max_depth: options.max_depth,
+        }
+    }
+}
+
 fn tabular_shape(
     values: &[Value],
-    options: EncodeOptions,
+    options: ShapeOptions,
     depth: usize,
 ) -> Result<Option<TabularShape>, EncodeError> {
     if let Some(shape) = matrix_shape(values, options) {
@@ -39,7 +64,7 @@ fn tabular_shape(
 
 fn keyed_map_shape(
     document: &Document,
-    options: EncodeOptions,
+    options: ShapeOptions,
     depth: usize,
 ) -> Result<Option<TabularShape>, EncodeError> {
     if !options.keyed_map_collapse || document.fields.len() < 2 {
@@ -55,10 +80,10 @@ fn keyed_map_shape(
 
 fn object_shape(
     values: &[Value],
-    options: EncodeOptions,
+    options: ShapeOptions,
     depth: usize,
 ) -> Result<Option<Vec<HeaderFieldShape>>, EncodeError> {
-    check_encode_depth(depth, options)?;
+    check_encode_depth(depth, options.delimiter, options.max_depth)?;
     let Some(Value::Object(first)) = values.first() else {
         return Ok(None);
     };
@@ -148,7 +173,7 @@ fn object_shape(
     Ok(Some(fields))
 }
 
-fn matrix_shape(values: &[Value], options: EncodeOptions) -> Option<TabularShape> {
+fn matrix_shape(values: &[Value], options: ShapeOptions) -> Option<TabularShape> {
     if !options.object_array_columns {
         return None;
     }
@@ -245,7 +270,7 @@ fn column_text(
     value: &Value,
     column: &ColumnPath,
     active_delimiter: char,
-    options: EncodeOptions,
+    options: LegacyEncodeOptions,
     child_output: &mut String,
     child_depth: usize,
 ) -> String {
@@ -291,7 +316,7 @@ fn write_child_rows(
     output: &mut String,
     value: &Value,
     fields: &[HeaderFieldShape],
-    options: EncodeOptions,
+    options: LegacyEncodeOptions,
     depth: usize,
 ) {
     let Value::Array(array) = value else {
@@ -364,7 +389,7 @@ fn canonical_string(value: &str, delimiter: char) -> String {
 /// decodes as a comment line (v4.1). This legacy path trims via [`str::trim`]
 /// to stay a fixed point with the legacy decoder, which also trims Unicode
 /// whitespace; the canonical v4.1 encoder uses the stricter ASCII-only rule in
-/// [`needs_quotes_v4`].
+/// [`canonical_needs_quotes`].
 fn needs_quotes(value: &str, delimiter: char) -> bool {
     value.is_empty()
         || value.trim() != value
