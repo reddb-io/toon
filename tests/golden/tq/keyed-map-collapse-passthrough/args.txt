@@ -1,1 +1,1 @@
---keyed-map-collapse -o toon .
+-o toon .
