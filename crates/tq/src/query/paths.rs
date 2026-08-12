@@ -635,6 +635,8 @@ mod tests {
         assert_eq!(error, "Cannot delete fields from number");
         let error = delete_path(&json("{\"a\":1}"), &[json("\"a\""), json("\"b\"")]).unwrap_err();
         assert_eq!(error, "Cannot delete fields from number");
+        let error = delete_path(&json("1"), &[json("\"a\""), json("\"b\"")]).unwrap_err();
+        assert_eq!(error, "Cannot delete fields from number");
         let error = delete_path(&json("1"), &[json("{\"start\":0,\"end\":1}")]).unwrap_err();
         assert_eq!(error, "Cannot delete fields from number");
     }
