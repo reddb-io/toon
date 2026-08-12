@@ -1,0 +1,4 @@
+✖ Failed to decode TOON at line 2: tab used as indentation
+
+  2 | →b: 1
+      ^

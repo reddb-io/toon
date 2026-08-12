@@ -11,6 +11,13 @@ rust-version.workspace = true
 name = "reddb_io_toon"
 path = "src/lib.rs"
 
+# The upstream-compatible CLI front-end (Spec #359). The crate name stays
+# `reddb-io-*`; only the produced binary is named `toon`, so
+# `cargo install reddb-io-toon` is a drop-in for `@toon-format/cli`.
+[[bin]]
+name = "toon"
+path = "src/bin/toon.rs"
+
 [[test]]
 name = "spec_conformance"
 path = "../../tests/runners/rust/toon/spec_conformance.rs"
@@ -57,3 +64,7 @@ path = "../../tests/runners/rust/toon/event_fixtures.rs"
 [[test]]
 name = "canonical_codec"
 path = "../../tests/runners/rust/toon/canonical_codec.rs"
+
+[[test]]
+name = "cli_golden"
+path = "../../tests/runners/rust/toon/cli_golden.rs"

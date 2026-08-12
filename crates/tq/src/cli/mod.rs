@@ -4,14 +4,14 @@ use std::io::{self, BufRead, BufReader, Cursor, Read};
 use std::process::ExitCode;
 
 use reddb_io_toon::{
-    close_transform_stream, close_transform_stream_interleaved, decode_with_options,
-    detect_toonl_truncation, detect_truncation_with_options, Array, DecodeOptions, ToonlReader, Value,
+    cli::format_statistics, close_transform_stream, close_transform_stream_interleaved,
+    decode_with_options, detect_toonl_truncation, detect_truncation_with_options, Array,
+    DecodeOptions, ToonlReader, Value,
 };
 
 mod args;
 mod jq_check;
 mod output;
-mod token_stats;
 mod toonl_trim;
 mod upgrade;
 mod xml;
@@ -135,7 +135,7 @@ fn run() -> Result<(String, ExitCode), String> {
     let code = output_exit_code(&values, options.exit_status);
     let output = format_values(&values, &options)?;
     if options.stats && input_format == Format::Json && options.output_format == Format::Toon {
-        eprint!("{}", token_stats::format_statistics(&input, &output));
+        eprint!("{}", format_statistics(&input, &output));
     }
     Ok((output, code))
 }
