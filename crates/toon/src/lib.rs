@@ -1,7 +1,7 @@
 //! TOON (Token-Oriented Object Notation) parser and serializer.
 //!
-//! TOON v4.1 is the only codec. The pre-v4 engine and its `Legacy*` API were
-//! removed in 0.26.0; every entry point decodes and encodes canonical v4.1.
+//! TOON v4.1 is the only codec. The pre-v4 engine and its `Legacy*` API are
+//! gone; every entry point decodes and encodes canonical v4.1.
 
 include!("lib_parts/core.rs");
 include!("lib_parts/toonl_and_cyclic_decode.rs");
