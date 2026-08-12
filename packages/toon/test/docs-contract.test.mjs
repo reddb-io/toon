@@ -77,8 +77,11 @@ test('migration notes show observable TypeScript and Rust cutovers', () => {
   const migration = read('docs/migration-v4.md')
   assert.match(migration, /TypeScript cutover/i)
   assert.match(migration, /Rust cutover/i)
-  assert.match(migration, /@reddb-io\/toon\/legacy/)
+  // The guide has to say the pre-v4 engine and its API are gone, not offer
+  // them as an escape hatch.
+  assert.match(migration, /removed in 0\.26\.0/)
   assert.match(migration, /parse_legacy/)
+  assert.doesNotMatch(migration, /^import .* from '@reddb-io\/toon\/legacy'/m)
   assert.match(migration, /Before[^\n]*After/is)
 })
 
