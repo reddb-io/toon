@@ -55,7 +55,7 @@ decode('a.b: 1')
 
 A stored document that depends on the old observable behavior has to be
 converted before decoding: the pre-v4 engine and the `@reddb-io/toon/legacy`
-subpath that published it were removed in 0.26.0.
+subpath that published it are gone.
 
 Use `decode`, `decodeFromLines`, `decodeStream`, `encode`, or
 `encodeLines`. The `reviver` option is an experimental TypeScript-only frontier
@@ -81,8 +81,7 @@ assert_eq!(value.to_json_value(), serde_json::json!({"a.b": 1}));
 
 There is no compatibility read. `parse_legacy*`, `to_legacy_toon*`,
 `LegacyParseOptions`, `LegacyEncodeOptions`, `detect_truncation_legacy*`, and
-`ParseOptions::expand_paths` were removed in 0.26.0 along with the engine
-behind them. `EncodeOptions` passed to common model methods routes through the
+`ParseOptions::expand_paths` were removed along with the engine behind them. `EncodeOptions` passed to common model methods routes through the
 v4.1 encoder, as it already did.
 
 ## Breaking changes
@@ -93,8 +92,8 @@ v4.1 encoder, as it already did.
 `expandPaths: "safe"` (§13.4) that split dotted keys back into nested objects
 *after* base parsing. v4.1 removes path expansion from the specification
 entirely. Canonical decode treats a dotted key as a single literal key, and
-since 0.26.0 nothing else does: the engine that implemented expansion, and the
-API that reached it, are gone.
+nothing else does any more: the engine that implemented expansion, and the API
+that reached it, are gone.
 
 **Before/after decode** of `a.b.c: 1`:
 
