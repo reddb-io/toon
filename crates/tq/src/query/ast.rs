@@ -6,6 +6,8 @@ use reddb_io_toon::Value;
 pub(super) enum Expr {
     Alternative(Box<Expr>, Box<Expr>),
     Array(Vec<Expr>),
+    /// `lhs op= rhs`: an edit of the paths `lhs` selects.
+    Assign(AssignOp, Box<Expr>, Box<Expr>),
     Bind(Box<Expr>, Pattern, Box<Expr>),
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
     Call(String, Vec<Expr>),
@@ -52,6 +54,22 @@ pub(super) enum Pattern {
     Array(Vec<Pattern>),
     Object(Vec<(String, Pattern)>),
     Variable(String),
+}
+
+/// jq's assignment family. Every member edits the paths its left-hand side
+/// selects; they differ only in what is written at each one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AssignOp {
+    /// `=`: the right-hand value, verbatim.
+    Set,
+    /// `|=`: the first value the right-hand filter produces from the current
+    /// one, or nothing, which deletes the path.
+    Update,
+    /// `+=`, `-=`, `*=`, `/=`, `%=`: the operator applied to the current value
+    /// and the right-hand value.
+    Arithmetic(BinaryOp),
+    /// `//=`: the right-hand value, but only where the current one is falsy.
+    Alternative,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

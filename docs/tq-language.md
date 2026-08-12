@@ -78,6 +78,53 @@ scalar where jq stops, and a `recurse(.a?)` that terminates in jq keeps
 descending in tq until the recursion budget stops it. Reach for `.[]?`, whose
 iteration does fail on a scalar, when you want jq's termination.
 
+## Assignment
+
+The assignment family edits a document in place. Every operator is sugar over
+the path layer: it locates the paths its left-hand side selects, then writes at
+each one with `setpath`.
+
+| Operator | Writes at every selected path |
+| --- | --- |
+| `p = v` | `v`. |
+| `p \|= f` | The first value `f` produces from the value already there. |
+| `p += v`, `p -= v`, `p *= v`, `p /= v`, `p %= v` | That operator applied to the value already there and `v`. |
+| `p //= v` | `v`, but only where the value already there is `false` or `null`. |
+
+```console
+$ echo '{"users":[{"name":"Ada"}]}' | tq -p json -o json -c '.users[0].name = "Grace"'
+{"users":[{"name":"Grace"}]}
+```
+
+The left-hand side is a path expression, so everything `path()` accepts works
+there — a multi-path form such as `(.a,.b) = 1` writes at both, and
+`(.[]|select(.score < 0)) = 0` writes at each match. A left-hand side that
+computes a value instead reports `Invalid path expression`.
+
+Where the right-hand side is evaluated differs by operator, exactly as in jq.
+`|=` runs its filter at every selected value, so it always yields one edited
+document. Every other operator evaluates its right-hand side once against the
+whole input, which is why `.a += .b` reads `.b` from the document rather than
+from `.a`, and why a generator there yields one edited document per value:
+`.a = (1,2)` produces two.
+
+A missing path is created rather than rejected, so `.a.b = 1` on `{}` builds
+the objects on the way down and `.a += 1` on `{}` starts from `null`.
+
+`|=` is the one operator whose update can produce nothing, and jq gives that a
+meaning: the path is deleted. `.a |= empty` removes `.a`, and
+`.[] |= select(. > 1)` keeps only the matching elements. Deletions are
+collected and applied together at the end, so removing one element never
+shifts a path still to be visited — `[1,2,3,4,5] | .[] |= empty` empties the
+array rather than deleting every second element.
+
+Assignment is non-associative, as in jq: `.a = .b = 1` is rejected rather than
+grouped. It binds tighter than `//`, so `.a += 1 // 5` increments `.a`.
+
+The paths are located once, against the document that entered the assignment,
+and the laziness rules above apply unchanged: assigning into one row of a
+tabular array materialises that array and leaves every other one undecoded.
+
 ## UTC time builtins
 
 Time handling is UTC-only and does not read the process timezone or locale.

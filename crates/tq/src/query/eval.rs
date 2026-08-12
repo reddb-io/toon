@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use reddb_io_toon::{Array, Value};
 
+use super::assign;
 use super::ast::{BinaryOp, Expr, Pattern};
 use super::builtins;
 
@@ -192,6 +193,9 @@ impl Expr {
                     values.extend(item.eval(input, env)?);
                 }
                 Ok(vec![Value::Array(Array::List(values))])
+            }
+            Self::Assign(operator, target, source) => {
+                assign::evaluate(*operator, target, source, input, env)
             }
             Self::Bind(source, pattern, body) => {
                 let mut output = Vec::new();
@@ -1002,7 +1006,11 @@ fn evaluate_length(input: &Value) -> Result<Value, String> {
     number_value(length)
 }
 
-fn evaluate_binary(operator: BinaryOp, left: &Value, right: &Value) -> Result<Value, String> {
+pub(super) fn evaluate_binary(
+    operator: BinaryOp,
+    left: &Value,
+    right: &Value,
+) -> Result<Value, String> {
     match operator {
         BinaryOp::Add => add_values(left, right),
         BinaryOp::And => Ok(Value::Bool(is_truthy(left) && is_truthy(right))),

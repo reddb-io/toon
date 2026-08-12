@@ -991,14 +991,15 @@ fn reports_the_remaining_evaluator_and_parser_errors() {
         ("{1:2}", "{}", "expected object key"),
         ("map(.", "{}", "expected `RParen`"),
         (". as $x", "{}", "expected `Pipe`"),
-        (".a=1", "{}", "assignment operators are not supported yet"),
-        (".a|=1", "{}", "assignment operators are not supported yet"),
-        (".a+=1", "{}", "assignment operators are not supported yet"),
-        (".a-=1", "{}", "assignment operators are not supported yet"),
-        (".a*=1", "{}", "assignment operators are not supported yet"),
-        (".a/=1", "{}", "assignment operators are not supported yet"),
-        (".a%=1", "{}", "assignment operators are not supported yet"),
-        (".a//=1", "{}", "assignment operators are not supported yet"),
+        // jq's assignment level is non-associative, so a second operator at
+        // the same level is left over rather than grouped.
+        (".a = .b = 1", "{}", "unexpected trailing filter input"),
+        (".a |= .b |= 1", "{}", "unexpected trailing filter input"),
+        // The left-hand side has to name a location, not compute a value.
+        ("(.a|length) = 1", "{}", "Invalid path expression"),
+        (".a += \"x\"", "{\"a\":1}", "cannot add these values"),
+        (".a -= 1", "{}", "cannot subtract these values"),
+        (".a /= 0", "{\"a\":1}", "division by zero"),
         // A lone `!` that is not doubled up is an unfinished operator.
         (".a!1", "{}", "expected `=`"),
     ];

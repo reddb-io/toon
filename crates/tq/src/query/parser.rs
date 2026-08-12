@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use reddb_io_toon::Value;
 
-use super::ast::{BinaryOp, Expr, Pattern};
+use super::ast::{AssignOp, BinaryOp, Expr, Pattern};
 use super::builtins;
 use super::lexer::{lex, Token};
 
@@ -81,12 +81,28 @@ impl Parser {
         Ok(expression)
     }
 
+    /// jq's assignment level is non-associative, so both sides parse one level
+    /// tighter: `a = b = c` is rejected rather than grouped, and `a = b // c`
+    /// still groups as `(a = b) // c` because `//` binds looser.
     fn parse_assignment(&mut self) -> Result<Expr, String> {
         let expression = self.parse_or()?;
-        if self.consume(&Token::Assign) {
-            return Err("assignment operators are not supported yet".to_owned());
-        }
-        Ok(expression)
+        let Some(operator) = self.match_assignment_operator() else {
+            return Ok(expression);
+        };
+        let right = self.parse_or()?;
+        Ok(Expr::Assign(
+            operator,
+            Box::new(expression),
+            Box::new(right),
+        ))
+    }
+
+    fn match_assignment_operator(&mut self) -> Option<AssignOp> {
+        let &Token::Assign(operator) = self.peek()? else {
+            return None;
+        };
+        self.index += 1;
+        Some(operator)
     }
 
     fn parse_or(&mut self) -> Result<Expr, String> {
