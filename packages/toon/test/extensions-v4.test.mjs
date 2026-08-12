@@ -46,7 +46,7 @@ test('canonical v4 encoders own extension emission', () => {
     'utf8',
   )
   const rustEncoder = readFileSync(
-    new URL('../../../crates/toon/src/lib_parts/encode_v4.rs', import.meta.url),
+    new URL('../../../crates/toon/src/lib_parts/encode.rs', import.meta.url),
     'utf8',
   )
 
