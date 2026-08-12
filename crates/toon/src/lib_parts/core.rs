@@ -432,6 +432,32 @@ impl Document {
         self.fields.iter().map(|field| &field.value)
     }
 
+    /// The fields in document order. Reading a key alongside its value keeps a
+    /// caller that walks the whole object off the deep `to_json_value` path,
+    /// so untouched tabular arrays stay undecoded.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, &Value)> {
+        self.fields
+            .iter()
+            .map(|field| (field.key.as_str(), &field.value))
+    }
+
+    /// Inserts or replaces `key`, keeping document order and appending a key
+    /// the document did not already carry.
+    pub fn set(&mut self, key: &str, value: Value) {
+        match self.fields.iter_mut().find(|field| field.key == key) {
+            Some(field) => field.value = value,
+            None => self.fields.push(Field {
+                key: key.to_owned(),
+                value,
+            }),
+        }
+    }
+
+    /// Removes `key` if the document carries it.
+    pub fn remove(&mut self, key: &str) {
+        self.fields.retain(|field| field.key != key);
+    }
+
     pub fn len(&self) -> usize {
         self.fields.len()
     }
