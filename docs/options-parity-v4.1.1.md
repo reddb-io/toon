@@ -72,7 +72,7 @@ file routing and mode flags use `tq`'s established format-selection contract.
 | `cli.decode` | `-d, --decode` forces TOON-to-JSON mode instead of auto-detection. | `-p toon -o json` is the explicit equivalent. | **ledgered divergence** — deliberate multi-format selector rather than a binary mode switch. |
 | `cli.delimiter` | `--delimiter` accepts literal comma, tab, or pipe and affects TOON encode only. | Accepts all three literals plus readable names; affects TOON output only. | **identical** — every upstream invocation has the same wire result; the extra spellings are a compatible superset. |
 | `cli.indent` | `--indent <number>`, default `2`, configures TOON encode/decode and decoded JSON indentation. Upstream uses `parseInt`, rejects negative/NaN, and admits zero. | Same default and roles for valid positive integers; exact unsigned-integer parsing plus Rust's zero clamp changes edge behavior. | **ledgered divergence** — [#308](https://github.com/reddb-io/toon/issues/308) owns normalization parity. |
-| `cli.stats` | `--stats` reports estimated JSON and TOON token counts and savings in encode mode. | No per-conversion statistics flag; repository benchmark commands are not a CLI equivalent. | **ledgered divergence** — actionable missing encode option; [#309](https://github.com/reddb-io/toon/issues/309). |
+| `cli.stats` | `--stats` reports estimated JSON and TOON token counts and savings in encode mode. | `--stats` reports tokenx 1.3.0-compatible estimates to stderr for JSON-to-TOON stdin and file conversions without changing stdout. | **fixed-here** — [#309](https://github.com/reddb-io/toon/issues/309) adds the flag, versioned estimator, and public CLI regression coverage. |
 | `cli.no-strict` | `--no-strict` disables strict decode validation; the positive `--strict` spelling restores it. | Supports both spellings and maps them directly to `DecodeOptions.strict`. | **identical** — defaults and observable recovery behavior match. |
 | `cli.verbose` | `--verbose` adds stack traces and cause chains to conversion errors. | Errors are intentionally a bounded `error: …` diagnostic; there is no stack-trace mode. | **ledgered divergence** — diagnostic presentation is outside codec semantics and follows `tq`'s stable jq-style boundary. |
 
@@ -106,17 +106,16 @@ denominator. Their authority and status are recorded in the
 
 ## Results and follow-ups
 
-All 15 pinned entries are classified: 5 identical, 0 fixed-here, and 10
+All 15 pinned entries are classified: 5 identical, 1 fixed-here, and 9
 ledgered divergences. Four ledgered rows are deliberate CLI adaptations or
-diagnostic presentation differences; the other six rows group into two
-actionable gap clusters, each with a follow-up:
+diagnostic presentation differences; the other five rows form one actionable
+gap cluster with a follow-up:
 
 | Follow-up | Covers | Required evidence before closure |
 | --- | --- | --- |
 | [#308 — align indent option edge semantics](https://github.com/reddb-io/toon/issues/308) | Both library indent spellings plus CLI `--indent`, across TypeScript, Rust, and `tq`. | Cross-surface cases for zero, positive integers, alias precedence, and rejected or normalized edges. |
-| [#309 — add encode token statistics](https://github.com/reddb-io/toon/issues/309) | Missing `tq` equivalent of upstream CLI `--stats`. | Stdin/file coverage, stable tokenizer/version declaration, stdout data integrity, and statistics diagnostics. |
 
-No behavior fix is included in this audit slice, so the **fixed-here** set is
-empty and no new behavior regression test is required. The documentation
-contract test prevents an option or follow-up from silently disappearing from
-the inventory.
+The `cli.stats` fix includes stdin/file coverage, a stable tokenx 1.3.0
+estimator declaration, byte-for-byte stdout assertions, and exact statistics
+diagnostics. The documentation contract test prevents a pinned option or issue
+reference from silently disappearing from the inventory.
