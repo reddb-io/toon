@@ -13,7 +13,7 @@ cargo install reddb-io-tq --version 0.20.0
 ## Usage
 
 ```text
-tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--strict|--no-strict] [--delimiter comma|tab|pipe] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
+tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--stats] [--strict|--no-strict] [--delimiter comma|tab|pipe] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
 tq trim --keep-last N [--in-place] [FILE]
 tq close [--per-lane|--interleaved] [FILE]
 tq check [-p toon|toonl] [FILE]
@@ -128,6 +128,25 @@ Useful query flags:
 - `-e` returns status 0 when the last result is truthy, 1 when it is `false` or
   `null`, and 4 when the query produces no result.
 - `-s` or `--slurp` collects TOONL rows into one array before evaluating the query.
+- `--stats` reports JSON and TOON token estimates for JSON-to-TOON conversions.
+
+### Encode token statistics
+
+`--stats` uses the tokenx 1.3.0 estimation rules, matching the estimator pinned
+by the upstream TOON 4.1.1 CLI. This is a fast, model-independent heuristic,
+not an exact count from a model-specific tokenizer. The version and rules are
+part of `tq`'s compatibility contract.
+
+The encoded TOON remains the only stdout data, so it can still be redirected or
+piped. Statistics are diagnostics on stderr:
+
+```text
+● Token estimates: ~14 (JSON) → ~12 (TOON)
+✔ Saved ~2 tokens (-14.3%)
+```
+
+As in the upstream CLI, `--stats` has no effect when the operation is not a
+JSON-to-TOON conversion. Both stdin and `.json` file inputs are supported.
 
 ## TOON v4.1 output and extensions
 
