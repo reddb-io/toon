@@ -1,0 +1,422 @@
+# String interpolation, @formats, and the JSON conversion quartet.
+
+# Interpolation. `"\(f)"` splices one value per output of `f` into the
+# surrounding text, which the format never touches.
+case: "interp-field"
+filter: "\"name: \\(.name)\""
+input: "{\"name\":\"Ada\"}"
+output: "\"name: Ada\"\n"
+
+case: "interp-whole-input"
+filter: "\"\\(.)\""
+input: "{\"a\":[1,2]}"
+output: "\"{\\\"a\\\":[1,2]}\"\n"
+
+case: "interp-adjacent"
+filter: "\"\\(1)\\(2)\""
+input: "null"
+output: "\"12\"\n"
+
+case: "interp-only"
+filter: "\"\\(.a)\""
+input: "{\"a\":\"Ada\"}"
+output: "\"Ada\"\n"
+
+case: "interp-null"
+filter: "\"\\(.missing)\""
+input: "{}"
+output: "\"null\"\n"
+
+case: "interp-arithmetic"
+filter: "\"total: \\(.a + .b)\""
+input: "{\"a\":2,\"b\":3}"
+output: "\"total: 5\"\n"
+
+case: "interp-nested-string"
+filter: "\"\\(\"\\(.a)!\")\""
+input: "{\"a\":1}"
+output: "\"1!\"\n"
+
+case: "interp-escaped-parenthesis"
+filter: "\"\\\\(1) \\(1)\""
+input: "null"
+output: "\"\\\\(1) 1\"\n"
+
+case: "interp-unicode-escape"
+filter: "\"\\u00e9\\(.a)\""
+input: "{\"a\":\"t\"}"
+output: "\"\u00e9t\"\n"
+
+case: "interp-multi-output-order"
+filter: "[\"\\(1,2)-\\(3,4)\"]"
+input: "null"
+output: "[\"1-3\",\"2-3\",\"1-4\",\"2-4\"]\n"
+
+case: "interp-empty-generator"
+filter: "[\"\\(empty)x\"]"
+input: "null"
+output: "[]\n"
+
+case: "interp-object-value"
+filter: "{\"greeting\":\"hi \\(.name)\"}"
+input: "{\"name\":\"Ada\"}"
+output: "{\"greeting\":\"hi Ada\"}\n"
+
+case: "interp-inside-array"
+filter: "[\"\\(.a)\",\"b\"]"
+input: "{\"a\":1}"
+output: "[\"1\",\"b\"]\n"
+
+case: "interp-of-array"
+filter: "\"\\([1,2])\""
+input: "null"
+output: "\"[1,2]\"\n"
+
+case: "interp-binding-visible"
+filter: ".a as $x | \"x=\\($x)\""
+input: "{\"a\":7}"
+output: "\"x=7\"\n"
+
+# A format in front of a string applies to every interpolation in it, and to
+# nothing else.
+case: "format-prefix-base64"
+filter: "@base64 \"v=\\(.)\""
+input: "\"x\""
+output: "\"v=eA==\"\n"
+
+case: "format-prefix-csv-row"
+filter: "@csv \"row: \\(.)\""
+input: "[1,\"a,b\"]"
+output: "\"row: 1,\\\"a,b\\\"\"\n"
+
+case: "format-prefix-literal-only"
+filter: "@base64 \"no interp\""
+input: "null"
+output: "\"no interp\"\n"
+
+case: "format-prefix-uri"
+filter: "@uri \"https://x/?q=\\(.q)\""
+input: "{\"q\":\"a b&c\"}"
+output: "\"https://x/?q=a%20b%26c\"\n"
+
+case: "format-prefix-html"
+filter: "@html \"<p>\\(.)</p>\""
+input: "\"<b>&</b>\""
+output: "\"<p>&lt;b&gt;&amp;&lt;/b&gt;</p>\"\n"
+
+case: "format-prefix-sh"
+filter: "@sh \"run \\(.)\""
+input: "[\"a b\",\"c'd\"]"
+output: "\"run 'a b' 'c'\\\\''d'\"\n"
+
+case: "format-prefix-json"
+filter: "@json \"v=\\(.)\""
+input: "{\"a\":[1]}"
+output: "\"v={\\\"a\\\":[1]}\"\n"
+
+case: "format-prefix-text"
+filter: "@text \"v=\\(.)\""
+input: "[1,2]"
+output: "\"v=[1,2]\"\n"
+
+# Every format as a plain filter over the whole input.
+case: "format-text-string"
+filter: "@text"
+input: "\"a\\\"b\""
+output: "\"a\\\"b\"\n"
+
+case: "format-text-object"
+filter: "@text"
+input: "{\"a\":1}"
+output: "\"{\\\"a\\\":1}\"\n"
+
+case: "format-text-null"
+filter: "@text"
+input: "null"
+output: "\"null\"\n"
+
+case: "format-json-string"
+filter: "@json"
+input: "\"x\""
+output: "\"\\\"x\\\"\"\n"
+
+case: "format-json-array"
+filter: "@json"
+input: "[1,null,true]"
+output: "\"[1,null,true]\"\n"
+
+case: "format-csv-mixed-row"
+filter: "@csv"
+input: "[1,\"a,b\",null,true,\"q\\\"q\"]"
+output: "\"1,\\\"a,b\\\",,true,\\\"q\\\"\\\"q\\\"\"\n"
+
+case: "format-csv-newline-cell"
+filter: "@csv"
+input: "[\"a\\nb\"]"
+output: "\"\\\"a\\nb\\\"\"\n"
+
+case: "format-csv-empty-row"
+filter: "@csv"
+input: "[]"
+output: "\"\"\n"
+
+case: "format-tsv-escapes"
+filter: "@tsv"
+input: "[\"a\\tb\",\"c\\nd\",\"e\\\\f\",\"g\\rh\"]"
+output: "\"a\\\\tb\\tc\\\\nd\\te\\\\\\\\f\\tg\\\\rh\"\n"
+
+case: "format-tsv-scalars"
+filter: "@tsv"
+input: "[null,3,false,\"x\"]"
+output: "\"\\t3\\tfalse\\tx\"\n"
+
+case: "format-tsv-empty-row"
+filter: "@tsv"
+input: "[]"
+output: "\"\"\n"
+
+case: "format-base64-string"
+filter: "@base64"
+input: "\"hello\""
+output: "\"aGVsbG8=\"\n"
+
+case: "format-base64-structure"
+filter: "@base64"
+input: "[1,2]"
+output: "\"WzEsMl0=\"\n"
+
+case: "format-base64-empty"
+filter: "@base64"
+input: "\"\""
+output: "\"\"\n"
+
+case: "format-base64-padding-one"
+filter: "@base64"
+input: "\"ab\""
+output: "\"YWI=\"\n"
+
+case: "format-base64-padding-two"
+filter: "@base64"
+input: "\"a\""
+output: "\"YQ==\"\n"
+
+case: "format-base64d-padded"
+filter: "@base64d"
+input: "\"aGVsbG8=\""
+output: "\"hello\"\n"
+
+case: "format-base64d-unpadded"
+filter: "@base64d"
+input: "\"aGVsbG8\""
+output: "\"hello\"\n"
+
+case: "format-base64d-empty"
+filter: "@base64d"
+input: "\"\""
+output: "\"\"\n"
+
+case: "format-base64d-round-trip"
+filter: "@base64|@base64d"
+input: "\"Ada Lovelace\""
+output: "\"Ada Lovelace\"\n"
+
+case: "format-uri-reserved"
+filter: "@uri"
+input: "\"a b/c?d=e&f~g_h.i-j\""
+output: "\"a%20b%2Fc%3Fd%3De%26f~g_h.i-j\"\n"
+
+case: "format-uri-unicode"
+filter: "@uri"
+input: "\"h\\u00e9llo\""
+output: "\"h%C3%A9llo\"\n"
+
+case: "format-uri-number"
+filter: "@uri"
+input: "12"
+output: "\"12\"\n"
+
+case: "format-html-escapes"
+filter: "@html"
+input: "\"<a href=\\\"x\\\">&'</a>\""
+output: "\"&lt;a href=&quot;x&quot;&gt;&amp;&apos;&lt;/a&gt;\"\n"
+
+case: "format-html-number"
+filter: "@html"
+input: "5"
+output: "\"5\"\n"
+
+case: "format-sh-string"
+filter: "@sh"
+input: "\"it's\""
+output: "\"'it'\\\\''s'\"\n"
+
+case: "format-sh-array"
+filter: "@sh"
+input: "[1,\"a b\",null,true]"
+output: "\"1 'a b' null true\"\n"
+
+case: "format-sh-empty-array"
+filter: "@sh"
+input: "[]"
+output: "\"\"\n"
+
+case: "format-sh-number"
+filter: "@sh"
+input: "5"
+output: "\"5\"\n"
+
+case: "format-in-pipeline"
+filter: ".[]|@base64"
+input: "[\"a\",\"b\"]"
+output: "\"YQ==\"\n\"Yg==\"\n"
+
+# What each format refuses. jq reports an unformattable tsv cell with its csv
+# wording; the corpus pins jq's message rather than the intent.
+case: "format-csv-rejects-object"
+filter: "@csv"
+input: "{\"a\":1}"
+error: "cannot be csv-formatted, only array"
+
+case: "format-csv-rejects-nested-array"
+filter: "@csv"
+input: "[[1]]"
+error: "is not valid in a csv row"
+
+case: "format-tsv-rejects-string"
+filter: "@tsv"
+input: "\"abc\""
+error: "cannot be tsv-formatted, only array"
+
+case: "format-tsv-rejects-nested-object"
+filter: "@tsv"
+input: "[{\"a\":1}]"
+error: "is not valid in a csv row"
+
+case: "format-sh-rejects-object"
+filter: "@sh"
+input: "{\"a\":1}"
+error: "can not be escaped for shell"
+
+case: "format-sh-rejects-nested-array"
+filter: "@sh"
+input: "[[1]]"
+error: "can not be escaped for shell"
+
+case: "format-base64d-rejects-invalid"
+filter: "@base64d"
+input: "\"!!!\""
+error: "is not valid base64 data"
+
+case: "format-base64d-rejects-trailing-byte"
+filter: "@base64d"
+input: "\"a===\""
+error: "trailing base64 byte found"
+
+# The JSON conversion quartet.
+case: "conversion-tostring-string"
+filter: "tostring"
+input: "\"x\""
+output: "\"x\"\n"
+
+case: "conversion-tostring-number"
+filter: "tostring"
+input: "42"
+output: "\"42\"\n"
+
+case: "conversion-tostring-structure"
+filter: "tostring"
+input: "[1,{\"a\":null}]"
+output: "\"[1,{\\\"a\\\":null}]\"\n"
+
+case: "conversion-tostring-null"
+filter: "tostring"
+input: "null"
+output: "\"null\"\n"
+
+case: "conversion-tostring-boolean"
+filter: "tostring"
+input: "true"
+output: "\"true\"\n"
+
+case: "conversion-tonumber-string"
+filter: "tonumber"
+input: "\"42\""
+output: "42\n"
+
+case: "conversion-tonumber-decimal"
+filter: "tonumber"
+input: "\"-0.5\""
+output: "-0.5\n"
+
+case: "conversion-tonumber-number"
+filter: "tonumber"
+input: "3"
+output: "3\n"
+
+case: "conversion-tojson-string"
+filter: "tojson"
+input: "\"a\\\"b\""
+output: "\"\\\"a\\\\\\\"b\\\"\"\n"
+
+case: "conversion-tojson-structure"
+filter: "tojson"
+input: "{\"a\":[1,null]}"
+output: "\"{\\\"a\\\":[1,null]}\"\n"
+
+case: "conversion-fromjson-array"
+filter: "fromjson"
+input: "\"[1,2]\""
+output: "[1,2]\n"
+
+case: "conversion-fromjson-object"
+filter: "fromjson"
+input: "\"{\\\"a\\\":1}\""
+output: "{\"a\":1}\n"
+
+case: "conversion-fromjson-scalar"
+filter: "fromjson"
+input: "\"7\""
+output: "7\n"
+
+case: "conversion-round-trip"
+filter: "tojson|fromjson"
+input: "{\"a\":[1,\"x\"]}"
+output: "{\"a\":[1,\"x\"]}\n"
+
+case: "conversion-tostring-of-tojson"
+filter: "tojson|tostring"
+input: "\"x\""
+output: "\"\\\"x\\\"\"\n"
+
+case: "conversion-tonumber-rejects-null"
+filter: "tonumber"
+input: "null"
+error: "cannot be parsed as a number"
+
+case: "conversion-tonumber-rejects-json-value"
+filter: "tonumber"
+input: "\"true\""
+error: "cannot be parsed as a number"
+
+case: "conversion-tonumber-rejects-text"
+filter: "tonumber"
+input: "\"abc\""
+error: "(while parsing 'abc')"
+
+case: "conversion-fromjson-rejects-number"
+filter: "fromjson"
+input: "5"
+error: "only strings can be parsed"
+
+case: "conversion-fromjson-rejects-text"
+filter: "fromjson"
+input: "\"{bad}\""
+error: "(while parsing '{bad}')"
+
+# An object key names one field, so tq requires it before the query runs.
+case: "interp-object-key-is-deferred"
+filter: "{\"\\(.a)\": 1}"
+input: "{\"a\":\"k\"}"
+error: "expected object key, got an interpolated string"
+divergence: "tq object and pattern keys are literal, so an interpolated key is reported rather than built at run time"
+jq-output: "{\"k\":1}\n"
