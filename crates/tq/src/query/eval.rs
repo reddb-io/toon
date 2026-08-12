@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use reddb_io_toon::{Array, Value};
 
-use super::ast::{BinaryOp, Expr};
+use super::ast::{BinaryOp, Expr, Pattern};
 use super::builtins;
 
 // Evaluation errors remain strings throughout tq. `error(v)` reserves this
@@ -11,9 +11,42 @@ use super::builtins;
 // Result type. The suffix is compact JSON produced by serde_json.
 const TAGGED_ERROR_PREFIX: &str = "\u{1e}tq:error:json:";
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone)]
 pub(super) struct Env {
-    _frames: Vec<HashMap<String, Value>>,
+    frames: Vec<HashMap<String, Value>>,
+    environment: Value,
+}
+
+impl Default for Env {
+    fn default() -> Self {
+        let values = std::env::vars_os()
+            .filter_map(|(key, value)| {
+                Some((
+                    key.into_string().ok()?,
+                    serde_json::Value::String(value.into_string().ok()?),
+                ))
+            })
+            .collect::<serde_json::Map<_, _>>();
+        let environment = Value::from_json_value(serde_json::Value::Object(values));
+        Self {
+            frames: vec![HashMap::from([("ENV".to_owned(), environment.clone())])],
+            environment,
+        }
+    }
+}
+
+impl Env {
+    fn bind(&self, pattern: &Pattern, value: &Value) -> Result<Self, String> {
+        let mut child = self.clone();
+        let mut frame = HashMap::new();
+        bind_pattern(pattern, value, &mut frame)?;
+        child.frames.push(frame);
+        Ok(child)
+    }
+
+    fn get(&self, name: &str) -> Option<&Value> {
+        self.frames.iter().rev().find_map(|frame| frame.get(name))
+    }
 }
 
 impl Expr {
@@ -38,6 +71,13 @@ impl Expr {
                     values.extend(item.eval(input, env)?);
                 }
                 Ok(vec![Value::Array(Array::List(values))])
+            }
+            Self::Bind(source, pattern, body) => {
+                let mut output = Vec::new();
+                for value in source.eval(input, env)? {
+                    output.extend(body.eval(input, &env.bind(pattern, &value)?)?);
+                }
+                Ok(output)
             }
             Self::Binary(BinaryOp::And, left, right) => {
                 let left_values = left.eval(input, env)?;
@@ -105,6 +145,7 @@ impl Expr {
                 evaluate_conditional(branches, fallback, input, env)
             }
             Self::Empty => Ok(Vec::new()),
+            Self::Environment => Ok(vec![env.environment.clone()]),
             Self::Field(base, key) => Ok(base
                 .eval(input, env)?
                 .into_iter()
@@ -113,6 +154,29 @@ impl Expr {
                     _ => Value::Null,
                 })
                 .collect()),
+            Self::Foreach {
+                generator,
+                pattern,
+                initial,
+                update,
+                extract,
+            } => {
+                let generated = generator.eval(input, env)?;
+                let mut states = initial.eval(input, env)?;
+                let mut output = Vec::new();
+                for value in generated {
+                    let binding = env.bind(pattern, &value)?;
+                    let mut next = Vec::new();
+                    for state in states {
+                        for updated in update.eval(&state, &binding)? {
+                            output.extend(extract.eval(&updated, &binding)?);
+                            next.push(updated);
+                        }
+                    }
+                    states = next;
+                }
+                Ok(output)
+            }
             Self::Identity => Ok(vec![input.clone()]),
             Self::Index(base, index) => super::indexing::evaluate_index(base, index, input, env),
             Self::Iter(base) => super::indexing::evaluate_iteration(base, input, env),
@@ -126,14 +190,78 @@ impl Expr {
                 }
                 Ok(output)
             }
+            Self::Reduce {
+                generator,
+                pattern,
+                initial,
+                update,
+            } => {
+                let generated = generator.eval(input, env)?;
+                let mut states = initial.eval(input, env)?;
+                for value in generated {
+                    let binding = env.bind(pattern, &value)?;
+                    let mut next = Vec::new();
+                    for state in states {
+                        next.extend(update.eval(&state, &binding)?);
+                    }
+                    states = next;
+                }
+                Ok(states)
+            }
             Self::Slice(base, start, end) => {
                 super::indexing::evaluate_slice(base, start.as_deref(), end.as_deref(), input, env)
             }
             Self::Try(expression, handler) => {
                 recover_try(expression, handler.as_deref(), input, env).finish()
             }
+            Self::Variable(name) => env
+                .get(name)
+                .cloned()
+                .map(|value| vec![value])
+                .ok_or_else(|| format!("variable `${name}` is not defined")),
         }
     }
+}
+
+fn bind_pattern(
+    pattern: &Pattern,
+    value: &Value,
+    frame: &mut HashMap<String, Value>,
+) -> Result<(), String> {
+    match pattern {
+        Pattern::Array(patterns) => {
+            for (index, pattern) in patterns.iter().enumerate() {
+                let element = match value {
+                    Value::Array(values) => values.get(index).unwrap_or(Value::Null),
+                    Value::Null => Value::Null,
+                    value => {
+                        return Err(format!("Cannot index {} with number", value_kind(value)));
+                    }
+                };
+                bind_pattern(pattern, &element, frame)?;
+            }
+        }
+        Pattern::Object(patterns) => {
+            for (key, pattern) in patterns {
+                let field = match value {
+                    Value::Object(document) => document.get(key).cloned().unwrap_or(Value::Null),
+                    Value::Null => Value::Null,
+                    value => {
+                        return Err(format!(
+                            "Cannot index {} with string {}",
+                            value_kind(value),
+                            serde_json::to_string(key).expect("pattern key serializes")
+                        ));
+                    }
+                };
+                bind_pattern(pattern, &field, frame)?;
+            }
+        }
+        Pattern::Variable(name) => {
+            frame.insert(name.clone(), value.clone());
+        }
+    }
+    Ok(())
 }
 
 struct Recovery {
