@@ -106,37 +106,39 @@ test('the TypeScript TOONL implementation names the unified v0.2 contract', () =
 
 test('the v4.1.1 options audit covers every pinned library and CLI option', () => {
   const audit = read('docs/options-parity-v4.1.1.md')
-  const optionIds = [
-    'encode.indentSize',
-    'encode.indent',
-    'encode.delimiter',
-    'encode.replacer',
-    'decode.indentSize',
-    'decode.indent',
-    'decode.strict',
-    'cli.output',
-    'cli.encode',
-    'cli.decode',
-    'cli.delimiter',
-    'cli.indent',
-    'cli.stats',
-    'cli.no-strict',
-    'cli.verbose',
-  ]
+  const optionClassifications = new Map([
+    ['encode.indentSize', 'fixed-here'],
+    ['encode.indent', 'fixed-here'],
+    ['encode.delimiter', 'identical'],
+    ['encode.replacer', 'identical'],
+    ['decode.indentSize', 'fixed-here'],
+    ['decode.indent', 'fixed-here'],
+    ['decode.strict', 'identical'],
+    ['cli.output', 'fixed-here'],
+    ['cli.encode', 'fixed-here'],
+    ['cli.decode', 'fixed-here'],
+    ['cli.delimiter', 'identical'],
+    ['cli.indent', 'fixed-here'],
+    ['cli.stats', 'fixed-here'],
+    ['cli.no-strict', 'identical'],
+    ['cli.verbose', 'fixed-here'],
+  ])
 
-  for (const optionId of optionIds) {
+  for (const [optionId, classification] of optionClassifications) {
     const escaped = optionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     assert.match(
       audit,
-      new RegExp('^\\| `' + escaped + '` \\|.*\\b(?:identical|fixed-here|ledgered divergence)\\b', 'im'),
-      `${optionId} needs an audit classification`,
+      new RegExp('^\\| `' + escaped + '` \\|.*\\*\\*' + classification + '\\*\\*', 'im'),
+      `${optionId} needs the ${classification} audit classification`,
     )
   }
 
+  assert.match(audit, /All 15 pinned entries are classified: 5 identical, 10 fixed-here, and 0 ledgered divergences\./)
   assert.match(audit, /a9e6d97eca931379824f3b6a1ba8fbfbda7d3c53/)
   assert.match(audit, /62f16b369408180f1faf1cba7da1b46d1f336f12/)
-  assert.match(audit, /issues\/308/)
-  assert.match(audit, /issues\/309/)
+  for (const issue of [308, 309, 360, 361, 362]) {
+    assert.match(audit, new RegExp(`issues/${issue}`))
+  }
 })
 
 test('benchmark claims point to their public-path reproduction commands', () => {
