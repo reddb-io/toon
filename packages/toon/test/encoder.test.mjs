@@ -3,6 +3,13 @@ import test from 'node:test'
 
 import { decode, encode } from '../dist/index.js'
 
+test('decode canonicalizes every negative-zero spelling to positive zero', () => {
+  const decoded = decode('values[3]: -0,-0.0,-0e2')
+
+  assert.deepEqual(decoded, { values: [0, 0, 0] })
+  assert.ok(decoded.values.every((value) => !Object.is(value, -0)))
+})
+
 test('replacer filters object properties and compacts array elements', () => {
   const input = {
     users: [

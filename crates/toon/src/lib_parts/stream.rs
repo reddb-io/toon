@@ -419,6 +419,9 @@ impl<R: BufRead> StreamReader<R> {
                 }
                 offset += character.len_utf8();
             }
+            if ctx.indent_size == 0 {
+                return Err(stream_error(number, "invalid indentation"));
+            }
             let mut depth = if spaces % ctx.indent_size == 0 {
                 spaces / ctx.indent_size
             } else if ctx.strict {
@@ -503,7 +506,7 @@ pub fn decode_events(
     options: &DecodeStreamOptions,
 ) -> (Vec<ToonEvent>, Option<ParseError>) {
     let ctx = StreamCtx {
-        indent_size: options.indent.max(1),
+        indent_size: options.indent,
         strict: options.strict,
         object_array_columns: options.object_array_columns,
         max_depth: options.max_depth,
@@ -610,7 +613,7 @@ where
 {
     let (sender, receiver) = sync_channel(0);
     let ctx = StreamCtx {
-        indent_size: options.indent.max(1),
+        indent_size: options.indent,
         strict: options.strict,
         object_array_columns: options.object_array_columns,
         max_depth: options.max_depth,

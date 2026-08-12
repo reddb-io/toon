@@ -34,8 +34,8 @@ Classifications mean:
 - **identical**: the local surfaces relevant to that option preserve upstream
   behavior over the upstream-documented input domain. An idiomatic Rust name
   or a local accepted-input superset does not change that behavior.
-- **fixed-here**: this slice found and repaired a mismatch. There are no such
-  rows; behavior changes were intentionally left to focused follow-ups.
+- **fixed-here**: a focused follow-up found and repaired the mismatch recorded
+  by this audit.
 - **ledgered divergence**: the difference is either an intentional `tq`
   product/API choice recorded here or an actionable gap linked to a follow-up.
 
@@ -43,12 +43,12 @@ Classifications mean:
 
 | Inventory ID | Pinned upstream behavior | `@reddb-io/toon` | Rust crate | `tq` | Classification and evidence |
 | --- | --- | --- | --- | --- | --- |
-| `encode.indentSize` | Optional number, default `2`; controls spaces per nesting level. The resolver passes the number through. | Same name/default, but floors and clamps values below `1`. | `indent_size`, default `2`; `0` is clamped to `1`. | `--indent`, default `2`; passes a non-negative integer to Rust. | **ledgered divergence** — positive integers are identical, but edge normalization differs; [#308](https://github.com/reddb-io/toon/issues/308). |
-| `encode.indent` | Deprecated alias for `indentSize`; default `2`, and `indentSize` wins when both are present. | Same deprecated alias and precedence. | No deprecated JavaScript alias; idiomatic callers use `indent_size`. | `--indent` is the sole spelling. | **ledgered divergence** — ordinary behavior is preserved through idiomatic names, while edge semantics join [#308](https://github.com/reddb-io/toon/issues/308). |
+| `encode.indentSize` | Optional number, default `2`; controls spaces per nesting level. The resolver passes the number through. | Same pass-through resolver, including zero, fractional, and rejected negative repeat counts. | `indent_size`, default `2`; preserves zero and every representable non-negative integer. | `--indent`, default `2`; applies upstream decimal `parseInt` normalization before passing the value to Rust. | **fixed-here** — [#308](https://github.com/reddb-io/toon/issues/308) adds zero, fractional/prefix, rejection, and positive-integer evidence across the three surfaces. |
+| `encode.indent` | Deprecated alias for `indentSize`; default `2`, and `indentSize` wins when both are present. | Same deprecated alias, pass-through behavior, and precedence. | No deprecated JavaScript alias; idiomatic callers use `indent_size`. | `--indent` is the sole spelling. | **fixed-here** — alias precedence and zero pass-through are pinned by the package regression test added for [#308](https://github.com/reddb-io/toon/issues/308). |
 | `encode.delimiter` | `','`, `'\t'`, or `'|'`; default comma; invalid values throw. It changes headers, rows, inline arrays, and quoting. | Same value set, default, validation, and wire effect. | `delimiter: char` accepts exactly the same three values and returns `EncodeError` otherwise. | `--delimiter` accepts the three literal values plus `comma`, `tab`, and `pipe` names. | **identical** — local accepted-input supersets produce the same bytes for every upstream value; package tests cover comma, tab, pipe, quoting, and invalid values. |
 | `encode.replacer` | Optional `(key, value, path)` transform after normalization; `undefined` omits descendants, compacts arrays, and cannot omit the root. | Same callback order, path shape, normalization order, omission behavior, and root rule. | `encode_v4_with_replacer` exposes the same behavior separately because a borrowed closure does not fit the copyable options struct. | Not applicable: the pinned upstream CLI does not expose a replacer either. | **identical** — local TypeScript tests mirror upstream replacer cases; Rust uses an idiomatic function boundary without changing semantics. |
-| `decode.indentSize` | Optional number, default `2`; defines the expected spaces per level. | Same name/default, but floors and clamps values below `1`. | `DecodeOptions.indent`, default `2`; `0` is clamped to `1`. | `--indent`, default `2`, configures TOON decoding and output indentation. | **ledgered divergence** — positive integers are identical, but zero/edge behavior differs; [#308](https://github.com/reddb-io/toon/issues/308). |
-| `decode.indent` | Deprecated alias for `indentSize`; `indentSize` wins when both are present. | Same deprecated alias and precedence. | `indent` is the canonical idiomatic field. | `--indent` is the sole spelling. | **ledgered divergence** — equivalent behavior has language-appropriate API shape; edge semantics join [#308](https://github.com/reddb-io/toon/issues/308). |
+| `decode.indentSize` | Optional number, default `2`; defines the expected spaces per level. | Same name/default and pass-through behavior; zero rejects non-empty input as invalid indentation. | `DecodeOptions.indent`, default `2`; zero likewise rejects non-empty input instead of being clamped. | `--indent`, default `2`, configures TOON decoding and output indentation. | **fixed-here** — [#308](https://github.com/reddb-io/toon/issues/308) aligns the Rust zero edge and exercises the TypeScript behavior. |
+| `decode.indent` | Deprecated alias for `indentSize`; `indentSize` wins when both are present. | Same deprecated alias, behavior, and precedence. | `indent` is the canonical idiomatic field. | `--indent` is the sole spelling. | **fixed-here** — language-appropriate names preserve the same value and package alias precedence is covered explicitly. |
 | `decode.strict` | Optional boolean, default `true`; `false` relaxes count, indentation, delimiter-consistency, malformed-header, and duplicate-key validation. | Same default and strict/non-strict outcomes, including last-write-wins duplicates. | Same default and event/tree decoder policy. | `--strict`/`--no-strict` maps directly to Rust. | **identical** — pinned upstream stream tests and the local shared event/conformance fixtures exercise both values. |
 
 The Rust replacer is public as
@@ -71,8 +71,8 @@ file routing and mode flags use `tq`'s established format-selection contract.
 | `cli.encode` | `-e, --encode` forces JSON-to-TOON mode instead of auto-detection. | `-p json -o toon` is the explicit equivalent; `-e` already implements jq exit-status semantics. | **ledgered divergence** — deliberate flag vocabulary and a real short-option collision. |
 | `cli.decode` | `-d, --decode` forces TOON-to-JSON mode instead of auto-detection. | `-p toon -o json` is the explicit equivalent. | **ledgered divergence** — deliberate multi-format selector rather than a binary mode switch. |
 | `cli.delimiter` | `--delimiter` accepts literal comma, tab, or pipe and affects TOON encode only. | Accepts all three literals plus readable names; affects TOON output only. | **identical** — every upstream invocation has the same wire result; the extra spellings are a compatible superset. |
-| `cli.indent` | `--indent <number>`, default `2`, configures TOON encode/decode and decoded JSON indentation. Upstream uses `parseInt`, rejects negative/NaN, and admits zero. | Same default and roles for valid positive integers; exact unsigned-integer parsing plus Rust's zero clamp changes edge behavior. | **ledgered divergence** — [#308](https://github.com/reddb-io/toon/issues/308) owns normalization parity. |
-| `cli.stats` | `--stats` reports estimated JSON and TOON token counts and savings in encode mode. | No per-conversion statistics flag; repository benchmark commands are not a CLI equivalent. | **ledgered divergence** — actionable missing encode option; [#309](https://github.com/reddb-io/toon/issues/309). |
+| `cli.indent` | `--indent <number>`, default `2`, configures TOON encode/decode and decoded JSON indentation. Upstream uses `parseInt`, rejects negative/NaN, and admits zero. | Same decimal-prefix normalization, negative/NaN rejection, zero behavior, default, and three output roles. | **fixed-here** — [#308](https://github.com/reddb-io/toon/issues/308) pins zero, numeric-prefix, fractional, negative, and NaN-like cases. |
+| `cli.stats` | `--stats` reports estimated JSON and TOON token counts and savings in encode mode. | `--stats` reports tokenx 1.3.0-compatible estimates to stderr for JSON-to-TOON stdin and file conversions without changing stdout. | **fixed-here** — [#309](https://github.com/reddb-io/toon/issues/309) adds the flag, versioned estimator, and public CLI regression coverage. |
 | `cli.no-strict` | `--no-strict` disables strict decode validation; the positive `--strict` spelling restores it. | Supports both spellings and maps them directly to `DecodeOptions.strict`. | **identical** — defaults and observable recovery behavior match. |
 | `cli.verbose` | `--verbose` adds stack traces and cause chains to conversion errors. | Errors are intentionally a bounded `error: …` diagnostic; there is no stack-trace mode. | **ledgered divergence** — diagnostic presentation is outside codec semantics and follows `tq`'s stable jq-style boundary. |
 
@@ -106,17 +106,14 @@ denominator. Their authority and status are recorded in the
 
 ## Results and follow-ups
 
-All 15 pinned entries are classified: 5 identical, 0 fixed-here, and 10
-ledgered divergences. Four ledgered rows are deliberate CLI adaptations or
-diagnostic presentation differences; the other six rows group into two
-actionable gap clusters, each with a follow-up:
+All 15 pinned entries are classified: 5 identical, 6 fixed-here, and 4
+ledgered divergences. All four ledgered rows are deliberate CLI adaptations or
+diagnostic presentation differences; no actionable gap remains open.
 
-| Follow-up | Covers | Required evidence before closure |
-| --- | --- | --- |
-| [#308 — align indent option edge semantics](https://github.com/reddb-io/toon/issues/308) | Both library indent spellings plus CLI `--indent`, across TypeScript, Rust, and `tq`. | Cross-surface cases for zero, positive integers, alias precedence, and rejected or normalized edges. |
-| [#309 — add encode token statistics](https://github.com/reddb-io/toon/issues/309) | Missing `tq` equivalent of upstream CLI `--stats`. | Stdin/file coverage, stable tokenizer/version declaration, stdout data integrity, and statistics diagnostics. |
-
-No behavior fix is included in this audit slice, so the **fixed-here** set is
-empty and no new behavior regression test is required. The documentation
-contract test prevents an option or follow-up from silently disappearing from
-the inventory.
+Issue [#308](https://github.com/reddb-io/toon/issues/308) closed the indent gap
+with package, Rust, and `tq` regression tests. The
+[#309](https://github.com/reddb-io/toon/issues/309) `cli.stats` fix includes
+stdin/file coverage, a stable tokenx 1.3.0 estimator declaration, byte-for-byte
+stdout assertions, and exact statistics diagnostics. The documentation contract
+test prevents an option or issue reference from silently disappearing from the
+inventory.

@@ -10,6 +10,7 @@ use reddb_io_toon::{
 
 mod args;
 mod output;
+mod token_stats;
 mod toonl_trim;
 mod upgrade;
 mod xml;
@@ -106,7 +107,11 @@ fn run() -> Result<(String, ExitCode), String> {
         Format::Toonl => unreachable!("TOONL input is handled before reading into a string"),
     };
     let code = output_exit_code(&values, options.exit_status);
-    format_values(&values, &options).map(|output| (output, code))
+    let output = format_values(&values, &options)?;
+    if options.stats && input_format == Format::Json && options.output_format == Format::Toon {
+        eprint!("{}", token_stats::format_statistics(&input, &output));
+    }
+    Ok((output, code))
 }
 
 fn output_exit_code(values: &[Value], enabled: bool) -> ExitCode {

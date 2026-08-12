@@ -29,7 +29,7 @@ pub type EncodeReplacer<'a> = dyn Fn(&str, &Value, &[PathSegment]) -> Option<Val
 pub struct EncodeV4Options {
     /// Active delimiter for array and tabular rows: comma, pipe, or tab.
     pub delimiter: char,
-    /// Spaces per indentation level; clamped to at least one.
+    /// Spaces per indentation level.
     pub indent_size: usize,
     /// Emit primitive-array columns in otherwise tabular object arrays.
     pub primitive_array_columns: bool,
@@ -91,7 +91,7 @@ fn encode_v4_inner(
     validate_encode_delimiter(options.delimiter)?;
     let resolved = ResolvedV4 {
         delimiter: options.delimiter,
-        indent_size: options.indent_size.max(1),
+        indent_size: options.indent_size,
     };
     let value = match replacer {
         Some(replacer) => apply_replacer(value, replacer),
