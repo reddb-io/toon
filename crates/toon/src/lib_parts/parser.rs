@@ -1,4 +1,4 @@
-fn collect_lines<'a>(input: &'a str, options: &ParseOptions) -> Result<Vec<Line<'a>>, ParseError> {
+fn collect_lines<'a>(input: &'a str, options: &LegacyParseOptions) -> Result<Vec<Line<'a>>, ParseError> {
     let mut lines = Vec::new();
     let mut blank_before = false;
 
@@ -41,7 +41,7 @@ fn collect_lines<'a>(input: &'a str, options: &ParseOptions) -> Result<Vec<Line<
     Ok(lines)
 }
 
-fn check_parse_depth(depth: usize, line: usize, options: &ParseOptions) -> Result<(), ParseError> {
+fn check_parse_depth(depth: usize, line: usize, options: &LegacyParseOptions) -> Result<(), ParseError> {
     if options.max_depth != 0 && depth > options.max_depth {
         return Err(ParseError {
             line,
@@ -52,7 +52,7 @@ fn check_parse_depth(depth: usize, line: usize, options: &ParseOptions) -> Resul
     Ok(())
 }
 
-fn check_header_depth(header: &str, line: usize, options: &ParseOptions) -> Result<(), ParseError> {
+fn check_header_depth(header: &str, line: usize, options: &LegacyParseOptions) -> Result<(), ParseError> {
     if options.max_depth == 0 {
         return Ok(());
     }
@@ -87,7 +87,7 @@ fn parse_object(
     lines: &[Line<'_>],
     index: &mut usize,
     depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Document, ParseError> {
     let mut document = Document::default();
 
@@ -115,7 +115,7 @@ fn parse_field(
     lines: &[Line<'_>],
     index: &mut usize,
     depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<(String, bool, Value), ParseError> {
     let line = &lines[*index];
     let content = line.content;
@@ -201,7 +201,7 @@ fn parse_field_value(
     depth: usize,
     value_part: &str,
     line: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Value, ParseError> {
     let text = value_part.trim();
     if text == "[]" {
@@ -228,7 +228,7 @@ fn parse_keyed_map_rows(
     lines: &[Line<'_>],
     index: &mut usize,
     row_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Value, ParseError> {
     let mut document = Document::default();
     *index += 1;
@@ -305,7 +305,7 @@ fn parse_keyed_map_rows(
 fn parse_root_array(
     header: Header,
     lines: &[Line<'_>],
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Value, ParseError> {
     let first = &lines[0];
     let colon = find_unquoted(first.content, ':', first.number)?.ok_or(ParseError {
@@ -333,7 +333,7 @@ fn parse_array_field(
     lines: &[Line<'_>],
     index: &mut usize,
     header_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Value, ParseError> {
     let header_line = lines[*index].number;
     let inline = value_part.trim();
@@ -374,7 +374,7 @@ fn parse_tabular_rows(
     lines: &[Line<'_>],
     index: &mut usize,
     row_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Value, ParseError> {
     if header
         .field_tree
@@ -455,7 +455,7 @@ fn parse_structured_tabular_rows(
     lines: &[Line<'_>],
     index: &mut usize,
     row_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Value, ParseError> {
     let rows = parse_structured_rows(
         header.len,
@@ -490,7 +490,7 @@ fn parse_structured_rows(
     lines: &[Line<'_>],
     index: &mut usize,
     row_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
     root: bool,
 ) -> Result<Vec<Value>, ParseError> {
     let mut rows = Vec::new();
@@ -575,7 +575,7 @@ fn parse_structured_row_fields(
     state: &mut StructuredState,
     child_depth: usize,
     delimiter: char,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Document, ParseError> {
     let mut row = Document::default();
     for (field_index, field) in fields.iter().enumerate() {
@@ -613,7 +613,7 @@ fn parse_structured_field(
     state: &mut StructuredState,
     child_depth: usize,
     delimiter: char,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Value, ParseError> {
     if let Some(fixed_len) = field.fixed_len {
         if state.cell_index + fixed_len > cells.len() {
@@ -711,7 +711,7 @@ fn infer_child_table_fields(
     lines: &[Line<'_>],
     start_index: usize,
     row_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Option<Vec<bool>> {
     let candidates = fields
         .iter()
@@ -769,7 +769,7 @@ fn validate_structured_rows_with_kind(
     lines: &[Line<'_>],
     start_index: usize,
     row_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Option<ValidationResult> {
     let mut index = start_index;
     let mut consumed_child_rows = 0;
@@ -825,7 +825,7 @@ fn validate_structured_row_with_kind(
     lines: &[Line<'_>],
     start_index: usize,
     child_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Option<ValidationResult> {
     let mut cell_index = 0;
     let mut next_index = start_index;
@@ -970,7 +970,7 @@ fn parse_list_items(
     lines: &[Line<'_>],
     index: &mut usize,
     item_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Value, ParseError> {
     let mut values = Vec::new();
 
@@ -1015,7 +1015,7 @@ fn parse_list_item(
     lines: &[Line<'_>],
     index: &mut usize,
     item_depth: usize,
-    options: &ParseOptions,
+    options: &LegacyParseOptions,
 ) -> Result<Value, ParseError> {
     let line = &lines[*index];
     let Some(rest) = line.content.strip_prefix('-') else {
