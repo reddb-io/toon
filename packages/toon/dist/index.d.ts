@@ -22,9 +22,5 @@ export type { ToonEvent, ToonEventType } from './events.js';
 export type { DecodeOptions, DecodeReviver, DecodeStreamOptions, Delimiter, DelimiterKey, EncodeOptions, EncodeReplacer, JsonArray, JsonObject, JsonPrimitive, JsonStreamEvent, JsonValue, ResolvedDecodeOptions, ResolvedEncodeOptions, } from './types.js';
 export { appendSummaryField, projectFields } from './helpers.js';
 export declare const decode: typeof decodeValue;
-/** @deprecated Use {@link decode}. */
-export declare const parse: typeof decodeValue;
 export { encode };
-/** @deprecated Use {@link encode}. */
-export declare const serialize: typeof encode;
 export { JsonlToToonl, ToonlDecodeStream, ToonlEncodeStream, ToonlToJsonl, ToonlEncoder, ToonlReader, closeTransform, closeTransformInterleaved, decodeLines, encodeToonlLines, encodeRecords, jsonToToon, parseRecords, parseStream, recordTransform, toonToJson, } from './toonl.js';

@@ -29,7 +29,7 @@
       <text x="72" y="92" font-size="26" fill="#ff2056" letter-spacing="2">NPM PACKAGE</text>
       <text x="72" y="142" font-size="56" font-weight="700" fill="#f0f6fc">@reddb-io/toon</text>
       <rect x="72" y="164" width="180" height="3" fill="url(#npm-rule)"/>
-      <text x="72" y="194" font-size="18" fill="#8b949e">parse, serialize, stream, and check TOON from JS or TS</text>
+      <text x="72" y="194" font-size="18" fill="#8b949e">decode, encode, stream, and check TOON from JS or TS</text>
       <rect x="780" y="54" width="300" height="112" rx="12" fill="#0b0f15" stroke="#ffffff" stroke-opacity="0.09"/>
       <text x="804" y="90" font-size="15" fill="#6e7681">pnpm add</text>
       <text x="804" y="126" font-size="24" fill="#c9d1d9">@reddb-io/toon</text>

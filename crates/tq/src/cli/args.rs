@@ -1,7 +1,7 @@
 use std::path::Path;
 
 const USAGE: &str = concat!(
-    "usage: tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
+    "usage: tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--stats] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
     "subcommands: trim, close, check, upgrade"
 );
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
@@ -30,6 +30,7 @@ pub(super) struct Options {
     pub(super) exit_status: bool,
     pub(super) compact: bool,
     pub(super) slurp: bool,
+    pub(super) stats: bool,
     pub(super) delimiter: char,
     pub(super) indent_size: usize,
     pub(super) strict: bool,
@@ -66,6 +67,7 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
     let mut exit_status = false;
     let mut compact = false;
     let mut slurp = false;
+    let mut stats = false;
     let mut delimiter = ',';
     let mut indent_size = 2;
     let mut strict = true;
@@ -91,15 +93,14 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
             "-e" => exit_status = true,
             "-c" => compact = true,
             "-s" | "--slurp" => slurp = true,
+            "--stats" => stats = true,
             "--delimiter" => {
                 let value = args.next().ok_or_else(|| USAGE.to_owned())?;
                 delimiter = parse_delimiter(&value)?;
             }
             "--indent" => {
                 let value = args.next().ok_or_else(|| USAGE.to_owned())?;
-                indent_size = value
-                    .parse::<usize>()
-                    .map_err(|_| "`--indent` expects a non-negative integer".to_owned())?;
+                indent_size = parse_indent(&value)?;
             }
             "--strict" => strict = true,
             "--no-strict" => strict = false,
@@ -139,6 +140,7 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
         exit_status,
         compact,
         slurp,
+        stats,
         delimiter,
         indent_size,
         strict,
@@ -146,6 +148,34 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
         object_array_columns,
         cyclic_discriminated_arrays,
     })
+}
+
+fn parse_indent(value: &str) -> Result<usize, String> {
+    const ERROR: &str = "`--indent` expects a non-negative number";
+
+    if value.is_empty() {
+        return Ok(2);
+    }
+
+    let value = value.trim_start();
+    let (negative, unsigned) = if let Some(rest) = value.strip_prefix('-') {
+        (true, rest)
+    } else if let Some(rest) = value.strip_prefix('+') {
+        (false, rest)
+    } else {
+        (false, value)
+    };
+    let digit_count = unsigned.bytes().take_while(u8::is_ascii_digit).count();
+    if digit_count == 0 {
+        return Err(ERROR.to_owned());
+    }
+    let indent = unsigned[..digit_count]
+        .parse::<usize>()
+        .map_err(|_| ERROR.to_owned())?;
+    if negative && indent != 0 {
+        return Err(ERROR.to_owned());
+    }
+    Ok(indent)
 }
 
 fn parse_delimiter(value: &str) -> Result<char, String> {
@@ -292,6 +322,7 @@ fn detect_input_format(path: Option<&str>) -> Format {
         .and_then(|path| Path::new(path).extension())
         .and_then(|value| value.to_str())
     {
+        Some("json") => Format::Json,
         Some("toonl") => Format::Toonl,
         Some("xml") => Format::Xml,
         Some("yaml" | "yml") => Format::Yaml,

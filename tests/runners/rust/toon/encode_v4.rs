@@ -6,8 +6,9 @@ use std::cell::RefCell;
 
 use proptest::prelude::*;
 use reddb_io_toon::{
-    decode_value_v4, detect_truncation_v4, encode_toonl_values, encode_v4, encode_v4_with_replacer,
-    DecodeStreamOptions, EncodeV4Options, PathSegment, ToonlStream, Value,
+    build_value_from_events, decode_event_stream, decode_value_v4, detect_truncation_v4,
+    encode_toonl_values, encode_v4, encode_v4_with_replacer, DecodeStreamOptions, EncodeV4Options,
+    ParseError, PathSegment, ToonlStream, Value,
 };
 use serde_json::json;
 
@@ -15,6 +16,14 @@ fn decode(wire: &str) -> serde_json::Value {
     decode_value_v4(wire, &DecodeStreamOptions::default())
         .expect("v4 decode of self-produced wire")
         .to_json_value()
+}
+
+fn decode_via_events(
+    wire: &str,
+    options: &DecodeStreamOptions,
+) -> Result<serde_json::Value, ParseError> {
+    let events = decode_event_stream(wire, options).collect::<Result<Vec<_>, _>>()?;
+    Ok(build_value_from_events(&events).to_json_value())
 }
 
 fn encode(input: serde_json::Value, replacer: &reddb_io_toon::EncodeReplacer) -> String {
@@ -223,6 +232,30 @@ fn custom_indent_size_round_trips_through_the_v4_decoder() {
     );
 }
 
+#[test]
+fn zero_indent_matches_the_v4_reference_edges() {
+    let value = Value::from_json_value(json!({ "user": { "name": "Ada" } }));
+    let wire = encode_v4(
+        &value,
+        EncodeV4Options {
+            indent_size: 0,
+            ..EncodeV4Options::default()
+        },
+    )
+    .expect("zero-indent v4 encode");
+    assert_eq!(wire, "user:\nname: Ada");
+
+    let error = decode_value_v4(
+        "name: Ada",
+        &DecodeStreamOptions {
+            indent: 0,
+            ..DecodeStreamOptions::default()
+        },
+    )
+    .expect_err("zero-indent v4 decode rejects non-empty input");
+    assert_eq!(error.reason(), "invalid indentation");
+}
+
 // ---------------------------------------------------------------------------
 // Extensions rebuilt on the v4.1 entry points (#215)
 // ---------------------------------------------------------------------------
@@ -319,6 +352,63 @@ fn v4_extension_options_pin_shared_primitive_and_child_table_wires() {
             .expect("expected wire")
             .trim_end(),
     );
+}
+
+#[test]
+fn v4_extensions_decode_value_identically_through_the_event_stream() {
+    let primitive_corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../corpus/wire-efficiency/primitive-array-columns.json"
+    ))
+    .expect("primitive-column corpus");
+    for fixture in primitive_corpus["cases"].as_array().expect("cases") {
+        assert_eq!(
+            decode_via_events(
+                fixture["input"].as_str().expect("primitive fixture wire"),
+                &DecodeStreamOptions::default(),
+            )
+            .unwrap_or_else(|error| panic!("{}: {error}", fixture["name"])),
+            fixture["expected"],
+        );
+    }
+    for fixture in primitive_corpus["errors"].as_array().expect("errors") {
+        let error = decode_via_events(
+            fixture["input"].as_str().expect("invalid primitive wire"),
+            &DecodeStreamOptions::default(),
+        )
+        .expect_err("invalid primitive column");
+        assert_eq!(error.line(), fixture["line"].as_u64().unwrap() as usize);
+        assert_eq!(error.message(), fixture["reason"].as_str().unwrap());
+    }
+
+    let child_corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../corpus/wire-efficiency/object-array-columns.json"
+    ))
+    .expect("child-table corpus");
+    for fixture in child_corpus["cases"].as_array().expect("cases") {
+        let wire = fixture["input"].as_str().expect("child fixture wire");
+        assert_eq!(
+            decode_via_events(wire, &DecodeStreamOptions::default())
+                .unwrap_or_else(|error| panic!("{}: {error}", fixture["name"])),
+            fixture["expected"],
+        );
+        assert!(decode_via_events(
+            wire,
+            &DecodeStreamOptions {
+                object_array_columns: false,
+                ..DecodeStreamOptions::default()
+            },
+        )
+        .is_err());
+    }
+    for fixture in child_corpus["errors"].as_array().expect("errors") {
+        let error = decode_via_events(
+            fixture["input"].as_str().expect("invalid child wire"),
+            &DecodeStreamOptions::default(),
+        )
+        .expect_err("invalid child table");
+        assert_eq!(error.line(), fixture["line"].as_u64().unwrap() as usize);
+        assert_eq!(error.message(), fixture["reason"].as_str().unwrap());
+    }
 }
 
 #[test]

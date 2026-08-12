@@ -28,7 +28,7 @@ remain `pnpm -r test` and `cargo test --workspace`.
 
 | Surface | Canonical v4.1 | Legacy compatibility | Streaming | Experimental |
 | --- | --- | --- | --- | --- |
-| TypeScript | `decode`, `decodeFromLines`, `decodeStream`, `encode`, `encodeLines`; `parse` and `serialize` are deprecated names for this canonical surface | `@reddb-io/toon/legacy` | TOONL v0.2 helpers and event decoders | `decode` reviver from the pinned upstream PR head |
+| TypeScript | `decode`, `decodeFromLines`, `decodeStream`, `encode`, `encodeLines` | `@reddb-io/toon/legacy` | TOONL v0.2 helpers and event decoders | `decode` reviver from the pinned upstream PR head |
 | Rust | `decode*`, `encode*`, `Value::parse_toon`, `Document::parse`, and canonical output methods | methods and option types containing `legacy` | TOONL v0.2 readers, writers, and transforms | none |
 | `tq` | v4.1 decode and output by default | `--no-strict`; the old nested/keyed flags are accepted deprecated no-ops | TOONL query, conversion, check, trim, and close | none |
 | Editor | v4.1 grammar, including full-line comments, nested field groups, and keyed tabular form | no semantic decoder | TOONL v0.1/v0.2 grammar | highlights local extension forms without presenting them as official |
