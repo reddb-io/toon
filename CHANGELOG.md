@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Breaking (Rust):** the canonical codec now owns the unsuffixed API names.
+  `EncodeV4Options` is now `EncodeOptions`, `encode_v4` is `encode_with_options`,
+  `encode_v4_with_replacer` is `encode_with_replacer`, `decode_value_v4` is
+  `decode_with_options`, and `detect_truncation_v4` is
+  `detect_truncation_with_options`. The dialect suffix existed only to
+  distinguish the canonical engine from the legacy one, and there is one engine.
+- **Breaking (Rust):** the compatibility-shaped option structs are gone from the
+  canonical surface. The former `ParseOptions` and `EncodeOptions` are now named
+  `LegacyParseOptions` and `LegacyEncodeOptions` — the legacy parser and
+  serializer are their only callers — and the type aliases of those names are
+  removed. `Document::parse_with_options` and `Value::parse_with_options` now
+  take `&DecodeOptions`; `to_toon_with_options`, `try_to_toon_with_options`, and
+  `detect_truncation_with_options` now take the canonical `EncodeOptions` /
+  `&DecodeOptions`. No public entry point silently converts between two option
+  shapes any more.
+- **Breaking (Rust):** `Document::parse` and `Value::parse_with_options` no
+  longer default `cyclic_discriminated_arrays` to `true`. They now behave
+  exactly like `decode` / `decode_with_options`, which default it to `false`;
+  pass `DecodeOptions { cyclic_discriminated_arrays: true, ..Default::default() }`
+  to keep the previous reconstruction.
+- **Breaking (Rust):** `EncodeOptions` no longer carries `nested_tabular_headers`
+  or `keyed_map_collapse`. Both forms graduated into official v4.1 syntax and
+  were already unconditional on the canonical encoder; the fields were no-ops.
 - **Breaking:** `tq` now follows jq when iterating with `.[]`: objects emit
   their values in field order, while `null` and scalar inputs raise an error.
   Use `.[]?` to suppress those iteration errors.
