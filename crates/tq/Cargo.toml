@@ -36,7 +36,7 @@ name = "xml"
 path = "../../tests/runners/rust/tq/xml.rs"
 
 [dependencies]
-reddb-io-toon = { path = "../toon", version = "0.21.2" }
+reddb-io-toon = { path = "../toon", version = "0.22.0" }
 regex = "1"
 quick-xml = "0.37"
 serde = "1"

@@ -2,7 +2,7 @@
   "name": "reddb-toon",
   "displayName": "RedDB Toon",
   "description": "Syntax highlighting for official TOON v4.1, TOONL streams, and the three reddb-io userland wire extensions.",
-  "version": "0.21.2",
+  "version": "0.22.0",
   "private": true,
   "publisher": "reddb-io",
   "license": "MIT",
