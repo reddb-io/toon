@@ -4,6 +4,8 @@
 //! gone, and so is every name that told the two apart: the API is unsuffixed
 //! because there is nothing else to distinguish it from.
 
+pub mod cli;
+
 include!("lib_parts/core.rs");
 include!("lib_parts/toonl_and_cyclic_decode.rs");
 include!("lib_parts/toonl_and_scalar.rs");
