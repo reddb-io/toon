@@ -1,14 +1,8 @@
-/// Decoder configuration for the authoritative TOON v4.1 codec.
+/// Decoder configuration for the TOON v4.1 codec.
 pub type DecodeOptions = DecodeStreamOptions;
 
-/// Positioned error returned by the authoritative TOON v4.1 decoder.
+/// Positioned error returned by the TOON v4.1 decoder.
 pub type DecodeError = ParseError;
-
-/// Compatibility options for the pre-v4.1 parser.
-pub type LegacyParseOptions = ParseOptions;
-
-/// Compatibility options for the pre-v4.1 serializer.
-pub type LegacyEncodeOptions = EncodeOptions;
 
 /// Decodes a complete TOON v4.1 value from a string.
 ///
@@ -93,36 +87,7 @@ pub fn decode_iter_with_options(input: &str, options: &DecodeOptions) -> EventDe
 /// # Ok::<(), reddb_io_toon::EncodeError>(())
 /// ```
 pub fn encode(value: &Value) -> Result<String, EncodeError> {
-    encode_with_options(value, EncodeV4Options::default())
-}
-
-/// Encodes a value as TOON v4.1 with explicit options.
-pub fn encode_with_options(
-    value: &Value,
-    options: EncodeV4Options,
-) -> Result<String, EncodeError> {
-    encode_v4(value, options)
-}
-
-fn decode_options_from_legacy(options: ParseOptions) -> DecodeOptions {
-    DecodeOptions {
-        indent: options.indent,
-        strict: options.strict,
-        cyclic_discriminated_arrays: options.cyclic_discriminated_arrays,
-        object_array_columns: true,
-        max_depth: options.max_depth,
-    }
-}
-
-fn encode_options_from_legacy(options: EncodeOptions) -> EncodeV4Options {
-    EncodeV4Options {
-        delimiter: options.delimiter,
-        indent_size: DEFAULT_INDENT,
-        primitive_array_columns: options.primitive_array_columns,
-        object_array_columns: options.object_array_columns,
-        cyclic_discriminated_arrays: options.cyclic_discriminated_arrays,
-        max_depth: options.max_depth,
-    }
+    encode_with_options(value, EncodeOptions::default())
 }
 
 impl ParseError {
@@ -190,7 +155,7 @@ impl Value {
         input: &str,
         options: LegacyParseOptions,
     ) -> Result<Self, ParseError> {
-        let options = ParseOptions {
+        let options = LegacyParseOptions {
             indent: options.indent.max(1),
             ..options
         };
@@ -303,15 +268,7 @@ impl Array {
     }
 }
 
-/// Reports incomplete authoritative v4.1 TOON using default options.
+/// Reports incomplete TOON using default decode options.
 pub fn detect_truncation(input: &str) -> TruncationReport {
-    detect_truncation_v4(input, &DecodeOptions::default())
-}
-
-/// Reports incomplete authoritative v4.1 TOON with compatibility-shaped options.
-pub fn detect_truncation_with_options(
-    input: &str,
-    options: ParseOptions,
-) -> TruncationReport {
-    detect_truncation_v4(input, &decode_options_from_legacy(options))
+    detect_truncation_with_options(input, &DecodeOptions::default())
 }
