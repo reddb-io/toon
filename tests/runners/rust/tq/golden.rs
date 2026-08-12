@@ -229,7 +229,10 @@ fn retired_nested_and_keyed_switches_are_usage_errors() {
         assert_eq!(output.status.code(), Some(1), "{flag} is rejected");
         assert_eq!(output.stdout, b"", "{flag} produces no output");
         assert!(stderr.starts_with("error: usage: tq"), "{stderr}");
-        assert!(!stderr.contains(flag), "usage must not advertise {flag}: {stderr}");
+        assert!(
+            !stderr.contains(flag),
+            "usage must not advertise {flag}: {stderr}"
+        );
     }
 }
 
@@ -264,7 +267,10 @@ fn case_dirs() -> Vec<PathBuf> {
         .collect();
     dirs.sort();
 
-    assert!(!dirs.is_empty(), "the golden case corpus should not be empty");
+    assert!(
+        !dirs.is_empty(),
+        "the golden case corpus should not be empty"
+    );
     dirs
 }
 

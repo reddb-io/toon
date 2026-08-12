@@ -1,6 +1,6 @@
 use reddb_io_toon::{
-    decode_with_options, encode_toonl_values, encode_with_options, DecodeStreamOptions,
-    EncodeOptions, DecodeOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
+    decode_with_options, encode_toonl_values, encode_with_options, DecodeOptions,
+    DecodeStreamOptions, EncodeOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
 };
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
@@ -96,10 +96,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             }
                         }
                     } else {
-                        match (
-                            Value::parse_with_options(input, &options),
-                            should_error,
-                        ) {
+                        match (Value::parse_with_options(input, &options), should_error) {
                             // A rejection the spec asked for.
                             (Err(_), true) => true,
                             (Ok(_), true) | (Err(_), false) => false,
@@ -171,8 +168,7 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             .and_then(Json::as_str)
                             .expect("encode expected TOON");
                         let value = Value::from_json_value(input.clone());
-                        value.to_toon_with_options(encoder_options(test.get("options")))
-                            == expected
+                        value.to_toon_with_options(encoder_options(test.get("options"))) == expected
                             && Value::parse_with_options(expected, &options)
                                 .is_ok_and(|actual| actual.to_json_value() == *input)
                     } else {

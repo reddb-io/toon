@@ -249,7 +249,10 @@ mod tests {
     use super::*;
 
     fn kinds(filter: &str) -> Vec<&'static str> {
-        classify(filter).into_iter().map(|reason| reason.kind).collect()
+        classify(filter)
+            .into_iter()
+            .map(|reason| reason.kind)
+            .collect()
     }
 
     #[test]
@@ -296,7 +299,13 @@ mod tests {
 
     #[test]
     fn a_ledgered_builtin_is_divergent() {
-        for filter in ["toarray", "trim", "trimstr(\"x\")", "[leaf_paths]", "1,halt"] {
+        for filter in [
+            "toarray",
+            "trim",
+            "trimstr(\"x\")",
+            "[leaf_paths]",
+            "1,halt",
+        ] {
             assert_eq!(kinds(filter), vec![DIVERGENT_BUILTIN], "{filter}");
         }
     }

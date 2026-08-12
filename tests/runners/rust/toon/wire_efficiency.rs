@@ -1,4 +1,4 @@
-use reddb_io_toon::{EncodeOptions, DecodeOptions, Value};
+use reddb_io_toon::{DecodeOptions, EncodeOptions, Value};
 use serde_json::Value as Json;
 use std::fs;
 use std::path::PathBuf;
@@ -656,14 +656,9 @@ fn object_array_column_encoding_is_opt_in_and_falls_back_losslessly_for_rust() {
         delimiter: '|',
         ..EncodeOptions::default()
     });
+    assert_eq!(matrix_encoded, "matrix[2|]{values[3|]}:\n  1|2|3\n  4|5|6");
     assert_eq!(
-        matrix_encoded,
-        "matrix[2|]{values[3|]}:\n  1|2|3\n  4|5|6"
-    );
-    assert_eq!(
-        Value::parse_toon(&matrix_encoded)
-            .unwrap()
-            .to_json_value(),
+        Value::parse_toon(&matrix_encoded).unwrap().to_json_value(),
         matrix
     );
 

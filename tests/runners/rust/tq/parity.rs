@@ -11,9 +11,7 @@ use std::process::{Command, Output};
 #[path = "jq_corpus.rs"]
 mod jq_corpus;
 
-use jq_corpus::{
-    assert_expected, read_corpus, run_filter, run_tq, stderr, stdout, Case, Expected,
-};
+use jq_corpus::{assert_expected, read_corpus, run_filter, run_tq, stderr, stdout, Case, Expected};
 
 const PINNED_JQ_VERSION: &str = "jq-1.7.1";
 

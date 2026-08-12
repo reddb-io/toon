@@ -6,9 +6,9 @@ use std::cell::RefCell;
 
 use proptest::prelude::*;
 use reddb_io_toon::{
-    build_value_from_events, decode_event_stream, decode_with_options, detect_truncation_with_options,
-    encode_toonl_values, encode_with_options, encode_with_replacer, DecodeStreamOptions, EncodeOptions,
-    ParseError, PathSegment, ToonlStream, Value,
+    build_value_from_events, decode_event_stream, decode_with_options,
+    detect_truncation_with_options, encode_toonl_values, encode_with_options, encode_with_replacer,
+    DecodeStreamOptions, EncodeOptions, ParseError, PathSegment, ToonlStream, Value,
 };
 use serde_json::json;
 

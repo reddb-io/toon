@@ -1,4 +1,4 @@
-use reddb_io_toon::{EncodeOptions, DecodeOptions, Value};
+use reddb_io_toon::{DecodeOptions, EncodeOptions, Value};
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
 use std::fs;

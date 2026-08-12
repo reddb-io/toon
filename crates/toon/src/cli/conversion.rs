@@ -6,7 +6,9 @@
 
 use std::path::PathBuf;
 
-use crate::{decode_event_reader, encode_with_options, DecodeStreamOptions, EncodeOptions, ParseError, Value};
+use crate::{
+    decode_event_reader, encode_with_options, DecodeStreamOptions, EncodeOptions, ParseError, Value,
+};
 
 use super::errors::CliError;
 use super::io::{
