@@ -58,14 +58,9 @@ impl Default for EncodeV4Options {
 struct ResolvedV4 {
     delimiter: char,
     indent_size: usize,
-}
-
-/// A node of the recursive uniform-object shape shared by tabular and keyed
-/// headers. A leaf carries no children; a group carries the nested field list.
-#[derive(Debug, Clone)]
-struct FieldNodeV4 {
-    name: String,
-    children: Option<Vec<FieldNodeV4>>,
+    primitive_array_columns: bool,
+    object_array_columns: bool,
+    max_depth: usize,
 }
 
 /// Encodes a value using the canonical v4.1 forms.
@@ -92,50 +87,33 @@ fn encode_v4_inner(
     let resolved = ResolvedV4 {
         delimiter: options.delimiter,
         indent_size: options.indent_size.max(1),
+        primitive_array_columns: options.primitive_array_columns,
+        object_array_columns: options.object_array_columns,
+        max_depth: options.max_depth,
     };
     let value = match replacer {
         Some(replacer) => apply_replacer(value, replacer),
         None => value.clone(),
     };
     validate_v4_depth(&value, 0, options.max_depth)?;
-    if let Some(extension) = encode_v4_extension(&value, options)? {
-        return Ok(extension);
+    if options.cyclic_discriminated_arrays {
+        if let Value::Object(document) = &value {
+            let mut output = String::new();
+            if write_cyclic_discriminated_arrays(
+                &mut output,
+                document,
+                EncodeOptions {
+                    cyclic_discriminated_arrays: true,
+                    delimiter: options.delimiter,
+                    max_depth: options.max_depth,
+                    ..EncodeOptions::default()
+                },
+            )? {
+                return Ok(output.trim_end_matches('\n').to_owned());
+            }
+        }
     }
     Ok(encode_v4_value(&value, resolved).join("\n"))
-}
-
-/// The extension emitters are shared with the legacy surface. Comparing their
-/// result with the same emitter's extension-free result distinguishes a real
-/// extension wire from an ineligible fallback before returning to v4.1.
-fn encode_v4_extension(
-    value: &Value,
-    options: EncodeV4Options,
-) -> Result<Option<String>, EncodeError> {
-    let base = EncodeOptions {
-        delimiter: options.delimiter,
-        max_depth: options.max_depth,
-        ..EncodeOptions::default()
-    };
-    if options.cyclic_discriminated_arrays {
-        let encoded = value.try_to_legacy_toon_with_options(EncodeOptions {
-            cyclic_discriminated_arrays: true,
-            ..base
-        })?;
-        if encoded != value.try_to_legacy_toon_with_options(base)? {
-            return Ok(Some(encoded.trim_end_matches('\n').to_owned()));
-        }
-    }
-    if options.primitive_array_columns || options.object_array_columns {
-        let encoded = value.try_to_legacy_toon_with_options(EncodeOptions {
-            primitive_array_columns: options.primitive_array_columns,
-            object_array_columns: options.object_array_columns,
-            ..base
-        })?;
-        if encoded != value.try_to_legacy_toon_with_options(base)? {
-            return Ok(Some(encoded.trim_end_matches('\n').to_owned()));
-        }
-    }
-    Ok(None)
 }
 
 fn validate_v4_depth(value: &Value, depth: usize, max_depth: usize) -> Result<(), EncodeError> {
@@ -177,8 +155,8 @@ fn encode_v4_value(value: &Value, options: ResolvedV4) -> Vec<String> {
     }
     match value {
         Value::Array(array) => encode_v4_array(None, &array.values(), 0, options),
-        Value::Object(document) => match keyed_fields_v4(document) {
-            Some(fields) => encode_v4_keyed(None, document, &fields, 0, options),
+        Value::Object(document) => match keyed_shape_v4(document, 1, options) {
+            Some(shape) => encode_v4_keyed(None, document, &shape, 0, options),
             None => encode_v4_object(document, 0, options),
         },
         _ => unreachable!("primitives handled above"),
@@ -201,8 +179,8 @@ fn encode_v4_field(key: &str, value: &Value, depth: usize, options: ResolvedV4) 
     match value {
         Value::Array(array) => encode_v4_array(Some(key), &array.values(), depth, options),
         Value::Object(document) => {
-            if let Some(fields) = keyed_fields_v4(document) {
-                return encode_v4_keyed(Some(key), document, &fields, depth, options);
+            if let Some(shape) = keyed_shape_v4(document, depth + 1, options) {
+                return encode_v4_keyed(Some(key), document, &shape, depth, options);
             }
             let mut lines = vec![format!("{prefix}:")];
             if !document.fields.is_empty() {
@@ -234,10 +212,8 @@ fn encode_v4_array(
             encode_cells(values, options.delimiter)
         )];
     }
-    if values.iter().all(is_plain_object) {
-        if let Some(fields) = tabular_fields_v4(values) {
-            return encode_v4_tabular(key, values, &fields, depth, options);
-        }
+    if let Some(shape) = tabular_shape_v4(values, depth + 1, options) {
+        return encode_v4_tabular(key, values, &shape, depth, options);
     }
     let mut lines = vec![format!(
         "{prefix}{}",
@@ -252,21 +228,19 @@ fn encode_v4_array(
 fn encode_v4_tabular(
     key: Option<&str>,
     rows: &[Value],
-    fields: &[FieldNodeV4],
+    shape: &TabularShape,
     depth: usize,
     options: ResolvedV4,
 ) -> Vec<String> {
     let mut lines = vec![format!(
         "{}{}",
         indentation(depth, options),
-        header(key, rows.len(), Some(fields), options.delimiter, false)
+        header(key, rows.len(), Some(&shape.fields), options.delimiter, false)
     )];
     for row in rows {
-        lines.push(format!(
-            "{}{}",
-            indentation(depth + 1, options),
-            encode_cells(&collect_leaves_v4(row, fields), options.delimiter)
-        ));
+        let (cells, children) = encode_v4_tabular_row(row, &shape.paths, depth + 2, options);
+        lines.push(format!("{}{}", indentation(depth + 1, options), cells));
+        lines.extend(children);
     }
     lines
 }
@@ -274,22 +248,24 @@ fn encode_v4_tabular(
 fn encode_v4_keyed(
     key: Option<&str>,
     document: &Document,
-    fields: &[FieldNodeV4],
+    shape: &TabularShape,
     depth: usize,
     options: ResolvedV4,
 ) -> Vec<String> {
     let mut lines = vec![format!(
         "{}{}",
         indentation(depth, options),
-        header(key, document.fields.len(), Some(fields), options.delimiter, true)
+        header(key, document.fields.len(), Some(&shape.fields), options.delimiter, true)
     )];
     for field in &document.fields {
+        let (cells, children) =
+            encode_v4_tabular_row(&field.value, &shape.paths, depth + 2, options);
         lines.push(format!(
-            "{}{}: {}",
+            "{}{}: {cells}",
             indentation(depth + 1, options),
-            canonical_key(&field.key),
-            encode_cells(&collect_leaves_v4(&field.value, fields), options.delimiter)
+            canonical_key(&field.key)
         ));
+        lines.extend(children);
     }
     lines
 }
@@ -405,38 +381,49 @@ fn encode_v4_first_container(
                 encode_cells(&values, options.delimiter)
             )]);
         }
-        if values.iter().all(is_plain_object) {
-            if let Some(fields) = tabular_fields_v4(&values) {
-                let mut lines = vec![format!(
-                    "{}- {}",
-                    indentation(depth, options),
-                    header(Some(key), values.len(), Some(&fields), options.delimiter, false)
-                )];
-                for row in &values {
-                    lines.push(format!(
-                        "{}{}",
-                        indentation(depth + 2, options),
-                        encode_cells(&collect_leaves_v4(row, &fields), options.delimiter)
-                    ));
-                }
-                return Some(lines);
-            }
-        }
-    }
-    if let Value::Object(document) = value {
-        if let Some(fields) = keyed_fields_v4(document) {
+        if let Some(shape) = tabular_shape_v4(&values, depth + 1, options) {
             let mut lines = vec![format!(
                 "{}- {}",
                 indentation(depth, options),
-                header(Some(key), document.fields.len(), Some(&fields), options.delimiter, true)
+                header(
+                    Some(key),
+                    values.len(),
+                    Some(&shape.fields),
+                    options.delimiter,
+                    false
+                )
+            )];
+            for row in &values {
+                let (cells, children) =
+                    encode_v4_tabular_row(row, &shape.paths, depth + 3, options);
+                lines.push(format!("{}{}", indentation(depth + 2, options), cells));
+                lines.extend(children);
+            }
+            return Some(lines);
+        }
+    }
+    if let Value::Object(document) = value {
+        if let Some(shape) = keyed_shape_v4(document, depth + 1, options) {
+            let mut lines = vec![format!(
+                "{}- {}",
+                indentation(depth, options),
+                header(
+                    Some(key),
+                    document.fields.len(),
+                    Some(&shape.fields),
+                    options.delimiter,
+                    true
+                )
             )];
             for field in &document.fields {
+                let (cells, children) =
+                    encode_v4_tabular_row(&field.value, &shape.paths, depth + 3, options);
                 lines.push(format!(
-                    "{}{}: {}",
+                    "{}{}: {cells}",
                     indentation(depth + 2, options),
-                    canonical_key(&field.key),
-                    encode_cells(&collect_leaves_v4(&field.value, &fields), options.delimiter)
+                    canonical_key(&field.key)
                 ));
+                lines.extend(children);
             }
             return Some(lines);
         }
@@ -448,78 +435,21 @@ fn encode_v4_first_container(
 // Shape detection
 // ---------------------------------------------------------------------------
 
-fn is_plain_object(value: &Value) -> bool {
-    matches!(value, Value::Object(_))
+fn tabular_shape_v4(
+    values: &[Value],
+    depth: usize,
+    options: ResolvedV4,
+) -> Option<TabularShape> {
+    tabular_shape(values, shape_options_v4(options), depth)
+        .expect("canonical depth was validated before shape detection")
 }
 
-/// The recursive uniform-object shape required by v4.1 tabular form. Every row
-/// must be a plain object with the same key set; a column is a leaf when all its
-/// values are primitive, a nested group when all are non-empty objects sharing a
-/// shape, and disqualifying otherwise.
-fn tabular_fields_v4(values: &[Value]) -> Option<Vec<FieldNodeV4>> {
-    let rows = values
-        .iter()
-        .map(|value| match value {
-            Value::Object(document) => Some(document),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let first = rows.first()?;
-    let first_keys = first
-        .fields
-        .iter()
-        .map(|field| field.key.as_str())
-        .collect::<Vec<_>>();
-    if first_keys.is_empty() {
-        return None;
-    }
-    for row in &rows {
-        if row.fields.len() != first_keys.len()
-            || first_keys.iter().any(|key| row.get(key).is_none())
-        {
-            return None;
-        }
-    }
-
-    let mut fields = Vec::with_capacity(first_keys.len());
-    for name in first_keys {
-        let column = rows
-            .iter()
-            .map(|row| row.get(name).expect("key set verified above"))
-            .collect::<Vec<_>>();
-        if column.iter().all(|value| value.is_primitive()) {
-            fields.push(FieldNodeV4 {
-                name: name.to_owned(),
-                children: None,
-            });
-            continue;
-        }
-        if !column
-            .iter()
-            .all(|value| matches!(value, Value::Object(document) if !document.fields.is_empty()))
-        {
-            return None;
-        }
-        let child_values = column.into_iter().cloned().collect::<Vec<_>>();
-        let children = tabular_fields_v4(&child_values)?;
-        fields.push(FieldNodeV4 {
-            name: name.to_owned(),
-            children: Some(children),
-        });
-    }
-    Some(fields)
-}
-
-/// Keyed form additionally requires at least two non-empty object entries.
-fn keyed_fields_v4(document: &Document) -> Option<Vec<FieldNodeV4>> {
+fn keyed_shape_v4(
+    document: &Document,
+    depth: usize,
+    options: ResolvedV4,
+) -> Option<TabularShape> {
     if document.fields.len() < 2 {
-        return None;
-    }
-    if !document
-        .fields
-        .iter()
-        .all(|field| matches!(&field.value, Value::Object(nested) if !nested.fields.is_empty()))
-    {
         return None;
     }
     let rows = document
@@ -527,24 +457,73 @@ fn keyed_fields_v4(document: &Document) -> Option<Vec<FieldNodeV4>> {
         .iter()
         .map(|field| field.value.clone())
         .collect::<Vec<_>>();
-    tabular_fields_v4(&rows)
+    tabular_shape_v4(&rows, depth, options)
 }
 
-fn collect_leaves_v4(value: &Value, fields: &[FieldNodeV4]) -> Vec<Value> {
-    let Value::Object(document) = value else {
-        unreachable!("shape detection verified object rows");
-    };
-    let mut leaves = Vec::new();
-    for field in fields {
-        let child = document
-            .get(&field.name)
-            .expect("shape detection verified the field is present");
-        match &field.children {
-            None => leaves.push(child.clone()),
-            Some(children) => leaves.extend(collect_leaves_v4(child, children)),
-        }
+fn shape_options_v4(options: ResolvedV4) -> EncodeOptions {
+    EncodeOptions {
+        nested_tabular_headers: true,
+        keyed_map_collapse: true,
+        primitive_array_columns: options.primitive_array_columns,
+        object_array_columns: options.object_array_columns,
+        delimiter: options.delimiter,
+        max_depth: options.max_depth,
+        ..EncodeOptions::default()
     }
-    leaves
+}
+
+fn encode_v4_tabular_row(
+    value: &Value,
+    paths: &[ColumnPath],
+    child_depth: usize,
+    options: ResolvedV4,
+) -> (String, Vec<String>) {
+    let mut cells = Vec::new();
+    let mut children = Vec::new();
+    for path in paths {
+        let cell = value_at_path(value, &path.path).expect("shape detection verified row paths");
+        if !path.child_fields.is_empty() {
+            let Value::Array(array) = cell else {
+                unreachable!("shape detection verified child-table arrays");
+            };
+            cells.push(array.values().len().to_string());
+            let mut child_paths = Vec::new();
+            collect_leaf_paths(&path.child_fields, &mut Vec::new(), &mut child_paths);
+            for child in array.values() {
+                let (child_cells, descendants) =
+                    encode_v4_tabular_row(&child, &child_paths, child_depth + 1, options);
+                children.push(format!("{}{}", indentation(child_depth, options), child_cells));
+                children.extend(descendants);
+            }
+        } else if path.fixed_len.is_some() {
+            let Value::Array(array) = cell else {
+                unreachable!("shape detection verified fixed-width arrays");
+            };
+            cells.extend(
+                array
+                    .values()
+                    .iter()
+                    .map(|item| primitive_text_v4(item, options.delimiter)),
+            );
+        } else if let Some(list_delimiter) = path.list_delimiter {
+            let Value::Array(array) = cell else {
+                unreachable!("shape detection verified primitive-array columns");
+            };
+            cells.push(
+                array
+                    .values()
+                    .iter()
+                    .map(|item| {
+                        primitive_list_item_text_v4(item, options.delimiter, list_delimiter)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(&list_delimiter.to_string()),
+            );
+        } else {
+            cells.push(primitive_text_v4(cell, options.delimiter));
+        }
+    };
+    (cells.join(&options.delimiter.to_string()), children)
 }
 
 // ---------------------------------------------------------------------------
@@ -554,7 +533,7 @@ fn collect_leaves_v4(value: &Value, fields: &[FieldNodeV4]) -> Vec<Value> {
 fn header(
     key: Option<&str>,
     length: usize,
-    fields: Option<&[FieldNodeV4]>,
+    fields: Option<&[HeaderFieldShape]>,
     delimiter: char,
     keyed: bool,
 ) -> String {
@@ -567,17 +546,40 @@ fn header(
     format!("{encoded_key}[{length}{marker}{delimiter_marker}]{field_text}:")
 }
 
-fn format_fields(fields: &[FieldNodeV4], delimiter: char) -> String {
+fn format_fields(fields: &[HeaderFieldShape], delimiter: char) -> String {
     fields
         .iter()
-        .map(|field| match &field.children {
-            None => canonical_key(&field.name),
-            Some(children) => {
-                format!("{}{{{}}}", canonical_key(&field.name), format_fields(children, delimiter))
+        .map(|field| {
+            let name = canonical_key(&field.key);
+            if let Some(list_delimiter) = field.list_delimiter {
+                return format!("{name}[{list_delimiter}]");
+            }
+            if let Some(fixed_len) = field.fixed_len {
+                return format!("{name}[{fixed_len}{}]", delimiter_prefix_text(delimiter));
+            }
+            if field.children.is_empty() {
+                name
+            } else {
+                format!("{name}{{{}}}", format_fields(&field.children, delimiter))
             }
         })
         .collect::<Vec<_>>()
         .join(&delimiter.to_string())
+}
+
+fn primitive_list_item_text_v4(
+    value: &Value,
+    active_delimiter: char,
+    list_delimiter: char,
+) -> String {
+    let Value::String(value) = value else {
+        return primitive_text_v4(value, active_delimiter);
+    };
+    if needs_quotes_v4(value, active_delimiter) || value.contains(list_delimiter) {
+        quote_string(value)
+    } else {
+        value.to_owned()
+    }
 }
 
 fn encode_cells(values: &[Value], delimiter: char) -> String {
