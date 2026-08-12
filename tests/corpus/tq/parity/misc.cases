@@ -1,0 +1,124 @@
+# Builtins that talk to the run itself: trace output, exit status, and the
+# documents it has not read yet. Stderr text is pinned by the golden CLI cases;
+# what is pinned here is what reaches stdout and what the run exits with.
+
+case: "misc-debug-passes-the-input-through"
+filter: "debug"
+input: "{\"a\":1}"
+output: "{\"a\":1}\n"
+
+case: "misc-debug-in-a-pipeline"
+filter: "debug|.+1"
+input: "1"
+output: "2\n"
+
+case: "misc-debug-traces-every-value-it-is-given"
+filter: "debug(.[]|.+1)"
+input: "[1,2]"
+output: "[1,2]\n"
+
+case: "misc-debug-messages-leave-the-input-alone"
+filter: "debug(\"checkpoint\")|.a"
+input: "{\"a\":1}"
+output: "1\n"
+
+case: "misc-stderr-passes-the-input-through"
+filter: "stderr"
+input: "{\"a\":1}"
+output: "{\"a\":1}\n"
+
+case: "misc-stderr-of-a-string"
+filter: "stderr|length"
+input: "\"hi\""
+output: "2\n"
+
+case: "misc-halt-exits-without-output"
+filter: "halt"
+input: "1"
+output: ""
+
+case: "misc-halt-inside-a-conditional"
+filter: "if . > 0 then halt else . end"
+input: "1"
+output: ""
+
+case: "misc-halt-is-not-caught-by-try"
+filter: "try halt catch \"caught\""
+input: "1"
+output: ""
+
+case: "misc-halt-is-not-caught-by-the-optional-operator"
+filter: "(halt)?"
+input: "1"
+output: ""
+
+case: "misc-halt-is-not-caught-by-the-alternative-operator"
+filter: "halt // \"fallback\""
+input: "1"
+output: ""
+
+case: "misc-halt-inside-a-collector-collects-nothing"
+filter: "[1,2,halt]"
+input: "1"
+output: ""
+
+case: "misc-halt-error-writes-a-string-payload"
+filter: "halt_error"
+input: "\"oops\""
+error: "oops"
+
+case: "misc-halt-error-writes-a-non-string-payload-as-json"
+filter: "halt_error"
+input: "{\"a\":1}"
+error: "{\"a\":1}"
+
+case: "misc-halt-error-takes-the-status-it-is-given"
+filter: "halt_error(1)"
+input: "\"boom\""
+error: "boom"
+
+case: "misc-halt-error-is-not-caught-by-try"
+filter: "try halt_error catch \"caught\""
+input: "\"oops\""
+error: "oops"
+
+case: "misc-halt-error-through-a-pipe"
+filter: ".[]|halt_error"
+input: "[\"first\",\"second\"]"
+error: "first"
+
+case: "misc-halt-error-requires-a-number"
+filter: "halt_error(\"nope\")"
+input: "\"x\""
+error: "string (\"x\") halt_error/1: number required"
+
+case: "misc-inputs-over-a-single-document-is-empty"
+filter: "[inputs]"
+input: "1"
+output: "[]\n"
+
+case: "misc-inputs-does-not-repeat-the-current-document"
+filter: "[.,inputs]"
+input: "1"
+output: "[1]\n"
+
+case: "misc-input-without-a-next-document"
+filter: "input"
+input: "1"
+error: "No more inputs"
+divergence: "jq 1.7.1 lets its internal `break` escape when `input` runs dry; tq reports the exhausted stream instead."
+jq-output: "error: break"
+
+case: "misc-halt-discards-the-output-still-pending"
+filter: "1,2,halt"
+input: "1"
+output: ""
+divergence: "tq evaluates a document to completion before writing anything, so a halt cancels that document's output; jq streams each value as it is produced."
+jq-output: "1\n2\n"
+
+case: "misc-deferred-input-line-number-is-clear"
+filter: "input_line_number"
+input: "1"
+error: "unsupported identifier `input_line_number`"
+divergence: "tq does not track byte positions through its decoders, so the line counter is deferred rather than approximated."
+jq-output: "0\n"

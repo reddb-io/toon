@@ -406,6 +406,160 @@ fn missing_and_invalid_flag_values_are_reported() {
     }
 }
 
+const TOONL_STREAM: &str = "[]{id,name}:\n1,Ada\n2,Linus\n3,Grace\n4,Ken\n[=4]\n";
+
+/// `inputs` reads the rows the loop has not reached yet, so a filter that
+/// gathers them sees the rest of the stream and the loop then has none left.
+#[test]
+fn inputs_draws_the_rest_of_a_toonl_stream() {
+    let output = run_tq(
+        &["-p", "toonl", "-o", "json", "-c", "[.,inputs]|map(.name)"],
+        TOONL_STREAM,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout is utf-8"),
+        "[\"Ada\",\"Linus\",\"Grace\",\"Ken\"]\n"
+    );
+}
+
+/// The reader is one cursor, not a copy of the stream: `input` takes the row
+/// the loop would have taken next, so four rows pair into two results.
+#[test]
+fn input_and_the_row_loop_share_one_cursor() {
+    let output = run_tq(
+        &["-p", "toonl", "-o", "json", "-c", "[.name,input.name]"],
+        TOONL_STREAM,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout is utf-8"),
+        "[\"Ada\",\"Linus\"]\n[\"Grace\",\"Ken\"]\n"
+    );
+}
+
+/// `-n` runs the filter once and leaves every row for `inputs` to draw.
+#[test]
+fn null_input_leaves_the_whole_stream_to_inputs() {
+    let output = run_tq(
+        &["-n", "-p", "toonl", "-o", "json", "-c", "[inputs|.id]"],
+        TOONL_STREAM,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout is utf-8"),
+        "[1,2,3,4]\n"
+    );
+}
+
+/// The rows come from the live reader rather than a slurped array: a row the
+/// filter never asks for is never decoded, so a stream that is malformed
+/// further along still succeeds.
+#[test]
+fn a_row_the_filter_never_reaches_is_never_decoded() {
+    let truncated = "[]{id,name}:\n1,Ada\n2,Bob,surplus\n";
+
+    let read_one = run_tq(
+        &["-n", "-p", "toonl", "-o", "json", "-c", "input.name"],
+        truncated,
+    );
+    assert_eq!(read_one.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(read_one.stdout).expect("stdout is utf-8"),
+        "\"Ada\"\n"
+    );
+
+    // The counterexample: reaching that row does report it.
+    let read_all = run_tq(&["-p", "toonl", "-o", "json", "-c", "."], truncated);
+    assert_eq!(read_all.status.code(), Some(1));
+    assert!(
+        String::from_utf8(read_all.stderr)
+            .expect("stderr is utf-8")
+            .contains("row arity mismatch"),
+        "the malformed row is reported once it is read"
+    );
+}
+
+/// `--slurp` has already consumed the stream into the document, so nothing is
+/// left for `inputs` to read.
+#[test]
+fn slurping_leaves_no_rows_for_inputs() {
+    let output = run_tq(
+        &[
+            "-s",
+            "-p",
+            "toonl",
+            "-o",
+            "json",
+            "-c",
+            "[length,([inputs]|length)]",
+        ],
+        TOONL_STREAM,
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout is utf-8"),
+        "[4,0]\n"
+    );
+}
+
+/// `--raw-input` streams lines the same way, one string document at a time.
+#[test]
+fn inputs_draws_the_rest_of_the_raw_input_lines() {
+    let output = run_tq(
+        &["-R", "-o", "json", "-c", "[.,inputs]"],
+        "alpha\nbeta\ngamma\n",
+    );
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout is utf-8"),
+        "[\"alpha\",\"beta\",\"gamma\"]\n"
+    );
+}
+
+/// A single document is the whole input, so `input` has nothing to hand back.
+#[test]
+fn input_reports_an_exhausted_stream() {
+    let output = run_tq(&["-p", "json", "-o", "json", "-c", "input"], "1");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stdout, b"");
+    assert!(stderr.contains("No more inputs"), "{stderr}");
+}
+
+/// `halt_error` mid-stream keeps the rows already written, writes its payload
+/// to stderr, and exits with jq's status for an unnumbered halt.
+#[test]
+fn halt_error_in_a_stream_keeps_the_rows_before_it() {
+    let output = run_tq(
+        &[
+            "-p",
+            "toonl",
+            "-o",
+            "json",
+            "-c",
+            ".ok//(\"row 2 is not ok\"|halt_error)",
+        ],
+        "[]{id,ok}:\n1,true\n2,false\n3,true\n[=3]\n",
+    );
+
+    assert_eq!(output.status.code(), Some(5));
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout is utf-8"),
+        "true\n"
+    );
+    assert_eq!(
+        String::from_utf8(output.stderr).expect("stderr is utf-8"),
+        "row 2 is not ok"
+    );
+}
+
 /// The usage line advertises the input-side flags.
 #[test]
 fn usage_lists_the_input_flags() {

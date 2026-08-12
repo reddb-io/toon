@@ -4,10 +4,16 @@ mod assign;
 mod ast;
 mod builtins;
 mod eval;
+mod halt;
 mod indexing;
+mod inputs;
 mod lexer;
+mod ordering;
 mod parser;
 mod paths;
+
+pub(crate) use halt::Halt;
+pub(crate) use inputs::Inputs;
 
 /// The named `$variables` a query starts with: the ones `--arg`/`--argjson`
 /// supplied, plus the `$ARGS` object jq also exposes them through.
@@ -40,8 +46,25 @@ pub(crate) fn evaluate(
     query: &str,
     variables: &Variables,
 ) -> Result<Vec<Value>, String> {
+    evaluate_reading(document, query, variables, None)
+}
+
+/// The same evaluation, with the reader the remaining documents come from.
+/// `input` and `inputs` draw from it, so a filter that reads ahead moves the
+/// same cursor the caller's loop is walking.
+pub(crate) fn evaluate_reading(
+    document: &Value,
+    query: &str,
+    variables: &Variables,
+    inputs: Option<&Inputs>,
+) -> Result<Vec<Value>, String> {
     let expression = parser::Parser::new(query)?.parse()?;
-    expression.eval(document, &eval::Env::with_variables(&variables.bindings))
+    let env = eval::Env::with_variables(&variables.bindings);
+    let env = match inputs {
+        Some(inputs) => env.reading(inputs),
+        None => env,
+    };
+    expression.eval(document, &env)
 }
 
 #[cfg(test)]
@@ -185,5 +208,67 @@ mod tests {
             values[0].to_json_value(),
             serde_json::json!(["name-6", "Ada", "name-7"])
         );
+    }
+
+    fn numbers(values: &[i64]) -> Inputs {
+        let rows = values
+            .iter()
+            .map(|value| Ok(Value::Number(value.to_string())))
+            .collect::<Vec<_>>();
+        Inputs::new(rows.into_iter())
+    }
+
+    /// `input` and `inputs` share the caller's reader rather than a copy of it:
+    /// each read moves the one cursor, and what one filter took is gone.
+    #[test]
+    fn input_and_inputs_draw_from_one_shared_reader() {
+        let inputs = numbers(&[1, 2, 3]);
+        let variables = Variables::new(&[]);
+
+        let first = evaluate_reading(&Value::Null, "input", &variables, Some(&inputs))
+            .expect("query succeeds");
+        assert_eq!(first[0].to_json_value(), serde_json::json!(1));
+
+        let rest = evaluate_reading(&Value::Null, "[inputs]", &variables, Some(&inputs))
+            .expect("query succeeds");
+        assert_eq!(rest[0].to_json_value(), serde_json::json!([2, 3]));
+
+        assert!(inputs.next_input().is_none(), "the reader is exhausted");
+        assert_eq!(format!("{inputs:?}"), "Inputs");
+    }
+
+    /// An exhausted reader is an error for `input` and simply the end for
+    /// `inputs`, and a reader that fails reports where the filter read it.
+    #[test]
+    fn an_exhausted_or_failing_reader_reaches_the_filter() {
+        let variables = Variables::new(&[]);
+
+        let empty = numbers(&[]);
+        let error = evaluate_reading(&Value::Null, "input", &variables, Some(&empty))
+            .expect_err("there is nothing to read");
+        assert_eq!(error, "No more inputs");
+
+        let drained = evaluate_reading(&Value::Null, "[inputs]", &variables, Some(&empty))
+            .expect("query succeeds");
+        assert_eq!(drained[0].to_json_value(), serde_json::json!([]));
+
+        let broken = Inputs::new(std::iter::once(Err("row 2: unreadable".to_owned())));
+        let error = evaluate_reading(&Value::Null, "input", &variables, Some(&broken))
+            .expect_err("the read fails");
+        assert_eq!(error, "row 2: unreadable");
+    }
+
+    /// A halt leaves the query carrying the status and message the CLI turns
+    /// back into an exit code and stderr text.
+    #[test]
+    fn a_halt_carries_its_status_and_message_out_of_the_query() {
+        let variables = Variables::new(&[]);
+        let document = Value::String("stop".to_owned());
+
+        let error = evaluate(&document, "halt_error(3)", &variables).expect_err("the query halts");
+        let halt = Halt::decode(&error).expect("the error carries a halt");
+
+        assert_eq!(halt.code, 3);
+        assert_eq!(halt.message, "stop");
     }
 }

@@ -7,6 +7,9 @@ use reddb_io_toon::{Array, Value};
 use super::assign;
 use super::ast::{BinaryOp, Expr, Pattern};
 use super::builtins;
+use super::halt;
+use super::inputs::Inputs;
+use super::ordering::{compare_json_values, compare_key_json};
 
 // Evaluation errors remain strings throughout tq. `error(v)` reserves this
 // prefix for non-string jq payloads; only recovery filters decode it, so a
@@ -32,6 +35,11 @@ pub(super) struct Env {
     /// Shared by every environment derived from one query, so nesting is
     /// counted across bindings, definitions and calls alike.
     budget: Rc<Budget>,
+    /// The documents still to be read, shared with whatever feeds the query so
+    /// `input`/`inputs` draw from the live reader rather than a copy. `None`
+    /// where the input is a single document, which is also where jq's `input`
+    /// has nothing left to hand back.
+    inputs: Option<Inputs>,
 }
 
 /// The evaluation nesting budget for one query.
@@ -83,6 +91,7 @@ impl Default for Env {
             functions: Vec::new(),
             environment,
             budget: Rc::new(Budget::default()),
+            inputs: None,
         }
     }
 }
@@ -95,6 +104,18 @@ impl Env {
         let mut env = Self::default();
         env.frames.push(variables.iter().cloned().collect());
         env
+    }
+
+    /// Attaches the stream the query reads further documents from.
+    pub(super) fn reading(mut self, inputs: &Inputs) -> Self {
+        self.inputs = Some(inputs.clone());
+        self
+    }
+
+    /// The next document of that stream, or `None` once it is exhausted or
+    /// where there was never one to read.
+    pub(super) fn next_input(&self) -> Option<Result<Value, String>> {
+        self.inputs.as_ref()?.next_input()
     }
 
     pub(super) fn bind(&self, pattern: &Pattern, value: &Value) -> Result<Self, String> {
@@ -175,12 +196,15 @@ impl Expr {
     fn evaluate(&self, input: &Value, env: &Env) -> Result<Vec<Value>, String> {
         match self {
             Self::Alternative(left, right) => {
-                let values = left
-                    .eval(input, env)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(is_truthy)
-                    .collect::<Vec<_>>();
+                let produced = match left.eval(input, env) {
+                    Ok(values) => values,
+                    // `//` suppresses the errors its left-hand side raises, but
+                    // a halt is the end of the program rather than an error to
+                    // recover from.
+                    Err(error) if halt::is_halt(&error) => return Err(error),
+                    Err(_) => Vec::new(),
+                };
+                let values = produced.into_iter().filter(is_truthy).collect::<Vec<_>>();
                 if values.is_empty() {
                     right.eval(input, env)
                 } else {
@@ -443,7 +467,9 @@ fn evaluate_recovering(expression: &Expr, input: &Value, env: &Env) -> Recovery 
         }
         Expr::Optional(expression) => {
             let mut recovery = evaluate_recovering(expression, input, env);
-            recovery.error = None;
+            if !recovery.error.as_deref().is_some_and(halt::is_halt) {
+                recovery.error = None;
+            }
             recovery
         }
         Expr::Pipe(left, right) => {
@@ -468,6 +494,12 @@ fn recover_try(expression: &Expr, handler: Option<&Expr>, input: &Value, env: &E
     let Some(error) = recovery.error.take() else {
         return recovery;
     };
+    // A halt passes straight through `try`, as it does in jq: there is no
+    // program left for the handler to run in.
+    if halt::is_halt(&error) {
+        recovery.error = Some(error);
+        return recovery;
+    }
     if let Some(handler) = handler {
         append_recovery(
             &mut recovery,
@@ -817,13 +849,6 @@ fn sort_key(filter: &Expr, input: &Value, env: &Env) -> Result<serde_json::Value
     ))
 }
 
-pub(super) fn compare_key_json(
-    left: &serde_json::Value,
-    right: &serde_json::Value,
-) -> std::cmp::Ordering {
-    compare_json_values(left, right).unwrap_or(std::cmp::Ordering::Equal)
-}
-
 fn evaluate_has(input: &Value, key: &Value) -> Result<Value, String> {
     match (input, key) {
         (Value::Array(array), Value::Number(index)) => {
@@ -899,7 +924,7 @@ fn evaluate_from_entries(input: &Value) -> Result<Value, String> {
     Ok(Value::from_json_value(serde_json::Value::Object(object)))
 }
 
-fn value_kind(value: &Value) -> &'static str {
+pub(super) fn value_kind(value: &Value) -> &'static str {
     match value {
         Value::Array(_) => "array",
         Value::Bool(_) => "boolean",
@@ -1094,69 +1119,6 @@ fn compare_values(left: &Value, right: &Value) -> Result<std::cmp::Ordering, Str
     compare_json_values(&left_json, &right_json)
 }
 
-fn compare_json_values(
-    left: &serde_json::Value,
-    right: &serde_json::Value,
-) -> Result<std::cmp::Ordering, String> {
-    let left_rank = json_rank(left);
-    let right_rank = json_rank(right);
-    if left_rank != right_rank {
-        return Ok(left_rank.cmp(&right_rank));
-    }
-
-    match (left, right) {
-        (serde_json::Value::Null, serde_json::Value::Null) => Ok(std::cmp::Ordering::Equal),
-        (serde_json::Value::Bool(left), serde_json::Value::Bool(right)) => Ok(left.cmp(right)),
-        (serde_json::Value::Number(left), serde_json::Value::Number(right)) => {
-            parse_number(&left.to_string())?
-                .partial_cmp(&parse_number(&right.to_string())?)
-                .ok_or_else(|| "cannot compare numbers".to_owned())
-        }
-        (serde_json::Value::String(left), serde_json::Value::String(right)) => Ok(left.cmp(right)),
-        (serde_json::Value::Array(left), serde_json::Value::Array(right)) => {
-            for (left, right) in left.iter().zip(right) {
-                let ordering = compare_json_values(left, right)?;
-                if !ordering.is_eq() {
-                    return Ok(ordering);
-                }
-            }
-            Ok(left.len().cmp(&right.len()))
-        }
-        (serde_json::Value::Object(left), serde_json::Value::Object(right)) => {
-            let mut left_entries = left.iter().collect::<Vec<_>>();
-            let mut right_entries = right.iter().collect::<Vec<_>>();
-            left_entries.sort_by_key(|(key, _)| *key);
-            right_entries.sort_by_key(|(key, _)| *key);
-            for ((left_key, left_value), (right_key, right_value)) in
-                left_entries.iter().zip(&right_entries)
-            {
-                let key_ordering = left_key.cmp(right_key);
-                if !key_ordering.is_eq() {
-                    return Ok(key_ordering);
-                }
-                let value_ordering = compare_json_values(left_value, right_value)?;
-                if !value_ordering.is_eq() {
-                    return Ok(value_ordering);
-                }
-            }
-            Ok(left_entries.len().cmp(&right_entries.len()))
-        }
-        _ => unreachable!("matching ranks have matching JSON variants"),
-    }
-}
-
-fn json_rank(value: &serde_json::Value) -> u8 {
-    match value {
-        serde_json::Value::Null => 0,
-        serde_json::Value::Bool(false) => 1,
-        serde_json::Value::Bool(true) => 2,
-        serde_json::Value::Number(_) => 3,
-        serde_json::Value::String(_) => 4,
-        serde_json::Value::Array(_) => 5,
-        serde_json::Value::Object(_) => 6,
-    }
-}
-
 pub(super) fn is_truthy(value: &Value) -> bool {
     !matches!(value, Value::Bool(false) | Value::Null)
 }
@@ -1168,7 +1130,7 @@ fn parse_number_value(value: &Value) -> Result<f64, String> {
     }
 }
 
-fn parse_number(value: &str) -> Result<f64, String> {
+pub(super) fn parse_number(value: &str) -> Result<f64, String> {
     value
         .parse()
         .map_err(|_| format!("invalid number `{value}`"))
