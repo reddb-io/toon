@@ -1,0 +1,1 @@
+-n -o json -c --argjson limits {"max":10,"tags":["a","b"]} [$limits.max,($limits.tags|length)]

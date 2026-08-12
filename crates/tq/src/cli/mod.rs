@@ -15,6 +15,7 @@ mod toonl_trim;
 mod upgrade;
 mod xml;
 
+use crate::query::Variables;
 use args::{
     parse_args, parse_check_args, parse_close_args, parse_trim_args, CheckOptions, CloseOptions,
     Format, Options, TrimOptions,
@@ -64,9 +65,17 @@ fn run() -> Result<(String, ExitCode), String> {
     }
 
     let options = parse_args(args.into_iter())?;
+    let variables = Variables::new(&options.variables);
 
+    if options.null_input {
+        let values = crate::query::evaluate(&Value::Null, &options.query, &variables)?;
+        return finish(values, &options);
+    }
+    if options.raw_input {
+        return run_raw_input(&options, &variables);
+    }
     if options.input_format == Format::Toonl {
-        return run_toonl(&options);
+        return run_toonl(&options, &variables);
     }
 
     let input = read_input(&options)?;
@@ -81,11 +90,11 @@ fn run() -> Result<(String, ExitCode), String> {
     let values = match input_format {
         Format::Json => {
             let document = Value::from_json_str(&input).map_err(|error| error.to_string())?;
-            crate::query::evaluate(&document, &options.query)?
+            crate::query::evaluate(&document, &options.query, &variables)?
         }
         Format::Yaml => {
             let document = parse_yaml_value(&input)?;
-            crate::query::evaluate(&document, &options.query)?
+            crate::query::evaluate(&document, &options.query, &variables)?
         }
         Format::Toon => {
             let document = decode_value_v4(
@@ -98,11 +107,11 @@ fn run() -> Result<(String, ExitCode), String> {
                 },
             )
             .map_err(|error| error.to_string())?;
-            crate::query::evaluate(&document, &options.query)?
+            crate::query::evaluate(&document, &options.query, &variables)?
         }
         Format::Xml => {
             let document = parse_xml_value(&input)?;
-            crate::query::evaluate(&document, &options.query)?
+            crate::query::evaluate(&document, &options.query, &variables)?
         }
         Format::Toonl => unreachable!("TOONL input is handled before reading into a string"),
     };
@@ -183,7 +192,7 @@ fn run_check(options: CheckOptions) -> Result<(String, ExitCode), String> {
     Ok((format!("{output}\n"), code))
 }
 
-fn run_toonl(options: &Options) -> Result<(String, ExitCode), String> {
+fn run_toonl(options: &Options, variables: &Variables) -> Result<(String, ExitCode), String> {
     let reader = input_reader(options)?;
     let mut rows = Vec::new();
     let mut values = Vec::new();
@@ -193,14 +202,54 @@ fn run_toonl(options: &Options) -> Result<(String, ExitCode), String> {
         if options.slurp {
             rows.push(row);
         } else {
-            values.extend(crate::query::evaluate(&row, &options.query)?);
+            values.extend(crate::query::evaluate(&row, &options.query, variables)?);
         }
     }
 
     if options.slurp {
-        values = crate::query::evaluate(&Value::Array(Array::List(rows)), &options.query)?;
+        values =
+            crate::query::evaluate(&Value::Array(Array::List(rows)), &options.query, variables)?;
     }
 
+    finish(values, options)
+}
+
+/// `--raw-input` replaces decoding entirely: each line is one string document,
+/// or the whole input is a single string under `--slurp`.
+fn run_raw_input(options: &Options, variables: &Variables) -> Result<(String, ExitCode), String> {
+    let input = read_input(options)?;
+    let mut values = Vec::new();
+
+    if options.slurp {
+        values = crate::query::evaluate(&Value::String(input), &options.query, variables)?;
+    } else {
+        for line in raw_input_lines(&input) {
+            let document = Value::String(line.to_owned());
+            values.extend(crate::query::evaluate(
+                &document,
+                &options.query,
+                variables,
+            )?);
+        }
+    }
+
+    finish(values, options)
+}
+
+/// jq's `--raw-input` line split: a trailing newline ends the last line instead
+/// of starting an empty one, and empty input holds no lines at all.
+fn raw_input_lines(input: &str) -> Vec<&str> {
+    if input.is_empty() {
+        return Vec::new();
+    }
+    input
+        .strip_suffix('\n')
+        .unwrap_or(input)
+        .split('\n')
+        .collect()
+}
+
+fn finish(values: Vec<Value>, options: &Options) -> Result<(String, ExitCode), String> {
     let code = output_exit_code(&values, options.exit_status);
     format_values(&values, options).map(|output| (output, code))
 }

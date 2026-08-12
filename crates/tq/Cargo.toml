@@ -20,6 +20,10 @@ name = "behavior"
 path = "../../tests/runners/rust/tq/behavior.rs"
 
 [[test]]
+name = "input_flags"
+path = "../../tests/runners/rust/tq/input_flags.rs"
+
+[[test]]
 name = "corpus"
 path = "../../tests/runners/rust/tq/corpus.rs"
 

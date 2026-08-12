@@ -1,9 +1,11 @@
 use std::path::Path;
 
 const USAGE: &str = concat!(
-    "usage: tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--stats] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
+    "usage: tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-n|--null-input] [-s|--slurp] [-R|--raw-input] [--arg name value] [--argjson name json] [--stats] [--delimiter comma|tab|pipe] [--indent N] [--strict|--no-strict] [--nested-tabular-headers] [--keyed-map-collapse] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]\n",
     "subcommands: trim, close, check, upgrade"
 );
+const ARG_ERROR: &str = "`--arg` expects a variable name and a value";
+const ARGJSON_ERROR: &str = "`--argjson` expects a variable name and JSON text";
 const TRIM_USAGE: &str = "usage: tq trim --keep-last N [--in-place] [FILE]";
 const CLOSE_USAGE: &str = "usage: tq close [--per-lane|--interleaved] [FILE]";
 const CHECK_USAGE: &str = "usage: tq check [-p toon|toonl] [FILE]";
@@ -29,7 +31,11 @@ pub(super) struct Options {
     pub(super) sort_keys: bool,
     pub(super) exit_status: bool,
     pub(super) compact: bool,
+    pub(super) null_input: bool,
+    pub(super) raw_input: bool,
     pub(super) slurp: bool,
+    /// Named `$variables` from `--arg` and `--argjson`, in flag order.
+    pub(super) variables: Vec<(String, serde_json::Value)>,
     pub(super) stats: bool,
     pub(super) delimiter: char,
     pub(super) indent_size: usize,
@@ -66,7 +72,10 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
     let mut sort_keys = false;
     let mut exit_status = false;
     let mut compact = false;
+    let mut null_input = false;
+    let mut raw_input = false;
     let mut slurp = false;
+    let mut variables = Vec::new();
     let mut stats = false;
     let mut delimiter = ',';
     let mut indent_size = 2;
@@ -92,7 +101,20 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
             "-S" => sort_keys = true,
             "-e" => exit_status = true,
             "-c" => compact = true,
+            "-n" | "--null-input" => null_input = true,
+            "-R" | "--raw-input" => raw_input = true,
             "-s" | "--slurp" => slurp = true,
+            "--arg" => {
+                let (name, value) = parse_named_pair(&mut args, ARG_ERROR)?;
+                variables.push((name, serde_json::Value::String(value)));
+            }
+            "--argjson" => {
+                let (name, text) = parse_named_pair(&mut args, ARGJSON_ERROR)?;
+                let value = serde_json::from_str(&text).map_err(|error| {
+                    format!("`--argjson` value for `${name}` is not valid JSON: {error}")
+                })?;
+                variables.push((name, value));
+            }
             "--stats" => stats = true,
             "--delimiter" => {
                 let value = args.next().ok_or_else(|| USAGE.to_owned())?;
@@ -139,7 +161,10 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
         sort_keys,
         exit_status,
         compact,
+        null_input,
+        raw_input,
         slurp,
+        variables,
         stats,
         delimiter,
         indent_size,
@@ -148,6 +173,17 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
         object_array_columns,
         cyclic_discriminated_arrays,
     })
+}
+
+/// Takes the two operands of `--arg`/`--argjson`. Like jq, both are consumed
+/// verbatim, so a value that looks like a flag still binds to the variable.
+fn parse_named_pair(
+    args: &mut impl Iterator<Item = String>,
+    error: &'static str,
+) -> Result<(String, String), String> {
+    let name = args.next().ok_or_else(|| error.to_owned())?;
+    let value = args.next().ok_or_else(|| error.to_owned())?;
+    Ok((name, value))
 }
 
 fn parse_indent(value: &str) -> Result<usize, String> {
