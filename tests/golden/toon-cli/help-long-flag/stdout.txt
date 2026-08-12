@@ -1,0 +1,20 @@
+TOON CLI – Convert between JSON and TOON
+
+USAGE toon [options] [input]
+
+ARGUMENTS
+
+  input                  Input file path (omit or use "-" to read from stdin)
+
+OPTIONS
+
+  -o, --output <file>    Output file path (prints to stdout if omitted)
+  -e, --encode           Encode JSON to TOON (auto-detected by default)
+  -d, --decode           Decode TOON to JSON (auto-detected by default)
+      --delimiter <c>    Delimiter for rows and inline arrays: comma (,), tab (\t), or pipe (|)
+      --indent <number>  Indentation size (default: 2)
+      --strict           Strict decode validation (disable with --no-strict)
+      --stats            Show token statistics
+      --verbose          Print the cause chain and stack trace on failure
+  -h, --help             Show this help message
+  -v, --version          Show the version

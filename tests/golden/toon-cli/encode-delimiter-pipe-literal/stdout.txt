@@ -1,0 +1,4 @@
+items[2|]{id|value}:
+  1|test
+  2|data
+ok: true

@@ -1,0 +1,4 @@
+--stats
+-o
+out.toon
+in.json
