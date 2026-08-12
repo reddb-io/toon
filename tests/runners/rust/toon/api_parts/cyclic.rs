@@ -89,9 +89,9 @@ fn document_parse_accepts_object_roots_and_rejects_the_others() {
 
     let document = Document::parse_legacy_with_options(
         "a.b: 1\n",
-        ParseOptions {
+        LegacyParseOptions {
             expand_paths: true,
-            ..ParseOptions::default()
+            ..LegacyParseOptions::default()
         },
     )
     .expect("expanded object root");
@@ -152,9 +152,9 @@ fn non_strict_mode_reads_a_malformed_nested_array_header_as_a_literal_key() {
     // a valid header (no length digits), so it falls through. In non-strict
     // mode the whole bracketed prefix becomes a literal object key instead of
     // an error.
-    let options = ParseOptions {
+    let options = LegacyParseOptions {
         strict: false,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
     let value =
         Value::parse_legacy_with_options("items[1]:\n  - [x] : 1\n", options)
@@ -311,7 +311,7 @@ fn a_nested_object_column_cell_disambiguates_from_a_child_table() {
 fn truncation_reports_cover_invalid_indentation_and_child_tables() {
     let report = reddb_io_toon::detect_truncation_legacy_with_options(
         "v: 1\n   bad: 2\n",
-        ParseOptions::default(),
+        LegacyParseOptions::default(),
     );
     assert!(!report.complete);
     assert_eq!(report.line, Some(2));
@@ -322,7 +322,7 @@ fn truncation_reports_cover_invalid_indentation_and_child_tables() {
 
     let report = reddb_io_toon::detect_truncation_legacy_with_options(
         "items[2]{a,kids{x}}:\n  1,1\n    r1\n",
-        ParseOptions::default(),
+        LegacyParseOptions::default(),
     );
     assert!(!report.complete);
     assert_eq!(report.declared, Some(2));
@@ -359,9 +359,9 @@ fn tabular_arrays_decode_rows_lazily_through_the_array_accessors() {
 #[test]
 fn encoding_rejects_a_delimiter_outside_the_declared_set() {
     let value = parse("items[2]{a,b}:\n  1,2\n  3,4\n");
-    let options = EncodeOptions {
+    let options = LegacyEncodeOptions {
         delimiter: ';',
-        ..EncodeOptions::default()
+        ..LegacyEncodeOptions::default()
     };
     let error = value
         .try_to_legacy_toon_with_options(options)
@@ -407,9 +407,9 @@ fn fallible_canonical_encoders_and_error_accessors_round_trip() {
     assert!(!report.complete);
 
     // EncodeError::message exposes the static message.
-    let options = EncodeOptions {
+    let options = LegacyEncodeOptions {
         delimiter: ';',
-        ..EncodeOptions::default()
+        ..LegacyEncodeOptions::default()
     };
     let encode_error = value
         .try_to_legacy_toon_with_options(options)
@@ -432,10 +432,10 @@ fn fallible_canonical_encoders_and_error_accessors_round_trip() {
 /// `tenant/seq/actor` common prefix.
 const CYCLIC_WIRE: &str = "events:\n  order: cycle(login,purchase,logout)*4\n  discriminator: type\n  rows: 12\n  common[12|]{tenant|seq|actor}:\n    acme|1|u1\n    acme|2|u1\n    acme|3|u1\n    acme|4|u2\n    acme|5|u2\n    acme|6|u2\n    acme|7|u3\n    acme|8|u3\n    acme|9|u3\n    acme|10|u4\n    acme|11|u4\n    acme|12|u4\n  login[4|]{ok}:\n    true\n    true\n    false\n    true\n  purchase[4|]{amount|currency}:\n    12.5|USD\n    4|EUR\n    99.95|USD\n    1.25|BRL\n  logout[4|]{durationMs}:\n    1200\n    900\n    1800\n    600\n";
 
-fn cyclic_encode() -> EncodeOptions {
-    EncodeOptions {
+fn cyclic_encode() -> LegacyEncodeOptions {
+    LegacyEncodeOptions {
         cyclic_discriminated_arrays: true,
-        ..EncodeOptions::default()
+        ..LegacyEncodeOptions::default()
     }
 }
 
@@ -504,9 +504,9 @@ fn cyclic_decode_requires_the_opt_in_and_otherwise_leaves_the_section_literal() 
     // inflated when the decoder opts in. Without the opt-in a document that
     // merely *looks* like a section is never silently re-interpreted — its
     // fields survive verbatim as ordinary structured data.
-    let opted_out = ParseOptions {
+    let opted_out = LegacyParseOptions {
         cyclic_discriminated_arrays: false,
-        ..ParseOptions::default()
+        ..LegacyParseOptions::default()
     };
     let literal =
         Value::parse_legacy_with_options(CYCLIC_WIRE, opted_out)
