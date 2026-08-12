@@ -4,13 +4,20 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+Every slice that changes the `tq` query language adds an entry here — a new
+construct, a new builtin, a changed diagnostic, or a changed divergence. The
+[tq language reference](docs/tq-language.md) describes the surface as it stands
+now; this file is how it got there.
+
 ## [Unreleased]
 
 ### Changed
 
 - **Breaking:** `tq` now follows jq when iterating with `.[]`: objects emit
   their values in field order, while `null` and scalar inputs raise an error.
-  Use `.[]?` to suppress those iteration errors.
+  Use `.[]?` to suppress those iteration errors. The former array-only
+  behavior was ledgered as `divergence-iteration-on-object`; that ledger row
+  and its corpus case were retired with the change.
 - **Rebased the baseline on the official TOON spec v4.1.** The former v3.3
   baseline is retired; the `vendor/toon` / `vendor/toon-spec` submodules are
   pinned at the v4.1.1 checkpoint, and the decoders are rebuilt as event-based
@@ -61,6 +68,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   covered by the shared v0.2 conformance corpus.
 
 ### Added
+
+- **A jq-style query language in `tq`**, built slice by slice and pinned by the
+  vendored jq 1.7.1 parity corpus in `tests/corpus/tq/parity/`. The
+  [tq language reference](docs/tq-language.md) is the normative description,
+  including the precedence ladder, the builtin catalog with a
+  supported/deferred/never status for every name, and the
+  "Where tq differs from jq" table drawn from the divergence ledger in
+  [docs/tq-jq-parity.md](docs/tq-jq-parity.md).
+  - **Parity infrastructure**: the `.cases` corpus format, the hermetic replay
+    against vendored expectations, the optional validator that replays against
+    jq only when it is exactly 1.7.1, and the divergence ledger.
+  - **Operators**: `and`, `or`, `not`, the alternative `//`, and `%`, all placed
+    on jq's precedence ladder.
+  - **Control flow**: `if`/`elif`/`else`/`end`, `try`/`catch`, the `?` postfix,
+    `empty`, and `error`.
+  - **Indexing**: generalized `.[e]`, slices, and iteration.
+  - **User-defined functions**: `def` with filter and `$`-valued parameters,
+    recursion, closures, shadowing, and a bounded recursion depth that reports
+    `exceeded the maximum filter recursion depth` instead of exhausting the
+    stack.
+  - **The path layer**: `path`, `paths`, `leaf_paths`, `getpath`, `setpath`,
+    `delpaths`, `del`, `pick`, recursive descent (`..`, `recurse`), `tostream`,
+    and `fromstream`. Reads stay lazy over the codec's accessors; only writes
+    materialise the tabular array they touch.
+  - **The assignment family**: `=`, `|=`, `+=`, `-=`, `*=`, `/=`, `%=`, and
+    `//=`, all lowered onto `setpath`, with jq's non-associativity, its
+    right-hand-side evaluation rules, and `|= empty` as deletion.
+  - **Strings, formats, and JSON conversions**: `"\(…)"` interpolation,
+    `@text`, `@json`, `@csv`, `@tsv`, `@base64`, `@base64d`, `@uri`, `@html`,
+    `@sh`, the `@format "…"` prefix form, and `tostring`, `tonumber`, `tojson`,
+    `fromjson`.
+  - **Builtin sweeps**: types and selectors, array and stream ops, object ops,
+    math, regex and strings, a UTC-only time subset, and the runtime builtins
+    `debug`, `stderr`, `halt`, `halt_error`, and stream-aware `input`/`inputs`.
+  - **CLI surface for the language**: `-n`, `-R`/`--raw-input`, `--arg`, and
+    `--argjson`, which put `$name` and `$ARGS` in scope, plus `-j`, `-S`, and
+    `-e`.
 
 - **TOONL v0.2 specification** (now unified into `docs/toonl-reddb-spec.md`): a normative, requirements-only
   spec that formally closes the red-skills requirements R1–R4. It promotes
