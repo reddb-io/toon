@@ -12,7 +12,11 @@ export declare class ToonDecodeError extends SyntaxError {
         cause?: unknown;
     });
 }
-/** Error used by the explicit pre-v4 compatibility codec. */
+/**
+ * Positioned error raised inside the decoder. `decode` re-raises it as a
+ * [`ToonDecodeError`] at the public boundary; the streaming and TOONL entry
+ * points surface it directly.
+ */
 export declare class ToonError extends SyntaxError {
     readonly line: number;
     readonly source?: string;
