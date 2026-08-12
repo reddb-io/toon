@@ -1,6 +1,6 @@
 {
   "name": "tq-workspace",
-  "version": "0.21.0",
+  "version": "0.21.1",
   "private": true,
   "description": "pnpm workspace for the JavaScript packages published from reddb-io/toon.",
   "packageManager": "pnpm@11.6.0",
