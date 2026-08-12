@@ -1,5 +1,6 @@
 use reddb_io_toon::Value;
 
+mod assign;
 mod ast;
 mod builtins;
 mod eval;
@@ -66,9 +67,16 @@ mod tests {
     /// test here is the query engine's, so the test takes the one input shape
     /// that can still expose it.
     fn tabular_document() -> Value {
-        let mut input = format!("users[{ROWS}]{{id,name}}:\n");
-        for index in 0..ROWS {
-            input.push_str(&format!("  {index},name-{index}\n"));
+        table_document(&["users"])
+    }
+
+    fn table_document(names: &[&str]) -> Value {
+        let mut input = String::new();
+        for name in names {
+            input.push_str(&format!("{name}[{ROWS}]{{id,name}}:\n"));
+            for index in 0..ROWS {
+                input.push_str(&format!("  {index},name-{index}\n"));
+            }
         }
         Value::parse_legacy(&input).expect("tabular document parses")
     }
@@ -127,6 +135,55 @@ mod tests {
         assert_eq!(
             values[0].to_json_value(),
             serde_json::json!(["Ada", ROWS as i64])
+        );
+    }
+
+    /// The same contract seen through the assignment family, which is where a
+    /// query most often writes. Two tables sit side by side and only one is
+    /// assigned into: locating the target reads its one row, materialising it
+    /// reads that table in full, and the untouched table is never decoded —
+    /// so the total stays a single table's worth rather than both.
+    #[test]
+    fn an_assignment_materializes_only_the_table_it_touches() {
+        let _counting = counting();
+        let document = table_document(&["users", "orders"]);
+        let variables = Variables::new(&[]);
+        let filters = [
+            // `=` never reads what it overwrites, so beyond materialising the
+            // table it decodes only the row the path walk touched.
+            (".users[7].name = \"Ada\"", ROWS + 1),
+            // The update operators combine with the current value, which reads
+            // that one row a second time.
+            (".users[7].name |= \"Ada\"", ROWS + 2),
+            (".users[7].id += 1", ROWS + 2),
+            (".users[7].name //= \"Ada\"", ROWS + 2),
+        ];
+
+        for (filter, decodes) in filters {
+            reddb_io_toon::reset_tabular_row_decode_count_for_tests();
+            let values = evaluate(&document, filter, &variables).expect("query succeeds");
+            assert_eq!(values.len(), 1, "{filter}");
+            assert_eq!(
+                reddb_io_toon::tabular_row_decode_count_for_tests(),
+                decodes,
+                "{filter}"
+            );
+        }
+    }
+
+    /// The edit itself, checked separately from how much it decoded: the named
+    /// row changes, its neighbours and the untouched table do not.
+    #[test]
+    fn an_assignment_edits_the_row_it_names() {
+        let _counting = counting();
+        let document = table_document(&["users", "orders"]);
+        let variables = Variables::new(&[]);
+        let filter = ".users[7].name = \"Ada\" | [.users[6].name,.users[7].name,.orders[7].name]";
+        let values = evaluate(&document, filter, &variables).expect("query succeeds");
+
+        assert_eq!(
+            values[0].to_json_value(),
+            serde_json::json!(["name-6", "Ada", "name-7"])
         );
     }
 }

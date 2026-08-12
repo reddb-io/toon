@@ -1,7 +1,9 @@
+use super::ast::{AssignOp, BinaryOp};
+
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Token {
     Alternative,
-    Assign,
+    Assign(AssignOp),
     Colon,
     Comma,
     Dot,
@@ -58,40 +60,40 @@ pub(super) fn lex(query: &str) -> Result<Vec<Token>, String> {
                 }
             }
             '|' => tokens.push(if consume_char(&mut chars, '=') {
-                Token::Assign
+                Token::Assign(AssignOp::Update)
             } else {
                 Token::Pipe
             }),
             '+' => tokens.push(if consume_char(&mut chars, '=') {
-                Token::Assign
+                Token::Assign(AssignOp::Arithmetic(BinaryOp::Add))
             } else {
                 Token::Plus
             }),
             '%' => tokens.push(if consume_char(&mut chars, '=') {
-                Token::Assign
+                Token::Assign(AssignOp::Arithmetic(BinaryOp::Modulo))
             } else {
                 Token::Percent
             }),
             '?' => tokens.push(Token::Question),
             '-' => tokens.push(if consume_char(&mut chars, '=') {
-                Token::Assign
+                Token::Assign(AssignOp::Arithmetic(BinaryOp::Subtract))
             } else {
                 Token::Minus
             }),
             '*' => tokens.push(if consume_char(&mut chars, '=') {
-                Token::Assign
+                Token::Assign(AssignOp::Arithmetic(BinaryOp::Multiply))
             } else {
                 Token::Star
             }),
             '/' => {
                 if consume_char(&mut chars, '/') {
                     tokens.push(if consume_char(&mut chars, '=') {
-                        Token::Assign
+                        Token::Assign(AssignOp::Alternative)
                     } else {
                         Token::Alternative
                     });
                 } else if consume_char(&mut chars, '=') {
-                    tokens.push(Token::Assign);
+                    tokens.push(Token::Assign(AssignOp::Arithmetic(BinaryOp::Divide)));
                 } else {
                     tokens.push(Token::Slash);
                 }
@@ -107,7 +109,7 @@ pub(super) fn lex(query: &str) -> Result<Vec<Token>, String> {
                 if consume_char(&mut chars, '=') {
                     tokens.push(Token::EqualEqual);
                 } else {
-                    tokens.push(Token::Assign);
+                    tokens.push(Token::Assign(AssignOp::Set));
                 }
             }
             '!' => {

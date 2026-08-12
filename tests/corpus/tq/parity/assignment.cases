@@ -1,0 +1,286 @@
+# The assignment family: =, |=, +=, -=, *=, /=, %=, //=, lowered to setpath.
+
+case: "assign-set-existing-field"
+filter: ".a = 1"
+input: "{\"a\":0,\"b\":0}"
+output: "{\"a\":1,\"b\":0}\n"
+
+case: "assign-set-missing-field"
+filter: ".a = 1"
+input: "{}"
+output: "{\"a\":1}\n"
+
+case: "assign-set-creates-a-nested-path"
+filter: ".a.b.c = 1"
+input: "{}"
+output: "{\"a\":{\"b\":{\"c\":1}}}\n"
+
+case: "assign-set-creates-an-array-element"
+filter: ".a[0] = 1"
+input: "null"
+output: "{\"a\":[1]}\n"
+
+case: "assign-set-negative-index"
+filter: ".[-1] = 9"
+input: "[1,2]"
+output: "[1,9]\n"
+
+case: "assign-set-multi-path"
+filter: "(.a,.b) = 1"
+input: "{\"a\":0,\"b\":0}"
+output: "{\"a\":1,\"b\":1}\n"
+
+case: "assign-set-multi-path-through-indexing"
+filter: ".[\"a\",\"b\"] = 1"
+input: "{}"
+output: "{\"a\":1,\"b\":1}\n"
+
+case: "assign-set-generated-right-hand-side"
+filter: ".a = (1,2)"
+input: "{\"a\":0}"
+output: "{\"a\":1}\n{\"a\":2}\n"
+
+case: "assign-set-multi-path-and-generated-right-hand-side"
+filter: "(.a,.b) = (1,2)"
+input: "{\"a\":0,\"b\":0}"
+output: "{\"a\":1,\"b\":1}\n{\"a\":2,\"b\":2}\n"
+
+case: "assign-set-right-hand-side-reads-the-whole-input"
+filter: ".a = .b"
+input: "{\"b\":5}"
+output: "{\"b\":5,\"a\":5}\n"
+
+case: "assign-set-empty-right-hand-side-produces-nothing"
+filter: ".a = empty"
+input: "{\"a\":1}"
+output: ""
+
+case: "assign-set-a-slice"
+filter: ".[1:3] = [\"x\"]"
+input: "[1,2,3,4]"
+output: "[1,\"x\",4]\n"
+
+case: "assign-set-an-open-slice"
+filter: ".a[1:] = [\"x\"]"
+input: "{\"a\":[1,2,3]}"
+output: "{\"a\":[1,\"x\"]}\n"
+
+case: "assign-set-selected-elements"
+filter: "(.[]|select(.>1)) = 0"
+input: "[1,2,3]"
+output: "[1,0,0]\n"
+
+case: "assign-set-every-descendant-number"
+filter: "(..|select(type==\"number\")) = 0"
+input: "{\"a\":1,\"b\":[2]}"
+output: "{\"a\":0,\"b\":[0]}\n"
+
+case: "assign-set-an-object-value"
+filter: ".a = {\"b\":1}"
+input: "{}"
+output: "{\"a\":{\"b\":1}}\n"
+
+case: "assign-set-through-a-scalar-is-reported"
+filter: ".a = 1"
+input: "3"
+error: "Cannot index number with string"
+
+case: "assign-set-needs-a-path-expression"
+filter: "(1) = 1"
+input: "{}"
+error: "Invalid path expression"
+
+case: "assign-update-a-field"
+filter: ".a |= .+1"
+input: "{\"a\":1}"
+output: "{\"a\":2}\n"
+
+case: "assign-update-every-element"
+filter: ".[] |= .+1"
+input: "[1,2,3]"
+output: "[2,3,4]\n"
+
+case: "assign-update-a-missing-nested-path"
+filter: ".a.b |= .+1"
+input: "{}"
+output: "{\"a\":{\"b\":1}}\n"
+
+case: "assign-update-keeps-only-the-first-output"
+filter: ".a |= (.,.+1)"
+input: "{\"a\":1}"
+output: "{\"a\":1}\n"
+
+case: "assign-update-visits-a-repeated-path-twice"
+filter: "(.a,.a) |= .+1"
+input: "{\"a\":1}"
+output: "{\"a\":3}\n"
+
+case: "assign-update-empty-deletes-the-path"
+filter: ".a |= empty"
+input: "{\"a\":1,\"b\":2}"
+output: "{\"b\":2}\n"
+
+case: "assign-update-empty-deletes-every-element"
+filter: ".[] |= empty"
+input: "[1,2,3,4,5]"
+output: "[]\n"
+
+case: "assign-update-deletes-what-select-rejects"
+filter: ".[] |= select(.>1)"
+input: "[1,2,3]"
+output: "[2,3]\n"
+
+case: "assign-update-deletes-several-paths-at-once"
+filter: "(.a,.b) |= empty"
+input: "{\"a\":1,\"b\":2,\"c\":3}"
+output: "{\"c\":3}\n"
+
+case: "assign-update-a-slice"
+filter: ".[1:3] |= map(.*10)"
+input: "[1,2,3,4]"
+output: "[1,20,30,4]\n"
+
+case: "assign-update-every-descendant-number"
+filter: "(..|select(type==\"number\")) |= .+1"
+input: "{\"a\":1,\"b\":[2]}"
+output: "{\"a\":2,\"b\":[3]}\n"
+
+case: "assign-update-nests-another-assignment"
+filter: ".a |= (.b = 1)"
+input: "{\"a\":{}}"
+output: "{\"a\":{\"b\":1}}\n"
+
+case: "assign-update-through-a-user-definition"
+filter: "def f: .a; f |= .+1"
+input: "{\"a\":1}"
+output: "{\"a\":2}\n"
+
+case: "assign-update-an-optional-path-selects-nothing"
+filter: ".[]? |= .+1"
+input: "3"
+output: "3\n"
+
+case: "assign-update-propagates-an-error"
+filter: ".a |= error(\"boom\")"
+input: "{\"a\":1}"
+error: "boom"
+
+case: "assign-add-a-field"
+filter: ".a += 1"
+input: "{\"a\":1}"
+output: "{\"a\":2}\n"
+
+case: "assign-add-reads-the-whole-input"
+filter: ".a += .b"
+input: "{\"a\":1,\"b\":2}"
+output: "{\"a\":3,\"b\":2}\n"
+
+case: "assign-add-a-missing-path-starts-from-null"
+filter: ".a += 1"
+input: "{}"
+output: "{\"a\":1}\n"
+
+case: "assign-add-concatenates-arrays"
+filter: ".a += .a"
+input: "{\"a\":[1]}"
+output: "{\"a\":[1,1]}\n"
+
+case: "assign-add-every-element"
+filter: ".a[] += 1"
+input: "{\"a\":[1,2]}"
+output: "{\"a\":[2,3]}\n"
+
+case: "assign-add-generated-right-hand-side"
+filter: ".a += (1,2)"
+input: "{\"a\":0}"
+output: "{\"a\":1}\n{\"a\":2}\n"
+
+case: "assign-subtract-a-field"
+filter: ".a -= 1"
+input: "{\"a\":1}"
+output: "{\"a\":0}\n"
+
+case: "assign-multiply-a-field"
+filter: ".a *= 3"
+input: "{\"a\":2}"
+output: "{\"a\":6}\n"
+
+case: "assign-divide-a-field"
+filter: ".a /= 2"
+input: "{\"a\":6}"
+output: "{\"a\":3}\n"
+
+case: "assign-modulo-a-field"
+filter: ".a %= 3"
+input: "{\"a\":7}"
+output: "{\"a\":1}\n"
+
+case: "assign-alternative-fills-a-null"
+filter: ".a //= 9"
+input: "{\"a\":null}"
+output: "{\"a\":9}\n"
+
+case: "assign-alternative-fills-a-false"
+filter: ".a //= 9"
+input: "{\"a\":false}"
+output: "{\"a\":9}\n"
+
+case: "assign-alternative-fills-a-missing-path"
+filter: ".a //= 9"
+input: "{}"
+output: "{\"a\":9}\n"
+
+case: "assign-alternative-keeps-a-truthy-value"
+filter: ".a //= 9"
+input: "{\"a\":1}"
+output: "{\"a\":1}\n"
+
+case: "assign-alternative-every-element"
+filter: ".[] //= 9"
+input: "[1,null]"
+output: "[1,9]\n"
+
+case: "assign-binds-tighter-than-alternative"
+filter: ".a += 1 // 5"
+input: "{\"a\":1}"
+output: "{\"a\":2}\n"
+
+case: "assign-chains-through-a-pipe"
+filter: ".a = 1 | .b = 2"
+input: "{}"
+output: "{\"a\":1,\"b\":2}\n"
+
+case: "assign-comma-produces-one-document-each"
+filter: ".a = 1, .b = 2"
+input: "{}"
+output: "{\"a\":1}\n{\"b\":2}\n"
+
+case: "assign-right-hand-side-sees-bindings"
+filter: ".a as $x | .b = $x"
+input: "{\"a\":7}"
+output: "{\"a\":7,\"b\":7}\n"
+
+case: "assign-inside-a-conditional"
+filter: "if .a then .b = 1 else .c = 2 end"
+input: "{\"a\":true}"
+output: "{\"a\":true,\"b\":1}\n"
+
+case: "assign-inside-a-reduce"
+filter: "reduce range(3) as $i (.; .[$i] = $i)"
+input: "null"
+output: "[0,1,2]\n"
+
+case: "assign-round-trips-through-entries"
+filter: "to_entries|map(.value |= .+1)|from_entries"
+input: "{\"a\":1}"
+output: "{\"a\":2}\n"
+
+case: "assign-error-is-catchable"
+filter: "try (.a = error(\"x\")) catch ."
+input: "{}"
+output: "\"x\"\n"
+
+case: "assign-is-not-a-path-expression"
+filter: "path(.a = 1)"
+input: "{}"
+error: "Invalid path expression"
