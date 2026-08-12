@@ -107,6 +107,52 @@ fn reports_argument_and_input_errors() {
 }
 
 #[test]
+fn indent_uses_upstream_parse_int_and_zero_semantics() {
+    let input = r#"{"nested":{"value":1}}"#;
+
+    let zero = run_tq(
+        &["-p", "json", "-o", "toon", "--indent", "0", "."],
+        input,
+    );
+    assert_eq!(zero.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(zero.stdout).expect("stdout is utf-8"),
+        "nested:\nvalue: 1\n"
+    );
+
+    let numeric_prefix = run_tq(
+        &["-p", "json", "-o", "toon", "--indent", "4spaces", "."],
+        input,
+    );
+    assert_eq!(numeric_prefix.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(numeric_prefix.stdout).expect("stdout is utf-8"),
+        "nested:\n    value: 1\n"
+    );
+
+    let fraction = run_tq(
+        &["-p", "json", "-o", "toon", "--indent", "1.9", "."],
+        input,
+    );
+    assert_eq!(fraction.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(fraction.stdout).expect("stdout is utf-8"),
+        "nested:\n value: 1\n"
+    );
+
+    assert_error(
+        &["-p", "json", "-o", "toon", "--indent", "-1px", "."],
+        input,
+        "`--indent` expects a non-negative number",
+    );
+    assert_error(
+        &["-p", "json", "-o", "toon", "--indent", "nope", "."],
+        input,
+        "`--indent` expects a non-negative number",
+    );
+}
+
+#[test]
 fn yaml_input_defaults_to_toon_output() {
     let output = run_tq(&["-p", "yaml", "."], "name: Ada\nactive: true\n");
     assert_eq!(
@@ -391,6 +437,81 @@ fn reads_the_query_after_a_double_dash_and_the_input_from_a_file() {
     );
 
     std::fs::remove_file(&path).expect("remove temp input");
+}
+
+#[test]
+fn reports_encode_token_statistics_for_stdin_and_file_without_touching_stdout() {
+    let input = r#"{"name":"Ada","items":[1,2,3]}"#;
+    let expected_stdout = "name: Ada\nitems[3]: 1,2,3\n";
+    let expected_stderr = "● Token estimates: ~14 (JSON) → ~12 (TOON)\n\
+✔ Saved ~2 tokens (-14.3%)\n";
+
+    let stdin = run_tq(&["-p", "json", "-o", "toon", "--stats", "."], input);
+    assert_eq!(stdin.status.code(), Some(0), "stdin conversion succeeds");
+    assert_eq!(
+        String::from_utf8(stdin.stdout).expect("stdout is utf-8"),
+        expected_stdout
+    );
+    assert_eq!(
+        String::from_utf8(stdin.stderr).expect("stderr is utf-8"),
+        expected_stderr
+    );
+
+    let mut path = temp_file("tq-token-statistics");
+    path.set_extension("json");
+    std::fs::write(&path, input).expect("write JSON input");
+    let file = run_tq(
+        &[
+            "-o",
+            "toon",
+            "--stats",
+            ".",
+            path.to_str().expect("temp path is utf-8"),
+        ],
+        "",
+    );
+    assert_eq!(file.status.code(), Some(0), "file conversion succeeds");
+    assert_eq!(
+        String::from_utf8(file.stdout).expect("stdout is utf-8"),
+        expected_stdout
+    );
+    assert_eq!(
+        String::from_utf8(file.stderr).expect("stderr is utf-8"),
+        expected_stderr
+    );
+    std::fs::remove_file(path).expect("remove JSON input");
+}
+
+#[test]
+fn encode_token_statistics_match_tokenx_multilingual_rules() {
+    let input = r#"{"cjk":"漢字","german":"übergröße","central":"zażółć","space":"a b"}"#;
+    let output = run_tq(&["-p", "json", "-o", "toon", "--stats", "."], input);
+
+    assert_eq!(output.status.code(), Some(0), "conversion succeeds");
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("stdout is utf-8"),
+        "cjk: 漢字\ngerman: übergröße\ncentral: zażółć\nspace: a b\n"
+    );
+    assert_eq!(
+        String::from_utf8(output.stderr).expect("stderr is utf-8"),
+        "● Token estimates: ~29 (JSON) → ~18 (TOON)\n\
+✔ Saved ~11 tokens (-37.9%)\n"
+    );
+
+    let ranges = run_tq(
+        &["-p", "json", "-o", "toon", "--stats", "."],
+        r#"["łłłł","㐀","、","！","゠","⺀","㇀","㈀","㌀","가","ᄀ","㄰","ꥠ","ힰ"]"#,
+    );
+    assert_eq!(ranges.status.code(), Some(0), "range conversion succeeds");
+    assert_eq!(
+        String::from_utf8(ranges.stdout).expect("stdout is utf-8"),
+        "[14]: łłłł,㐀,、,！,゠,⺀,㇀,㈀,㌀,가,ᄀ,㄰,ꥠ,ힰ\n"
+    );
+    assert_eq!(
+        String::from_utf8(ranges.stderr).expect("stderr is utf-8"),
+        "● Token estimates: ~56 (JSON) → ~31 (TOON)\n\
+✔ Saved ~25 tokens (-44.6%)\n"
+    );
 }
 
 #[test]
@@ -803,7 +924,7 @@ fn reports_the_remaining_evaluator_and_parser_errors() {
         (".a b", "{}", "unexpected trailing filter input"),
         ("{1:2}", "{}", "expected object key"),
         ("map(.", "{}", "expected `RParen`"),
-        (". as $x", "{}", "unsupported character `$`"),
+        (". as $x", "{}", "expected `Pipe`"),
         (".a=1", "{}", "assignment operators are not supported yet"),
         (".a|=1", "{}", "assignment operators are not supported yet"),
         (".a+=1", "{}", "assignment operators are not supported yet"),
