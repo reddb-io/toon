@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use reddb_io_toon::Value;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -9,6 +11,14 @@ pub(super) enum Expr {
     Call(String, Vec<Expr>),
     Comma(Vec<Expr>),
     Conditional(Vec<(Expr, Expr)>, Box<Expr>),
+    /// A `def name(params): body; rest` scope. The body is shared so a call can
+    /// clone the closure without copying the filter it defines.
+    Def {
+        name: String,
+        parameters: Vec<String>,
+        body: Rc<Expr>,
+        rest: Box<Expr>,
+    },
     Empty,
     Environment,
     Field(Box<Expr>, String),
