@@ -34,7 +34,7 @@ export function encode(input: unknown, options: EncodeOptions = {}): string {
 export function encodeLines(input: unknown, options: EncodeOptions = {}): Iterable<string> {
   const delimiter = options.delimiter ?? ','
   if (![',', '|', '\t'].includes(delimiter)) throw new TypeError('invalid delimiter')
-  const indentSize = Math.max(1, Math.floor(options.indentSize ?? options.indent ?? 2))
+  const indentSize = options.indentSize ?? options.indent ?? 2
   const rawMaxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
   const maxDepth = rawMaxDepth === Number.POSITIVE_INFINITY
     ? 0

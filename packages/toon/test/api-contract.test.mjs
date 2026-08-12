@@ -44,6 +44,25 @@ test('raw strings returned for containers leave traversal intact', () => {
   assert.equal(output, 'name: "Ada"\nage: "30"')
 })
 
+test('indent options preserve upstream v4.1 edge semantics and alias precedence', () => {
+  const nested = { a: { b: { c: 1 } } }
+
+  assert.equal(encode(nested, { indentSize: 0 }), 'a:\nb:\nc: 1')
+  assert.equal(encode(nested, { indent: 0 }), 'a:\nb:\nc: 1')
+  assert.equal(encode(nested, { indentSize: 1.5 }), 'a:\n b:\n   c: 1')
+  assert.equal(
+    encode({ a: { b: 1 } }, { indentSize: 0, indent: 4 }),
+    'a:\nb: 1',
+  )
+  assert.throws(() => encode({ a: { b: 1 } }, { indentSize: -1 }), RangeError)
+
+  assert.deepEqual(
+    decode('a:\n    b: 1', { indentSize: 4, indent: 2 }),
+    { a: { b: 1 } },
+  )
+  assert.throws(() => decode('a: 1', { indentSize: 0 }), ToonDecodeError)
+})
+
 test('decode failures expose stable positioned source and cause semantics', () => {
   assert.throws(
     () => decode('name: Ada\ngreeting: "hello'),
