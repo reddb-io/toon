@@ -752,7 +752,7 @@ impl Array {
     }
 
     pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
-        encode_with_options(&Value::Array(self.clone()), encode_options_from_legacy(options))
+        encode_with_options(&Value::Array(self.clone()), options)
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
