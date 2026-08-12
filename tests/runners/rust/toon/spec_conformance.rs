@@ -1,6 +1,6 @@
 use reddb_io_toon::{
     decode_with_options, encode_toonl_values, encode_with_options, DecodeStreamOptions,
-    EncodeV4Options, ParseOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
+    EncodeOptions, LegacyParseOptions, ToonlEncoder, ToonlStream, ToonlWriter, Value,
 };
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
@@ -143,7 +143,10 @@ fn official_toon_spec_fixtures_do_not_regress() {
                             .and_then(Json::as_str)
                             .expect("encode expected TOON");
                         let value = Value::from_json_value(input.clone());
-                        match encode_with_options(&value, encode_v4_options(test.get("options"))) {
+                        match encode_with_options(
+                            &value,
+                            canonical_encode_options(test.get("options")),
+                        ) {
                             Ok(encoded) => {
                                 // The round-trip fixpoint is against the encoder's
                                 // own canonical value, not the raw fixture JSON, so
@@ -384,13 +387,13 @@ fn toonl_fixtures_are_executable_spec_examples() {
 /// Maps a fixture's `options` object onto decoder options. Encoder-only options
 /// (`delimiter`, `keyFolding`, `flattenDepth`) carry no decoder meaning and are
 /// ignored; `indent` is shared by both sides.
-fn decoder_options(options: Option<&Json>) -> ParseOptions {
-    let defaults = ParseOptions::default();
+fn decoder_options(options: Option<&Json>) -> LegacyParseOptions {
+    let defaults = LegacyParseOptions::default();
     let Some(options) = options.and_then(Json::as_object) else {
         return defaults;
     };
 
-    ParseOptions {
+    LegacyParseOptions {
         indent: options
             .get("indent")
             .and_then(Json::as_u64)
@@ -409,12 +412,12 @@ fn decoder_options(options: Option<&Json>) -> ParseOptions {
 
 /// Maps fixture options onto the canonical v4.1 encoder and its opt-in
 /// extensions.
-fn encode_v4_options(options: Option<&Json>) -> EncodeV4Options {
-    let defaults = EncodeV4Options::default();
+fn canonical_encode_options(options: Option<&Json>) -> EncodeOptions {
+    let defaults = EncodeOptions::default();
     let Some(options) = options.and_then(Json::as_object) else {
         return defaults;
     };
-    EncodeV4Options {
+    EncodeOptions {
         delimiter: options
             .get("delimiter")
             .and_then(Json::as_str)
@@ -444,12 +447,12 @@ fn encode_v4_options(options: Option<&Json>) -> EncodeV4Options {
     }
 }
 
-fn encoder_options(options: Option<&Json>) -> reddb_io_toon::EncodeOptions {
+fn encoder_options(options: Option<&Json>) -> reddb_io_toon::LegacyEncodeOptions {
     let Some(options) = options.and_then(Json::as_object) else {
-        return reddb_io_toon::EncodeOptions::default();
+        return reddb_io_toon::LegacyEncodeOptions::default();
     };
 
-    reddb_io_toon::EncodeOptions {
+    reddb_io_toon::LegacyEncodeOptions {
         nested_tabular_headers: options
             .get("nestedTabularHeaders")
             .and_then(Json::as_bool)
@@ -471,14 +474,14 @@ fn encoder_options(options: Option<&Json>) -> reddb_io_toon::EncodeOptions {
             .and_then(Json::as_str)
             .and_then(|delimiter| delimiter.chars().next())
             .unwrap_or(','),
-        ..reddb_io_toon::EncodeOptions::default()
+        ..reddb_io_toon::LegacyEncodeOptions::default()
     }
 }
 
 /// The canonical output is always written in the default profile, so it is
 /// re-read with default options no matter what the fixture's input used.
-fn canonical_options() -> ParseOptions {
-    ParseOptions::default()
+fn canonical_options() -> LegacyParseOptions {
+    LegacyParseOptions::default()
 }
 
 fn reject_v3_strict(input: &str) -> Result<(), String> {
@@ -710,7 +713,7 @@ fn round_trips_to(value: &Value, decoded: &Json) -> bool {
         .is_ok_and(|reparsed| reparsed.to_json_value() == *decoded)
 }
 
-fn parse_round_trips(input: &str, options: ParseOptions) -> Result<(), String> {
+fn parse_round_trips(input: &str, options: LegacyParseOptions) -> Result<(), String> {
     let value = Value::parse_legacy_with_options(input, options).map_err(|err| err.to_string())?;
     let canonical = value.to_legacy_toon();
     let reparsed = Value::parse_legacy_with_options(&canonical, canonical_options())
