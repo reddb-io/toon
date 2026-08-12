@@ -75,15 +75,6 @@ export function keyedFields(
   return tabularFields(rows, options)
 }
 
-export function collectLeaves(value: Record<string, any>, fields: FieldNode[]): any[] {
-  const leaves = []
-  for (const field of fields) {
-    if (field.children === undefined) leaves.push(field.self === true ? value : value[field.name])
-    else leaves.push(...collectLeaves(value[field.name], field.children))
-  }
-  return leaves
-}
-
 function matrixLength(values: any[]): number | undefined {
   const firstLength = Array.isArray(values[0]) ? values[0].length : 0
   if (firstLength === 0) return undefined

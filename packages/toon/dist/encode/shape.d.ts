@@ -14,4 +14,3 @@ export interface ShapeOptions {
 export declare function tabularFields(rows: any[], options?: ShapeOptions): FieldNode[] | undefined;
 /** Keyed form additionally requires at least two non-empty object entries. */
 export declare function keyedFields(value: Record<string, any>, options?: ShapeOptions): FieldNode[] | undefined;
-export declare function collectLeaves(value: Record<string, any>, fields: FieldNode[]): any[];

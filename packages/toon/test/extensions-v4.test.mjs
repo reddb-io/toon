@@ -210,3 +210,26 @@ test('TOONL whole-document bridges use the v4 codec', () => {
   assert.equal(encoded, 'people[2:]{name}:\n  ada: Ada\n  linus: Linus')
   assert.deepEqual(JSON.parse(toonToJson(`# generated\n${encoded}`)), value)
 })
+
+test('object-array columns encode ragged nested object rows as a child table', () => {
+  const value = {
+    rows: [
+      { id: 1, kids: [{ a: 1, b: 2 }, { a: 3, b: 4 }] },
+      { id: 2, kids: [{ a: 5, b: 6 }] },
+    ],
+  }
+
+  const encoded = encode(value, { objectArrayColumns: true })
+
+  assert.equal(encoded, 'rows[2]{id,kids{a,b}}:\n  1,2\n    1,2\n    3,4\n  2,1\n    5,6')
+  assert.deepEqual(decode(encoded, { objectArrayColumns: true }), value)
+})
+
+test('object-array columns encode equal-length primitive rows as fixed matrix columns', () => {
+  const value = { rows: [{ id: 1, m: [1, 2] }, { id: 2, m: [3, 4] }] }
+
+  const encoded = encode(value, { objectArrayColumns: true })
+
+  assert.equal(encoded, 'rows[2]{id,m[2]}:\n  1,1,2\n  2,3,4')
+  assert.deepEqual(decode(encoded, { objectArrayColumns: true }), value)
+})
