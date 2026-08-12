@@ -163,3 +163,53 @@ The jq aliases `todateiso8601` and `fromdateiso8601`, and the host-local
 `localtime` builtin, remain deferred. They report tq's normal
 `unsupported identifier` diagnostic rather than silently applying local-time
 semantics.
+
+## Tracing, halting, and reading further input
+
+These builtins talk to the run itself rather than to the value flowing through
+it: what it traces, what it exits with, and what it has not read yet.
+
+| Builtin | Effect |
+| --- | --- |
+| `debug` | Writes `["DEBUG:", <input>]` to stderr and passes the input on. |
+| `debug(msgs)` | Writes one such line per value `msgs` produces, then passes the input on. |
+| `stderr` | Writes the input to stderr — a string as-is, anything else as compact JSON, neither followed by a newline — and passes it on. |
+| `halt` | Ends the run immediately with status 0. |
+| `halt_error` | Writes the input to stderr and ends the run with status 5. |
+| `halt_error(status)` | The same, with the status given; only its low eight bits reach the shell, so `halt_error(300)` exits 44. |
+| `input` | The next document, or an error once the stream is exhausted. |
+| `inputs` | Every document not read yet. |
+
+`halt_error` writes a string payload as-is and anything else as compact JSON
+followed by a newline, which is how jq distinguishes a prepared message from a
+dumped value.
+
+A halt is the end of the program, not an error, so `try`, `?` and `//` re-raise
+it rather than recovering from it: `try halt_error catch "caught"` still exits
+5. What tq does not reproduce is jq's streaming: tq evaluates a document to
+completion before writing anything, so a halt cancels the output of the
+document it happened in — `1,2,halt` writes nothing where jq writes `1` and
+`2`. Documents already written stay written, so a stream that halts at its
+third row keeps the first two.
+
+`input` and `inputs` read from the same cursor the run is already walking,
+rather than from a copy of it:
+
+```console
+$ printf '[]{id,name}:\n1,Ada\n2,Linus\n[=2]\n' | tq -p toonl -o json -c '[.name,input.name]'
+["Ada","Linus"]
+```
+
+The stream is never slurped to make that work, so a row no filter asks for is
+never decoded. Under `-n` the filter runs once against `null` and every row is
+left for `inputs` to draw, which is jq's `-n '[inputs]'` idiom. `--slurp` is
+the opposite end: it has already consumed the stream into the document, so
+`inputs` finds nothing. tq evaluates a filter to completion rather than
+streaming it, so `inputs` draws every remaining document when it runs.
+
+Where the input is a single document — JSON, TOON, YAML, or XML — there is no
+next document, so `inputs` is empty and `input` reports `No more inputs`.
+
+`input_line_number` is deferred: tq does not carry byte positions through its
+decoders, so it reports the usual `unsupported identifier` diagnostic rather
+than an approximation.

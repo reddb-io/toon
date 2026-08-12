@@ -1,0 +1,1 @@
+-n -p toonl -o json -c [inputs]|length
