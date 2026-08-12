@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "TOON v4.1 encoder and decoder, plus TOONL v0.2 append-only streaming. Dependency-free ESM, conformant against the official spec corpus.",
   "type": "module",
   "main": "dist/index.js",

@@ -537,7 +537,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "criterion",
  "proptest",
@@ -546,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-tq"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "quick-xml",
  "reddb-io-toon",
