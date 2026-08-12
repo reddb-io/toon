@@ -211,6 +211,8 @@ impl Parser {
     fn parse_primary(&mut self) -> Result<Expr, String> {
         match self.next() {
             Some(Token::Dot) => Ok(Expr::Identity),
+            // jq spells recursive descent `..`, which is `recurse` verbatim.
+            Some(Token::DotDot) => Ok(Expr::Call("recurse".to_owned(), Vec::new())),
             Some(Token::FieldDot) => {
                 Ok(Expr::Field(Box::new(Expr::Identity), self.expect_ident()?))
             }
