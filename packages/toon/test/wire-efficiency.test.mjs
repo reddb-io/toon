@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { parse, serialize } from '../dist/legacy.js'
+import { decode as parse, encode as serialize } from '../dist/index.js'
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..')
 const FIXTURE_PATH = join(REPO_ROOT, 'tests/corpus/wire-efficiency/corpora.json')
@@ -20,7 +20,7 @@ const CYCLIC_DISCRIMINATED_ARRAYS_PATH = join(
   REPO_ROOT,
   'tests/corpus/wire-efficiency/cyclic-discriminated-arrays.json',
 )
-const EXT_OPTIONS = { nestedTabularHeaders: true, keyedMapCollapse: true, primitiveArrayColumns: true, objectArrayColumns: true }
+const EXT_OPTIONS = { primitiveArrayColumns: true, objectArrayColumns: true }
 const EXPECTED_CASE_COUNT = 9
 
 function readFixture(path) {
@@ -78,7 +78,7 @@ test('primitive-array column corpus decodes identically for JS', () => {
       (error) =>
         error?.line === testCase.line &&
         error?.reason === testCase.reason &&
-        error.message === `line ${testCase.line}: ${testCase.reason}`,
+        error.message === `Line ${testCase.line}: ${testCase.reason}`,
       `${testCase.name}: line-numbered parse error`,
     )
   }
@@ -105,7 +105,7 @@ test('object-array column corpus decodes identically for JS', () => {
       (error) =>
         error?.line === testCase.line &&
         error?.reason === testCase.reason &&
-        error.message === `line ${testCase.line}: ${testCase.reason}`,
+        error.message === `Line ${testCase.line}: ${testCase.reason}`,
       `${testCase.name}: line-numbered parse error`,
     )
   }
@@ -130,12 +130,14 @@ test('object-array column corpus decodes identically for JS', () => {
   }
 })
 
+const CYCLIC_DECODE = { cyclicDiscriminatedArrays: true }
+
 test('cyclic discriminated-array corpus decodes identically for JS', () => {
   const fixture = readFixture(CYCLIC_DISCRIMINATED_ARRAYS_PATH)
   assert.equal(fixture.version, 1)
 
   for (const testCase of fixture.cases) {
-    assert.deepEqual(parse(testCase.input), testCase.expected, `${testCase.name}: decoded value`)
+    assert.deepEqual(parse(testCase.input, CYCLIC_DECODE), testCase.expected, `${testCase.name}: decoded value`)
     if (testCase.canonicalLiteral !== undefined) {
       assert.deepEqual(
         parse(testCase.input, { cyclicDiscriminatedArrays: false }),
@@ -147,11 +149,11 @@ test('cyclic discriminated-array corpus decodes identically for JS', () => {
 
   for (const testCase of fixture.errors) {
     assert.throws(
-      () => parse(testCase.input),
+      () => parse(testCase.input, CYCLIC_DECODE),
       (error) =>
         error?.line === testCase.line &&
         error?.reason === testCase.reason &&
-        error.message === `line ${testCase.line}: ${testCase.reason}`,
+        error.message === `Line ${testCase.line}: ${testCase.reason}`,
       `${testCase.name}: line-numbered parse error`,
     )
   }
@@ -164,7 +166,7 @@ test('cyclic discriminated-array encoding is opt-in and falls back losslessly fo
   for (const testCase of fixture.cases) {
     const encoded = serialize(testCase.expected, { cyclicDiscriminatedArrays: true })
     assert.equal(encoded, testCase.input, `${testCase.name}: encoded wire`)
-    assert.deepEqual(parse(encoded), testCase.expected, `${testCase.name}: round trip`)
+    assert.deepEqual(parse(encoded, CYCLIC_DECODE), testCase.expected, `${testCase.name}: round trip`)
     assert.notEqual(serialize(testCase.expected), testCase.input, `${testCase.name}: default canonical wire`)
   }
 
@@ -180,7 +182,10 @@ test('cyclic discriminated-array encoding is opt-in and falls back losslessly fo
     serialize(ineligible),
     'ineligible cyclic array falls back to canonical v4.1',
   )
-  assert.deepEqual(parse(serialize(ineligible, { cyclicDiscriminatedArrays: true })), ineligible)
+  assert.deepEqual(
+    parse(serialize(ineligible, { cyclicDiscriminatedArrays: true }), CYCLIC_DECODE),
+    ineligible,
+  )
 
   const nonUniformNestedPayload = {
     events: Array.from({ length: 12 }, (_, index) => {
@@ -199,7 +204,7 @@ test('cyclic discriminated-array encoding is opt-in and falls back losslessly fo
 
 test('cyclic discriminated-array wire has no directive references in shipped JS/corpus/goldens', () => {
   for (const relative of [
-    'packages/toon/src/toon.ts',
+    'packages/toon/src/cyclic.ts',
     'crates/toon/src/lib.rs',
     'tests/corpus/wire-efficiency/cyclic-discriminated-arrays.json',
     'tests/golden/tq/cyclic-discriminated-arrays-output/stdout.toon',
@@ -220,9 +225,9 @@ test('primitive-array column encoding is opt-in and falls back losslessly for in
   }
   assert.equal(
     serialize(eligible, { primitiveArrayColumns: true }),
-    'items[2]{id,tags[;],note}:\n  1,hot;fragile,"a,b"\n  2,"semi;quoted",plain\n',
+    'items[2]{id,tags[;],note}:\n  1,hot;fragile,"a,b"\n  2,"semi;quoted",plain',
   )
-  assert.equal(serialize(eligible), 'items[2]:\n  - id: 1\n    tags[2]: hot,fragile\n    note: "a,b"\n  - id: 2\n    tags[1]: semi;quoted\n    note: plain\n')
+  assert.equal(serialize(eligible), 'items[2]:\n  - id: 1\n    tags[2]: hot,fragile\n    note: "a,b"\n  - id: 2\n    tags[1]: semi;quoted\n    note: plain')
   assert.deepEqual(parse(serialize(eligible, { primitiveArrayColumns: true })), eligible)
 
   const ineligible = { items: [{ id: 1, tags: null }, { id: 2, tags: ['ok'] }] }
@@ -247,14 +252,14 @@ test('object-array column encoding is opt-in and falls back losslessly for ineli
   const encoded = serialize(eligible, { objectArrayColumns: true, delimiter: '|' })
   assert.equal(
     encoded,
-    'orders[2|]{id|customer|items{sku|quantity|components{part|lot|ok}}}:\n  ord_001|cust_a|2\n    sku_1|3|1\n      part_a|lot_1|true\n    sku_2|1|0\n  ord_002|cust_b|0\n',
+    'orders[2|]{id|customer|items{sku|quantity|components{part|lot|ok}}}:\n  ord_001|cust_a|2\n    sku_1|3|1\n      part_a|lot_1|true\n    sku_2|1|0\n  ord_002|cust_b|0',
   )
   assert.notEqual(encoded, serialize(eligible, { delimiter: '|' }))
   assert.deepEqual(parse(encoded), eligible)
 
   const matrix = { matrix: [[1, 2, 3], [4, 5, 6]] }
   const matrixEncoded = serialize(matrix, { objectArrayColumns: true, delimiter: '|' })
-  assert.equal(matrixEncoded, 'matrix[2|]{values[3|]}:\n  1|2|3\n  4|5|6\n')
+  assert.equal(matrixEncoded, 'matrix[2|]{values[3|]}:\n  1|2|3\n  4|5|6')
   assert.deepEqual(parse(matrixEncoded), matrix)
 
   const ineligible = { orders: [{ id: 'ord_001', items: [{ sku: 'a' }] }, { id: 'ord_002', items: [1] }] }
