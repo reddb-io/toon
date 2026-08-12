@@ -13,7 +13,7 @@ cargo install reddb-io-tq --version 0.20.0
 ## Usage
 
 ```text
-tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-s|--slurp] [--stats] [--strict|--no-strict] [--delimiter comma|tab|pipe] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
+tq [-p toon|json|toonl|yaml|yml|xml] [-o toon|json|toonl|xml] [-r] [-c] [-j] [-S] [-e] [-n|--null-input] [-s|--slurp] [-R|--raw-input] [--arg name value] [--argjson name json] [--stats] [--strict|--no-strict] [--delimiter comma|tab|pipe] [--primitive-array-columns] [--object-array-columns] [--cyclic-discriminated-arrays] <query> [file]
 tq trim --keep-last N [--in-place] [FILE]
 tq close [--per-lane|--interleaved] [FILE]
 tq check [-p toon|toonl] [FILE]
@@ -129,6 +129,28 @@ Useful query flags:
   `null`, and 4 when the query produces no result.
 - `-s` or `--slurp` collects TOONL rows into one array before evaluating the query.
 - `--stats` reports JSON and TOON token estimates for JSON-to-TOON conversions.
+
+Input flags, matching jq:
+
+- `-n` or `--null-input` evaluates the query once against `null`. Neither stdin
+  nor a file operand is read.
+- `-R` or `--raw-input` replaces decoding: each input line becomes one string
+  document, without its terminating newline. With `--slurp` the whole input,
+  trailing newline included, becomes a single string.
+- `--arg name value` binds `$name` to `value` as a string, taken verbatim.
+- `--argjson name json` parses `json` and binds `$name` to the result. Invalid
+  JSON is reported instead of being bound.
+
+```bash
+tq -n -o json -c --arg tag prod --argjson limit 2 '{tag: $tag, limit: $limit}'
+# {"tag":"prod","limit":2}
+```
+
+Flag variables resolve in every evaluation mode, including per-row TOONL
+streaming, and are also collected in `$ARGS.named`. A repeated name keeps its
+first binding, and a query-level `as $name` binding still shadows the flag
+inside its own scope. `$ARGS.positional` is always empty: tq has no `--args`
+operand list.
 
 ### Encode token statistics
 
