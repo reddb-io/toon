@@ -1,5 +1,5 @@
 /**
- * TOONL v0.1 — the append-only, line-oriented streaming profile of TOON.
+ * TOONL v0.2 — the unified v0.1/v0.2 append-only streaming contract for TOON.
  * Semantics follow `docs/toonl-reddb-spec.md`: a stream is a sequence of segments,
  * each opened by a `[<delim?>]{fields}:` header, filled with one row per line,
  * and optionally closed by a `[=N]` trailer that asserts the row count.
