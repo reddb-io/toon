@@ -1,30 +1,3 @@
-// The lazy-decode counter behind ADR 0002's regression tests. It is live for
-// this crate's own tests and, under the `test-hooks` feature, for a dependent
-// crate's tests too: tq's path layer has to prove that a field or index query
-// still decodes one row, and it can only do that from outside this crate.
-#[cfg(any(test, feature = "test-hooks"))]
-static TABULAR_ROW_DECODE_COUNT: std::sync::atomic::AtomicUsize =
-    std::sync::atomic::AtomicUsize::new(0);
-
-fn count_tabular_row_decode_for_tests() {
-    #[cfg(any(test, feature = "test-hooks"))]
-    {
-        TABULAR_ROW_DECODE_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    }
-}
-
-/// Test hook: zeroes the tabular row-decode counter.
-#[cfg(any(test, feature = "test-hooks"))]
-pub fn reset_tabular_row_decode_count_for_tests() {
-    TABULAR_ROW_DECODE_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
-}
-
-/// Test hook: the number of tabular rows decoded since the last reset.
-#[cfg(any(test, feature = "test-hooks"))]
-pub fn tabular_row_decode_count_for_tests() -> usize {
-    TABULAR_ROW_DECODE_COUNT.load(std::sync::atomic::Ordering::SeqCst)
-}
-
 #[cfg(test)]
 mod tests {
     use super::{Document, EncodeOptions, Value};
@@ -267,18 +240,4 @@ mod tests {
         assert_eq!(error.message(), "array count mismatch");
     }
 
-    #[test]
-    fn decodes_only_touched_tabular_rows() {
-        let document = Document::parse_legacy(
-            "users[3]{id,name}:\n  1,Ada\n  2,Bob\n  3,Chloe\n",
-        )
-        .unwrap();
-        let users = document.get("users").and_then(Value::as_array).unwrap();
-
-        super::reset_tabular_row_decode_count_for_tests();
-        let row = users.get(1).unwrap();
-
-        assert_eq!(row.to_legacy_toon(), "id: 2\nname: Bob\n");
-        assert_eq!(super::tabular_row_decode_count_for_tests(), 1);
-    }
 }

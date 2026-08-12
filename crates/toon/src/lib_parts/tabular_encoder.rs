@@ -37,21 +37,6 @@ fn tabular_shape(
     Ok(Some(TabularShape { fields, paths }))
 }
 
-fn keyed_map_shape(
-    document: &Document,
-    options: EncodeOptions,
-    depth: usize,
-) -> Result<Option<TabularShape>, EncodeError> {
-    if !options.keyed_map_collapse || document.fields.len() < 2 {
-        return Ok(None);
-    }
-    let values = document
-        .fields
-        .iter()
-        .map(|field| field.value.clone())
-        .collect::<Vec<_>>();
-    tabular_shape(&values, options, depth)
-}
 
 fn object_shape(
     values: &[Value],
@@ -241,98 +226,8 @@ fn primitive_text(value: &Value, delimiter: char) -> String {
     }
 }
 
-fn column_text(
-    value: &Value,
-    column: &ColumnPath,
-    active_delimiter: char,
-    options: EncodeOptions,
-    child_output: &mut String,
-    child_depth: usize,
-) -> String {
-    if !column.child_fields.is_empty() {
-        write_child_rows(
-            child_output,
-            value,
-            &column.child_fields,
-            options,
-            child_depth,
-        );
-        let Value::Array(array) = value else {
-            unreachable!("object_shape checked child-table values");
-        };
-        return array.values().len().to_string();
-    }
-    if column.fixed_len.is_some() {
-        let Value::Array(array) = value else {
-            unreachable!("object_shape checked fixed-width values");
-        };
-        return array
-            .values()
-            .iter()
-            .map(|value| primitive_text(value, active_delimiter))
-            .collect::<Vec<_>>()
-            .join(&active_delimiter.to_string());
-    }
-    let Some(list_delimiter) = column.list_delimiter else {
-        return primitive_text(value, active_delimiter);
-    };
-    let Value::Array(array) = value else {
-        unreachable!("object_shape checked primitive-array column values");
-    };
-    array
-        .values()
-        .iter()
-        .map(|value| primitive_list_item_text(value, active_delimiter, list_delimiter))
-        .collect::<Vec<_>>()
-        .join(&list_delimiter.to_string())
-}
 
-fn write_child_rows(
-    output: &mut String,
-    value: &Value,
-    fields: &[HeaderFieldShape],
-    options: EncodeOptions,
-    depth: usize,
-) {
-    let Value::Array(array) = value else {
-        unreachable!("object_shape checked child-table arrays");
-    };
-    let mut paths = Vec::new();
-    collect_leaf_paths(fields, &mut Vec::new(), &mut paths);
-    for child in array.values() {
-        write_indent(output, depth);
-        let mut nested_output = String::new();
-        let cells = paths
-            .iter()
-            .map(|path| {
-                let cell =
-                    value_at_path(&child, &path.path).expect("object_shape checked child paths");
-                column_text(
-                    cell,
-                    path,
-                    options.delimiter,
-                    options,
-                    &mut nested_output,
-                    depth + 1,
-                )
-            })
-            .collect::<Vec<_>>();
-        output.push_str(&cells.join(&options.delimiter.to_string()));
-        output.push('\n');
-        output.push_str(&nested_output);
-    }
-}
 
-fn primitive_list_item_text(value: &Value, active_delimiter: char, list_delimiter: char) -> String {
-    let Value::String(value) = value else {
-        return primitive_text(value, active_delimiter);
-    };
-    if needs_quotes(value, active_delimiter) || value.contains(list_delimiter) {
-        quote_string(value)
-    } else {
-        value.to_owned()
-    }
-}
 
 fn canonical_key(value: &str) -> String {
     if is_bare_key(value) {
