@@ -3,27 +3,27 @@ use std::io::{self, Read, Write};
 use reddb_io_toon::{
     close_transform_stream, close_transform_stream_interleaved, detect_toonl_truncation,
     detect_truncation_with_options, encode_toonl_values, jsonl_to_toonl, toonl_to_jsonl, Array,
-    Document, EncodeOptions, ParseOptions, ToonlCursor, ToonlCursorInvalidation, ToonlEncoder,
+    Document, EncodeOptions, DecodeOptions, ToonlCursor, ToonlCursorInvalidation, ToonlEncoder,
     ToonlReader, ToonlResumeError, ToonlStream, ToonlWriter, Value,
 };
 use serde_json::json;
 
 /// The canonical decoder with the cyclic discriminated-array extension on, which
 /// is the option set most of these tests read against.
-fn cyclic_options() -> ParseOptions {
-    ParseOptions {
+fn cyclic_options() -> DecodeOptions {
+    DecodeOptions {
         cyclic_discriminated_arrays: true,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     }
 }
 
 fn parse(input: &str) -> Value {
-    Value::parse_with_options(input, cyclic_options())
+    Value::parse_with_options(input, &cyclic_options())
         .unwrap_or_else(|error| panic!("parse {input:?}: {error}"))
 }
 
 fn error(input: &str) -> String {
-    Value::parse_with_options(input, cyclic_options())
+    Value::parse_with_options(input, &cyclic_options())
         .expect_err(&format!("{input:?} is rejected"))
         .to_string()
 }
@@ -91,7 +91,7 @@ impl Write for FailingWriter {
 
 #[test]
 fn defaults_to_two_space_indent_strict_mode_and_literal_dotted_keys() {
-    let options = ParseOptions::default();
+    let options = DecodeOptions::default();
 
     assert_eq!(options.indent, 2);
     assert!(options.strict);
@@ -100,12 +100,12 @@ fn defaults_to_two_space_indent_strict_mode_and_literal_dotted_keys() {
 
 #[test]
 fn honours_a_custom_indent_width() {
-    let options = ParseOptions {
+    let options = DecodeOptions {
         indent: 4,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     };
 
-    let value = Value::parse_with_options("a:\n    b: 1\n", options)
+    let value = Value::parse_with_options("a:\n    b: 1\n", &options)
         .expect("four-space indent");
     assert_eq!(value.to_json_value(), json!({"a": {"b": 1}}));
 
@@ -115,12 +115,12 @@ fn honours_a_custom_indent_width() {
 
 #[test]
 fn an_indent_of_zero_is_rejected_rather_than_dividing_by_zero() {
-    let options = ParseOptions {
+    let options = DecodeOptions {
         indent: 0,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     };
 
-    let error = Value::parse_with_options("a: 1\n", options).expect_err("no zero-width level");
+    let error = Value::parse_with_options("a: 1\n", &options).expect_err("no zero-width level");
     assert_eq!(error.to_string(), "line 1: invalid indentation");
 }
 
@@ -131,7 +131,7 @@ fn detects_truncation_with_the_shared_structured_report_corpus() {
     for fixture in corpus.as_array().expect("corpus is an array") {
         let input = fixture["input"].as_str().expect("fixture input");
         let report = match fixture["format"].as_str().expect("fixture format") {
-            "toon" => detect_truncation_with_options(input, ParseOptions::default()),
+            "toon" => detect_truncation_with_options(input, &DecodeOptions::default()),
             "toonl" => detect_toonl_truncation(input),
             format => panic!("unexpected format {format}"),
         };
@@ -146,55 +146,55 @@ fn detects_truncation_with_the_shared_structured_report_corpus() {
 
 #[test]
 fn non_strict_mode_tolerates_off_grid_indentation_and_resolves_duplicates_last_write_wins() {
-    let options = ParseOptions {
+    let options = DecodeOptions {
         strict: false,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     };
 
     let indented =
-        Value::parse_with_options("a:\n   b: 1\n", options)
+        Value::parse_with_options("a:\n   b: 1\n", &options)
             .expect("three-space indent is floored");
     assert_eq!(indented.to_json_value(), json!({"a": {"b": 1}}));
 
     let duplicate =
-        Value::parse_with_options("name: Ada\nname: Bob\n", options)
+        Value::parse_with_options("name: Ada\nname: Bob\n", &options)
             .expect("last write wins");
     assert_eq!(duplicate.to_json_value(), json!({"name": "Bob"}));
 }
 
 #[test]
 fn non_strict_mode_keeps_a_malformed_header_as_a_literal_key() {
-    let options = ParseOptions {
+    let options = DecodeOptions {
         strict: false,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     };
 
-    let value = Value::parse_with_options("foo[2]extra: a,b\n", options)
+    let value = Value::parse_with_options("foo[2]extra: a,b\n", &options)
         .expect("literal key");
     assert_eq!(value.to_json_value(), json!({"foo[2]extra": "a,b"}));
 
     // A root line that opens with a bracket but is not a header falls through
     // to the same key-value reading.
-    let root = Value::parse_with_options("[bad]: 1\n", options)
+    let root = Value::parse_with_options("[bad]: 1\n", &options)
         .expect("literal key at root");
     assert_eq!(root.to_json_value(), json!({"[bad]": 1}));
 }
 
 #[test]
 fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
-    let options = ParseOptions {
+    let options = DecodeOptions {
         max_depth: 2,
-        ..ParseOptions::default()
+        ..DecodeOptions::default()
     };
-    let value = Value::parse_with_options("a:\n  b:\n    c: 1\n", options)
+    let value = Value::parse_with_options("a:\n  b:\n    c: 1\n", &options)
         .expect("at limit");
     assert_eq!(value.to_json_value(), json!({"a": {"b": {"c": 1}}}));
 
     let error = Value::parse_with_options(
         "a:\n  b:\n    c: 1\n",
-        ParseOptions {
+        &DecodeOptions {
             max_depth: 1,
-            ..ParseOptions::default()
+            ..DecodeOptions::default()
         },
     )
     .expect_err("over custom limit");
@@ -205,9 +205,9 @@ fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
 
     let header_error = Value::parse_with_options(
         "rows[1]{a{b{c}}}:\n  1\n",
-        ParseOptions {
+        &DecodeOptions {
             max_depth: 2,
-            ..ParseOptions::default()
+            ..DecodeOptions::default()
         },
     )
     .expect_err("header nesting is guarded too");
@@ -226,9 +226,9 @@ fn decode_enforces_max_depth_and_supports_an_explicit_opt_out() {
 
     Value::parse_with_options(
         "a:\n  b:\n    c: 1\n",
-        ParseOptions {
+        &DecodeOptions {
             max_depth: 0,
-            ..ParseOptions::default()
+            ..DecodeOptions::default()
         },
     )
     .expect("maxDepth 0 disables the guard");
