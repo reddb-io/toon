@@ -82,6 +82,18 @@ test('migration notes show observable TypeScript and Rust cutovers', () => {
   assert.match(migration, /Before[^\n]*After/is)
 })
 
+test('the TypeScript TOONL implementation names the unified v0.2 contract', () => {
+  for (const path of [
+    'packages/toon/src/toonl.ts',
+    'packages/toon/dist/toonl.js',
+    'packages/toon/dist/toonl.d.ts',
+  ]) {
+    const source = read(path)
+    assert.match(source, /TOONL v0\.2[^\n]*unified/i, `${path} must identify the unified v0.2 contract`)
+    assert.match(source, /docs\/toonl-reddb-spec\.md/, `${path} must identify the normative specification`)
+  }
+})
+
 test('the v4.1.1 options audit covers every pinned library and CLI option', () => {
   const audit = read('docs/options-parity-v4.1.1.md')
   const optionIds = [

@@ -107,6 +107,52 @@ fn reports_argument_and_input_errors() {
 }
 
 #[test]
+fn indent_uses_upstream_parse_int_and_zero_semantics() {
+    let input = r#"{"nested":{"value":1}}"#;
+
+    let zero = run_tq(
+        &["-p", "json", "-o", "toon", "--indent", "0", "."],
+        input,
+    );
+    assert_eq!(zero.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(zero.stdout).expect("stdout is utf-8"),
+        "nested:\nvalue: 1\n"
+    );
+
+    let numeric_prefix = run_tq(
+        &["-p", "json", "-o", "toon", "--indent", "4spaces", "."],
+        input,
+    );
+    assert_eq!(numeric_prefix.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(numeric_prefix.stdout).expect("stdout is utf-8"),
+        "nested:\n    value: 1\n"
+    );
+
+    let fraction = run_tq(
+        &["-p", "json", "-o", "toon", "--indent", "1.9", "."],
+        input,
+    );
+    assert_eq!(fraction.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(fraction.stdout).expect("stdout is utf-8"),
+        "nested:\n value: 1\n"
+    );
+
+    assert_error(
+        &["-p", "json", "-o", "toon", "--indent", "-1px", "."],
+        input,
+        "`--indent` expects a non-negative number",
+    );
+    assert_error(
+        &["-p", "json", "-o", "toon", "--indent", "nope", "."],
+        input,
+        "`--indent` expects a non-negative number",
+    );
+}
+
+#[test]
 fn yaml_input_defaults_to_toon_output() {
     let output = run_tq(&["-p", "yaml", "."], "name: Ada\nactive: true\n");
     assert_eq!(
@@ -878,7 +924,7 @@ fn reports_the_remaining_evaluator_and_parser_errors() {
         (".a b", "{}", "unexpected trailing filter input"),
         ("{1:2}", "{}", "expected object key"),
         ("map(.", "{}", "expected `RParen`"),
-        (". as $x", "{}", "unsupported character `$`"),
+        (". as $x", "{}", "expected `Pipe`"),
         (".a=1", "{}", "assignment operators are not supported yet"),
         (".a|=1", "{}", "assignment operators are not supported yet"),
         (".a+=1", "{}", "assignment operators are not supported yet"),

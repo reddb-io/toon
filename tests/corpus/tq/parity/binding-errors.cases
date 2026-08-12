@@ -1,0 +1,15 @@
+# Stable jq-compatible binding failures.
+case: "binding-undefined-variable-error"
+filter: "$missing"
+input: "null"
+error: "is not defined"
+
+case: "array-destructuring-incompatible-type-error"
+filter: "1 as [$x] | $x"
+input: "null"
+error: "Cannot index number with number"
+
+case: "object-destructuring-incompatible-type-error"
+filter: "1 as {a: $x} | $x"
+input: "null"
+error: "Cannot index number with string \"a\""

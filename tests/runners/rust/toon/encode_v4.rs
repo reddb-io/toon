@@ -232,6 +232,30 @@ fn custom_indent_size_round_trips_through_the_v4_decoder() {
     );
 }
 
+#[test]
+fn zero_indent_matches_the_v4_reference_edges() {
+    let value = Value::from_json_value(json!({ "user": { "name": "Ada" } }));
+    let wire = encode_v4(
+        &value,
+        EncodeV4Options {
+            indent_size: 0,
+            ..EncodeV4Options::default()
+        },
+    )
+    .expect("zero-indent v4 encode");
+    assert_eq!(wire, "user:\nname: Ada");
+
+    let error = decode_value_v4(
+        "name: Ada",
+        &DecodeStreamOptions {
+            indent: 0,
+            ..DecodeStreamOptions::default()
+        },
+    )
+    .expect_err("zero-indent v4 decode rejects non-empty input");
+    assert_eq!(error.reason(), "invalid indentation");
+}
+
 // ---------------------------------------------------------------------------
 // Extensions rebuilt on the v4.1 entry points (#215)
 // ---------------------------------------------------------------------------

@@ -100,9 +100,7 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
             }
             "--indent" => {
                 let value = args.next().ok_or_else(|| USAGE.to_owned())?;
-                indent_size = value
-                    .parse::<usize>()
-                    .map_err(|_| "`--indent` expects a non-negative integer".to_owned())?;
+                indent_size = parse_indent(&value)?;
             }
             "--strict" => strict = true,
             "--no-strict" => strict = false,
@@ -150,6 +148,34 @@ pub(super) fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, 
         object_array_columns,
         cyclic_discriminated_arrays,
     })
+}
+
+fn parse_indent(value: &str) -> Result<usize, String> {
+    const ERROR: &str = "`--indent` expects a non-negative number";
+
+    if value.is_empty() {
+        return Ok(2);
+    }
+
+    let value = value.trim_start();
+    let (negative, unsigned) = if let Some(rest) = value.strip_prefix('-') {
+        (true, rest)
+    } else if let Some(rest) = value.strip_prefix('+') {
+        (false, rest)
+    } else {
+        (false, value)
+    };
+    let digit_count = unsigned.bytes().take_while(u8::is_ascii_digit).count();
+    if digit_count == 0 {
+        return Err(ERROR.to_owned());
+    }
+    let indent = unsigned[..digit_count]
+        .parse::<usize>()
+        .map_err(|_| ERROR.to_owned())?;
+    if negative && indent != 0 {
+        return Err(ERROR.to_owned());
+    }
+    Ok(indent)
 }
 
 fn parse_delimiter(value: &str) -> Result<char, String> {
