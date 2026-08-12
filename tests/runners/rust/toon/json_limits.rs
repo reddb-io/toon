@@ -48,7 +48,7 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
         if let Some(raw_toon) = test.get("rawToon").and_then(Json::as_str) {
             let parse_options = parse_options(test.get("parseOptions"));
             if let Some(expected_error) = expected.get("error").and_then(Json::as_str) {
-                let actual = Value::parse_legacy_with_options(raw_toon, parse_options)
+                let actual = Value::parse_with_options(raw_toon, parse_options)
                     .expect_err("case must reject");
                 assert!(
                     actual.to_string().contains(expected_error),
@@ -57,7 +57,7 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
                 continue;
             }
 
-            let actual_round_trip = Value::parse_legacy_with_options(raw_toon, parse_options)
+            let actual_round_trip = Value::parse_with_options(raw_toon, parse_options)
                 .unwrap_or_else(|err| panic!("{name}: TOON parse: {err}"))
                 .to_json_value();
             let expected_round_trip: Json = serde_json::from_str(
@@ -90,7 +90,7 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
 
         let value = Value::from_json_str(raw_json)
             .unwrap_or_else(|err| panic!("{name}: JSON parse: {err}"));
-        let toon = value.to_legacy_toon();
+        let toon = value.to_canonical_toon();
         assert_eq!(
             toon,
             expected
@@ -101,14 +101,14 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
         );
 
         if let Some(expected_nested) = expected.get("nestedHeaderToon").and_then(Json::as_str) {
-            let nested_toon = value.to_legacy_toon_with_options(EncodeOptions {
+            let nested_toon = value.to_toon_with_options(EncodeOptions {
                 nested_tabular_headers: true,
                 keyed_map_collapse: false,
                 ..EncodeOptions::default()
             });
             assert_eq!(nested_toon, expected_nested, "{name}: nested-header TOON");
 
-            let actual_nested_round_trip = Value::parse_legacy(&nested_toon)
+            let actual_nested_round_trip = Value::parse_toon(&nested_toon)
                 .unwrap_or_else(|err| panic!("{name}: nested-header TOON parse: {err}"))
                 .to_json_value();
             let expected_round_trip: Json = serde_json::from_str(
@@ -124,7 +124,7 @@ fn json_limits_corpus_resolves_consistently_for_rust() {
             );
         }
 
-        let actual_round_trip = Value::parse_legacy(&toon)
+        let actual_round_trip = Value::parse_toon(&toon)
             .unwrap_or_else(|err| panic!("{name}: TOON parse: {err}"))
             .to_json_value();
         let expected_round_trip: Json = serde_json::from_str(
