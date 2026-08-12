@@ -1,0 +1,4 @@
+error:
+line 1002:
+nesting depth
+1000

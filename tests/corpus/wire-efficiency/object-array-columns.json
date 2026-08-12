@@ -74,8 +74,16 @@
       "input": "matrix[2|]{values[3|]}:\n  1|2|3\n  4|5|6\n",
       "expected": {
         "matrix": [
-          [1, 2, 3],
-          [4, 5, 6]
+          [
+            1,
+            2,
+            3
+          ],
+          [
+            4,
+            5,
+            6
+          ]
         ]
       },
       "failClosedV3Strict": true
@@ -103,7 +111,7 @@
       "options": {
         "objectArrayColumns": true
       },
-      "expected": "items[2]{a,kids{x}}:\n  1,1\n    9\n  2,0\n",
+      "expected": "items[2]{a,kids{x}}:\n  1,1\n    9\n  2,0",
       "sameAsCanonical": false,
       "failClosedV3Strict": true
     },
@@ -124,7 +132,7 @@
       "options": {
         "objectArrayColumns": true
       },
-      "expected": "items[2]:\n  - a: 1\n    kids: []\n  - a: 2\n    kids: []\n",
+      "expected": "items[2]:\n  - a: 1\n    kids: []\n  - a: 2\n    kids: []",
       "sameAsCanonical": true
     }
   ],

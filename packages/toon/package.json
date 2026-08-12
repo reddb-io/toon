@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon",
-  "version": "0.26.0",
+  "version": "0.26.1",
   "description": "TOON v4.1 encoder and decoder, plus TOONL v0.2 append-only streaming. Dependency-free ESM, conformant against the official spec corpus.",
   "type": "module",
   "main": "dist/index.js",
@@ -12,10 +12,6 @@
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
-    },
-    "./legacy": {
-      "types": "./dist/legacy.d.ts",
-      "import": "./dist/legacy.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -28,7 +24,7 @@
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "tsc -p tsconfig.json",
     "test": "pnpm test:coverage",
-    "test:coverage": "c8 --all --include 'dist/**/*.js' --exclude dist/events.js --exclude dist/types.js --check-coverage --lines 95 node --test test/api-contract.test.mjs test/toon.test.mjs test/toonl.test.mjs test/conformance.test.mjs test/encoder.test.mjs test/json-limits.test.mjs test/wire-efficiency.test.mjs test/extensions-v4.test.mjs test/docs-contract.test.mjs test/readme-examples.test.mjs test/helpers.test.mjs test/html-payload.test.mjs test/perf-smoke.test.mjs test/roundtrip-property.test.mjs test/differential-fuzz.test.mjs test/events.test.mjs test/reviver.test.mjs test/version.test.mjs test/coverage-config.test.mjs test/legacy-corpus.test.mjs test/coverage-branches.test.mjs"
+    "test:coverage": "c8 --all --include 'dist/**/*.js' --exclude dist/events.js --exclude dist/types.js --check-coverage --lines 95 node --test test/api-contract.test.mjs test/toon.test.mjs test/toonl.test.mjs test/conformance.test.mjs test/encoder.test.mjs test/json-limits.test.mjs test/wire-efficiency.test.mjs test/extensions-v4.test.mjs test/docs-contract.test.mjs test/readme-examples.test.mjs test/helpers.test.mjs test/html-payload.test.mjs test/perf-smoke.test.mjs test/roundtrip-property.test.mjs test/differential-fuzz.test.mjs test/events.test.mjs test/reviver.test.mjs test/version.test.mjs test/coverage-config.test.mjs test/coverage-branches.test.mjs test/one-engine.test.mjs"
   },
   "engines": {
     "node": ">=18"

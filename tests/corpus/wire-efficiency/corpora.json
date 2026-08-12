@@ -26,9 +26,9 @@
       },
       "expectedBytes": {
         "jsonMin": 54164,
-        "toonCanonical": 20214,
-        "toonTab": 20215,
-        "toonExt": 20214
+        "toonCanonical": 20213,
+        "toonTab": 20214,
+        "toonExt": 20213
       },
       "value": {
         "shipments": [
@@ -4041,9 +4041,9 @@
       "honestyZeroDelta": false,
       "expectedBytes": {
         "jsonMin": 33841,
-        "toonCanonical": 39242,
-        "toonTab": 39243,
-        "toonExt": 12289
+        "toonCanonical": 12288,
+        "toonTab": 12289,
+        "toonExt": 12288
       },
       "value": {
         "accounts": [
@@ -7656,9 +7656,9 @@
       "honestyZeroDelta": false,
       "expectedBytes": {
         "jsonMin": 18775,
-        "toonCanonical": 20571,
-        "toonTab": 20571,
-        "toonExt": 10403
+        "toonCanonical": 10408,
+        "toonTab": 10409,
+        "toonExt": 10408
       },
       "value": {
         "registry": {
@@ -8871,9 +8871,9 @@
       "honestyZeroDelta": false,
       "expectedBytes": {
         "jsonMin": 33542,
-        "toonCanonical": 39043,
-        "toonTab": 39044,
-        "toonExt": 14349
+        "toonCanonical": 14348,
+        "toonTab": 14349,
+        "toonExt": 14348
       },
       "value": {
         "services": [
@@ -11892,9 +11892,9 @@
       },
       "expectedBytes": {
         "jsonMin": 24794,
-        "toonCanonical": 25359,
-        "toonTab": 25660,
-        "toonExt": 12784
+        "toonCanonical": 25358,
+        "toonTab": 25659,
+        "toonExt": 12783
       },
       "value": {
         "items": [
@@ -14781,9 +14781,9 @@
       },
       "expectedBytes": {
         "jsonMin": 7616,
-        "toonCanonical": 8667,
-        "toonTab": 8818,
-        "toonExt": 7628
+        "toonCanonical": 8666,
+        "toonTab": 8817,
+        "toonExt": 7627
       },
       "value": {
         "matrix": [
@@ -16302,9 +16302,9 @@
       },
       "expectedBytes": {
         "jsonMin": 37076,
-        "toonCanonical": 37889,
-        "toonTab": 38216,
-        "toonExt": 19076
+        "toonCanonical": 37888,
+        "toonTab": 38215,
+        "toonExt": 19075
       },
       "value": {
         "orders": [
@@ -20628,9 +20628,9 @@
       "honestyZeroDelta": true,
       "expectedBytes": {
         "jsonMin": 72,
-        "toonCanonical": 95,
-        "toonTab": 96,
-        "toonExt": 95
+        "toonCanonical": 94,
+        "toonTab": 95,
+        "toonExt": 94
       },
       "value": {
         "rows": [
@@ -20657,9 +20657,9 @@
       "honestyZeroDelta": true,
       "expectedBytes": {
         "jsonMin": 92,
-        "toonCanonical": 92,
-        "toonTab": 92,
-        "toonExt": 92
+        "toonCanonical": 91,
+        "toonTab": 91,
+        "toonExt": 91
       },
       "value": {
         "people": {

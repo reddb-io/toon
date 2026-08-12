@@ -111,8 +111,8 @@ array.
 | Surface | Active delimiter | Official nested/keyed forms | Primitive-array columns | Object-array columns | Cyclic discriminated arrays |
 | --- | --- | --- | --- | --- | --- |
 | JS — `encode(value, opts)` | `{ delimiter: ',' \| '\t' \| '\|' }` | automatic | `{ primitiveArrayColumns: true }` | `{ objectArrayColumns: true }` | `{ cyclicDiscriminatedArrays: true }` |
-| Rust — `encode_with_options(value, EncodeOptions)` | `delimiter: ',' \| '\t' \| '\|'` | automatic | `primitive_array_columns: true` | `object_array_columns: true` | `cyclic_discriminated_arrays: true` |
-| `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | automatic; there is no flag to select them | `--primitive-array-columns` | `--object-array-columns` | `--cyclic-discriminated-arrays` |
+| Rust — `encode_with_options(value, EncodeV4Options)` | `delimiter: ',' \| '\t' \| '\|'` | automatic | `primitive_array_columns: true` | `object_array_columns: true` | `cyclic_discriminated_arrays: true` |
+| `tq` (TOON output) | `--delimiter comma\|tab\|pipe` | automatic; old flags are deprecated no-ops | `--primitive-array-columns` | `--object-array-columns` | `--cyclic-discriminated-arrays` |
 
 Delimiter choice is pure TOON v4.1 for arrays and tabular rows: encoders emit
 the active-delimiter declaration in the header (`[N|]`, `[N\t]`, and matching
@@ -603,7 +603,7 @@ nesting depth; a maliciously or accidentally deep document can drive a naïve
 recursive decoder into stack exhaustion. The reddb-io flavor adds a **depth
 guard** as a robustness measure that does not change any decoded value.
 
-- Decoding is bounded by `DecodeOptions::max_depth` (Rust) and the equivalent JS
+- Decoding is bounded by `ParseOptions::max_depth` (Rust) and the equivalent JS
   parse option; checked encoding is bounded by `EncodeOptions::max_depth`.
 - **Both default to `1000`.** A document nested deeper than the guard is rejected
   with a structured error rather than crashing the process.

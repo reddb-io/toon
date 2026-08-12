@@ -63,8 +63,7 @@ Rules:
 ## How to test it
 
 - JS: `serialize(value, { keyedMapCollapse: true })`
-- Rust: no switch. `to_canonical_toon()` and `to_toon_with_options(...)` select
-  the form automatically; `EncodeOptions` carries no field for it.
+- Rust: `to_toon_with_options(EncodeOptions { keyed_map_collapse: true, .. })`
 
 `tq` needs no switch: canonical v4.1 output selects the form automatically for
 eligible values, so the Stage 3 CLI switch was retired once the form graduated.

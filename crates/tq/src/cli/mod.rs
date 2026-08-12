@@ -4,9 +4,8 @@ use std::io::{self, BufRead, BufReader, Cursor, Read};
 use std::process::ExitCode;
 
 use reddb_io_toon::{
-    close_transform_stream, close_transform_stream_interleaved, decode_with_options,
-    detect_toonl_truncation, detect_truncation_with_options, Array, DecodeOptions, ToonlReader,
-    Value,
+    close_transform_stream, close_transform_stream_interleaved, decode_value_v4,
+    detect_toonl_truncation, detect_truncation_v4, Array, DecodeOptions, ToonlReader, Value,
 };
 
 mod args;
@@ -110,7 +109,7 @@ fn run() -> Result<(String, ExitCode), String> {
             crate::query::evaluate(&document, &options.query, &variables)?
         }
         Format::Toon => {
-            let document = decode_with_options(
+            let document = decode_value_v4(
                 &input,
                 &DecodeOptions {
                     indent: options.indent_size,
@@ -189,7 +188,7 @@ fn run_check(options: CheckOptions) -> Result<(String, ExitCode), String> {
         None => read_stdin()?,
     };
     let report = match options.input_format {
-        Format::Toon => detect_truncation_with_options(&input, &DecodeOptions::default()),
+        Format::Toon => detect_truncation_v4(&input, &DecodeOptions::default()),
         Format::Toonl => detect_toonl_truncation(&input),
         Format::Json | Format::Xml | Format::Yaml => {
             unreachable!("check rejects non-TOON input")

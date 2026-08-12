@@ -4,9 +4,9 @@
 
 Rust parser, serializer, document model, encode extensions, and TOONL v0.2 stream utilities for TOON v4.1.
 
-The suffix-free API and the common `Value`, `Document`, and `Array` methods use
-the authoritative TOON v4.1 codec. The former codec is available only through
-explicit methods whose names contain `legacy`.
+TOON v4.1 is the only codec. Every entry point — the suffix-free API and the
+common `Value`, `Document`, and `Array` methods alike — decodes and encodes
+canonical v4.1.
 
 ```toml
 [dependencies]
@@ -15,7 +15,7 @@ reddb-io-toon = "0.20.0"
 
 ## Public Model
 
-`Value` is the root enum: `Object(Document)`, `Array(Array)`, `String`, `Number`, `Bool`, and `Null`. `Document` is an ordered object model with parsed fields. `Array` stores either a normal `List(Vec<Value>)` or a `Tabular(TabularArray)` so table-shaped arrays can be decoded without immediately materializing every row into nested documents.
+`Value` is the root enum: `Object(Document)`, `Array(Array)`, `String`, `Number`, `Bool`, and `Null`. `Document` is an ordered object model with parsed fields. `Array` holds `List(Vec<Value>)`.
 
 ```rust
 use reddb_io_toon::{decode, decode_iter, decode_reader, encode, Array, Value};
@@ -39,8 +39,8 @@ Main entry points:
 - `decode_reader(reader)` and `decode_reader_with_options(reader, options)` accept `BufRead` input.
 - `decode_iter(input)` and `decode_event_reader(reader, options)` lazily yield positioned events.
 - `encode(value)` and `encode_with_options(value, options)` emit canonical v4.1.
-- `DecodeOptions`, `EncodeOptions`, `DecodeError`, and `EncodeError` are the option and error surfaces.
-- `Value::parse_toon`, `Document::parse`, and the common canonical-output methods delegate to those same entry points and take the same option types.
+- `DecodeOptions`, `EncodeV4Options`, `DecodeError`, and `EncodeError` are the option and error surfaces.
+- `Value::parse_toon`, `Document::parse`, and the common canonical-output methods delegate to those v4.1 entry points.
 - `Document::parse(input)` and `Document::parse_with_options(input, options)` require an object root.
 - `Value::from_json_str(input)` and `Value::from_json_value(value)` convert JSON into the same model.
 - `to_canonical_toon()` emits canonical v4.1.
@@ -90,22 +90,16 @@ assert!(error.to_string().contains("maxDepth 1"));
 
 ## Encode options
 
-`EncodeOptions::default()` preserves canonical TOON v4.1. `to_toon_with_options`
-and `try_to_toon_with_options` take that same struct, so no entry point selects a
-different encoder. Extension fallbacks are lossless.
-
-## Explicit legacy compatibility
-
-Use `parse_legacy`, `parse_legacy_with_options`, `to_legacy_toon`, and
-`try_to_legacy_toon_with_options` only for stored documents that depend on the
-former codec. `LegacyParseOptions` and `LegacyEncodeOptions` make that boundary
-visible at call sites; path expansion exists only there.
+`EncodeV4Options::default()` preserves canonical TOON v4.1. The common value
+methods accept `EncodeOptions` and delegate to the same v4.1 encoder. Extension
+fallbacks are lossless.
 
 ## Canonical nested and keyed tables
 
 Nested field groups and keyed tabular form are released v4.1 features, not
-RedDB extensions. Eligible values use them automatically, and `EncodeOptions`
-carries no switch for them: official syntax is not opt-in.
+RedDB extensions. Eligible values use them automatically on the canonical
+path. The `nested_tabular_headers` and `keyed_map_collapse` fields are
+deprecated no-ops; they cannot disable or enable official syntax.
 
 ```rust
 use reddb_io_toon::Value;
@@ -284,7 +278,7 @@ Use `try_to_toon_with_options` when the delimiter may come from user input; inva
 
 ## detect_truncation
 
-`detect_truncation(input)` checks TOON with default decode options. `detect_truncation_with_options(input, &options)` checks TOON with explicit `DecodeOptions`. The report model is specified in [detectTruncation](../../docs/proposals/detect-truncation.md).
+`detect_truncation(input)` checks TOON with default parse options. `detect_truncation_with_options(input, options)` checks TOON with explicit parse options. The report model is specified in [detectTruncation](../../docs/proposals/detect-truncation.md).
 
 ```rust
 use reddb_io_toon::detect_truncation;

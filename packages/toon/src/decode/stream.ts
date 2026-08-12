@@ -16,7 +16,7 @@
 import type { ToonEvent } from '../events.js'
 import { ToonDecodeError, ToonError, toonError } from '../errors.js'
 import { findUnquoted, parseKey, parseScalar } from '../lexical.js'
-import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js'
+import { DEFAULT_MAX_DEPTH } from '../constants.js'
 import {
   emitExtensionRows,
   type ExtensionFieldNode,

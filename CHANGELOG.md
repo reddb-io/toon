@@ -4,36 +4,20 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+Every slice that changes the `tq` query language adds an entry here — a new
+construct, a new builtin, a changed diagnostic, or a changed divergence. The
+[tq language reference](docs/tq-language.md) describes the surface as it stands
+now; this file is how it got there.
+
 ## [Unreleased]
 
 ### Changed
 
-- **Breaking (Rust):** the canonical codec now owns the unsuffixed API names.
-  `EncodeV4Options` is now `EncodeOptions`, `encode_v4` is `encode_with_options`,
-  `encode_v4_with_replacer` is `encode_with_replacer`, `decode_value_v4` is
-  `decode_with_options`, and `detect_truncation_v4` is
-  `detect_truncation_with_options`. The dialect suffix existed only to
-  distinguish the canonical engine from the legacy one, and there is one engine.
-- **Breaking (Rust):** the compatibility-shaped option structs are gone from the
-  canonical surface. The former `ParseOptions` and `EncodeOptions` are now named
-  `LegacyParseOptions` and `LegacyEncodeOptions` — the legacy parser and
-  serializer are their only callers — and the type aliases of those names are
-  removed. `Document::parse_with_options` and `Value::parse_with_options` now
-  take `&DecodeOptions`; `to_toon_with_options`, `try_to_toon_with_options`, and
-  `detect_truncation_with_options` now take the canonical `EncodeOptions` /
-  `&DecodeOptions`. No public entry point silently converts between two option
-  shapes any more.
-- **Breaking (Rust):** `Document::parse` and `Value::parse_with_options` no
-  longer default `cyclic_discriminated_arrays` to `true`. They now behave
-  exactly like `decode` / `decode_with_options`, which default it to `false`;
-  pass `DecodeOptions { cyclic_discriminated_arrays: true, ..Default::default() }`
-  to keep the previous reconstruction.
-- **Breaking (Rust):** `EncodeOptions` no longer carries `nested_tabular_headers`
-  or `keyed_map_collapse`. Both forms graduated into official v4.1 syntax and
-  were already unconditional on the canonical encoder; the fields were no-ops.
 - **Breaking:** `tq` now follows jq when iterating with `.[]`: objects emit
   their values in field order, while `null` and scalar inputs raise an error.
-  Use `.[]?` to suppress those iteration errors.
+  Use `.[]?` to suppress those iteration errors. The former array-only
+  behavior was ledgered as `divergence-iteration-on-object`; that ledger row
+  and its corpus case were retired with the change.
 - **Rebased the baseline on the official TOON spec v4.1.** The former v3.3
   baseline is retired; the `vendor/toon` / `vendor/toon-spec` submodules are
   pinned at the v4.1.1 checkpoint, and the decoders are rebuilt as event-based
@@ -50,9 +34,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 
+- **Breaking: the pre-v4 engine and every API that reached it are gone.** TOON
+  v4.1 is now the only codec in both languages.
+  - TypeScript: the `@reddb-io/toon/legacy` subpath and the modules behind it
+    (the old parser, header reader, serializer, and option resolver) are
+    deleted. `decode` and `encode` are the whole decode and encode surface.
+  - Rust: `parse_legacy`, `parse_legacy_with_options`, `to_legacy_toon*`,
+    `try_to_legacy_toon*`, `LegacyParseOptions`, `LegacyEncodeOptions`,
+    `detect_truncation_legacy`, and `detect_truncation_legacy_with_options` are
+    deleted, along with the parser, writer, and header modules behind them.
+  - `ParseOptions::expand_paths` is deleted. Dotted-key expansion only ever ran
+    on the removed parser, so the option had nothing left behind it.
+  - `Array::Tabular` and `TabularArray` are deleted. The removed parser was
+    their only producer; the v4.1 event decoder materialises every array as
+    `Array::List`. The `test-hooks` feature and its row-decode counter go with
+    them.
+  - Observable differences for callers moving off the old API: the canonical
+    encoder emits no trailing newline, normalises a non-finite number to `null`
+    the way `JSON.stringify` does, refuses to emit an unpaired surrogate, spells
+    the keyed-table header `key[n:]{fields}:` rather than `key{fields}:`, and
+    reports the v4.1 error checklist's own messages.
+  - A test gate greps shipped source in both languages so these symbols cannot
+    return.
 - **Path expansion** (`expandPaths`) and **key folding** (`keyFolding`) were
-  removed from the spec. `expandPaths` is retained only as a non-normative
-  legacy shim (default off); the encoder never folds. See the
+  removed from the spec; the encoder never folds. See the
   [v4.1 migration notes](docs/migration-v4.md) for before/after decode behavior.
 
 ### Fixed
@@ -63,6 +68,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   covered by the shared v0.2 conformance corpus.
 
 ### Added
+
+- **A jq-style query language in `tq`**, built slice by slice and pinned by the
+  vendored jq 1.7.1 parity corpus in `tests/corpus/tq/parity/`. The
+  [tq language reference](docs/tq-language.md) is the normative description,
+  including the precedence ladder, the builtin catalog with a
+  supported/deferred/never status for every name, and the
+  "Where tq differs from jq" table drawn from the divergence ledger in
+  [docs/tq-jq-parity.md](docs/tq-jq-parity.md).
+  - **Parity infrastructure**: the `.cases` corpus format, the hermetic replay
+    against vendored expectations, the optional validator that replays against
+    jq only when it is exactly 1.7.1, and the divergence ledger.
+  - **Operators**: `and`, `or`, `not`, the alternative `//`, and `%`, all placed
+    on jq's precedence ladder.
+  - **Control flow**: `if`/`elif`/`else`/`end`, `try`/`catch`, the `?` postfix,
+    `empty`, and `error`.
+  - **Indexing**: generalized `.[e]`, slices, and iteration.
+  - **User-defined functions**: `def` with filter and `$`-valued parameters,
+    recursion, closures, shadowing, and a bounded recursion depth that reports
+    `exceeded the maximum filter recursion depth` instead of exhausting the
+    stack.
+  - **The path layer**: `path`, `paths`, `leaf_paths`, `getpath`, `setpath`,
+    `delpaths`, `del`, `pick`, recursive descent (`..`, `recurse`), `tostream`,
+    and `fromstream`. Reads stay lazy over the codec's accessors; only writes
+    materialise the tabular array they touch.
+  - **The assignment family**: `=`, `|=`, `+=`, `-=`, `*=`, `/=`, `%=`, and
+    `//=`, all lowered onto `setpath`, with jq's non-associativity, its
+    right-hand-side evaluation rules, and `|= empty` as deletion.
+  - **Strings, formats, and JSON conversions**: `"\(…)"` interpolation,
+    `@text`, `@json`, `@csv`, `@tsv`, `@base64`, `@base64d`, `@uri`, `@html`,
+    `@sh`, the `@format "…"` prefix form, and `tostring`, `tonumber`, `tojson`,
+    `fromjson`.
+  - **Builtin sweeps**: types and selectors, array and stream ops, object ops,
+    math, regex and strings, a UTC-only time subset, and the runtime builtins
+    `debug`, `stderr`, `halt`, `halt_error`, and stream-aware `input`/`inputs`.
+  - **CLI surface for the language**: `-n`, `-R`/`--raw-input`, `--arg`, and
+    `--argjson`, which put `$name` and `$ARGS` in scope, plus `-j`, `-S`, and
+    `-e`.
 
 - **TOONL v0.2 specification** (now unified into `docs/toonl-reddb-spec.md`): a normative, requirements-only
   spec that formally closes the red-skills requirements R1–R4. It promotes

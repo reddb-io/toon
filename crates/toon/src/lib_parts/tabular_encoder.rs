@@ -21,34 +21,9 @@ struct ColumnPath {
     child_fields: Vec<HeaderFieldShape>,
 }
 
-/// The only inputs tabular shape detection reads. Both writers hand it their
-/// own option struct, so shape detection never depends on either one.
-#[derive(Debug, Clone, Copy)]
-struct ShapeOptions {
-    nested_tabular_headers: bool,
-    keyed_map_collapse: bool,
-    primitive_array_columns: bool,
-    object_array_columns: bool,
-    delimiter: char,
-    max_depth: usize,
-}
-
-impl From<LegacyEncodeOptions> for ShapeOptions {
-    fn from(options: LegacyEncodeOptions) -> Self {
-        Self {
-            nested_tabular_headers: options.nested_tabular_headers,
-            keyed_map_collapse: options.keyed_map_collapse,
-            primitive_array_columns: options.primitive_array_columns,
-            object_array_columns: options.object_array_columns,
-            delimiter: options.delimiter,
-            max_depth: options.max_depth,
-        }
-    }
-}
-
 fn tabular_shape(
     values: &[Value],
-    options: ShapeOptions,
+    options: EncodeOptions,
     depth: usize,
 ) -> Result<Option<TabularShape>, EncodeError> {
     if let Some(shape) = matrix_shape(values, options) {
@@ -62,28 +37,13 @@ fn tabular_shape(
     Ok(Some(TabularShape { fields, paths }))
 }
 
-fn keyed_map_shape(
-    document: &Document,
-    options: ShapeOptions,
-    depth: usize,
-) -> Result<Option<TabularShape>, EncodeError> {
-    if !options.keyed_map_collapse || document.fields.len() < 2 {
-        return Ok(None);
-    }
-    let values = document
-        .fields
-        .iter()
-        .map(|field| field.value.clone())
-        .collect::<Vec<_>>();
-    tabular_shape(&values, options, depth)
-}
 
 fn object_shape(
     values: &[Value],
-    options: ShapeOptions,
+    options: EncodeOptions,
     depth: usize,
 ) -> Result<Option<Vec<HeaderFieldShape>>, EncodeError> {
-    check_encode_depth(depth, options.delimiter, options.max_depth)?;
+    check_encode_depth(depth, options)?;
     let Some(Value::Object(first)) = values.first() else {
         return Ok(None);
     };
@@ -173,7 +133,7 @@ fn object_shape(
     Ok(Some(fields))
 }
 
-fn matrix_shape(values: &[Value], options: ShapeOptions) -> Option<TabularShape> {
+fn matrix_shape(values: &[Value], options: EncodeOptions) -> Option<TabularShape> {
     if !options.object_array_columns {
         return None;
     }
@@ -266,98 +226,8 @@ fn primitive_text(value: &Value, delimiter: char) -> String {
     }
 }
 
-fn column_text(
-    value: &Value,
-    column: &ColumnPath,
-    active_delimiter: char,
-    options: LegacyEncodeOptions,
-    child_output: &mut String,
-    child_depth: usize,
-) -> String {
-    if !column.child_fields.is_empty() {
-        write_child_rows(
-            child_output,
-            value,
-            &column.child_fields,
-            options,
-            child_depth,
-        );
-        let Value::Array(array) = value else {
-            unreachable!("object_shape checked child-table values");
-        };
-        return array.values().len().to_string();
-    }
-    if column.fixed_len.is_some() {
-        let Value::Array(array) = value else {
-            unreachable!("object_shape checked fixed-width values");
-        };
-        return array
-            .values()
-            .iter()
-            .map(|value| primitive_text(value, active_delimiter))
-            .collect::<Vec<_>>()
-            .join(&active_delimiter.to_string());
-    }
-    let Some(list_delimiter) = column.list_delimiter else {
-        return primitive_text(value, active_delimiter);
-    };
-    let Value::Array(array) = value else {
-        unreachable!("object_shape checked primitive-array column values");
-    };
-    array
-        .values()
-        .iter()
-        .map(|value| primitive_list_item_text(value, active_delimiter, list_delimiter))
-        .collect::<Vec<_>>()
-        .join(&list_delimiter.to_string())
-}
 
-fn write_child_rows(
-    output: &mut String,
-    value: &Value,
-    fields: &[HeaderFieldShape],
-    options: LegacyEncodeOptions,
-    depth: usize,
-) {
-    let Value::Array(array) = value else {
-        unreachable!("object_shape checked child-table arrays");
-    };
-    let mut paths = Vec::new();
-    collect_leaf_paths(fields, &mut Vec::new(), &mut paths);
-    for child in array.values() {
-        write_indent(output, depth);
-        let mut nested_output = String::new();
-        let cells = paths
-            .iter()
-            .map(|path| {
-                let cell =
-                    value_at_path(&child, &path.path).expect("object_shape checked child paths");
-                column_text(
-                    cell,
-                    path,
-                    options.delimiter,
-                    options,
-                    &mut nested_output,
-                    depth + 1,
-                )
-            })
-            .collect::<Vec<_>>();
-        output.push_str(&cells.join(&options.delimiter.to_string()));
-        output.push('\n');
-        output.push_str(&nested_output);
-    }
-}
 
-fn primitive_list_item_text(value: &Value, active_delimiter: char, list_delimiter: char) -> String {
-    let Value::String(value) = value else {
-        return primitive_text(value, active_delimiter);
-    };
-    if needs_quotes(value, active_delimiter) || value.contains(list_delimiter) {
-        quote_string(value)
-    } else {
-        value.to_owned()
-    }
-}
 
 fn canonical_key(value: &str) -> String {
     if is_bare_key(value) {
@@ -389,7 +259,7 @@ fn canonical_string(value: &str, delimiter: char) -> String {
 /// decodes as a comment line (v4.1). This legacy path trims via [`str::trim`]
 /// to stay a fixed point with the legacy decoder, which also trims Unicode
 /// whitespace; the canonical v4.1 encoder uses the stricter ASCII-only rule in
-/// [`canonical_needs_quotes`].
+/// [`needs_quotes_v4`].
 fn needs_quotes(value: &str, delimiter: char) -> bool {
     value.is_empty()
         || value.trim() != value

@@ -454,44 +454,42 @@ fn a_carriage_return_line_ending_is_stripped() {
 fn rejects_the_strict_mode_error_checklist() {
     let cases = [
         // Counts and widths (§14.1).
-        ("tags[2]: a,b,c", "array length mismatch"),
-        ("tags[3]: a,b", "array length mismatch"),
-        ("items[2]:\n  - a", "array length mismatch"),
-        ("items[1]:\n  - a\n  - b", "array length mismatch"),
-        ("items[1]{id}:\n  1\n  2", "array length mismatch"),
-        ("items[2]{id}:\n  1", "array length mismatch"),
-        (
-            "items[2]{id,name}:\n  1,Ada\n  2",
-            "array row length mismatch",
-        ),
+        ("tags[2]: a,b,c", "array count mismatch"),
+        ("tags[3]: a,b", "array count mismatch"),
+        ("items[2]:\n  - a", "array count mismatch"),
+        ("items[1]:\n  - a\n  - b", "array count mismatch"),
+        ("items[1]{id}:\n  1\n  2", "array count mismatch"),
+        ("items[2]{id}:\n  1", "array count mismatch"),
+        ("items[2]{id,name}:\n  1,Ada\n  2", "array count mismatch"),
         // Headers (§6, §14.2).
-        ("items[03]: a,b,c", "invalid array header"),
-        ("items[-1]: a", "invalid array header"),
-        ("items[bar]: a", "invalid array header"),
-        ("items[1][bar]: a", "invalid array header"),
-        ("items[2]extra: a,b", "invalid array header"),
-        ("items[2] : a,b", "invalid array header"),
-        ("items[2]{a,b}\n  1,2", "expected `key: value`"),
-        ("items[2]{a,b}: inline", "expected tabular rows"),
-        ("items[2\t: a", "invalid array header"),
+        ("items[03]: a,b,c", "malformed array header length"),
+        ("items[-1]: a", "malformed array header length"),
+        ("items[bar]: a", "malformed array header length"),
+        ("items[1][bar]: a", "expected colon after array header"),
+        ("items[2]extra: a,b", "expected colon after array header"),
+        ("items[2] : a,b", "expected colon after array header"),
+        ("items[2]{a,b}\n  1,2", "expected colon after array header"),
+        (
+            "items[2]{a,b}: inline",
+            "unexpected content after fields-bearing header colon",
+        ),
         // Structure (§14.2).
-        ("hello\nworld", "expected `key: value`"),
-        ("a:\n  user", "expected `key: value`"),
-        (": 1", "expected non-empty field name"),
+        ("hello\nworld", "expected key-value line"),
+        ("a:\n  user", "expected key-value line"),
         ("[2]: 1,2\nstray: 1", "expected end of document"),
-        ("items[1]:\n  a", "expected array item"),
+        ("items[1]:\n  a", "array count mismatch"),
         ("  a: 1", "invalid indentation"),
-        ("a: 1\n\tb: 2", "invalid indentation"),
-        ("a:\n    b: 1", "invalid indentation"),
-        ("items[1]:\n    - a", "invalid indentation"),
-        ("items[1]{id}:\n      1", "invalid indentation"),
+        ("a: 1\n\tb: 2", "tab used as indentation"),
+        ("a:\n    b: 1", "over-indented line"),
+        ("items[1]:\n    - a", "over-indented line"),
+        ("items[1]{id}:\n      1", "over-indented line"),
         // Blank lines inside arrays (§12).
-        ("items[2]:\n  - a\n\n  - b", "blank line inside array"),
-        ("items[2]{id}:\n  1\n\n  2", "blank line inside array"),
+        ("items[2]:\n  - a\n\n  - b", "blank line inside a header span"),
+        ("items[2]{id}:\n  1\n\n  2", "blank line inside a header span"),
         // Duplicates (§14.4).
-        ("name: Ada\nname: Bob", "duplicate key"),
-        ("outer:\n  a: 1\n  a: 2", "duplicate key"),
-        ("items[1]:\n  - id: 1\n    id: 2", "duplicate key"),
+        ("name: Ada\nname: Bob", "duplicate object key"),
+        ("outer:\n  a: 1\n  a: 2", "duplicate object key"),
+        ("items[1]:\n  - id: 1\n    id: 2", "duplicate object key"),
         // Quoted tokens (§7.1).
         ("v: \"a\\x\"", "invalid quoted string"),
         ("v: \"a\\u00b\"", "invalid quoted string"),
@@ -513,13 +511,23 @@ fn rejects_the_strict_mode_error_checklist() {
     }
 }
 
+/// Two shapes the removed pre-v4 parser rejected outright are ordinary keys to
+/// the canonical decoder: it only reads `[...]` as a header when the bracket
+/// closes, and it does not reserve the empty field name. Pinned here so the
+/// difference stays visible rather than merely absent from the checklist above.
+#[test]
+fn the_canonical_decoder_reads_two_former_header_errors_as_plain_keys() {
+    assert_eq!(json_of("items[2\t: a"), json!({"items[2": "a"}));
+    assert_eq!(json_of(": 1"), json!({"": 1}));
+}
+
 #[test]
 fn reports_the_line_the_error_occurred_on() {
-    let failure = Value::parse_legacy("a: 1\nb: 2\nc[2]: x\n").expect_err("length mismatch");
+    let failure = Value::parse_toon("a: 1\nb: 2\nc[2]: x\n").expect_err("length mismatch");
 
     assert_eq!(failure.line(), 3);
-    assert_eq!(failure.message(), "array length mismatch");
-    assert_eq!(failure.to_string(), "line 3: array length mismatch");
+    assert_eq!(failure.message(), "array count mismatch");
+    assert_eq!(failure.to_string(), "line 3: array count mismatch");
 }
 
 #[test]
@@ -576,8 +584,8 @@ fn canonicalizes_numbers_on_the_way_in_and_back_out() {
         let input = format!("v: {token}");
         assert_eq!(json_of(&input), json!({"v": expected}), "decoding {token}");
         assert_eq!(
-            parse(&input).to_legacy_toon(),
-            format!("v: {canonical}\n"),
+            parse(&input).to_canonical_toon(),
+            format!("v: {canonical}"),
             "re-encoding {token}"
         );
     }
@@ -590,8 +598,8 @@ fn leading_zero_tokens_decode_as_strings_and_are_quoted_on_the_way_out() {
         json!({"nums": ["05", "007", "-05", "0123"]})
     );
     assert_eq!(
-        parse("nums[1]: 05").to_legacy_toon(),
-        "nums[1]: \"05\"\n"
+        parse("nums[1]: 05").to_canonical_toon(),
+        "nums[1]: \"05\""
     );
 }
 
@@ -610,7 +618,7 @@ fn quotes_only_the_strings_the_spec_requires() {
         "a,b is fine inside a row cell only when the delimiter differs",
     ];
     for value in bare {
-        let encoded = Value::String(value.to_owned()).to_legacy_toon();
+        let encoded = Value::String(value.to_owned()).to_canonical_toon();
         // Only the comma case needs quoting as an object value, so check the
         // ones with no structural character at all.
         if !value.contains(',') {
@@ -641,7 +649,7 @@ fn quotes_only_the_strings_the_spec_requires() {
     ];
     for (value, expected) in quoted {
         assert_eq!(
-            Value::String(value.to_owned()).to_legacy_toon(),
+            Value::String(value.to_owned()).to_canonical_toon(),
             expected,
             "{value:?} is quoted"
         );
@@ -654,26 +662,26 @@ fn a_trailing_decimal_point_is_not_numeric_like_and_needs_no_quotes() {
     // decide quoting, so unlike "1e-6" or "05" it is written bare. It still
     // round-trips as a string, since the decoder's own number grammar (§4)
     // requires digits after the dot too.
-    assert_eq!(Value::String("1.".to_owned()).to_legacy_toon(), "1.");
+    assert_eq!(Value::String("1.".to_owned()).to_canonical_toon(), "1.");
     assert_eq!(json_of("v: 1.\n"), json!({"v": "1."}));
 }
 
 #[test]
 fn quotes_only_the_keys_the_spec_requires() {
     let cases = [
-        (json!({"user.name": 1}), "user.name: 1\n"),
-        (json!({"_private": 1}), "_private: 1\n"),
-        (json!({"order:id": 1}), "\"order:id\": 1\n"),
-        (json!({"a,b": 1}), "\"a,b\": 1\n"),
-        (json!({"full name": 1}), "\"full name\": 1\n"),
-        (json!({"-lead": 1}), "\"-lead\": 1\n"),
-        (json!({"123": 1}), "\"123\": 1\n"),
-        (json!({"": 1}), "\"\": 1\n"),
-        (json!({"[index]": 1}), "\"[index]\": 1\n"),
+        (json!({"user.name": 1}), "user.name: 1"),
+        (json!({"_private": 1}), "_private: 1"),
+        (json!({"order:id": 1}), "\"order:id\": 1"),
+        (json!({"a,b": 1}), "\"a,b\": 1"),
+        (json!({"full name": 1}), "\"full name\": 1"),
+        (json!({"-lead": 1}), "\"-lead\": 1"),
+        (json!({"123": 1}), "\"123\": 1"),
+        (json!({"": 1}), "\"\": 1"),
+        (json!({"[index]": 1}), "\"[index]\": 1"),
     ];
 
     for (input, expected) in cases {
-        assert_eq!(Value::from_json_value(input).to_legacy_toon(), expected);
+        assert_eq!(Value::from_json_value(input).to_canonical_toon(), expected);
     }
 }
 
@@ -681,68 +689,68 @@ fn quotes_only_the_keys_the_spec_requires() {
 #[test]
 fn encodes_and_reparses_every_array_shape() {
     let cases = [
-        (json!({"a": []}), "a: []\n"),
-        (json!({"a": [1, 2]}), "a[2]: 1,2\n"),
+        (json!({"a": []}), "a: []"),
+        (json!({"a": [1, 2]}), "a[2]: 1,2"),
         (
             json!({"a": [{"id": 1}, {"id": 2}]}),
-            "a[2]{id}:\n  1\n  2\n",
+            "a[2]{id}:\n  1\n  2",
         ),
         // Key order differs between rows, so the header order wins.
         (
             json!({"a": [{"id": 1, "n": "x"}, {"n": "y", "id": 2}]}),
-            "a[2]{id,n}:\n  1,x\n  2,y\n",
+            "a[2]{id,n}:\n  1,x\n  2,y",
         ),
         // A differing key set falls back to the expanded list.
         (
             json!({"a": [{"id": 1}, {"other": 2}]}),
-            "a[2]:\n  - id: 1\n  - other: 2\n",
+            "a[2]:\n  - id: 1\n  - other: 2",
         ),
         // A nested value in any row disqualifies the tabular form.
         (
             json!({"a": [{"id": 1}, {"id": {"n": 2}}]}),
-            "a[2]:\n  - id: 1\n  - id:\n      n: 2\n",
+            "a[2]:\n  - id: 1\n  - id:\n      n: 2",
         ),
         // An empty object anywhere disqualifies it too, and encodes bare.
-        (json!({"a": [{}, {}]}), "a[2]:\n  -\n  -\n"),
+        (json!({"a": [{}, {}]}), "a[2]:\n  -\n  -"),
         // Mixed element kinds.
         (
             json!({"a": [1, {"k": 1}, "t"]}),
-            "a[3]:\n  - 1\n  - k: 1\n  - t\n",
+            "a[3]:\n  - 1\n  - k: 1\n  - t",
         ),
         // Arrays of arrays, including the empty inner array's [0] form.
         (
             json!({"a": [[1, 2], []]}),
-            "a[2]:\n  - [2]: 1,2\n  - [0]:\n",
+            "a[2]:\n  - [2]: 1,2\n  - [0]:",
         ),
         // A nested array of objects uses the expanded list under the hyphen.
         (
             json!({"a": [[{"id": 1}, {"id": 2}]]}),
-            "a[1]:\n  - [2]:\n    - id: 1\n    - id: 2\n",
+            "a[1]:\n  - [2]:\n    - id: 1\n    - id: 2",
         ),
         // A tabular array as a list item's first field: header on the hyphen
         // line, rows two levels under it, siblings one level under it (§10).
         (
             json!({"a": [{"u": [{"id": 1}, {"id": 2}], "s": "ok"}]}),
-            "a[1]:\n  - u[2]{id}:\n      1\n      2\n    s: ok\n",
+            "a[1]:\n  - u[2]{id}:\n      1\n      2\n    s: ok",
         ),
         // An empty array on the hyphen line.
         (
             json!({"a": [{"d": [], "n": "x"}]}),
-            "a[1]:\n  - d: []\n    n: x\n",
+            "a[1]:\n  - d: []\n    n: x",
         ),
         // Root arrays, with and without a key.
-        (json!([]), "[]\n"),
-        (json!([1, 2]), "[2]: 1,2\n"),
-        (json!([{"id": 1}]), "[1]{id}:\n  1\n"),
+        (json!([]), "[]"),
+        (json!([1, 2]), "[2]: 1,2"),
+        (json!([{"id": 1}]), "[1]{id}:\n  1"),
     ];
 
     for (input, expected) in cases {
         let value = Value::from_json_value(input.clone());
-        let encoded = value.to_legacy_toon();
+        let encoded = value.to_canonical_toon();
 
         assert_eq!(encoded, expected, "encoding {input}");
         assert_eq!(
-            Value::parse_legacy(&encoded)
+            Value::parse_toon(&encoded)
                 .unwrap_or_else(|error| panic!("re-read {encoded:?}: {error}"))
                 .to_json_value(),
             input,
@@ -753,25 +761,25 @@ fn encodes_and_reparses_every_array_shape() {
 
 #[test]
 fn encodes_objects_and_scalars() {
-    assert_eq!(Value::from_json_value(json!({})).to_legacy_toon(), "");
+    assert_eq!(Value::from_json_value(json!({})).to_canonical_toon(), "");
     assert_eq!(
-        Value::from_json_value(json!({"user": {}})).to_legacy_toon(),
-        "user:\n"
+        Value::from_json_value(json!({"user": {}})).to_canonical_toon(),
+        "user:"
     );
     assert_eq!(
-        Value::from_json_value(json!({"a": {"b": {"c": "deep"}}})).to_legacy_toon(),
-        "a:\n  b:\n    c: deep\n"
+        Value::from_json_value(json!({"a": {"b": {"c": "deep"}}})).to_canonical_toon(),
+        "a:\n  b:\n    c: deep"
     );
-    assert_eq!(Value::Bool(true).to_legacy_toon(), "true");
-    assert_eq!(Value::Bool(false).to_legacy_toon(), "false");
-    assert_eq!(Value::Null.to_legacy_toon(), "null");
+    assert_eq!(Value::Bool(true).to_canonical_toon(), "true");
+    assert_eq!(Value::Bool(false).to_canonical_toon(), "false");
+    assert_eq!(Value::Null.to_canonical_toon(), "null");
 }
 
 #[test]
-fn api_covers_strings_readers_events_options_and_positioned_errors() {
+fn v4_api_covers_strings_readers_events_options_and_positioned_errors() {
     use reddb_io_toon::{
         decode, decode_event_reader, decode_with_options, encode, encode_with_options,
-        DecodeOptions, EncodeOptions, ToonEvent,
+        DecodeOptions, EncodeV4Options, ToonEvent,
     };
 
     let input = "# people by handle\npeople[1:]{first,last}:\n  ada: Ada,Lovelace\n";
@@ -806,7 +814,7 @@ fn api_covers_strings_readers_events_options_and_positioned_errors() {
         "people[2:]{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper";
     assert_eq!(encode(&value).expect("canonical encode"), expected_wire);
     assert_eq!(
-        encode_with_options(&value, EncodeOptions::default()).expect("option encode"),
+        encode_with_options(&value, EncodeV4Options::default()).expect("option encode"),
         expected_wire
     );
 
@@ -816,8 +824,8 @@ fn api_covers_strings_readers_events_options_and_positioned_errors() {
 }
 
 #[test]
-fn common_value_methods_use_v4_and_legacy_methods_are_explicit() {
-    use reddb_io_toon::{LegacyEncodeOptions, LegacyParseOptions};
+fn every_model_method_uses_the_canonical_codec() {
+    use reddb_io_toon::EncodeOptions;
 
     let value = Value::from_json_value(json!({
         "people": {
@@ -825,31 +833,24 @@ fn common_value_methods_use_v4_and_legacy_methods_are_explicit() {
             "grace": {"first": "Grace", "last": "Hopper"}
         }
     }));
-    assert_eq!(
-        value.to_canonical_toon(),
-        "people[2:]{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper"
-    );
-    assert_eq!(
-        value.to_legacy_toon_with_options(LegacyEncodeOptions::default()),
-        "people:\n  ada:\n    first: Ada\n    last: Lovelace\n  grace:\n    first: Grace\n    last: Hopper\n"
-    );
+    let canonical = "people[2:]{first,last}:\n  ada: Ada,Lovelace\n  grace: Grace,Hopper";
 
+    // The convenience method and the option-taking method are the same codec.
+    assert_eq!(value.to_canonical_toon(), canonical);
+    assert_eq!(value.to_toon_with_options(EncodeOptions::default()), canonical);
+
+    // A dotted key is one literal key on the way in and on the way out; the
+    // pre-v4 engine that split it into a nested object is gone.
     let dotted = "user.name: Ada\n";
     assert_eq!(
-        Value::parse_toon(dotted).expect("v4 parse").to_json_value(),
+        Value::parse_toon(dotted).expect("parse").to_json_value(),
         json!({"user.name": "Ada"})
     );
     assert_eq!(
-        Value::parse_legacy_with_options(
-            dotted,
-            LegacyParseOptions {
-                expand_paths: true,
-                ..LegacyParseOptions::default()
-            },
-        )
-        .expect("legacy parse")
-        .to_json_value(),
-        json!({"user": {"name": "Ada"}})
+        Value::parse_with_options(dotted, ParseOptions::default())
+            .expect("parse with options")
+            .to_json_value(),
+        json!({"user.name": "Ada"})
     );
 }
 

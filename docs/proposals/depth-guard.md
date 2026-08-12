@@ -20,7 +20,7 @@ case.
 No wire-format change. A **depth guard** bounds recursion during decode and
 checked encode:
 
-- Decoding is bounded by `DecodeOptions::max_depth` (Rust) and the equivalent JS
+- Decoding is bounded by `ParseOptions::max_depth` (Rust) and the equivalent JS
   parse option; checked encoding is bounded by `EncodeOptions::max_depth`.
 - **Both default to `1000`.** A document nested deeper than the guard is rejected
   with a structured error rather than crashing.
@@ -51,7 +51,7 @@ error: maximum nesting depth (1000) exceeded
 
 ## How to test it
 
-- Rust decode: set `DecodeOptions { max_depth, .. }`; encode: `EncodeOptions { max_depth, .. }` via the `try_*` entry points.
+- Rust decode: set `ParseOptions { max_depth, .. }`; encode: `EncodeOptions { max_depth, .. }` via the `try_*` entry points.
 - JS: the equivalent parse option / encode option.
 - Exercise both a within-limit document (decodes identically) and an
   over-limit document (structured error), plus `max_depth: 0` (guard disabled)

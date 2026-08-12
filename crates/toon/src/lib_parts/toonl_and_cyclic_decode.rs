@@ -703,7 +703,6 @@ impl Array {
     pub fn len(&self) -> usize {
         match self {
             Self::List(values) => values.len(),
-            Self::Tabular(table) => table.rows.len(),
         }
     }
 
@@ -714,7 +713,6 @@ impl Array {
     pub fn get(&self, index: usize) -> Option<Value> {
         match self {
             Self::List(values) => values.get(index).cloned(),
-            Self::Tabular(table) => table.get(index),
         }
     }
 
@@ -725,10 +723,6 @@ impl Array {
 
         match self {
             Self::List(values) => Self::List(values[start..end].to_vec()),
-            Self::Tabular(table) => Self::Tabular(TabularArray {
-                fields: table.fields.clone(),
-                rows: table.rows[start..end].to_vec(),
-            }),
         }
     }
 
@@ -752,7 +746,7 @@ impl Array {
     }
 
     pub fn try_to_toon_with_options(&self, options: EncodeOptions) -> Result<String, EncodeError> {
-        encode_with_options(&Value::Array(self.clone()), options)
+        encode_with_options(&Value::Array(self.clone()), encode_options_from_legacy(options))
     }
 
     pub fn to_json_value(&self) -> serde_json::Value {
@@ -762,19 +756,6 @@ impl Array {
                 .map(|value| value.to_json_value())
                 .collect(),
         )
-    }
-}
-
-impl TabularArray {
-    fn get(&self, index: usize) -> Option<Value> {
-        self.rows.get(index).map(|row| {
-            count_tabular_row_decode_for_tests();
-            let mut document = Document::default();
-            for (field, value) in self.fields.iter().zip(row) {
-                insert_tabular_path(&mut document, &field.path, value.clone());
-            }
-            Value::Object(document)
-        })
     }
 }
 

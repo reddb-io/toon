@@ -43,11 +43,6 @@ name = "codec"
 path = "benches/codec.rs"
 harness = false
 
-[features]
-# Exposes the tabular row-decode counter so a dependent crate's tests can assert
-# ADR 0002's laziness contract. Never enable it for a release build.
-test-hooks = []
-
 [dependencies]
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 
@@ -60,5 +55,5 @@ name = "event_fixtures"
 path = "../../tests/runners/rust/toon/event_fixtures.rs"
 
 [[test]]
-name = "canonical_codec"
-path = "../../tests/runners/rust/toon/canonical_codec.rs"
+name = "encode_v4"
+path = "../../tests/runners/rust/toon/encode_v4.rs"

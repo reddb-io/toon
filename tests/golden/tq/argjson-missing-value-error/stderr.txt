@@ -1,1 +1,0 @@
-error: `--argjson` expects a variable name and JSON text

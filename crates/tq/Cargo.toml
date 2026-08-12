@@ -28,6 +28,10 @@ name = "corpus"
 path = "../../tests/runners/rust/tq/corpus.rs"
 
 [[test]]
+name = "docs"
+path = "../../tests/runners/rust/tq/docs.rs"
+
+[[test]]
 name = "parity"
 path = "../../tests/runners/rust/tq/parity.rs"
 
@@ -40,7 +44,7 @@ name = "xml"
 path = "../../tests/runners/rust/tq/xml.rs"
 
 [dependencies]
-reddb-io-toon = { path = "../toon", version = "0.26.0" }
+reddb-io-toon = { path = "../toon", version = "0.26.1" }
 regex = "1"
 quick-xml = "0.37"
 serde = "1"
@@ -58,6 +62,4 @@ ureq = { version = "3", default-features = false, features = ["rustls"] }
 [dev-dependencies]
 # The upgrade suite computes the checksums its fake release advertises.
 sha2 = "0.10"
-# The query suite asserts ADR 0002's laziness contract with the codec's
-# tabular row-decode counter.
-reddb-io-toon = { path = "../toon", version = "0.26.0", features = ["test-hooks"] }
+reddb-io-toon = { path = "../toon", version = "0.26.1" }

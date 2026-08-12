@@ -30,8 +30,8 @@ Format matrix:
 
 The default subcommand is the query pipeline. `.` keeps the current value;
 field, index, slice, and builtin filters are evaluated by the CLI test suite.
-The supported language surface, including the UTC-only time builtins, is
-documented in the [tq language reference](../../docs/tq-language.md).
+The full language surface is summarised under
+[Query language](#query-language) below.
 
 Input:
 
@@ -73,6 +73,26 @@ Output:
 ```json
 {"users":[{"id":1,"name":"Ada"}]}
 ```
+
+## Query language
+
+`tq` speaks a practical subset of jq's filter language: the full precedence
+ladder from `|` down to postfix indexing, user-defined functions, destructuring
+`as` bindings, `if`/`try`/`reduce`/`foreach`, the path layer and the assignment
+family built on it, string interpolation and `@formats`, UTC-only time
+builtins, and around a hundred and twenty builtins besides.
+
+The [tq language reference](../../docs/tq-language.md) is the normative
+description. It carries the precedence table, a builtin catalog grouped by
+theme where every entry is marked `supported`, `deferred`, or `never`, and the
+"Where tq differs from jq" table. A name marked `deferred` or `never` always
+reports `unsupported identifier` rather than approximating jq.
+
+Compatibility is executable, not aspirational. The vendored corpus in
+`tests/corpus/tq/parity/` is replayed against tq on every run and validated
+against jq 1.7.1 when that exact version is installed, and every deliberate
+difference is recorded with its rationale in the divergence ledger in
+[docs/tq-jq-parity.md](../../docs/tq-jq-parity.md).
 
 ## XML conversion
 
@@ -191,7 +211,7 @@ people[2:]{first,last}:
 ```
 
 The remaining flags map to opt-in fields on
-`reddb_io_toon::EncodeOptions`; their wire formats are userland-only and
+`reddb_io_toon::EncodeV4Options`; their wire formats are userland-only and
 fall back losslessly to canonical v4.1 when a value is ineligible.
 
 ## `--primitive-array-columns`

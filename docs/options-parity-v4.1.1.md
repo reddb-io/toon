@@ -25,7 +25,7 @@ the local TypeScript resolvers are in
 [`encode/serialize.ts`](../packages/toon/src/encode/serialize.ts#L10-L58) and
 [`decode/stream.ts`](../packages/toon/src/decode/stream.ts#L21-L36), the Rust
 option types are in
-[`encode.rs`](../crates/toon/src/lib_parts/encode.rs#L29-L53) and
+[`encode_v4.rs`](../crates/toon/src/lib_parts/encode_v4.rs#L29-L53) and
 [`stream.rs`](../crates/toon/src/lib_parts/stream.rs#L27-L48), and `tq` maps
 flags in [`args.rs`](../crates/tq/src/cli/args.rs#L58-L158).
 
@@ -46,13 +46,13 @@ Classifications mean:
 | `encode.indentSize` | Optional number, default `2`; controls spaces per nesting level. The resolver passes the number through. | Same pass-through resolver, including zero, fractional, and rejected negative repeat counts. | `indent_size`, default `2`; preserves zero and every representable non-negative integer. | `--indent`, default `2`; applies upstream decimal `parseInt` normalization before passing the value to Rust. | **fixed-here** — [#308](https://github.com/reddb-io/toon/issues/308) adds zero, fractional/prefix, rejection, and positive-integer evidence across the three surfaces. |
 | `encode.indent` | Deprecated alias for `indentSize`; default `2`, and `indentSize` wins when both are present. | Same deprecated alias, pass-through behavior, and precedence. | No deprecated JavaScript alias; idiomatic callers use `indent_size`. | `--indent` is the sole spelling. | **fixed-here** — alias precedence and zero pass-through are pinned by the package regression test added for [#308](https://github.com/reddb-io/toon/issues/308). |
 | `encode.delimiter` | `','`, `'\t'`, or `'|'`; default comma; invalid values throw. It changes headers, rows, inline arrays, and quoting. | Same value set, default, validation, and wire effect. | `delimiter: char` accepts exactly the same three values and returns `EncodeError` otherwise. | `--delimiter` accepts the three literal values plus `comma`, `tab`, and `pipe` names. | **identical** — local accepted-input supersets produce the same bytes for every upstream value; package tests cover comma, tab, pipe, quoting, and invalid values. |
-| `encode.replacer` | Optional `(key, value, path)` transform after normalization; `undefined` omits descendants, compacts arrays, and cannot omit the root. | Same callback order, path shape, normalization order, omission behavior, and root rule. | `encode_with_replacer` exposes the same behavior separately because a borrowed closure does not fit the copyable options struct. | Not applicable: the pinned upstream CLI does not expose a replacer either. | **identical** — local TypeScript tests mirror upstream replacer cases; Rust uses an idiomatic function boundary without changing semantics. |
+| `encode.replacer` | Optional `(key, value, path)` transform after normalization; `undefined` omits descendants, compacts arrays, and cannot omit the root. | Same callback order, path shape, normalization order, omission behavior, and root rule. | `encode_v4_with_replacer` exposes the same behavior separately because a borrowed closure does not fit the copyable options struct. | Not applicable: the pinned upstream CLI does not expose a replacer either. | **identical** — local TypeScript tests mirror upstream replacer cases; Rust uses an idiomatic function boundary without changing semantics. |
 | `decode.indentSize` | Optional number, default `2`; defines the expected spaces per level. | Same name/default and pass-through behavior; zero rejects non-empty input as invalid indentation. | `DecodeOptions.indent`, default `2`; zero likewise rejects non-empty input instead of being clamped. | `--indent`, default `2`, configures TOON decoding and output indentation. | **fixed-here** — [#308](https://github.com/reddb-io/toon/issues/308) aligns the Rust zero edge and exercises the TypeScript behavior. |
 | `decode.indent` | Deprecated alias for `indentSize`; `indentSize` wins when both are present. | Same deprecated alias, behavior, and precedence. | `indent` is the canonical idiomatic field. | `--indent` is the sole spelling. | **fixed-here** — language-appropriate names preserve the same value and package alias precedence is covered explicitly. |
 | `decode.strict` | Optional boolean, default `true`; `false` relaxes count, indentation, delimiter-consistency, malformed-header, and duplicate-key validation. | Same default and strict/non-strict outcomes, including last-write-wins duplicates. | Same default and event/tree decoder policy. | `--strict`/`--no-strict` maps directly to Rust. | **identical** — pinned upstream stream tests and the local shared event/conformance fixtures exercise both values. |
 
 The Rust replacer is public as
-[`encode_with_replacer`](../crates/toon/src/lib_parts/encode.rs#L78-L84).
+[`encode_v4_with_replacer`](../crates/toon/src/lib_parts/encode_v4.rs#L78-L84).
 Local TypeScript evidence is concentrated in
 [`encoder.test.mjs`](../packages/toon/test/encoder.test.mjs) and strict/indent
 evidence in [`toon.test.mjs`](../packages/toon/test/toon.test.mjs). Cross-language
@@ -94,9 +94,9 @@ an assumption-driven inventory. None adds an option row at v4.1.1:
 - **`keyFolding` and `flattenDepth`** are absent from upstream v4.1.1. Canonical
   encoders always preserve nesting; local canonical encoders do the same.
 - **`expandPaths`** is absent from upstream v4.1.1. Canonical decoders preserve
-  dotted keys literally. Local compatibility-only behavior remains behind the
-  explicit TypeScript legacy subpath and Rust legacy methods, as documented in
-  the [v4.1 migration guide](migration-v4.md#1-path-expansion-removed-from-the-spec).
+  dotted keys literally, and that is now the only behavior: the local
+  compatibility-only option went with the pre-v4 engine, as documented in the
+  [v4.1 migration guide](migration-v4.md#1-path-expansion-removed-from-the-spec).
 
 Conversely, local `maxDepth`, `reviver`, wire-extension flags, and TOONL flags
 are not upstream v4.1.1 options and therefore are outside this parity

@@ -115,12 +115,12 @@ fn canonical_number(value: &str) -> String {
 // Encoding
 // ---------------------------------------------------------------------------
 
-fn check_encode_depth(depth: usize, delimiter: char, max_depth: usize) -> Result<(), EncodeError> {
-    validate_encode_delimiter(delimiter)?;
-    if max_depth != 0 && depth > max_depth {
+fn check_encode_depth(depth: usize, options: EncodeOptions) -> Result<(), EncodeError> {
+    validate_encode_delimiter(options.delimiter)?;
+    if options.max_depth != 0 && depth > options.max_depth {
         return Err(EncodeError {
             message: "maximum nesting depth exceeded",
-            max_depth: Some(max_depth),
+            max_depth: Some(options.max_depth),
         });
     }
     Ok(())
@@ -136,11 +136,6 @@ fn validate_encode_delimiter(delimiter: char) -> Result<(), EncodeError> {
     })
 }
 
-fn write_indent(output: &mut String, depth: usize) {
-    for _ in 0..depth * DEFAULT_INDENT {
-        output.push(' ');
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CyclicEncodedSection {
@@ -175,12 +170,12 @@ struct CyclicGroup {
 fn write_cyclic_discriminated_arrays(
     output: &mut String,
     document: &Document,
-    options: LegacyEncodeOptions,
+    options: EncodeOptions,
 ) -> Result<bool, EncodeError> {
     if !options.cyclic_discriminated_arrays || document.fields.is_empty() {
         return Ok(false);
     }
-    check_encode_depth(0, options.delimiter, options.max_depth)?;
+    check_encode_depth(0, options)?;
 
     let mut seen_keys = Vec::new();
     let mut sections = Vec::with_capacity(document.fields.len());
@@ -211,9 +206,9 @@ fn write_cyclic_discriminated_arrays(
 fn cyclic_array_shape(
     values: &[Value],
     depth: usize,
-    options: LegacyEncodeOptions,
+    options: EncodeOptions,
 ) -> Result<Option<CyclicArrayShape>, EncodeError> {
-    check_encode_depth(depth, options.delimiter, options.max_depth)?;
+    check_encode_depth(depth, options)?;
     let rows = values
         .iter()
         .map(|value| match value {
@@ -592,185 +587,10 @@ fn percent_encode(value: &str) -> String {
     output
 }
 
-/// Writes `key: value` at the caller's cursor (indent or `- ` already emitted).
-fn write_field(
-    output: &mut String,
-    key: &str,
-    value: &Value,
-    depth: usize,
-    options: LegacyEncodeOptions,
-) -> Result<(), EncodeError> {
-    check_encode_depth(depth, options.delimiter, options.max_depth)?;
-    match value {
-        Value::Array(array) => {
-            write_array(output, Some(key), &array.values(), depth, false, options)?;
-        }
-        Value::Object(document) => {
-            if let Some(shape) = keyed_map_shape(document, options.into(), depth + 1)? {
-                write_keyed_map(output, key, document, &shape, depth, options)?;
-                return Ok(());
-            }
-            output.push_str(&canonical_key(key));
-            output.push_str(":\n");
-            document.write_fields(output, depth + 1, options)?;
-        }
-        value => {
-            output.push_str(&canonical_key(key));
-            output.push_str(": ");
-            output.push_str(&primitive_text(value, options.delimiter));
-            output.push('\n');
-        }
-    }
-    Ok(())
-}
 
-/// Writes an array header plus body. `list_item` selects the empty-array form:
-/// `[0]:` inside a list (§9.2) versus `key: []` / `[]` elsewhere (§9.1).
-fn write_array(
-    output: &mut String,
-    key: Option<&str>,
-    values: &[Value],
-    depth: usize,
-    list_item: bool,
-    options: LegacyEncodeOptions,
-) -> Result<(), EncodeError> {
-    check_encode_depth(depth, options.delimiter, options.max_depth)?;
-    if values.is_empty() {
-        match key {
-            Some(key) => {
-                output.push_str(&canonical_key(key));
-                output.push_str(": []\n");
-            }
-            None if list_item => output.push_str("[0]:\n"),
-            None => output.push_str("[]\n"),
-        }
-        return Ok(());
-    }
 
-    if values.iter().all(Value::is_primitive) {
-        write_array_header(output, key, values.len(), None, options.delimiter);
-        output.push(' ');
-        let cells = values
-            .iter()
-            .map(|value| primitive_text(value, options.delimiter))
-            .collect::<Vec<_>>();
-        output.push_str(&cells.join(&options.delimiter.to_string()));
-        output.push('\n');
-        return Ok(());
-    }
 
-    // In list-item position the tabular form has nowhere to put its field list,
-    // so §9.4 requires the expanded list even for a uniform array of objects.
-    if let Some(shape) = if list_item {
-        None
-    } else {
-        tabular_shape(values, options.into(), depth + 1)?
-    } {
-        write_array_header(
-            output,
-            key,
-            values.len(),
-            Some(&shape.fields),
-            options.delimiter,
-        );
-        output.push('\n');
-        for value in values {
-            write_indent(output, depth + 1);
-            let mut child_output = String::new();
-            let cells = shape
-                .paths
-                .iter()
-                .map(|path| {
-                    let cell =
-                        value_at_path(value, &path.path).expect("tabular_shape checked the path");
-                    column_text(
-                        cell,
-                        path,
-                        options.delimiter,
-                        options,
-                        &mut child_output,
-                        depth + 2,
-                    )
-                })
-                .collect::<Vec<_>>();
-            output.push_str(&cells.join(&options.delimiter.to_string()));
-            output.push('\n');
-            output.push_str(&child_output);
-        }
-        return Ok(());
-    }
 
-    write_array_header(output, key, values.len(), None, options.delimiter);
-    output.push('\n');
-    for value in values {
-        write_indent(output, depth + 1);
-        write_list_item(output, value, depth + 1, options)?;
-    }
-    Ok(())
-}
-
-fn write_list_item(
-    output: &mut String,
-    value: &Value,
-    depth: usize,
-    options: LegacyEncodeOptions,
-) -> Result<(), EncodeError> {
-    check_encode_depth(depth, options.delimiter, options.max_depth)?;
-    match value {
-        Value::Object(document) if document.fields.is_empty() => output.push_str("-\n"),
-        Value::Object(document) => {
-            output.push_str("- ");
-            let first = &document.fields[0];
-            write_field(output, &first.key, &first.value, depth + 1, options)?;
-            for field in &document.fields[1..] {
-                write_indent(output, depth + 1);
-                write_field(output, &field.key, &field.value, depth + 1, options)?;
-            }
-        }
-        Value::Array(array) => {
-            output.push_str("- ");
-            write_array(output, None, &array.values(), depth, true, options)?;
-        }
-        value => {
-            output.push_str("- ");
-            output.push_str(&primitive_text(value, options.delimiter));
-            output.push('\n');
-        }
-    }
-    Ok(())
-}
-
-fn write_array_header(
-    output: &mut String,
-    key: Option<&str>,
-    len: usize,
-    fields: Option<&[HeaderFieldShape]>,
-    delimiter: char,
-) {
-    if let Some(key) = key {
-        output.push_str(&canonical_key(key));
-    }
-    output.push('[');
-    output.push_str(&len.to_string());
-    push_delimiter_prefix(output, delimiter);
-    output.push(']');
-    if let Some(fields) = fields {
-        output.push('{');
-        let names = fields
-            .iter()
-            .map(|field| header_field_text(field, delimiter))
-            .collect::<Vec<_>>();
-        output.push_str(&names.join(&delimiter.to_string()));
-        output.push('}');
-    }
-    output.push(':');
-}
-
-fn push_delimiter_prefix(output: &mut String, delimiter: char) {
-    if delimiter != DOCUMENT_DELIMITER {
-        output.push(delimiter);
-    }
-}
 
 fn delimiter_prefix_text(delimiter: char) -> String {
     if delimiter == DOCUMENT_DELIMITER {
@@ -780,77 +600,5 @@ fn delimiter_prefix_text(delimiter: char) -> String {
     }
 }
 
-fn write_keyed_map(
-    output: &mut String,
-    key: &str,
-    document: &Document,
-    shape: &TabularShape,
-    depth: usize,
-    options: LegacyEncodeOptions,
-) -> Result<(), EncodeError> {
-    check_encode_depth(depth, options.delimiter, options.max_depth)?;
-    output.push_str(&canonical_key(key));
-    output.push('{');
-    push_delimiter_prefix(output, options.delimiter);
-    let names = shape
-        .fields
-        .iter()
-        .map(|field| header_field_text(field, options.delimiter))
-        .collect::<Vec<_>>();
-    output.push_str(&names.join(&options.delimiter.to_string()));
-    output.push_str("}:\n");
-    for field in &document.fields {
-        let Value::Object(row) = &field.value else {
-            unreachable!("keyed_map_shape checked row values");
-        };
-        write_indent(output, depth + 1);
-        output.push_str(&canonical_key(&field.key));
-        output.push_str(": ");
-        let row_value = Value::Object(row.clone());
-        let mut child_output = String::new();
-        let cells = shape
-            .paths
-            .iter()
-            .map(|path| {
-                let cell = value_at_path(&row_value, &path.path)
-                    .expect("keyed_map_shape checked row paths");
-                column_text(
-                    cell,
-                    path,
-                    options.delimiter,
-                    options,
-                    &mut child_output,
-                    depth + 2,
-                )
-            })
-            .collect::<Vec<_>>();
-        output.push_str(&cells.join(&options.delimiter.to_string()));
-        output.push('\n');
-        output.push_str(&child_output);
-    }
-    Ok(())
-}
 
-fn header_field_text(field: &HeaderFieldShape, delimiter: char) -> String {
-    if let Some(list_delimiter) = field.list_delimiter {
-        return format!("{}[{list_delimiter}]", canonical_key(&field.key));
-    }
-    if let Some(fixed_len) = field.fixed_len {
-        return format!(
-            "{}[{fixed_len}{}]",
-            canonical_key(&field.key),
-            delimiter_prefix_text(delimiter)
-        );
-    }
-    if field.children.is_empty() {
-        return canonical_key(&field.key);
-    }
-    let children = field
-        .children
-        .iter()
-        .map(|child| header_field_text(child, delimiter))
-        .collect::<Vec<_>>()
-        .join(&delimiter.to_string());
-    format!("{}{{{children}}}", canonical_key(&field.key))
-}
 

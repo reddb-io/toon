@@ -6,7 +6,7 @@
 // `encode/shape.ts`, `encode/replacer.ts`): keyed tabular form, recursive
 // nested field groups, and v4.1 quoting are the canonical default here, with no
 // opt-in flag. The output carries no trailing newline and round-trips through
-// the event decoder ([`decode_with_options`]).
+// the v4 event decoder ([`decode_value_v4`]).
 
 /// A path segment handed to an [`EncodeReplacer`], mirroring the TypeScript
 /// `(string | number)[]`: object keys arrive as [`PathSegment::Key`] and array
@@ -23,11 +23,10 @@ pub enum PathSegment {
 /// TypeScript `undefined`); at the root [`None`] keeps the original value.
 pub type EncodeReplacer<'a> = dyn Fn(&str, &Value, &[PathSegment]) -> Option<Value> + 'a;
 
-/// Options for [`encode_with_options`], the one encoder. Canonical v4.1 forms
-/// are unconditional; the surviving wire-efficiency extensions remain explicit
-/// opt-ins.
+/// Options for [`encode_v4`]. Canonical v4.1 forms are unconditional; the
+/// surviving wire-efficiency extensions remain explicit opt-ins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EncodeOptions {
+pub struct EncodeV4Options {
     /// Active delimiter for array and tabular rows: comma, pipe, or tab.
     pub delimiter: char,
     /// Spaces per indentation level.
@@ -42,7 +41,7 @@ pub struct EncodeOptions {
     pub max_depth: usize,
 }
 
-impl Default for EncodeOptions {
+impl Default for EncodeV4Options {
     fn default() -> Self {
         Self {
             delimiter: DOCUMENT_DELIMITER,
@@ -56,7 +55,7 @@ impl Default for EncodeOptions {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ResolvedEncode {
+struct ResolvedV4 {
     delimiter: char,
     indent_size: usize,
     primitive_array_columns: bool,
@@ -65,27 +64,27 @@ struct ResolvedEncode {
 }
 
 /// Encodes a value using the canonical v4.1 forms.
-pub fn encode_with_options(value: &Value, options: EncodeOptions) -> Result<String, EncodeError> {
-    encode_inner(value, options, None)
+pub fn encode_v4(value: &Value, options: EncodeV4Options) -> Result<String, EncodeError> {
+    encode_v4_inner(value, options, None)
 }
 
 /// Encodes a value after applying a JSON-style replacer, mirroring the TS
 /// `encode(input, { replacer })`.
-pub fn encode_with_replacer(
+pub fn encode_v4_with_replacer(
     value: &Value,
-    options: EncodeOptions,
+    options: EncodeV4Options,
     replacer: &EncodeReplacer,
 ) -> Result<String, EncodeError> {
-    encode_inner(value, options, Some(replacer))
+    encode_v4_inner(value, options, Some(replacer))
 }
 
-fn encode_inner(
+fn encode_v4_inner(
     value: &Value,
-    options: EncodeOptions,
+    options: EncodeV4Options,
     replacer: Option<&EncodeReplacer>,
 ) -> Result<String, EncodeError> {
     validate_encode_delimiter(options.delimiter)?;
-    let resolved = ResolvedEncode {
+    let resolved = ResolvedV4 {
         delimiter: options.delimiter,
         indent_size: options.indent_size,
         primitive_array_columns: options.primitive_array_columns,
@@ -96,28 +95,28 @@ fn encode_inner(
         Some(replacer) => apply_replacer(value, replacer),
         None => value.clone(),
     };
-    validate_encode_depth_recursive(&value, 0, options.max_depth)?;
+    validate_v4_depth(&value, 0, options.max_depth)?;
     if options.cyclic_discriminated_arrays {
         if let Value::Object(document) = &value {
             let mut output = String::new();
             if write_cyclic_discriminated_arrays(
                 &mut output,
                 document,
-                LegacyEncodeOptions {
+                EncodeOptions {
                     cyclic_discriminated_arrays: true,
                     delimiter: options.delimiter,
                     max_depth: options.max_depth,
-                    ..LegacyEncodeOptions::default()
+                    ..EncodeOptions::default()
                 },
             )? {
                 return Ok(output.trim_end_matches('\n').to_owned());
             }
         }
     }
-    Ok(encode_value(&value, resolved).join("\n"))
+    Ok(encode_v4_value(&value, resolved).join("\n"))
 }
 
-fn validate_encode_depth_recursive(value: &Value, depth: usize, max_depth: usize) -> Result<(), EncodeError> {
+fn validate_v4_depth(value: &Value, depth: usize, max_depth: usize) -> Result<(), EncodeError> {
     if max_depth != 0 && depth > max_depth {
         return Err(EncodeError {
             message: "maximum nesting depth exceeded",
@@ -129,10 +128,10 @@ fn validate_encode_depth_recursive(value: &Value, depth: usize, max_depth: usize
             for field in &document.fields {
                 match &field.value {
                     Value::Object(nested) => {
-                        validate_encode_depth_recursive(&Value::Object(nested.clone()), depth + 1, max_depth)?;
+                        validate_v4_depth(&Value::Object(nested.clone()), depth + 1, max_depth)?;
                     }
                     Value::Array(array) => {
-                        validate_encode_depth_recursive(&Value::Array(array.clone()), depth, max_depth)?;
+                        validate_v4_depth(&Value::Array(array.clone()), depth, max_depth)?;
                     }
                     _ => {}
                 }
@@ -141,7 +140,7 @@ fn validate_encode_depth_recursive(value: &Value, depth: usize, max_depth: usize
         Value::Array(array) => {
             for item in array.values() {
                 if !item.is_primitive() {
-                    validate_encode_depth_recursive(&item, depth + 1, max_depth)?;
+                    validate_v4_depth(&item, depth + 1, max_depth)?;
                 }
             }
         }
@@ -150,42 +149,42 @@ fn validate_encode_depth_recursive(value: &Value, depth: usize, max_depth: usize
     Ok(())
 }
 
-fn encode_value(value: &Value, options: ResolvedEncode) -> Vec<String> {
+fn encode_v4_value(value: &Value, options: ResolvedV4) -> Vec<String> {
     if value.is_primitive() {
-        return vec![canonical_primitive_text(value, options.delimiter)];
+        return vec![primitive_text_v4(value, options.delimiter)];
     }
     match value {
-        Value::Array(array) => encode_array(None, &array.values(), 0, options),
-        Value::Object(document) => match canonical_keyed_shape(document, 1, options) {
-            Some(shape) => encode_keyed(None, document, &shape, 0, options),
-            None => encode_object(document, 0, options),
+        Value::Array(array) => encode_v4_array(None, &array.values(), 0, options),
+        Value::Object(document) => match keyed_shape_v4(document, 1, options) {
+            Some(shape) => encode_v4_keyed(None, document, &shape, 0, options),
+            None => encode_v4_object(document, 0, options),
         },
         _ => unreachable!("primitives handled above"),
     }
 }
 
-fn encode_object(document: &Document, depth: usize, options: ResolvedEncode) -> Vec<String> {
+fn encode_v4_object(document: &Document, depth: usize, options: ResolvedV4) -> Vec<String> {
     document
         .fields
         .iter()
-        .flat_map(|field| encode_field(&field.key, &field.value, depth, options))
+        .flat_map(|field| encode_v4_field(&field.key, &field.value, depth, options))
         .collect()
 }
 
-fn encode_field(key: &str, value: &Value, depth: usize, options: ResolvedEncode) -> Vec<String> {
+fn encode_v4_field(key: &str, value: &Value, depth: usize, options: ResolvedV4) -> Vec<String> {
     let prefix = indentation(depth, options) + &canonical_key(key);
     if value.is_primitive() {
-        return vec![format!("{prefix}: {}", canonical_primitive_text(value, options.delimiter))];
+        return vec![format!("{prefix}: {}", primitive_text_v4(value, options.delimiter))];
     }
     match value {
-        Value::Array(array) => encode_array(Some(key), &array.values(), depth, options),
+        Value::Array(array) => encode_v4_array(Some(key), &array.values(), depth, options),
         Value::Object(document) => {
-            if let Some(shape) = canonical_keyed_shape(document, depth + 1, options) {
-                return encode_keyed(Some(key), document, &shape, depth, options);
+            if let Some(shape) = keyed_shape_v4(document, depth + 1, options) {
+                return encode_v4_keyed(Some(key), document, &shape, depth, options);
             }
             let mut lines = vec![format!("{prefix}:")];
             if !document.fields.is_empty() {
-                lines.extend(encode_object(document, depth + 1, options));
+                lines.extend(encode_v4_object(document, depth + 1, options));
             }
             lines
         }
@@ -193,11 +192,11 @@ fn encode_field(key: &str, value: &Value, depth: usize, options: ResolvedEncode)
     }
 }
 
-fn encode_array(
+fn encode_v4_array(
     key: Option<&str>,
     values: &[Value],
     depth: usize,
-    options: ResolvedEncode,
+    options: ResolvedV4,
 ) -> Vec<String> {
     let prefix = indentation(depth, options);
     if values.is_empty() {
@@ -213,25 +212,25 @@ fn encode_array(
             encode_cells(values, options.delimiter)
         )];
     }
-    if let Some(shape) = canonical_tabular_shape(values, depth + 1, options) {
-        return encode_tabular(key, values, &shape, depth, options);
+    if let Some(shape) = tabular_shape_v4(values, depth + 1, options) {
+        return encode_v4_tabular(key, values, &shape, depth, options);
     }
     let mut lines = vec![format!(
         "{prefix}{}",
         header(key, values.len(), None, options.delimiter, false)
     )];
     for item in values {
-        lines.extend(encode_list_item(item, depth + 1, options));
+        lines.extend(encode_v4_list_item(item, depth + 1, options));
     }
     lines
 }
 
-fn encode_tabular(
+fn encode_v4_tabular(
     key: Option<&str>,
     rows: &[Value],
     shape: &TabularShape,
     depth: usize,
-    options: ResolvedEncode,
+    options: ResolvedV4,
 ) -> Vec<String> {
     let mut lines = vec![format!(
         "{}{}",
@@ -239,19 +238,19 @@ fn encode_tabular(
         header(key, rows.len(), Some(&shape.fields), options.delimiter, false)
     )];
     for row in rows {
-        let (cells, children) = encode_tabular_row(row, &shape.paths, depth + 2, options);
+        let (cells, children) = encode_v4_tabular_row(row, &shape.paths, depth + 2, options);
         lines.push(format!("{}{}", indentation(depth + 1, options), cells));
         lines.extend(children);
     }
     lines
 }
 
-fn encode_keyed(
+fn encode_v4_keyed(
     key: Option<&str>,
     document: &Document,
     shape: &TabularShape,
     depth: usize,
-    options: ResolvedEncode,
+    options: ResolvedV4,
 ) -> Vec<String> {
     let mut lines = vec![format!(
         "{}{}",
@@ -260,7 +259,7 @@ fn encode_keyed(
     )];
     for field in &document.fields {
         let (cells, children) =
-            encode_tabular_row(&field.value, &shape.paths, depth + 2, options);
+            encode_v4_tabular_row(&field.value, &shape.paths, depth + 2, options);
         lines.push(format!(
             "{}{}: {cells}",
             indentation(depth + 1, options),
@@ -271,10 +270,10 @@ fn encode_keyed(
     lines
 }
 
-fn encode_list_item(value: &Value, depth: usize, options: ResolvedEncode) -> Vec<String> {
+fn encode_v4_list_item(value: &Value, depth: usize, options: ResolvedV4) -> Vec<String> {
     let prefix = format!("{}-", indentation(depth, options));
     if value.is_primitive() {
-        return vec![format!("{prefix} {}", canonical_primitive_text(value, options.delimiter))];
+        return vec![format!("{prefix} {}", primitive_text_v4(value, options.delimiter))];
     }
     match value {
         Value::Array(array) => {
@@ -297,32 +296,32 @@ fn encode_list_item(value: &Value, depth: usize, options: ResolvedEncode) -> Vec
                 header(None, values.len(), None, options.delimiter, false)
             )];
             for item in &values {
-                lines.extend(encode_list_item(item, depth + 1, options));
+                lines.extend(encode_v4_list_item(item, depth + 1, options));
             }
             lines
         }
-        Value::Object(document) => encode_object_list_item(document, depth, options),
+        Value::Object(document) => encode_v4_object_list_item(document, depth, options),
         _ => unreachable!("primitives handled above"),
     }
 }
 
-fn encode_object_list_item(
+fn encode_v4_object_list_item(
     document: &Document,
     depth: usize,
-    options: ResolvedEncode,
+    options: ResolvedV4,
 ) -> Vec<String> {
     let Some((first, rest)) = document.fields.split_first() else {
         return vec![format!("{}-", indentation(depth, options))];
     };
 
-    let mut lines = if let Some(special) = encode_first_container(&first.key, &first.value, depth, options) {
+    let mut lines = if let Some(special) = encode_v4_first_container(&first.key, &first.value, depth, options) {
         special
     } else if first.value.is_primitive() {
         vec![format!(
             "{}- {}: {}",
             indentation(depth, options),
             canonical_key(&first.key),
-            canonical_primitive_text(&first.value, options.delimiter)
+            primitive_text_v4(&first.value, options.delimiter)
         )]
     } else if let Value::Array(array) = &first.value {
         let values = array.values();
@@ -339,7 +338,7 @@ fn encode_object_list_item(
                 header(Some(&first.key), values.len(), None, options.delimiter, false)
             )];
             for item in &values {
-                lines.extend(encode_list_item(item, depth + 2, options));
+                lines.extend(encode_v4_list_item(item, depth + 2, options));
             }
             lines
         }
@@ -353,24 +352,24 @@ fn encode_object_list_item(
             canonical_key(&first.key)
         )];
         if !nested.fields.is_empty() {
-            lines.extend(encode_object(nested, depth + 2, options));
+            lines.extend(encode_v4_object(nested, depth + 2, options));
         }
         lines
     };
 
     for field in rest {
-        lines.extend(encode_field(&field.key, &field.value, depth + 1, options));
+        lines.extend(encode_v4_field(&field.key, &field.value, depth + 1, options));
     }
     lines
 }
 
 /// The first field of a list item may carry a tabular, primitive-array, or
 /// keyed header on the hyphen line, with its body indented two levels deeper.
-fn encode_first_container(
+fn encode_v4_first_container(
     key: &str,
     value: &Value,
     depth: usize,
-    options: ResolvedEncode,
+    options: ResolvedV4,
 ) -> Option<Vec<String>> {
     if let Value::Array(array) = value {
         let values = array.values();
@@ -382,7 +381,7 @@ fn encode_first_container(
                 encode_cells(&values, options.delimiter)
             )]);
         }
-        if let Some(shape) = canonical_tabular_shape(&values, depth + 1, options) {
+        if let Some(shape) = tabular_shape_v4(&values, depth + 1, options) {
             let mut lines = vec![format!(
                 "{}- {}",
                 indentation(depth, options),
@@ -396,7 +395,7 @@ fn encode_first_container(
             )];
             for row in &values {
                 let (cells, children) =
-                    encode_tabular_row(row, &shape.paths, depth + 3, options);
+                    encode_v4_tabular_row(row, &shape.paths, depth + 3, options);
                 lines.push(format!("{}{}", indentation(depth + 2, options), cells));
                 lines.extend(children);
             }
@@ -404,7 +403,7 @@ fn encode_first_container(
         }
     }
     if let Value::Object(document) = value {
-        if let Some(shape) = canonical_keyed_shape(document, depth + 1, options) {
+        if let Some(shape) = keyed_shape_v4(document, depth + 1, options) {
             let mut lines = vec![format!(
                 "{}- {}",
                 indentation(depth, options),
@@ -418,7 +417,7 @@ fn encode_first_container(
             )];
             for field in &document.fields {
                 let (cells, children) =
-                    encode_tabular_row(&field.value, &shape.paths, depth + 3, options);
+                    encode_v4_tabular_row(&field.value, &shape.paths, depth + 3, options);
                 lines.push(format!(
                     "{}{}: {cells}",
                     indentation(depth + 2, options),
@@ -436,19 +435,19 @@ fn encode_first_container(
 // Shape detection
 // ---------------------------------------------------------------------------
 
-fn canonical_tabular_shape(
+fn tabular_shape_v4(
     values: &[Value],
     depth: usize,
-    options: ResolvedEncode,
+    options: ResolvedV4,
 ) -> Option<TabularShape> {
-    tabular_shape(values, shape_options(options), depth)
+    tabular_shape(values, shape_options_v4(options), depth)
         .expect("canonical depth was validated before shape detection")
 }
 
-fn canonical_keyed_shape(
+fn keyed_shape_v4(
     document: &Document,
     depth: usize,
-    options: ResolvedEncode,
+    options: ResolvedV4,
 ) -> Option<TabularShape> {
     if document.fields.len() < 2 {
         return None;
@@ -458,27 +457,26 @@ fn canonical_keyed_shape(
         .iter()
         .map(|field| field.value.clone())
         .collect::<Vec<_>>();
-    canonical_tabular_shape(&rows, depth, options)
+    tabular_shape_v4(&rows, depth, options)
 }
 
-/// Canonical v4.1 always selects nested field groups and keyed tables, so shape
-/// detection is asked for both unconditionally.
-fn shape_options(options: ResolvedEncode) -> ShapeOptions {
-    ShapeOptions {
+fn shape_options_v4(options: ResolvedV4) -> EncodeOptions {
+    EncodeOptions {
         nested_tabular_headers: true,
         keyed_map_collapse: true,
         primitive_array_columns: options.primitive_array_columns,
         object_array_columns: options.object_array_columns,
         delimiter: options.delimiter,
         max_depth: options.max_depth,
+        ..EncodeOptions::default()
     }
 }
 
-fn encode_tabular_row(
+fn encode_v4_tabular_row(
     value: &Value,
     paths: &[ColumnPath],
     child_depth: usize,
-    options: ResolvedEncode,
+    options: ResolvedV4,
 ) -> (String, Vec<String>) {
     let mut cells = Vec::new();
     let mut children = Vec::new();
@@ -493,7 +491,7 @@ fn encode_tabular_row(
             collect_leaf_paths(&path.child_fields, &mut Vec::new(), &mut child_paths);
             for child in array.values() {
                 let (child_cells, descendants) =
-                    encode_tabular_row(&child, &child_paths, child_depth + 1, options);
+                    encode_v4_tabular_row(&child, &child_paths, child_depth + 1, options);
                 children.push(format!("{}{}", indentation(child_depth, options), child_cells));
                 children.extend(descendants);
             }
@@ -505,7 +503,7 @@ fn encode_tabular_row(
                 array
                     .values()
                     .iter()
-                    .map(|item| canonical_primitive_text(item, options.delimiter)),
+                    .map(|item| primitive_text_v4(item, options.delimiter)),
             );
         } else if let Some(list_delimiter) = path.list_delimiter {
             let Value::Array(array) = cell else {
@@ -516,13 +514,13 @@ fn encode_tabular_row(
                     .values()
                     .iter()
                     .map(|item| {
-                        canonical_list_item_text(item, options.delimiter, list_delimiter)
+                        primitive_list_item_text_v4(item, options.delimiter, list_delimiter)
                     })
                     .collect::<Vec<_>>()
                     .join(&list_delimiter.to_string()),
             );
         } else {
-            cells.push(canonical_primitive_text(cell, options.delimiter));
+            cells.push(primitive_text_v4(cell, options.delimiter));
         }
     };
     (cells.join(&options.delimiter.to_string()), children)
@@ -569,15 +567,15 @@ fn format_fields(fields: &[HeaderFieldShape], delimiter: char) -> String {
         .join(&delimiter.to_string())
 }
 
-fn canonical_list_item_text(
+fn primitive_list_item_text_v4(
     value: &Value,
     active_delimiter: char,
     list_delimiter: char,
 ) -> String {
     let Value::String(value) = value else {
-        return canonical_primitive_text(value, active_delimiter);
+        return primitive_text_v4(value, active_delimiter);
     };
-    if canonical_needs_quotes(value, active_delimiter) || value.contains(list_delimiter) {
+    if needs_quotes_v4(value, active_delimiter) || value.contains(list_delimiter) {
         quote_string(value)
     } else {
         value.to_owned()
@@ -587,21 +585,21 @@ fn canonical_list_item_text(
 fn encode_cells(values: &[Value], delimiter: char) -> String {
     values
         .iter()
-        .map(|value| canonical_primitive_text(value, delimiter))
+        .map(|value| primitive_text_v4(value, delimiter))
         .collect::<Vec<_>>()
         .join(&delimiter.to_string())
 }
 
 /// Like [`primitive_text`], but strings use the canonical v4.1 quoting rule.
-fn canonical_primitive_text(value: &Value, delimiter: char) -> String {
+fn primitive_text_v4(value: &Value, delimiter: char) -> String {
     match value {
-        Value::String(text) => canonical_string_literal(text, delimiter),
+        Value::String(text) => canonical_string_v4(text, delimiter),
         _ => primitive_text(value, delimiter),
     }
 }
 
-fn canonical_string_literal(value: &str, delimiter: char) -> String {
-    if canonical_needs_quotes(value, delimiter) {
+fn canonical_string_v4(value: &str, delimiter: char) -> String {
+    if needs_quotes_v4(value, delimiter) {
         quote_string(value)
     } else {
         value.to_owned()
@@ -612,7 +610,7 @@ fn canonical_string_literal(value: &str, delimiter: char) -> String {
 /// whitespace is tested against ASCII space and tab only (the TS
 /// `/^[ \t]|[ \t]$/`), so a value padded with non-ASCII whitespace such as
 /// U+00A0 stays bare, and a leading `#` is quoted so it never reads as a comment.
-fn canonical_needs_quotes(value: &str, delimiter: char) -> bool {
+fn needs_quotes_v4(value: &str, delimiter: char) -> bool {
     value.is_empty()
         || value.starts_with([' ', '\t'])
         || value.ends_with([' ', '\t'])
@@ -625,7 +623,7 @@ fn canonical_needs_quotes(value: &str, delimiter: char) -> bool {
         || value.starts_with('#')
 }
 
-fn indentation(depth: usize, options: ResolvedEncode) -> String {
+fn indentation(depth: usize, options: ResolvedV4) -> String {
     " ".repeat(depth * options.indent_size)
 }
 

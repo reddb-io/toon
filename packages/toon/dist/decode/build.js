@@ -4,7 +4,7 @@
  * event-builder layering: the stream is the core, the tree is derived.
  */
 import { decodeFromLines as decodeEventsFromLines } from './stream.js';
-import { expandCyclicDiscriminatedArrays } from '../toon_parts/cyclic.js';
+import { expandCyclicDiscriminatedArrays } from '../cyclic.js';
 import { applyReviver } from './reviver.js';
 const UNSET = Symbol('unset');
 export function buildValueFromEvents(events) {

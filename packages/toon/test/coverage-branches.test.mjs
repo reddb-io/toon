@@ -14,28 +14,7 @@ import { rawString } from '../dist/encode/raw-string.js'
 import {
   cyclicDiscriminatedArrayWire,
   expandCyclicDiscriminatedArrays,
-} from '../dist/toon_parts/cyclic.js'
-import {
-  atLine,
-  flattenHeaderFieldTree,
-  isValidListDelimiter,
-  lengthMismatch,
-  parseArrayHeaderFields,
-  parseArrayHeaderFieldTree,
-  parseHeader,
-  parseHeaderFields,
-  parseHeaderFieldTree,
-  parseMapHeader,
-  parseTabularCell,
-  pathStartsWith,
-  samePath,
-} from '../dist/toon_parts/parse_headers.js'
-import {
-  checkDepth,
-  checkHeaderDepth,
-  collectLines,
-  resolveOptions,
-} from '../dist/toon_parts/options.js'
+} from '../dist/cyclic.js'
 import {
   ToonlEncoder,
   ToonlReader,
@@ -45,92 +24,6 @@ import {
 } from '../dist/toonl.js'
 
 const throws = (operation) => assert.throws(operation, ToonError)
-
-test('legacy header helpers reject every malformed header shape', () => {
-  throws(() => parseHeader('items[2]', -1))
-  throws(() => parseHeader('items:rest', 5))
-  throws(() => parseHeader('"items[2]:', 10))
-  throws(() => parseHeader('items[2:', 7))
-  throws(() => parseHeader('items[]:', 7))
-  throws(() => parseHeader('items[02]:', 9))
-  throws(() => parseHeader('items[2;]:', 9))
-  throws(() => parseHeader('items[2]extra:', 13))
-  throws(() => parseHeader('items[2]{a,}:', 13))
-
-  assert.deepEqual(parseHeader('items[0]:', 8), {
-    delimiter: ',',
-    fieldTree: undefined,
-    fields: undefined,
-    key: 'items',
-    keyQuoted: false,
-    len: 0,
-  })
-  const tabHeader = 'items[1\t]{id\tname}:'
-  const pipeHeader = 'items[1|]{id|name}:'
-  assert.equal(parseHeader(tabHeader, tabHeader.indexOf(':')).delimiter, '\t')
-  assert.equal(parseHeader(pipeHeader, pipeHeader.indexOf(':')).delimiter, '|')
-
-  throws(() => parseMapHeader('items'))
-  throws(() => parseMapHeader('"items{a}'))
-  throws(() => parseMapHeader('{a}'))
-  throws(() => parseMapHeader('items{a,}'))
-  assert.deepEqual(parseMapHeader('items{|id|name}'), {
-    delimiter: '|',
-    fields: [
-      { listDelimiter: undefined, path: ['id'] },
-      { listDelimiter: undefined, path: ['name'] },
-    ],
-    key: 'items',
-    keyQuoted: false,
-  })
-})
-
-test('legacy field-header helpers cover nesting, lists, fallbacks and conflicts', () => {
-  const fields = parseHeaderFields('name,address{city,zip},tags[;]', ',', ',')
-  assert.deepEqual(fields.map((field) => field.path.join('.')), [
-    'name',
-    'address.city',
-    'address.zip',
-    'tags',
-  ])
-  assert.deepEqual(parseTabularCell(fields.at(-1), 'a;b', 1), ['a', 'b'])
-  assert.equal(parseTabularCell(fields[0], '42', 1), 42)
-
-  for (const source of ['', ',a', 'a,', 'a,,b', 'a{}', 'a{b', 'a[', 'a[,]', 'a,a', 'a,a{b}']) {
-    throws(() => parseHeaderFields(source, ',', ','))
-  }
-
-  assert.deepEqual(parseArrayHeaderFields('tags[;],name', '|').map((field) => field.path[0]), [
-    'tags',
-    'name',
-  ])
-  throws(() => parseArrayHeaderFields('a[;],a', '|'))
-
-  const tree = parseHeaderFieldTree('id,profile{name,tags[;]},values[2]', ',', ',')
-  assert.equal(tree[1].children[1].listDelimiter, ';')
-  assert.equal(tree[2].fixedLength, 2)
-  assert.deepEqual(flattenHeaderFieldTree(tree).map((field) => field.path.join('.')), [
-    'id',
-    'profile.name',
-    'profile.tags',
-    'values',
-  ])
-  assert.equal(parseArrayHeaderFieldTree('id,values[2|]', '|')[1].fixedDelimiter, '|')
-
-  for (const source of ['', ',a', 'a,', 'a{}', 'a{b', 'a[', 'a[01]', 'a[2|]', 'a,a']) {
-    throws(() => parseHeaderFieldTree(source, ',', ','))
-  }
-
-  assert.equal(isValidListDelimiter(';', ','), true)
-  assert.equal(isValidListDelimiter(',', ','), false)
-  assert.equal(isValidListDelimiter('[]', ','), false)
-  assert.equal(samePath(['a'], ['a']), true)
-  assert.equal(pathStartsWith(['a', 'b'], ['a']), true)
-  assert.equal(pathStartsWith(['a'], ['a', 'b']), false)
-  assert.equal(atLine(new Error('bad header'), 7).line, 7)
-  assert.equal(lengthMismatch([], 0).line, 1)
-  assert.equal(lengthMismatch([{ number: 4 }], 9).line, 4)
-})
 
 function cyclicSection(overrides = {}) {
   return {
@@ -247,25 +140,7 @@ test('normalization and error helpers cover non-JSON host values and causes', ()
   )
 })
 
-test('legacy options and truncation helpers cover validation-only branches', () => {
-  assert.deepEqual(resolveOptions({ expandPaths: true, indent: 0, maxDepth: Infinity }), {
-    cyclicDiscriminatedArrays: true,
-    expandPaths: true,
-    indent: 1,
-    maxDepth: 0,
-    strict: true,
-  })
-  assert.deepEqual(collectLines('\n  a: 1\n\n    b: 2', resolveOptions()), [
-    { blankBefore: true, content: 'a: 1', depth: 1, number: 2 },
-    { blankBefore: true, content: 'b: 2', depth: 2, number: 4 },
-  ])
-  throws(() => collectLines('\ta: 1', resolveOptions()))
-  throws(() => collectLines(' a: 1', resolveOptions()))
-  throws(() => checkDepth(2, 3, { maxDepth: 1 }))
-  assert.doesNotThrow(() => checkHeaderDepth('{"a\\\"{":{b}}', 1, { maxDepth: 2 }))
-  throws(() => checkHeaderDepth('{a:{b}}', 1, { maxDepth: 1 }))
-  assert.doesNotThrow(() => checkHeaderDepth('{a:{b}}', 1, { maxDepth: 0 }))
-
+test('truncation helpers cover validation-only branches', () => {
   assert.throws(() => detectTruncation('', { format: 'bad' }), TypeError)
   assert.equal(detectTruncation('items[3]: 1,2').kind, 'array_length_mismatch')
   assert.equal(detectTruncation('items[2]: 1,2\ninvalid line').kind, 'invalid')

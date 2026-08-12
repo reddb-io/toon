@@ -2,26 +2,36 @@
   "category": "encode",
   "tests": [
     {
-      "name": "keyed map collapse encodes byte-for-byte when opted in",
+      "name": "keyed map collapse encodes byte-for-byte",
       "input": {
         "people": {
-          "joe": { "first": "Joe", "last": "Schmoe" },
-          "mary": { "first": "Mary", "last": "Jane" }
+          "joe": {
+            "first": "Joe",
+            "last": "Schmoe"
+          },
+          "mary": {
+            "first": "Mary",
+            "last": "Jane"
+          }
         }
       },
-      "options": { "keyedMapCollapse": true },
-      "expected": "people{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane\n"
+      "expected": "people[2:]{first,last}:\n  joe: Joe,Schmoe\n  mary: Mary,Jane"
     },
     {
       "name": "non-uniform map falls back to ordinary object form",
       "input": {
         "people": {
-          "joe": { "first": "Joe", "last": "Schmoe" },
-          "mary": { "first": "Mary", "role": "admin" }
+          "joe": {
+            "first": "Joe",
+            "last": "Schmoe"
+          },
+          "mary": {
+            "first": "Mary",
+            "role": "admin"
+          }
         }
       },
-      "options": { "keyedMapCollapse": true },
-      "expected": "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin\n"
+      "expected": "people:\n  joe:\n    first: Joe\n    last: Schmoe\n  mary:\n    first: Mary\n    role: admin"
     }
   ]
 }

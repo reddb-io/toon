@@ -1,20 +1,20 @@
-//! The canonical codec (#210): replacer semantics mirroring the TypeScript
-//! reference, plus round-trip proofs over the one encoder/decoder pair
-//! ([`encode_with_options`] + [`decode_with_options`]).
+//! Canonical v4.1 encoder (#210): replacer semantics mirroring the TypeScript
+//! reference, plus round-trip proofs over the new encoder/decoder pair
+//! ([`encode_v4`] + [`decode_value_v4`]).
 
 use std::cell::RefCell;
 
 use proptest::prelude::*;
 use reddb_io_toon::{
-    build_value_from_events, decode_event_stream, decode_with_options,
-    detect_truncation_with_options, encode_toonl_values, encode_with_options, encode_with_replacer,
-    DecodeStreamOptions, EncodeOptions, ParseError, PathSegment, ToonlStream, Value,
+    build_value_from_events, decode_event_stream, decode_value_v4, detect_truncation_v4,
+    encode_toonl_values, encode_v4, encode_v4_with_replacer, DecodeStreamOptions, EncodeV4Options,
+    ParseError, PathSegment, ToonlStream, Value,
 };
 use serde_json::json;
 
 fn decode(wire: &str) -> serde_json::Value {
-    decode_with_options(wire, &DecodeStreamOptions::default())
-        .expect("decode of self-produced wire")
+    decode_value_v4(wire, &DecodeStreamOptions::default())
+        .expect("v4 decode of self-produced wire")
         .to_json_value()
 }
 
@@ -27,12 +27,12 @@ fn decode_via_events(
 }
 
 fn encode(input: serde_json::Value, replacer: &reddb_io_toon::EncodeReplacer) -> String {
-    encode_with_replacer(
+    encode_v4_with_replacer(
         &Value::from_json_value(input),
-        EncodeOptions::default(),
+        EncodeV4Options::default(),
         replacer,
     )
-    .expect("encode")
+    .expect("v4 encode")
 }
 
 // ---------------------------------------------------------------------------
@@ -156,13 +156,13 @@ fn a_root_replacement_value_replaces_the_document() {
 }
 
 // ---------------------------------------------------------------------------
-// Round-trip — encode_with_options + decode_with_options
+// Round-trip — encode_v4 + decode_value_v4
 // ---------------------------------------------------------------------------
 
-fn round_trips(input: serde_json::Value, options: EncodeOptions) {
+fn round_trips(input: serde_json::Value, options: EncodeV4Options) {
     let value = Value::from_json_value(input);
-    let wire = encode_with_options(&value, options).expect("encode");
-    let decoded = decode_with_options(&wire, &DecodeStreamOptions::default())
+    let wire = encode_v4(&value, options).expect("v4 encode");
+    let decoded = decode_value_v4(&wire, &DecodeStreamOptions::default())
         .unwrap_or_else(|err| panic!("v4 decode failed for {wire:?}: {err}"))
         .to_json_value();
     assert!(
@@ -173,7 +173,7 @@ fn round_trips(input: serde_json::Value, options: EncodeOptions) {
 
 #[test]
 fn canonical_forms_round_trip_through_the_v4_decoder() {
-    let comma = EncodeOptions::default();
+    let comma = EncodeV4Options::default();
     let cases = [
         json!({ "servers": { "alpha": { "host": "a", "port": 8080 }, "beta": { "host": "b", "port": 9090 } } }),
         json!({ "alice": { "age": 30, "city": "Berlin" }, "bob": { "age": 25, "city": "Oslo" } }),
@@ -194,9 +194,9 @@ fn canonical_forms_round_trip_through_the_v4_decoder() {
 #[test]
 fn active_delimiters_round_trip_through_the_v4_decoder() {
     for delimiter in ['|', '\t'] {
-        let options = EncodeOptions {
+        let options = EncodeV4Options {
             delimiter,
-            ..EncodeOptions::default()
+            ..EncodeV4Options::default()
         };
         round_trips(
             json!({ "items": [{ "sku": "A1", "qty": 2, "note": "a,b" }, { "sku": "B2", "qty": 1, "note": "c" }] }),
@@ -209,14 +209,14 @@ fn active_delimiters_round_trip_through_the_v4_decoder() {
 
 #[test]
 fn custom_indent_size_round_trips_through_the_v4_decoder() {
-    let options = EncodeOptions {
+    let options = EncodeV4Options {
         indent_size: 4,
-        ..EncodeOptions::default()
+        ..EncodeV4Options::default()
     };
     let value = Value::from_json_value(json!({ "user": { "name": "Ada", "role": "admin" } }));
-    let wire = encode_with_options(&value, options).expect("encode");
+    let wire = encode_v4(&value, options).expect("v4 encode");
     assert_eq!(wire, "user:\n    name: Ada\n    role: admin");
-    let decoded = decode_with_options(
+    let decoded = decode_value_v4(
         &wire,
         &DecodeStreamOptions {
             indent: 4,
@@ -235,17 +235,17 @@ fn custom_indent_size_round_trips_through_the_v4_decoder() {
 #[test]
 fn zero_indent_matches_the_v4_reference_edges() {
     let value = Value::from_json_value(json!({ "user": { "name": "Ada" } }));
-    let wire = encode_with_options(
+    let wire = encode_v4(
         &value,
-        EncodeOptions {
+        EncodeV4Options {
             indent_size: 0,
-            ..EncodeOptions::default()
+            ..EncodeV4Options::default()
         },
     )
     .expect("zero-indent v4 encode");
     assert_eq!(wire, "user:\nname: Ada");
 
-    let error = decode_with_options(
+    let error = decode_value_v4(
         "name: Ada",
         &DecodeStreamOptions {
             indent: 0,
@@ -261,14 +261,14 @@ fn zero_indent_matches_the_v4_reference_edges() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn extension_options_pin_shared_primitive_and_child_table_wires() {
+fn v4_extension_options_pin_shared_primitive_and_child_table_wires() {
     let primitive_corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../corpus/wire-efficiency/primitive-array-columns.json"
     ))
     .expect("primitive-column corpus");
     let primitive_fixture = &primitive_corpus["cases"][0];
     assert_eq!(
-        decode_with_options(
+        decode_value_v4(
             primitive_fixture["input"]
                 .as_str()
                 .expect("primitive fixture wire"),
@@ -288,18 +288,18 @@ fn extension_options_pin_shared_primitive_and_child_table_wires() {
     let primitive_wire =
         "items[2]{id,tags[;],note}:\n  1,hot;fragile,\"a,b\"\n  2,\"semi;quoted\",plain";
     assert_eq!(
-        encode_with_options(
+        encode_v4(
             &Value::from_json_value(primitive.clone()),
-            EncodeOptions {
+            EncodeV4Options {
                 primitive_array_columns: true,
-                ..EncodeOptions::default()
+                ..EncodeV4Options::default()
             },
         )
         .expect("primitive columns encode"),
         primitive_wire,
     );
     assert_eq!(
-        decode_with_options(primitive_wire, &DecodeStreamOptions::default())
+        decode_value_v4(primitive_wire, &DecodeStreamOptions::default())
             .expect("primitive columns decode")
             .to_json_value(),
         primitive,
@@ -313,12 +313,12 @@ fn extension_options_pin_shared_primitive_and_child_table_wires() {
         let wire = fixture["input"].as_str().expect("wire").trim_end();
         let expected = &fixture["expected"];
         assert_eq!(
-            decode_with_options(wire, &DecodeStreamOptions::default())
+            decode_value_v4(wire, &DecodeStreamOptions::default())
                 .unwrap_or_else(|error| panic!("{}: {error}", fixture["name"]))
                 .to_json_value(),
             *expected,
         );
-        assert!(decode_with_options(
+        assert!(decode_value_v4(
             wire,
             &DecodeStreamOptions {
                 object_array_columns: false,
@@ -328,7 +328,7 @@ fn extension_options_pin_shared_primitive_and_child_table_wires() {
         .is_err());
     }
     for fixture in corpus["errors"].as_array().expect("errors") {
-        let error = decode_with_options(
+        let error = decode_value_v4(
             fixture["input"].as_str().expect("invalid wire"),
             &DecodeStreamOptions::default(),
         )
@@ -339,11 +339,11 @@ fn extension_options_pin_shared_primitive_and_child_table_wires() {
 
     let fixture = &corpus["encodings"][0];
     assert_eq!(
-        encode_with_options(
+        encode_v4(
             &Value::from_json_value(fixture["value"].clone()),
-            EncodeOptions {
+            EncodeV4Options {
                 object_array_columns: true,
-                ..EncodeOptions::default()
+                ..EncodeV4Options::default()
             },
         )
         .expect("child tables encode"),
@@ -355,7 +355,7 @@ fn extension_options_pin_shared_primitive_and_child_table_wires() {
 }
 
 #[test]
-fn extensions_decode_value_identically_through_the_event_stream() {
+fn v4_extensions_decode_value_identically_through_the_event_stream() {
     let primitive_corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../corpus/wire-efficiency/primitive-array-columns.json"
     ))
@@ -412,7 +412,7 @@ fn extensions_decode_value_identically_through_the_event_stream() {
 }
 
 #[test]
-fn cyclic_fixture_is_literal_without_opt_in_and_deterministic_with_it() {
+fn v4_cyclic_fixture_is_literal_without_opt_in_and_deterministic_with_it() {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../corpus/wire-efficiency/cyclic-discriminated-arrays.json"
     ))
@@ -421,13 +421,13 @@ fn cyclic_fixture_is_literal_without_opt_in_and_deterministic_with_it() {
     let wire = fixture["input"].as_str().expect("wire").trim_end();
 
     assert_eq!(
-        decode_with_options(wire, &DecodeStreamOptions::default())
+        decode_value_v4(wire, &DecodeStreamOptions::default())
             .expect("literal cyclic metadata")
             .to_json_value(),
         fixture["canonicalLiteral"],
     );
     assert_eq!(
-        decode_with_options(
+        decode_value_v4(
             wire,
             &DecodeStreamOptions {
                 cyclic_discriminated_arrays: true,
@@ -439,11 +439,11 @@ fn cyclic_fixture_is_literal_without_opt_in_and_deterministic_with_it() {
         fixture["expected"],
     );
     assert_eq!(
-        encode_with_options(
+        encode_v4(
             &Value::from_json_value(fixture["expected"].clone()),
-            EncodeOptions {
+            EncodeV4Options {
                 cyclic_discriminated_arrays: true,
-                ..EncodeOptions::default()
+                ..EncodeV4Options::default()
             },
         )
         .expect("cyclic graph encode"),
@@ -452,14 +452,14 @@ fn cyclic_fixture_is_literal_without_opt_in_and_deterministic_with_it() {
 }
 
 #[test]
-fn toonl_truncation_and_depth_results_are_exact() {
+fn v4_toonl_truncation_and_depth_results_are_exact() {
     let value = Value::from_json_value(json!({
         "people": { "ada": { "name": "Ada" }, "linus": { "name": "Linus" } }
     }));
-    let wire = encode_with_options(&value, EncodeOptions::default()).expect("encode");
+    let wire = encode_v4(&value, EncodeV4Options::default()).expect("v4 encode");
     assert_eq!(wire, "people[2:]{name}:\n  ada: Ada\n  linus: Linus");
     assert_eq!(
-        decode_with_options(
+        decode_value_v4(
             &format!("# generated\n{wire}"),
             &DecodeStreamOptions::default()
         )
@@ -486,7 +486,7 @@ fn toonl_truncation_and_depth_results_are_exact() {
     );
 
     assert_eq!(
-        detect_truncation_with_options(
+        detect_truncation_v4(
             "# users\n[2:]{name}:\n  ada: Ada",
             &DecodeStreamOptions::default(),
         )
@@ -503,11 +503,11 @@ fn toonl_truncation_and_depth_results_are_exact() {
 
     let nested = Value::from_json_value(json!({ "a": { "b": { "c": 1 } } }));
     assert_eq!(
-        encode_with_options(
+        encode_v4(
             &nested,
-            EncodeOptions {
+            EncodeV4Options {
                 max_depth: 1,
-                ..EncodeOptions::default()
+                ..EncodeV4Options::default()
             },
         )
         .expect_err("encode depth guard")
@@ -515,7 +515,7 @@ fn toonl_truncation_and_depth_results_are_exact() {
         "maximum nesting depth exceeded (maxDepth 1)",
     );
     assert_eq!(
-        decode_with_options(
+        decode_value_v4(
             "a:\n  b:\n    c: 1",
             &DecodeStreamOptions {
                 max_depth: 1,
@@ -639,11 +639,11 @@ proptest! {
     #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
 
     #[test]
-    fn encode_then_decode_preserves_the_value(json in document_strategy()) {
+    fn encode_v4_then_decode_v4_preserves_the_value(json in document_strategy()) {
         let value = Value::from_json_value(json);
-        let wire = encode_with_options(&value, EncodeOptions::default()).expect("encode");
-        let decoded = decode_with_options(&wire, &DecodeStreamOptions::default())
-            .expect("decode of self-produced wire")
+        let wire = encode_v4(&value, EncodeV4Options::default()).expect("v4 encode");
+        let decoded = decode_value_v4(&wire, &DecodeStreamOptions::default())
+            .expect("v4 decode of self-produced wire")
             .to_json_value();
         prop_assert!(
             json_model_eq(&decoded, &value.to_json_value()),

@@ -341,8 +341,8 @@ struct FixtureCase {
     expected: Json,
     should_error: bool,
     /// Cases naming decoder/encoder options the CLI does not expose (strict,
-    /// indent, expandPaths, …). tq is never asked to honour them, so its exit
-    /// code says nothing about the case and only the crash guard applies.
+    /// indent, …). tq is never asked to honour them, so its exit code says
+    /// nothing about the case and only the crash guard applies.
     uses_options: bool,
     options: Option<Json>,
 }

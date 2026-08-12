@@ -1,10 +1,10 @@
 import { canonicalKey, needsQuotes, primitiveText, quoteString } from '../lexical.js'
 import { toonError } from '../errors.js'
-import { DEFAULT_MAX_DEPTH } from '../toon_parts/constants.js'
+import { DEFAULT_MAX_DEPTH } from '../constants.js'
 import { isPlainObject, isPrimitive, normalizeValue } from './normalize.js'
 import { applyReplacer, type EncodeReplacer } from './replacer.js'
 import { keyedFields, tabularFields, type FieldNode } from './shape.js'
-import { cyclicDiscriminatedArrayWire } from '../toon_parts/cyclic.js'
+import { cyclicDiscriminatedArrayWire } from '../cyclic.js'
 
 export interface EncodeOptions {
   delimiter?: ',' | '|' | '\t'

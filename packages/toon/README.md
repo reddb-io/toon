@@ -53,9 +53,9 @@ round-trip true
 - `DELIMITERS`, `DEFAULT_DELIMITER`, `rawString`, `escapeString`, and `ToonDecodeError` match the canonical v4.1 helper surface.
 - `detectTruncation(input, { format?: 'toon' | 'toonl', ...parseOptions })` returns a structured completeness report instead of throwing. Complete input reports `complete: true`; truncated TOON arrays, cut nested bodies, TOONL trailer mismatches, and missing TOONL trailers report `kind`, `line`, `declared`, `actual`, and `message`.
 
-Pre-v4 dotted-key expansion and the former permissive codec live only at the explicit `@reddb-io/toon/legacy` subpath. New code should not import it.
+There is one codec. The pre-v4 engine and the `@reddb-io/toon/legacy` subpath that published it are gone; dotted keys are literal keys, and `decode`/`encode` are the whole decode and encode surface.
 
-Strict mode is on by default. It enforces the official TOON error checklist; pass `{ strict: false }` only when you intentionally want legacy recovery behavior.
+Strict mode is on by default. It enforces the official TOON error checklist; pass `{ strict: false }` only when you intentionally want the relaxed recovery behaviour of upstream's non-strict mode.
 
 ### Experimental Decode Reviver
 
@@ -124,7 +124,7 @@ person:
 round-trip true
 ```
 
-- `strict` is on by default. Turning it off keeps legacy last-write-wins recovery for duplicate keys.
+- `strict` is on by default. Turning it off takes the last write for a duplicate key instead of raising.
 
 ```js
 import { decode } from '@reddb-io/toon'

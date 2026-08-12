@@ -1,1 +1,0 @@
-error: line 3: array count mismatch
