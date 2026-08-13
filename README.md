@@ -11,11 +11,11 @@
 
 ---
 
-## Attribution
+## Original project and our laboratory
 
-This is not the original TOON project. The TOON format was created by [Johann Schopplich](https://github.com/johannschopplich) — if you want to learn about or use TOON itself, follow the official repository at [github.com/toon-format/toon](https://github.com/toon-format/toon) and the official docs at [toonformat.dev](https://toonformat.dev).
+TOON was created by [Johann Schopplich](https://github.com/johannschopplich). The [official toon-format project](https://github.com/toon-format/toon) and [toonformat.dev](https://toonformat.dev) are the normative authorities for the format.
 
-This repository is the toolset that [RedDB](https://reddb.io) built on top of TOON for day-to-day use: a TypeScript library (`@reddb-io/toon`), a Rust crate, the `tq` CLI, the TOONL streaming extension, and opt-in RedDB extensions. Full credit goes to Johann and the toon-format team for the original format and spec.
+This repository is [RedDB](https://reddb.io)'s practical laboratory. It follows the official format while exploring and shipping the libraries, command-line tools, streaming support, and opt-in extensions needed by RedDB's own production workflows. It is not the original project and is not endorsed by upstream.
 
 ---
 
@@ -27,7 +27,7 @@ TOONL is the append-only stream form: one record per line, header once, and opti
 
 The root README is a hub, not the normative spec. Use these documents for detail:
 
-This repository tracks the official **TOON v4.1** specification as its baseline
+This repository pins the official **TOON v4.1.1** specification as its baseline
 and layers a set of opt-in extensions on top of it.
 
 - [Official TOON baseline](docs/toon-official-spec.md): the pinned upstream release, API boundaries, frontier status, and executable evidence.
@@ -35,6 +35,19 @@ and layers a set of opt-in extensions on top of it.
 - [TOONL RedDB spec](docs/toonl-reddb-spec.md): append-only stream grammar and reader/writer behavior.
 - [v4.1 migration notes](docs/migration-v4.md): TypeScript and Rust cutovers from the retired pre-v4 baseline, with observable before/after behavior.
 - [Design-history proposals](docs/proposals/): the design history behind each extension — including the mechanisms the official spec absorbed at v4.1.
+
+---
+
+## Command-line tools
+
+- **`toon`** is the drop-in converter. Its TypeScript and Rust front ends are compatible with the pinned upstream v4.1.1 package and CLI contract.
+- **`tq`** is the advanced jq-style query and transformation tool. It reads TOON, JSON, YAML, and TOONL and can emit TOON, JSON, or TOONL.
+
+## Verified compatibility
+
+Compatibility here is deliberately scoped and executable. The `toon` implementations pass the vendored upstream package and CLI compatibility gates, share byte-for-byte JavaScript/Rust CLI goldens, and are checked for Rust↔TypeScript encoder parity against the pinned v4.1.1 baseline. See the [pinned compatibility record](docs/toon-official-spec.md) and [options inventory](docs/options-parity-v4.1.1.md).
+
+`tq` does **not** claim universal jq equivalence. Its relationship to jq 1.7.1 is verified by a vendored parity corpus, a documented [divergence ledger](docs/tq-jq-parity.md#divergence-ledger), and [`tq jq-check`](docs/tq-jq-parity.md#the-compatibility-decision), which emits a machine-readable compatibility classification for a particular filter and option set.
 
 ---
 
@@ -111,13 +124,12 @@ Details: [`packages/toon`](packages/toon), [TOON spec companion](docs/toon-offic
 
 ### `reddb-io-toon` — Rust crate
 
-The Rust library behind the CLI and a standalone crate for services that want TOON without shelling out. It provides the parser, serializer, ordered document model, lazy tabular arrays, truncation detector, JSON bridges, and TOONL reader/writer utilities used by `tq`.
+The Rust library behind the CLIs and a standalone crate for services that want TOON without shelling out. It provides the parser, serializer, ordered document model, event decoder, truncation detector, JSON bridges, and TOONL reader/writer utilities used by `toon` and `tq`.
 
 Use it for Rust pipelines that need canonical TOON output, bounded parsing for untrusted input, or append-only TOONL streams that can be checked and resumed.
 
-```toml
-[dependencies]
-reddb-io-toon = "0.20"
+```bash
+cargo add reddb-io-toon
 ```
 
 ```rust
@@ -167,9 +179,11 @@ Details: [`crates/toon`](crates/toon), [decoder and encoder options](docs/toon-o
 
 ### `tq` — CLI
 
-A jq-style command-line tool for inspecting data at the terminal. It queries TOON, JSON, YAML input, and TOONL rows with familiar field/index filters; converts between TOON, TOONL, and JSON; checks TOON or TOONL for truncation; and closes or trims append-only streams.
+An advanced jq-style command-line tool for querying and transforming data at the terminal. It queries TOON, JSON, YAML input, and TOONL rows; converts between TOON, TOONL, and JSON; checks TOON or TOONL for truncation; and closes or trims append-only streams.
 
-Use it as the fast path for shell pipelines: query a model response, turn JSON/YAML into compact TOON for a prompt, convert record streams to TOONL, or verify that a stream ended cleanly.
+The shipped language includes `def` functions with closures and bounded recursion, paths and recursive descent, assignments, string interpolation and `@formats` such as `@json` and `@csv`, and `--arg`/`--argjson` bindings. The [language catalog](docs/tq-language.md) marks every builtin as supported, deferred, or never; the jq parity record above documents the precise compatibility boundary.
+
+Use it in shell pipelines to query a model response, turn JSON/YAML into compact TOON for a prompt, convert record streams to TOONL, or verify that a stream ended cleanly.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/reddb-io/toon/main/install.sh | sh
@@ -207,7 +221,7 @@ Update in place — `tq upgrade` resolves the latest release, verifies the downl
 ```bash
 tq upgrade            # no-op when already current
 tq upgrade --check    # exit 0 up to date, exit 1 update available
-tq upgrade 0.12.0     # pin a version
+tq upgrade 0.28.2     # pin a version
 ```
 
 It honours the same knobs as the installer: `TQ_CHANNEL` (`stable`/`next`), `TQ_VERSION` (a pin, which the positional argument overrides), and `GITHUB_TOKEN`. Upgrading needs write permission on the directory holding the binary; without it, `tq` says so and points at the installer. On Windows a running `tq.exe` cannot be overwritten, so upgrade renames it aside before writing the new one and cleans the leftover up on the next run.
@@ -228,7 +242,7 @@ Declarative syntax highlighting for `.toon` and `.toonl` files, plus `toon`/`too
 
 Use it when reading or writing TOON documents, TOONL streams, or the spec documents in [`docs/`](docs/) inside VS Code.
 
-One-liner from a GitHub release (the `.vsix` ships as a release asset from the next stable release onward):
+The stable v0.28.2 release already includes the `.vsix` as a release asset:
 
 ```bash
 curl -fsSL https://github.com/reddb-io/toon/releases/latest/download/reddb-toon.vsix -o /tmp/reddb-toon.vsix && code --install-extension /tmp/reddb-toon.vsix
@@ -301,7 +315,7 @@ pnpm install
 pnpm -r test
 ```
 
-The Rust workspace contains `crates/toon` (`reddb-io-toon`) and `crates/tq` (`reddb-io-tq`). The pnpm workspace contains `packages/toon` (`@reddb-io/toon`). Release automation keeps all three on the same version.
+The Rust workspace contains `crates/toon` (`reddb-io-toon`) and `crates/tq` (`reddb-io-tq`). The pnpm workspace contains `packages/toon` (`@reddb-io/toon`) and `packages/vscode-toon` (`reddb-toon`). Release automation keeps both Rust crates, the npm package, and the extension on the same version.
 
 ## License
 
