@@ -35,6 +35,7 @@ done < <(workspace_member_paths)
 # anchoring on the two-space indent keeps this away from any nested version.
 sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/toon/package.json
 sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/toon-rpc/package.json
+sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/multi-rpc/package.json
 sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/toon-rpc-mcp/package.json
 sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/toon-rpc-acp/package.json
 sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" package.json

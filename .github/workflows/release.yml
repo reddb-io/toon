@@ -646,6 +646,7 @@ jobs:
 
           publish_npm_pkg "@reddb-io/toon"
           publish_npm_pkg "@reddb-io/toon-rpc"
+          publish_npm_pkg "@reddb-io/multi-rpc"
           publish_npm_pkg "@reddb-io/toon-rpc-mcp"
           publish_npm_pkg "@reddb-io/toon-rpc-acp"
 
@@ -761,18 +762,20 @@ jobs:
           npm install --ignore-scripts \
             "@reddb-io/toon@${VERSION}" \
             "@reddb-io/toon-rpc@${VERSION}" \
+            "@reddb-io/multi-rpc@${VERSION}" \
             "@reddb-io/toon-rpc-mcp@${VERSION}" \
             "@reddb-io/toon-rpc-acp@${VERSION}"
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict'
           import { VERSION, decode, encode } from '@reddb-io/toon'
-          import { Server } from '@reddb-io/toon-rpc'
-          import { MultiRpc } from '@reddb-io/toon-rpc/multi'
+          import { MultiRpc, Server } from '@reddb-io/multi-rpc'
+          import { MultiRpc as SubpathMultiRpc } from '@reddb-io/toon-rpc/multi'
           assert.equal(VERSION, process.env.VERSION)
           const value = decode('name: Ada')
           assert.deepEqual(value, { name: 'Ada' })
           assert.equal(encode(value), 'name: Ada')
           const server = new Server()
+          assert.equal(MultiRpc, SubpathMultiRpc)
           server.register('echo', async (params) => params)
           const multi = new MultiRpc(server)
           const response = await multi.handle('{"jsonrpc":"2.0","method":"echo","params":{"name":"Ada"},"id":1}')

@@ -28,6 +28,7 @@ WORKSPACE_VERSION="$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)"
 DEP_VERSION="$(sed -n 's|reddb-io-toon = { path = "../toon", version = "\([^"]*\)".*|\1|p' crates/tq/Cargo.toml | sort -u)"
 NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/toon/package.json)"
 RPC_NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/toon-rpc/package.json)"
+MULTI_RPC_NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/multi-rpc/package.json)"
 MCP_NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/toon-rpc-mcp/package.json)"
 ACP_NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/toon-rpc-acp/package.json)"
 ROOT_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' package.json)"
@@ -43,7 +44,7 @@ if [[ "$WORKSPACE_VERSION" != "$NPM_VERSION" ]]; then
   echo "version drift: workspace=${WORKSPACE_VERSION} @reddb-io/toon=${NPM_VERSION:-<missing>}" >&2
   exit 1
 fi
-for package_version in "$RPC_NPM_VERSION" "$MCP_NPM_VERSION" "$ACP_NPM_VERSION"; do
+for package_version in "$RPC_NPM_VERSION" "$MULTI_RPC_NPM_VERSION" "$MCP_NPM_VERSION" "$ACP_NPM_VERSION"; do
   if [[ "$WORKSPACE_VERSION" != "$package_version" ]]; then
     echo "version drift: workspace=${WORKSPACE_VERSION} toon-rpc npm package=${package_version:-<missing>}" >&2
     exit 1

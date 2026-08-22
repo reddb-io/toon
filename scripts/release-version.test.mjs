@@ -69,6 +69,7 @@ const versionFixturePaths = [
   'packages/toon/dist/version.d.ts',
   'packages/toon/package.json',
   'packages/toon-rpc/package.json',
+  'packages/multi-rpc/package.json',
   'packages/toon-rpc-mcp/package.json',
   'packages/toon-rpc-acp/package.json',
   'packages/toon/src/version.ts',
@@ -145,6 +146,7 @@ test('workspace versioning keeps source, generated output, crates, and manifests
   assert.equal(JSON.parse(text(directory, 'package.json')).version, '9.8.7')
   assert.equal(JSON.parse(text(directory, 'packages/toon/package.json')).version, '9.8.7')
   assert.equal(JSON.parse(text(directory, 'packages/toon-rpc/package.json')).version, '9.8.7')
+  assert.equal(JSON.parse(text(directory, 'packages/multi-rpc/package.json')).version, '9.8.7')
   assert.equal(JSON.parse(text(directory, 'packages/toon-rpc-mcp/package.json')).version, '9.8.7')
   assert.equal(JSON.parse(text(directory, 'packages/toon-rpc-acp/package.json')).version, '9.8.7')
   assert.equal(JSON.parse(text(directory, 'packages/vscode-toon/package.json')).version, '9.8.7')
@@ -274,7 +276,7 @@ test('stable releases document v4.1 and close only after public clean-room verif
   assert.match(manual, /name: Capture release-time upstream drift/)
   assert.match(manual, /name: Verify exact-commit CI/)
   assert.match(manual, /name: Verify public artifacts from clean consumers/)
-  for (const packageName of ['toon', 'toon-rpc', 'toon-rpc-mcp', 'toon-rpc-acp']) {
+  for (const packageName of ['toon', 'toon-rpc', 'multi-rpc', 'toon-rpc-mcp', 'toon-rpc-acp']) {
     assert.match(manual, new RegExp(`"@reddb-io/${packageName}@\\$\\{VERSION\\}"`))
   }
   assert.match(manual, /cargo install --version "\$\{VERSION\}" reddb-io-tq/)

@@ -106,12 +106,12 @@ MIT
 
 ## Multi-protocol: JSON-RPC 2.0 and TOON-RPC on one endpoint
 
-`MultiRpc` wraps a `Server` and answers each request in the dialect it arrived
-in — the same detection rules as the Rust `reddb_io_toon_rpc::multi` module:
+Install the dedicated `@reddb-io/multi-rpc` package. `MultiRpc` wraps a
+`Server` and answers each request in the dialect it arrived in — the same
+detection rules as the Rust `reddb_io_toon_rpc::multi` module:
 
 ```ts
-import { Server } from '@reddb-io/toon-rpc';
-import { MultiRpc } from '@reddb-io/toon-rpc/multi';
+import { MultiRpc, Server } from '@reddb-io/multi-rpc';
 
 const server = new Server();
 server.register('add', async ([a, b]) => a + b);
@@ -122,6 +122,9 @@ await multi.handle('{"jsonrpc":"2.0","method":"add","params":[2,3],"id":1}');
 await multi.handle('toonrpc: "1.0"\nmethod: add\nparams[2]: 2,3\nid: 1');
 // → toonrpc: "1.0" / result: 5 / id: 1
 ```
+
+The `@reddb-io/toon-rpc/multi` subpath remains available for compatibility
+with `0.29.3` consumers.
 
 ## dualDialectStream: an ndJsonStream that speaks both dialects
 

@@ -1,0 +1,52 @@
+{
+  "name": "@reddb-io/multi-rpc",
+  "version": "0.29.3",
+  "description": "Multi-protocol RPC dispatcher for JSON-RPC 2.0 and TOON-RPC 1.0.",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "multi-rpc",
+    "json-rpc",
+    "toon-rpc",
+    "rpc",
+    "toon"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/reddb-io/toon",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reddb-io/toon.git",
+    "directory": "packages/multi-rpc"
+  },
+  "bugs": {
+    "url": "https://github.com/reddb-io/toon/issues"
+  },
+  "dependencies": {
+    "@reddb-io/toon": "workspace:*",
+    "@reddb-io/toon-rpc": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "typescript": "5.9.2"
+  }
+}
