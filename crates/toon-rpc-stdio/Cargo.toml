@@ -1,0 +1,17 @@
+[package]
+name = "toon-rpc-stdio"
+version = "0.1.0"
+description = "TOON-RPC stdio transport"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+toon-rpc = { path = "../toon-rpc" }
+tokio = { version = "1", features = ["io-util", "macros"] }
+bytes = "1"
+futures = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"

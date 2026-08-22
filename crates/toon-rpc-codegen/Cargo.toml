@@ -1,0 +1,21 @@
+[package]
+name = "toon-rpc-codegen"
+version = "0.1.0"
+description = "TOON-RPC code generator (IDL → Rust + TypeScript)"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = "2"
+serde_json = "1"
+
+[[bin]]
+name = "toon-rpc-gen"
+path = "src/main.rs"
