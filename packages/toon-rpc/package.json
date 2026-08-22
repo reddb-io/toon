@@ -9,13 +9,21 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js"
     },
-    "/server": {
-      "types": "./dist/server.d.ts",
-      "import": "./dist/server.js"
+    "./websocket": {
+      "types": "./dist/websocket.d.ts",
+      "import": "./dist/websocket.js"
+    },
+    "./sse": {
+      "types": "./dist/sse.d.ts",
+      "import": "./dist/sse.js"
+    },
+    "./tcp": {
+      "types": "./dist/tcp.d.ts",
+      "import": "./dist/tcp.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -49,7 +57,9 @@
   },
   "devDependencies": {
     "@types/node": "22.10.2",
-    "typescript": "5.9.2"
+    "@types/ws": "^8.5.10",
+    "typescript": "5.9.2",
+    "ws": "^8.16.0"
   },
   "peerDependencies": {
     "@reddb-io/toon": ">=0.28"
