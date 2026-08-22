@@ -1033,6 +1033,140 @@ dependencies = [
 ]
 
 [[package]]
+name = "reddb-io-toon-rpc"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "reddb-io-toon",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-test",
+]
+
+[[package]]
+name = "reddb-io-toon-rpc-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "reddb-io-toon-rpc",
+ "reddb-io-toon-rpc-stdio",
+ "tokio",
+]
+
+[[package]]
+name = "reddb-io-toon-rpc-codegen"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "reddb-io-toon",
+ "serde_json",
+ "syn 2.0.119",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "reddb-io-toon-rpc-examples"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "reddb-io-toon-rpc",
+ "reddb-io-toon-rpc-http",
+ "reddb-io-toon-rpc-tcp",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "reddb-io-toon-rpc-http"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "reddb-io-toon-rpc",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+]
+
+[[package]]
+name = "reddb-io-toon-rpc-longpolling"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "parking_lot",
+ "reddb-io-toon-rpc",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+]
+
+[[package]]
+name = "reddb-io-toon-rpc-sse"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "parking_lot",
+ "reddb-io-toon-rpc",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+]
+
+[[package]]
+name = "reddb-io-toon-rpc-stdio"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "futures",
+ "reddb-io-toon-rpc",
+ "tokio",
+ "tokio-test",
+]
+
+[[package]]
+name = "reddb-io-toon-rpc-tcp"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "reddb-io-toon-rpc",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+]
+
+[[package]]
+name = "reddb-io-toon-rpc-ws"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "http",
+ "hyper",
+ "hyper-util",
+ "reddb-io-toon-rpc",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "reddb-io-tq"
 version = "0.28.2"
 dependencies = [
@@ -1480,140 +1614,6 @@ dependencies = [
  "log",
  "tokio",
  "tungstenite",
-]
-
-[[package]]
-name = "toon-rpc"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "reddb-io-toon",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
- "tokio-test",
-]
-
-[[package]]
-name = "toon-rpc-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "tokio",
- "toon-rpc",
- "toon-rpc-stdio",
-]
-
-[[package]]
-name = "toon-rpc-codegen"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "reddb-io-toon",
- "serde_json",
- "syn 2.0.119",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "toon-rpc-examples"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "serde_json",
- "tokio",
- "toon-rpc",
- "toon-rpc-http",
- "toon-rpc-tcp",
-]
-
-[[package]]
-name = "toon-rpc-http"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
- "serde_json",
- "tokio",
- "tokio-test",
- "toon-rpc",
-]
-
-[[package]]
-name = "toon-rpc-longpolling"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
- "parking_lot",
- "serde_json",
- "tokio",
- "tokio-test",
- "toon-rpc",
-]
-
-[[package]]
-name = "toon-rpc-sse"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
- "parking_lot",
- "serde_json",
- "tokio",
- "tokio-test",
- "toon-rpc",
-]
-
-[[package]]
-name = "toon-rpc-stdio"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "futures",
- "tokio",
- "tokio-test",
- "toon-rpc",
-]
-
-[[package]]
-name = "toon-rpc-tcp"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "serde_json",
- "tokio",
- "tokio-test",
- "toon-rpc",
-]
-
-[[package]]
-name = "toon-rpc-ws"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "futures",
- "http",
- "hyper",
- "hyper-util",
- "serde_json",
- "tokio",
- "tokio-test",
- "tokio-tungstenite",
- "toon-rpc",
 ]
 
 [[package]]

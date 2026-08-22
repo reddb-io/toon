@@ -555,8 +555,19 @@ jobs:
           # Lockstep order (ADR 0003): the library first, then the crate
           # that depends on it. `cargo publish` itself waits for the crate
           # it published to be visible in the index.
+          # reddb-io-toon-rpc-* crates depend on reddb-io-toon, so they publish after.
           publish_one reddb-io-toon
           publish_one reddb-io-tq
+          publish_one reddb-io-toon-rpc
+          publish_one reddb-io-toon-rpc-stdio
+          publish_one reddb-io-toon-rpc-http
+          publish_one reddb-io-toon-rpc-sse
+          publish_one reddb-io-toon-rpc-tcp
+          publish_one reddb-io-toon-rpc-ws
+          publish_one reddb-io-toon-rpc-longpolling
+          publish_one reddb-io-toon-rpc-codegen
+          publish_one reddb-io-toon-rpc-cli
+          publish_one reddb-io-toon-rpc-examples
 
   publish-npm:
     name: Publish @reddb-io/toon to npm
@@ -612,18 +623,27 @@ jobs:
           # a trusted publisher on npmjs.com and this job gets `id-token: write`.
           # tee instead of capture: output streams live, and stays on disk for
           # the idempotent-case grep below.
-          if GITHUB_ACTIONS='' pnpm publish --filter @reddb-io/toon --access public --tag "${TAG}" --no-git-checks 2>&1 | tee publish.log; then
-            :
-          elif grep -qE "cannot publish over|previously published|already exists" publish.log; then
-            echo "  @reddb-io/toon@${VERSION} already on npm — skipping publish"
-          else
-            exit 1
-          fi
+          # Lockstep order: publish the codec (`@reddb-io/toon`) first, then
+          # the dependent package (`@reddb-io/toon-rpc`).
+          publish_npm_pkg() {
+            local pkg="$1"
+            echo "==> publish ${pkg}@${VERSION}"
+            if GITHUB_ACTIONS='' pnpm publish --filter "${pkg}" --access public --tag "${TAG}" --no-git-checks 2>&1 | tee publish.log; then
+              :
+            elif grep -qE "cannot publish over|previously published|already exists" publish.log; then
+              echo "  ${pkg}@${VERSION} already on npm — skipping publish"
+            else
+              exit 1
+            fi
 
-          # Success is what the registry serves, not what the client printed —
-          # the v0.1.0 cut 404'd for minutes after a genuine publish (issue #59).
-          bash scripts/verify-published.sh npm "@reddb-io/toon" "${VERSION}"
-          echo "@reddb-io/toon@${VERSION} published and verified on npm (dist-tag ${TAG})"
+            # Success is what the registry serves, not what the client printed —
+            # the v0.1.0 cut 404'd for minutes after a genuine publish (issue #59).
+            bash scripts/verify-published.sh npm "${pkg}" "${VERSION}"
+            echo "${pkg}@${VERSION} published and verified on npm (dist-tag ${TAG})"
+          }
+
+          publish_npm_pkg "@reddb-io/toon"
+          publish_npm_pkg "@reddb-io/toon-rpc"
 
   upstream-drift:
     name: Capture release-time upstream drift
