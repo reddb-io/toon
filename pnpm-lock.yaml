@@ -49,6 +49,35 @@ importers:
         specifier: ^8.16.0
         version: 8.21.3
 
+  packages/toon-rpc-acp:
+    dependencies:
+      '@reddb-io/toon':
+        specifier: workspace:*
+        version: link:../toon
+    devDependencies:
+      '@types/node':
+        specifier: 22.10.2
+        version: 22.10.2
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/toon-rpc-mcp:
+    dependencies:
+      '@reddb-io/toon':
+        specifier: workspace:*
+        version: link:../toon
+      '@reddb-io/toon-rpc':
+        specifier: workspace:*
+        version: link:../toon-rpc
+    devDependencies:
+      '@types/node':
+        specifier: 22.10.2
+        version: 22.10.2
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
   packages/vscode-toon: {}
 
 packages:

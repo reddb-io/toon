@@ -69,6 +69,10 @@ export class Server {
 
   async handle(raw: Uint8Array): Promise<Uint8Array> {
     const text = new TextDecoder().decode(raw);
+    return this.handleText(text);
+  }
+
+  async handleText(text: string): Promise<Uint8Array> {
     const toonValue = decode(text);
     const req = toonValue as unknown as Request | Request[];
 

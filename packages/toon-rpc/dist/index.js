@@ -18,6 +18,9 @@ export class Server {
     }
     async handle(raw) {
         const text = new TextDecoder().decode(raw);
+        return this.handleText(text);
+    }
+    async handleText(text) {
         const toonValue = decode(text);
         const req = toonValue;
         const responses = await this.dispatch(req);
