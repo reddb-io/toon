@@ -21,53 +21,104 @@ export class Server {
         return this.handleText(text);
     }
     async handleText(text) {
-        const toonValue = decode(text);
-        const req = toonValue;
-        const responses = await this.dispatch(req);
-        if (responses.length === 0) {
-            return new Uint8Array(0);
+        let value;
+        try {
+            value = decode(text);
         }
-        const response = responses.length === 1 ? responses[0] : responses;
-        const toonOutput = encode(response);
-        return new TextEncoder().encode(toonOutput);
-    }
-    async dispatch(req) {
-        const requests = Array.isArray(req) ? req : [req];
+        catch (err) {
+            const message = err instanceof Error ? err.message : 'Parse error';
+            return encodeResponse({
+                toonrpc: TOONRPC_VERSION,
+                error: { code: -32700, message: `Parse error: ${message}` },
+                id: null,
+            });
+        }
+        const isBatch = Array.isArray(value);
+        const entries = isBatch ? value : [value];
+        if (entries.length === 0) {
+            return encodeResponse({
+                toonrpc: TOONRPC_VERSION,
+                error: { code: -32600, message: 'Invalid Request: empty batch' },
+                id: null,
+            });
+        }
         const responses = [];
-        for (const r of requests) {
-            if (r.id === undefined || r.id === null) {
-                continue;
-            }
-            const handler = this.methods.get(r.method);
-            if (!handler) {
-                responses.push({
-                    toonrpc: TOONRPC_VERSION,
-                    error: { code: -32601, message: 'Method not found' },
-                    id: r.id,
-                });
-                continue;
-            }
-            try {
-                const result = await handler(r.params, r.id);
-                responses.push({
-                    toonrpc: TOONRPC_VERSION,
-                    result,
-                    id: r.id,
-                });
-            }
-            catch (err) {
-                responses.push({
-                    toonrpc: TOONRPC_VERSION,
-                    error: {
-                        code: -32603,
-                        message: err instanceof Error ? err.message : 'Internal error',
-                    },
-                    id: r.id,
-                });
-            }
+        for (const entry of entries) {
+            const response = await this.dispatchEntry(entry);
+            if (response !== undefined)
+                responses.push(response);
         }
-        return responses;
+        // All entries were notifications — nothing goes back on the wire.
+        if (responses.length === 0)
+            return new Uint8Array(0);
+        const payload = isBatch ? responses : responses[0];
+        return new TextEncoder().encode(encode(payload));
     }
+    /**
+     * Dispatch one already-parsed request entry.
+     *
+     * Returns the Response to send back, or `undefined` for a notification —
+     * a request whose `id` is ABSENT. A present-but-`null` id is still an id
+     * (discouraged, but legal), so it earns a response. Notifications run their
+     * handler; only the answer is withheld, and a notification for an unknown
+     * method or a throwing handler is dropped silently, as the spec requires.
+     */
+    async dispatchEntry(entry) {
+        if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+            return {
+                toonrpc: TOONRPC_VERSION,
+                error: { code: -32600, message: 'Invalid Request: not an object' },
+                id: null,
+            };
+        }
+        const record = entry;
+        const isNotification = !('id' in record) || record.id === undefined;
+        const id = typeof record.id === 'string' || typeof record.id === 'number' ? record.id : null;
+        if (typeof record.method !== 'string') {
+            if (isNotification)
+                return undefined;
+            return {
+                toonrpc: TOONRPC_VERSION,
+                error: { code: -32600, message: 'Invalid Request: missing method' },
+                id,
+            };
+        }
+        const handler = this.methods.get(record.method);
+        if (!handler) {
+            if (isNotification)
+                return undefined;
+            return {
+                toonrpc: TOONRPC_VERSION,
+                error: { code: -32601, message: 'Method not found' },
+                id,
+            };
+        }
+        try {
+            const result = await handler((record.params ?? {}), id);
+            if (isNotification)
+                return undefined;
+            return { toonrpc: TOONRPC_VERSION, result, id };
+        }
+        catch (err) {
+            if (isNotification)
+                return undefined;
+            if (err instanceof RpcError) {
+                return {
+                    toonrpc: TOONRPC_VERSION,
+                    error: { code: err.code, message: err.message, ...(err.data === undefined ? {} : { data: err.data }) },
+                    id,
+                };
+            }
+            return {
+                toonrpc: TOONRPC_VERSION,
+                error: { code: -32603, message: err instanceof Error ? err.message : 'Internal error' },
+                id,
+            };
+        }
+    }
+}
+function encodeResponse(response) {
+    return new TextEncoder().encode(encode(response));
 }
 export class Client {
     transport;
