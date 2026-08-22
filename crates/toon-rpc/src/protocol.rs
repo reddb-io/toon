@@ -1,8 +1,10 @@
 use super::{Error, Id, Method, Params, Value};
 
+pub const TOONRPC_VERSION: &str = "1.0";
+
 #[derive(Debug, Clone)]
 pub struct Request {
-    pub jsonrpc: String,
+    pub toonrpc: String,
     pub method: Method,
     pub params: Params,
     pub id: Id,
@@ -11,7 +13,7 @@ pub struct Request {
 impl Request {
     pub fn new(method: Method, params: Params, id: Id) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            toonrpc: TOONRPC_VERSION.to_string(),
             method,
             params,
             id,
@@ -25,7 +27,7 @@ impl Request {
 
 #[derive(Debug, Clone)]
 pub struct Notification {
-    pub jsonrpc: String,
+    pub toonrpc: String,
     pub method: Method,
     pub params: Params,
 }
@@ -33,7 +35,7 @@ pub struct Notification {
 impl Notification {
     pub fn new(method: Method, params: Params) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            toonrpc: TOONRPC_VERSION.to_string(),
             method,
             params,
         }
@@ -71,7 +73,7 @@ impl Call {
 
 #[derive(Debug, Clone)]
 pub struct Response {
-    pub jsonrpc: String,
+    pub toonrpc: String,
     pub result: Option<Value>,
     pub error: Option<Error>,
     pub id: Id,
@@ -80,7 +82,7 @@ pub struct Response {
 impl Response {
     pub fn success(result: Value, id: Id) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            toonrpc: TOONRPC_VERSION.to_string(),
             result: Some(result),
             error: None,
             id,
@@ -89,7 +91,7 @@ impl Response {
 
     pub fn error(error: Error, id: Id) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            toonrpc: TOONRPC_VERSION.to_string(),
             result: None,
             error: Some(error),
             id,

@@ -30,7 +30,7 @@ All messages are valid TOON documents. The protocol reuses JSON-RPC 2.0 semantic
 
 ```toon
 {
-  jsonrpc: "2.0"
+  toonrpc: "1.0"
   method: "subtract"
   params: [42, 23]
   id: 1
@@ -39,7 +39,7 @@ All messages are valid TOON documents. The protocol reuses JSON-RPC 2.0 semantic
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `jsonrpc` | String | Yes | MUST be exactly `"2.0"` |
+| `toonrpc` | String | Yes | MUST be exactly `"1.0"` |
 | `method` | String | Yes | Name of method to invoke. `rpc.*` prefix reserved. |
 | `params` | Value | No | Method parameters (by-position Array or by-name Object) |
 | `id` | String\|Number\|Null | No | If omitted = notification |
@@ -49,24 +49,24 @@ All messages are valid TOON documents. The protocol reuses JSON-RPC 2.0 semantic
 A Request without `id` is a notification. No response is sent.
 
 ```toon
-{ jsonrpc: "2.0" method: "update" params: [1, 2, 3, 4, 5] }
+{ toonrpc: "1.0" method: "update" params: [1, 2, 3, 4, 5] }
 ```
 
 ### 3.3 Response Object
 
 **Success:**
 ```toon
-{ jsonrpc: "2.0" result: 19 id: 1 }
+{ toonrpc: "1.0" result: 19 id: 1 }
 ```
 
 **Error:**
 ```toon
-{ jsonrpc: "2.0" error: { code: -32601 message: "Method not found" data: null } id: 1 }
+{ toonrpc: "1.0" error: { code: -32601 message: "Method not found" data: null } id: 1 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `jsonrpc` | String | Yes | MUST be `"2.0"` |
+| `toonrpc` | String | Yes | MUST be `"1.0"` |
 | `result` | Value | Yes (success) | Method return value |
 | `error` | Error | Yes (error) | Error object |
 | `id` | Any | Yes | Matches request `id`, or `null` if parse error |
@@ -102,9 +102,9 @@ A Request without `id` is a notification. No response is sent.
 
 ```toon
 [
-  { jsonrpc: "2.0" method: "sum" params: [1, 2, 4] id: "1" }
-  { jsonrpc: "2.0" method: "notify_hello" params: [7] }
-  { jsonrpc: "2.0" method: "subtract" params: [42, 23] id: "2" }
+  { toonrpc: "1.0" method: "sum" params: [1, 2, 4] id: "1" }
+  { toonrpc: "1.0" method: "notify_hello" params: [7] }
+  { toonrpc: "1.0" method: "subtract" params: [42, 23] id: "2" }
 ]
 ```
 
@@ -118,12 +118,12 @@ SSE allows servers to push events to clients over HTTP-like transports.
 
 **Subscribe method:**
 ```toon
-{ jsonrpc: "2.0" method: "rpc.sse.subscribe" params: { event: "onUpdate" } id: 1 }
+{ toonrpc: "1.0" method: "rpc.sse.subscribe" params: { event: "onUpdate" } id: 1 }
 ```
 
 **Event push:**
 ```toon
-{ jsonrpc: "2.0" method: "rpc.sse.event" params: { event: "onUpdate" data: { value: 42 } } }
+{ toonrpc: "1.0" method: "rpc.sse.event" params: { event: "onUpdate" data: { value: 42 } } }
 ```
 
 ### 4.2 Subscriptions
@@ -132,17 +132,17 @@ Long-lived subscriptions with explicit unsubscribe.
 
 **Subscribe:**
 ```toon
-{ jsonrpc: "2.0" method: "rpc.subscribe" params: { method: "events.onValue" } id: 1 }
+{ toonrpc: "1.0" method: "rpc.subscribe" params: { method: "events.onValue" } id: 1 }
 ```
 
 **Response:**
 ```toon
-{ jsonrpc: "2.0" result: { subscriptionId: "abc123" } id: 1 }
+{ toonrpc: "1.0" result: { subscriptionId: "abc123" } id: 1 }
 ```
 
 **Unsubscribe:**
 ```toon
-{ jsonrpc: "2.0" method: "rpc.unsubscribe" params: { subscriptionId: "abc123" } id: 2 }
+{ toonrpc: "1.0" method: "rpc.unsubscribe" params: { subscriptionId: "abc123" } id: 2 }
 ```
 
 ## 5. IDL (`.toonrpc`)
