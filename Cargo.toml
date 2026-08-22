@@ -3,7 +3,7 @@ members = ["crates/toon", "crates/tq", "crates/reddb-io-toon-rpc", "crates/reddb
 resolver = "2"
 
 [workspace.package]
-version = "0.29.3"
+version = "0.29.4"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/reddb-io/toon"
