@@ -1,7 +1,7 @@
+use reddb_io_toon_rpc::{ClientTransport, Dispatcher, RpcError};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
-use reddb_io_toon_rpc::{ClientTransport, Dispatcher, RpcError};
 
 /// WebSocket server
 pub struct WsServer {
@@ -36,10 +36,8 @@ impl WsServer {
     }
 }
 
-async fn handle_ws_connection<S>(
-    ws: tokio_tungstenite::WebSocketStream<S>,
-    dispatcher: Dispatcher,
-) where
+async fn handle_ws_connection<S>(ws: tokio_tungstenite::WebSocketStream<S>, dispatcher: Dispatcher)
+where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
     use futures::{SinkExt, StreamExt};
@@ -68,7 +66,7 @@ async fn handle_ws_connection<S>(
             }
             Ok(WsMessage::Binary(data)) => {
                 let response = match dispatcher.dispatch(&data) {
-                    Ok(bytes) => WsMessage::Binary(bytes.into()),
+                    Ok(bytes) => WsMessage::Binary(bytes),
                     Err(e) => {
                         let err = serde_json::json!({
                             "toonrpc": "1.0",
@@ -92,7 +90,11 @@ async fn handle_ws_connection<S>(
 /// WebSocket client transport
 pub struct WsClient {
     stream: tokio::sync::Mutex<
-        Option<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>,
+        Option<
+            tokio_tungstenite::WebSocketStream<
+                tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+            >,
+        >,
     >,
 }
 
@@ -118,7 +120,7 @@ impl ClientTransport for WsClient {
 
         let msg = match String::from_utf8(data.clone()) {
             Ok(s) => WsMessage::Text(s),
-            Err(_) => WsMessage::Binary(data.into()),
+            Err(_) => WsMessage::Binary(data),
         };
         ws.send(msg)
             .await
@@ -152,9 +154,7 @@ mod tests {
     #[tokio::test]
     async fn test_ws_request_response() {
         let mut dispatcher = Dispatcher::new();
-        dispatcher.register("echo", |_params, _id| {
-            Ok(serde_json::json!("hello back"))
-        });
+        dispatcher.register("echo", |_params, _id| Ok(serde_json::json!("hello back")));
 
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -176,7 +176,7 @@ mod tests {
                 "echo".to_string(),
                 reddb_io_toon_rpc::types::Params::ByPosition(vec![]),
                 reddb_io_toon_rpc::types::Id::Number(1),
-            ))
+            )),
         );
         let bytes = reddb_io_toon_rpc::to_wire(&request).unwrap();
         client.send(bytes).await.unwrap();

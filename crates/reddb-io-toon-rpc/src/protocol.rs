@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use super::types::{Id, Params, Value};
 use super::error::Error;
+use super::types::{Id, Params, Value};
+use serde::{Deserialize, Serialize};
 
 pub const TOONRPC_VERSION: &str = "1.0";
 

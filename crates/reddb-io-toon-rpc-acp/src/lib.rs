@@ -51,9 +51,8 @@ pub mod types;
 
 pub use http::serve_http;
 pub use types::{
-    ACP_API_VERSION, Agent, AgentError, AgentMessage, AgentRun,
-    AgentRunInput, AgentSummary, MessagePart, MessagePartKind, MessagePartStatus,
-    RunStatus,
+    Agent, AgentError, AgentMessage, AgentRun, AgentRunInput, AgentSummary, MessagePart,
+    MessagePartKind, MessagePartStatus, RunStatus, ACP_API_VERSION,
 };
 
 use std::sync::Arc;

@@ -2,9 +2,9 @@
 //!
 //! Run with: cargo run --bin calculator_server
 
-use std::net::SocketAddr;
 use reddb_io_toon_rpc::{Dispatcher, Params};
 use reddb_io_toon_rpc_http::HttpService;
+use std::net::SocketAddr;
 
 fn extract_numbers(params: &Params) -> Result<Vec<f64>, reddb_io_toon_rpc::RpcError> {
     match params {

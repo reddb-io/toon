@@ -1,5 +1,5 @@
-use reddb_io_toon_rpc::types::{Id, Params};
 use reddb_io_toon_rpc::protocol::{Call, Message, Request, Response};
+use reddb_io_toon_rpc::types::{Id, Params};
 use reddb_io_toon_rpc::{from_wire, to_wire};
 
 #[test]

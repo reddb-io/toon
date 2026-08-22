@@ -41,7 +41,7 @@ jobs:
       - name: Test
         run: cargo test --workspace
       - name: Coverage
-        run: cargo llvm-cov --workspace --fail-under-lines 95
+        run: bash scripts/check-rust-coverage.sh
 
   node:
     name: Node

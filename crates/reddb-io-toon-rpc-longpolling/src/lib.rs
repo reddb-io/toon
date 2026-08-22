@@ -1,7 +1,8 @@
-use http_body_util::BodyExt;
 use http::{Request, Response, StatusCode};
+use http_body_util::BodyExt;
 use hyper::body::Incoming;
 use parking_lot::Mutex;
+use reddb_io_toon_rpc::Dispatcher;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -9,7 +10,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
-use reddb_io_toon_rpc::Dispatcher;
 
 /// Maps poll_id -> waiting channels
 type PendingPolls = Arc<Mutex<HashMap<String, Vec<oneshot::Sender<String>>>>>;
@@ -32,7 +32,7 @@ impl LongPollingServer {
     pub fn push_event(&self, poll_id: &str, data: String) {
         let mut pending = self.pending.lock();
         if let Some(waiters) = pending.get_mut(poll_id) {
-            let drained: Vec<_> = waiters.drain(..).collect();
+            let drained = std::mem::take(waiters);
             for waiter in drained {
                 let _ = waiter.send(data.clone());
             }
@@ -70,7 +70,9 @@ impl LongPollingServer {
 impl hyper::service::Service<Request<Incoming>> for LongPollingServer {
     type Response = Response<String>;
     type Error = Infallible;
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
+    >;
 
     fn call(&self, req: Request<Incoming>) -> Self::Future {
         let dispatcher = self.dispatcher.clone();
@@ -118,7 +120,7 @@ async fn handle_rpc(
         }
     };
 
-    match dispatcher.dispatch(&body.to_vec()) {
+    match dispatcher.dispatch(&body) {
         Ok(bytes) => Ok(Response::builder()
             .status(StatusCode::OK)
             .header("Content-Type", "application/toon")
@@ -201,7 +203,7 @@ async fn handle_notify(
     let waiters: Vec<_> = {
         let mut pending = pending.lock();
         if let Some(waiters) = pending.get_mut(&poll_id) {
-            waiters.drain(..).collect()
+            std::mem::take(waiters)
         } else {
             vec![]
         }

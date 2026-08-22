@@ -5,9 +5,11 @@ use crate::error::{Error, ErrorCode, RpcError};
 use crate::protocol::{Call, Message, Response};
 use crate::types::{Id, Params, Value};
 
+type Handler = dyn Fn(Params, Id) -> Result<Value, RpcError> + Send + Sync;
+
 #[derive(Clone)]
 pub struct Dispatcher {
-    methods: Arc<HashMap<String, Arc<dyn Fn(Params, Id) -> Result<Value, RpcError> + Send + Sync>>>,
+    methods: Arc<HashMap<String, Arc<Handler>>>,
 }
 
 impl Dispatcher {
@@ -51,9 +53,7 @@ impl Dispatcher {
 
     fn handle_message(&self, msg: Message) -> Result<Vec<Response>, RpcError> {
         match msg {
-            Message::Single(Call::Request(req)) => {
-                Ok(vec![self.handle_request(req)])
-            }
+            Message::Single(Call::Request(req)) => Ok(vec![self.handle_request(req)]),
             Message::Single(Call::Notification(notif)) => {
                 drop(notif);
                 Ok(vec![])

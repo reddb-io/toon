@@ -7,8 +7,8 @@
 //!
 //! Messages must end with an empty line.
 
-use std::io::{self, BufRead, Write};
 use reddb_io_toon_rpc::from_wire;
+use std::io::{self, BufRead, Write};
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let stdin = io::stdin();

@@ -1,8 +1,8 @@
+use reddb_io_toon_rpc::{ClientTransport, Dispatcher, RpcError};
 use std::net::SocketAddr;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
-use reddb_io_toon_rpc::{ClientTransport, Dispatcher, RpcError};
 
 /// TCP server that handles TOON-RPC requests line-by-line (newline-delimited)
 pub struct TcpServer {
@@ -132,7 +132,9 @@ impl ClientTransport for TcpClient {
         let mut line = String::new();
         loop {
             line.clear();
-            let n = reader.read_line(&mut line).await
+            let n = reader
+                .read_line(&mut line)
+                .await
                 .map_err(|e| RpcError::TransportError(e.to_string()))?;
             if n == 0 {
                 break;
@@ -265,7 +267,9 @@ impl ClientTransport for UnixClient {
         let mut line = String::new();
         loop {
             line.clear();
-            let n = reader.read_line(&mut line).await
+            let n = reader
+                .read_line(&mut line)
+                .await
                 .map_err(|e| RpcError::TransportError(e.to_string()))?;
             if n == 0 {
                 break;
@@ -286,9 +290,7 @@ mod tests {
     #[tokio::test]
     async fn test_tcp_request_response() {
         let mut dispatcher = Dispatcher::new();
-        dispatcher.register("echo", |_params, _id| {
-            Ok(serde_json::json!("hello back"))
-        });
+        dispatcher.register("echo", |_params, _id| Ok(serde_json::json!("hello back")));
 
         // Bind to a random port
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -312,9 +314,11 @@ mod tests {
         let request_msg = reddb_io_toon_rpc::protocol::Message::Single(
             reddb_io_toon_rpc::protocol::Call::Request(reddb_io_toon_rpc::protocol::Request::new(
                 "echo".to_string(),
-                reddb_io_toon_rpc::types::Params::ByPosition(vec![serde_json::Value::String("hello".to_string())]),
+                reddb_io_toon_rpc::types::Params::ByPosition(vec![serde_json::Value::String(
+                    "hello".to_string(),
+                )]),
                 reddb_io_toon_rpc::types::Id::Number(1),
-            ))
+            )),
         );
         let bytes = reddb_io_toon_rpc::to_wire(&request_msg).unwrap();
         eprintln!("Request TOON: {}", String::from_utf8_lossy(&bytes));

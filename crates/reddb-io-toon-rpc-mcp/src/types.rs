@@ -93,11 +93,20 @@ pub struct DiscoverMeta {
 /// Per-request `_meta` envelope
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RequestMeta {
-    #[serde(rename = "io.modelcontextprotocol/protocolVersion", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "io.modelcontextprotocol/protocolVersion",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub protocol_version: Option<String>,
-    #[serde(rename = "io.modelcontextprotocol/clientInfo", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "io.modelcontextprotocol/clientInfo",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub client_info: Option<ClientInfo>,
-    #[serde(rename = "io.modelcontextprotocol/clientCapabilities", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "io.modelcontextprotocol/clientCapabilities",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub client_capabilities: Option<ClientCapabilities>,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, Value>,
@@ -158,7 +167,11 @@ pub enum Content {
     #[serde(rename = "text")]
     Text { text: String },
     #[serde(rename = "image")]
-    Image { data: String, #[serde(rename = "mimeType")] mime_type: String },
+    Image {
+        data: String,
+        #[serde(rename = "mimeType")]
+        mime_type: String,
+    },
     #[serde(rename = "resource")]
     Resource { resource: Value },
 }

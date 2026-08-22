@@ -15,9 +15,7 @@
 //! }
 //! ```
 
-use reddb_io_toon_rpc_mcp::{
-    CallToolResponse, McpError, McpResult, McpService, ServerInfo, Tool,
-};
+use reddb_io_toon_rpc_mcp::{CallToolResponse, McpError, McpResult, McpService, ServerInfo, Tool};
 use serde_json::{json, Value};
 
 struct CalculatorMcp;
@@ -102,7 +100,10 @@ fn tokenize(s: &str) -> McpResult<Vec<Token>> {
                     break;
                 }
             }
-            tokens.push(Token::Number(n.parse().map_err(|_| McpError::InvalidParams("bad number".into()))?));
+            tokens.push(Token::Number(
+                n.parse()
+                    .map_err(|_| McpError::InvalidParams("bad number".into()))?,
+            ));
         } else if "+-*/".contains(c) {
             tokens.push(Token::Op(c));
             chars.next();
@@ -175,8 +176,12 @@ fn eval_rpn(rpn: &[Token]) -> McpResult<f64> {
         match t {
             Token::Number(n) => stack.push(*n),
             Token::Op(op) => {
-                let b = stack.pop().ok_or_else(|| McpError::InvalidParams("missing operand".into()))?;
-                let a = stack.pop().ok_or_else(|| McpError::InvalidParams("missing operand".into()))?;
+                let b = stack
+                    .pop()
+                    .ok_or_else(|| McpError::InvalidParams("missing operand".into()))?;
+                let a = stack
+                    .pop()
+                    .ok_or_else(|| McpError::InvalidParams("missing operand".into()))?;
                 let r = match op {
                     '+' => a + b,
                     '-' => a - b,
@@ -194,7 +199,9 @@ fn eval_rpn(rpn: &[Token]) -> McpResult<f64> {
             _ => return Err(McpError::InvalidParams("invalid token in rpn".into())),
         }
     }
-    stack.pop().ok_or_else(|| McpError::InvalidParams("empty expression".into()))
+    stack
+        .pop()
+        .ok_or_else(|| McpError::InvalidParams("empty expression".into()))
 }
 
 fn main() {

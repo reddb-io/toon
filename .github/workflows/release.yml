@@ -568,6 +568,8 @@ jobs:
           publish_one reddb-io-toon-rpc-codegen
           publish_one reddb-io-toon-rpc-cli
           publish_one reddb-io-toon-rpc-examples
+          publish_one reddb-io-toon-rpc-mcp
+          publish_one reddb-io-toon-rpc-acp
 
   publish-npm:
     name: Publish @reddb-io/toon to npm
@@ -644,6 +646,8 @@ jobs:
 
           publish_npm_pkg "@reddb-io/toon"
           publish_npm_pkg "@reddb-io/toon-rpc"
+          publish_npm_pkg "@reddb-io/toon-rpc-mcp"
+          publish_npm_pkg "@reddb-io/toon-rpc-acp"
 
   upstream-drift:
     name: Capture release-time upstream drift
@@ -754,25 +758,48 @@ jobs:
           mkdir "$CLEAN_ROOT/js"
           cd "$CLEAN_ROOT/js"
           npm init -y >/dev/null
-          npm install --ignore-scripts "@reddb-io/toon@${VERSION}"
+          npm install --ignore-scripts \
+            "@reddb-io/toon@${VERSION}" \
+            "@reddb-io/toon-rpc@${VERSION}" \
+            "@reddb-io/toon-rpc-mcp@${VERSION}" \
+            "@reddb-io/toon-rpc-acp@${VERSION}"
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict'
           import { VERSION, decode, encode } from '@reddb-io/toon'
+          import { Server } from '@reddb-io/toon-rpc'
+          import { MultiRpc } from '@reddb-io/toon-rpc/multi'
           assert.equal(VERSION, process.env.VERSION)
           const value = decode('name: Ada')
           assert.deepEqual(value, { name: 'Ada' })
           assert.equal(encode(value), 'name: Ada')
+          const server = new Server()
+          server.register('echo', async (params) => params)
+          const multi = new MultiRpc(server)
+          const response = await multi.handle('{"jsonrpc":"2.0","method":"echo","params":{"name":"Ada"},"id":1}')
+          assert.deepEqual(JSON.parse(new TextDecoder().decode(response)), {
+            jsonrpc: '2.0',
+            result: { name: 'Ada' },
+            id: 1,
+          })
+          await import('@reddb-io/toon-rpc-mcp')
+          await import('@reddb-io/toon-rpc-acp')
           NODE
 
           mkdir -p "$CLEAN_ROOT/rust/src"
           cd "$CLEAN_ROOT/rust"
-          printf '[package]\nname = "release-consumer"\nversion = "0.0.0"\nedition = "2021"\n\n[dependencies]\nreddb-io-toon = "=%s"\n' "$VERSION" > Cargo.toml
+          printf '[package]\nname = "release-consumer"\nversion = "0.0.0"\nedition = "2021"\n\n[dependencies]\nreddb-io-toon = "=%s"\nreddb-io-toon-rpc = "=%s"\nreddb-io-toon-rpc-stdio = "=%s"\nreddb-io-toon-rpc-http = "=%s"\nreddb-io-toon-rpc-sse = "=%s"\nreddb-io-toon-rpc-tcp = "=%s"\nreddb-io-toon-rpc-ws = "=%s"\nreddb-io-toon-rpc-longpolling = "=%s"\nreddb-io-toon-rpc-mcp = "=%s"\nreddb-io-toon-rpc-acp = "=%s"\n' "$VERSION" "$VERSION" "$VERSION" "$VERSION" "$VERSION" "$VERSION" "$VERSION" "$VERSION" "$VERSION" "$VERSION" > Cargo.toml
           cat > src/main.rs <<'RUST'
           use reddb_io_toon::{decode, encode};
+          use reddb_io_toon_rpc::{multi::MultiRpc, Dispatcher};
 
           fn main() {
               let value = decode("name: Ada").expect("decode public crate");
               assert_eq!(encode(&value).expect("encode public crate"), "name: Ada");
+              let multi = MultiRpc::new(Dispatcher::new());
+              let response = multi
+                  .handle(br#"{"jsonrpc":"2.0","method":"missing","id":1}"#, None)
+                  .expect("dispatch JSON-RPC through MultiRpc");
+              assert!(std::str::from_utf8(&response).expect("UTF-8 response").contains("jsonrpc"));
           }
           RUST
           cargo run

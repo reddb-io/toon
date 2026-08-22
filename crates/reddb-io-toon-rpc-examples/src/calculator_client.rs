@@ -3,18 +3,19 @@
 //! Usage: cargo run --bin calculator_client <method> <a> <b>
 //! Example: cargo run --bin calculator_client add 5 3
 
+use reddb_io_toon_rpc::{
+    from_wire, to_wire, ClientTransport, Id, Params, Request, RpcError, TOONRPC_VERSION,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
-use reddb_io_toon_rpc::{ClientTransport, Id, Params, Request, RpcError, TOONRPC_VERSION, from_wire, to_wire};
 
 /// Simple HTTP client using tokio directly
 struct SimpleHttpClient {
     addr: SocketAddr,
     stream: Arc<Mutex<Option<TcpStream>>>,
-    response_buffer: Arc<Mutex<Vec<u8>>>,
 }
 
 impl SimpleHttpClient {
@@ -25,7 +26,6 @@ impl SimpleHttpClient {
         Ok(Self {
             addr,
             stream: Arc::new(Mutex::new(Some(stream))),
-            response_buffer: Arc::new(Mutex::new(Vec::new())),
         })
     }
 }
@@ -138,7 +138,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         id: Id::Number(1),
     };
 
-    let msg = reddb_io_toon_rpc::protocol::Message::Single(reddb_io_toon_rpc::protocol::Call::Request(request));
+    let msg = reddb_io_toon_rpc::protocol::Message::Single(
+        reddb_io_toon_rpc::protocol::Call::Request(request),
+    );
     let bytes = to_wire(&msg)?;
     transport.send(bytes).await?;
 
@@ -146,15 +148,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let parsed = from_wire(&response)?;
 
     match parsed {
-        reddb_io_toon_rpc::protocol::Message::SingleResponse(resp) => match (resp.result, resp.error) {
-            (Some(result), None) => {
-                println!("{} {} {} = {}", method, a, b, result);
+        reddb_io_toon_rpc::protocol::Message::SingleResponse(resp) => {
+            match (resp.result, resp.error) {
+                (Some(result), None) => {
+                    println!("{} {} {} = {}", method, a, b, result);
+                }
+                (None, Some(error)) => {
+                    eprintln!("Error: {}", error.message);
+                }
+                _ => eprintln!("Invalid response"),
             }
-            (None, Some(error)) => {
-                eprintln!("Error: {}", error.message);
-            }
-            _ => eprintln!("Invalid response"),
-        },
+        }
         _ => eprintln!("Unexpected response type"),
     }
 

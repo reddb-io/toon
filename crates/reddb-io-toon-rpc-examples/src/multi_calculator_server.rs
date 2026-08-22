@@ -71,7 +71,10 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut stdout = io::stdout();
     let mut stderr = io::stderr();
 
-    writeln!(stderr, "[multi-rpc] server ready — accepts JSON-RPC 2.0 and TOON-RPC 1.0")?;
+    writeln!(
+        stderr,
+        "[multi-rpc] server ready — accepts JSON-RPC 2.0 and TOON-RPC 1.0"
+    )?;
     stderr.flush()?;
 
     let mut buffer = String::new();
@@ -88,9 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Multi-line JSON or TOON waits for the empty-line terminator.
         let is_single_line_json = {
             let trimmed = buffer.trim();
-            trimmed.starts_with('{')
-                && trimmed.ends_with('}')
-                && !trimmed.contains('\n')
+            trimmed.starts_with('{') && trimmed.ends_with('}') && !trimmed.contains('\n')
         };
 
         if line.is_empty() || is_single_line_json {
@@ -98,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let (protocol, response) = multi
                 .handle_with_protocol(request.as_bytes(), None)
                 .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                    Box::new(std::io::Error::other(e.to_string()))
                 })?;
 
             let protocol_name = match protocol {

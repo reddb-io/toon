@@ -10,12 +10,10 @@
 //! Responses are JSON by default. Clients that send `Accept: application/toon`
 //! get TOON-encoded responses (the wire format that powers toon-rpc).
 
-use crate::types::{
-    Agent, AgentMessage, AgentRun, AgentRunInput, AgentSummary, MessagePart, ACP_API_VERSION,
-};
-use crate::{AcpResult, AcpService};
-use http_body_util::BodyExt;
+use crate::types::{AgentRun, AgentRunInput, AgentSummary, ACP_API_VERSION};
+use crate::AcpService;
 use http::{Request, Response, StatusCode};
+use http_body_util::BodyExt;
 use hyper::body::Incoming;
 use parking_lot::Mutex;
 use reddb_io_toon::Value as ToonValue;
@@ -37,7 +35,10 @@ pub async fn serve_http<S: AcpService>(
 
     let listener = TcpListener::bind(addr).await?;
     println!("[toon-rpc-acp] HTTP server listening on http://{}", addr);
-    println!("[toon-rpc-acp] try: curl -H 'Accept: application/toon' http://{}/agents", addr);
+    println!(
+        "[toon-rpc-acp] try: curl -H 'Accept: application/toon' http://{}/agents",
+        addr
+    );
 
     loop {
         let (stream, _) = listener.accept().await?;

@@ -116,7 +116,11 @@ pub struct AgentSummary {
 }
 
 impl AgentRun {
-    pub fn completed(id: impl Into<String>, agent: impl Into<String>, output: Vec<AgentMessage>) -> Self {
+    pub fn completed(
+        id: impl Into<String>,
+        agent: impl Into<String>,
+        output: Vec<AgentMessage>,
+    ) -> Self {
         Self {
             agent_run_id: id.into(),
             agent_name: agent.into(),
@@ -128,7 +132,12 @@ impl AgentRun {
         }
     }
 
-    pub fn failed(id: impl Into<String>, agent: impl Into<String>, code: i32, msg: impl Into<String>) -> Self {
+    pub fn failed(
+        id: impl Into<String>,
+        agent: impl Into<String>,
+        code: i32,
+        msg: impl Into<String>,
+    ) -> Self {
         Self {
             agent_run_id: id.into(),
             agent_name: agent.into(),

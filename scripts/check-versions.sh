@@ -27,9 +27,13 @@ WORKSPACE_VERSION="$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml)"
 # every declaration must agree, so collapse them and fail on any disagreement.
 DEP_VERSION="$(sed -n 's|reddb-io-toon = { path = "../toon", version = "\([^"]*\)".*|\1|p' crates/tq/Cargo.toml | sort -u)"
 NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/toon/package.json)"
+RPC_NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/toon-rpc/package.json)"
+MCP_NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/toon-rpc-mcp/package.json)"
+ACP_NPM_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' packages/toon-rpc-acp/package.json)"
 ROOT_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' package.json)"
 TS_SOURCE_VERSION="$(sed -n "s|^export const VERSION = '\([^']*\)'.*|\1|p" packages/toon/src/version.ts)"
 JS_DIST_VERSION="$(sed -n "s|^export const VERSION = '\([^']*\)'.*|\1|p" packages/toon/dist/version.js)"
+DTS_DIST_VERSION="$(sed -n 's|^export declare const VERSION = "\([^"]*\)".*|\1|p' packages/toon/dist/version.d.ts)"
 
 if [[ -z "$WORKSPACE_VERSION" || "$WORKSPACE_VERSION" != "$DEP_VERSION" ]]; then
   echo "version drift: workspace=${WORKSPACE_VERSION:-<missing>} tq→toon dep=${DEP_VERSION:-<missing>}" >&2
@@ -39,16 +43,36 @@ if [[ "$WORKSPACE_VERSION" != "$NPM_VERSION" ]]; then
   echo "version drift: workspace=${WORKSPACE_VERSION} @reddb-io/toon=${NPM_VERSION:-<missing>}" >&2
   exit 1
 fi
+for package_version in "$RPC_NPM_VERSION" "$MCP_NPM_VERSION" "$ACP_NPM_VERSION"; do
+  if [[ "$WORKSPACE_VERSION" != "$package_version" ]]; then
+    echo "version drift: workspace=${WORKSPACE_VERSION} toon-rpc npm package=${package_version:-<missing>}" >&2
+    exit 1
+  fi
+done
 if [[ "$WORKSPACE_VERSION" != "$ROOT_VERSION" ]]; then
   echo "version drift: workspace=${WORKSPACE_VERSION} root package.json=${ROOT_VERSION:-<missing>}" >&2
   exit 1
 fi
+
+while read -r member; do
+  [[ -n "$member" ]] || continue
+  manifest="${member}/Cargo.toml"
+  dependency_versions="$(sed -n 's|.*path = .*version = "\([^"]*\)".*|\1|p' "$manifest" | sort -u)"
+  if [[ -n "$dependency_versions" && "$dependency_versions" != "$WORKSPACE_VERSION" ]]; then
+    echo "version drift: workspace=${WORKSPACE_VERSION} ${manifest} path deps=${dependency_versions}" >&2
+    exit 1
+  fi
+done < <(workspace_member_paths)
 if [[ "$WORKSPACE_VERSION" != "$TS_SOURCE_VERSION" ]]; then
   echo "version drift: workspace=${WORKSPACE_VERSION} toon/src/version.ts=${TS_SOURCE_VERSION:-<missing>}" >&2
   exit 1
 fi
 if [[ "$WORKSPACE_VERSION" != "$JS_DIST_VERSION" ]]; then
   echo "version drift: workspace=${WORKSPACE_VERSION} toon/dist/version.js=${JS_DIST_VERSION:-<missing>}" >&2
+  exit 1
+fi
+if [[ "$WORKSPACE_VERSION" != "$DTS_DIST_VERSION" ]]; then
+  echo "version drift: workspace=${WORKSPACE_VERSION} toon/dist/version.d.ts=${DTS_DIST_VERSION:-<missing>}" >&2
   exit 1
 fi
 
