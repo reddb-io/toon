@@ -22,7 +22,9 @@
 import { encode, decode } from '@reddb-io/toon';
 import type { JsonValue } from '@reddb-io/toon';
 import { TOONRPC_VERSION } from './index.js';
-import { JSONRPC_VERSION, type Protocol } from './multi.js';
+
+const JSONRPC_VERSION = '2.0';
+type Protocol = 'jsonrpc' | 'toonrpc';
 
 export interface DualDialectOptions {
   /** Dialect written before the peer has proven one. Default `"json"`. */

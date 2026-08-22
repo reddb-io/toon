@@ -20,7 +20,7 @@
  */
 import { encode, decode } from '@reddb-io/toon';
 import { TOONRPC_VERSION } from './index.js';
-import { JSONRPC_VERSION } from './multi.js';
+const JSONRPC_VERSION = '2.0';
 /**
  * Create a Stream (the ACP SDK shape) over raw byte streams, speaking both
  * dialects. Signature-compatible with `ndJsonStream(output, input)`.
