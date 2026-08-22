@@ -537,6 +537,15 @@ jobs:
           publish_one() {
             local crate="$1"
             echo "==> publish ${crate}@${VERSION}"
+            # First, check if this exact version is already published. This
+            # catches the case where the workspace bumped past an already-uploaded
+            # version (e.g. crate@0.29.0 was uploaded on a previous run; we're
+            # now on 0.29.3 — we should publish 0.29.3, not skip).
+            if curl -fsS --max-time 20 -A "reddb-io/toon release workflow" \
+              "https://crates.io/api/v1/crates/${crate}/${VERSION}" >/dev/null 2>&1; then
+              echo "  ${crate}@${VERSION} already on crates.io — skipping publish"
+              return 0
+            fi
             # tee instead of capture: output streams live, and stays on disk
             # for the idempotent-case grep below.
             if cargo publish --locked --allow-dirty -p "$crate" 2>&1 | tee "publish-${crate}.log"; then
@@ -568,6 +577,8 @@ jobs:
           publish_one reddb-io-toon-rpc-codegen
           publish_one reddb-io-toon-rpc-cli
           publish_one reddb-io-toon-rpc-examples
+          publish_one reddb-io-toon-rpc-mcp
+          publish_one reddb-io-toon-rpc-acp
 
   publish-npm:
     name: Publish @reddb-io/toon to npm
@@ -624,10 +635,18 @@ jobs:
           # tee instead of capture: output streams live, and stays on disk for
           # the idempotent-case grep below.
           # Lockstep order: publish the codec (`@reddb-io/toon`) first, then
-          # the dependent package (`@reddb-io/toon-rpc`).
+          # the dependent packages (`@reddb-io/toon-rpc` and friends).
           publish_npm_pkg() {
             local pkg="$1"
             echo "==> publish ${pkg}@${VERSION}"
+            # First, check if this exact version is already published. pnpm
+            # silently skips publishing if the package version doesn't change,
+            # which would otherwise make us think a publish succeeded when it
+            # didn't run at all.
+            if npm view "${pkg}@${VERSION}" version >/dev/null 2>&1; then
+              echo "  ${pkg}@${VERSION} already on npm — skipping publish"
+              return 0
+            fi
             if GITHUB_ACTIONS='' pnpm publish --filter "${pkg}" --access public --tag "${TAG}" --no-git-checks 2>&1 | tee publish.log; then
               :
             elif grep -qE "cannot publish over|previously published|already exists" publish.log; then
@@ -644,6 +663,8 @@ jobs:
 
           publish_npm_pkg "@reddb-io/toon"
           publish_npm_pkg "@reddb-io/toon-rpc"
+          publish_npm_pkg "@reddb-io/toon-rpc-mcp"
+          publish_npm_pkg "@reddb-io/toon-rpc-acp"
 
   upstream-drift:
     name: Capture release-time upstream drift

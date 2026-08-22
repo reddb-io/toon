@@ -10,6 +10,7 @@
 #   packages/toon/src/version.ts    — the TypeScript source version constant
 #   packages/toon/dist/version.js   — the generated runtime version constant
 #   packages/vscode-toon/package.json — the published VS Code extension
+#   packages/toon-rpc{,-mcp,-acp}/package.json — the published toon-rpc packages
 #   package.json                    — the workspace root, bumped by `pnpm version`
 #
 # Plus a drift guard against what is already published: a committed version
@@ -51,6 +52,16 @@ if [[ "$WORKSPACE_VERSION" != "$JS_DIST_VERSION" ]]; then
   echo "version drift: workspace=${WORKSPACE_VERSION} toon/dist/version.js=${JS_DIST_VERSION:-<missing>}" >&2
   exit 1
 fi
+
+# The toon-rpc npm packages publish in lockstep with the workspace; a manifest
+# left behind is what made the 0.29.x releases ship a partial package set.
+for RPC_PKG in packages/toon-rpc packages/toon-rpc-mcp packages/toon-rpc-acp; do
+  RPC_VERSION="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' "${RPC_PKG}/package.json")"
+  if [[ "$WORKSPACE_VERSION" != "$RPC_VERSION" ]]; then
+    echo "version drift: workspace=${WORKSPACE_VERSION} ${RPC_PKG}=${RPC_VERSION:-<missing>}" >&2
+    exit 1
+  fi
+done
 
 # The VS Code extension carries the base x.y.z only (vsce rejects prerelease
 # suffixes), so it is compared against the workspace version's base.

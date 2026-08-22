@@ -62,6 +62,14 @@ while read -r crate_name; do
   rewrite_lock_version "$crate_name"
 done < <(workspace_member_crate_names)
 
+# The toon-rpc npm packages ship in lockstep with the workspace. They were
+# bumped by hand for 0.29.x and drifted (0.29.0 / 0.29.2 / 0.29.3 across three
+# manifests in one tree), which is exactly the drift this script exists to make
+# impossible. Covered here and asserted in check-versions.sh.
+for rpc_pkg in packages/toon-rpc packages/toon-rpc-mcp packages/toon-rpc-acp; do
+  sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" "${rpc_pkg}/package.json"
+done
+
 # The VS Code extension ships in lockstep too, but vsce and the Marketplace
 # only accept plain x.y.z versions, so prerelease suffixes (-next.N) are
 # stripped down to the base version.
