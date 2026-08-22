@@ -1,17 +1,20 @@
-use super::{Error, Id, Method, Params, Value};
+use serde::{Deserialize, Serialize};
+use super::types::{Id, Params, Value};
+use super::error::Error;
 
 pub const TOONRPC_VERSION: &str = "1.0";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Request {
+    #[serde(rename = "toonrpc")]
     pub toonrpc: String,
-    pub method: Method,
+    pub method: String,
     pub params: Params,
     pub id: Id,
 }
 
 impl Request {
-    pub fn new(method: Method, params: Params, id: Id) -> Self {
+    pub fn new(method: String, params: Params, id: Id) -> Self {
         Self {
             toonrpc: TOONRPC_VERSION.to_string(),
             method,
@@ -25,15 +28,16 @@ impl Request {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Notification {
+    #[serde(rename = "toonrpc")]
     pub toonrpc: String,
-    pub method: Method,
+    pub method: String,
     pub params: Params,
 }
 
 impl Notification {
-    pub fn new(method: Method, params: Params) -> Self {
+    pub fn new(method: String, params: Params) -> Self {
         Self {
             toonrpc: TOONRPC_VERSION.to_string(),
             method,
@@ -42,14 +46,15 @@ impl Notification {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum Call {
     Request(Request),
     Notification(Notification),
 }
 
 impl Call {
-    pub fn method(&self) -> &Method {
+    pub fn method(&self) -> &str {
         match self {
             Call::Request(r) => &r.method,
             Call::Notification(n) => &n.method,
@@ -71,8 +76,9 @@ impl Call {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Response {
+    #[serde(rename = "toonrpc")]
     pub toonrpc: String,
     pub result: Option<Value>,
     pub error: Option<Error>,
@@ -99,7 +105,8 @@ impl Response {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum Message {
     Single(Call),
     Batch(Vec<Call>),

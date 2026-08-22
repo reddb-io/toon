@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum Id {
     Null,
     String(String),
@@ -23,7 +25,8 @@ pub type Value = JsonValue;
 
 pub type Method = String;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum Params {
     ByPosition(Vec<Value>),
     ByName(serde_json::Map<String, Value>),

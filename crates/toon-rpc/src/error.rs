@@ -1,4 +1,7 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+use super::types::Value;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
     ParseError,
     InvalidRequest,
@@ -46,11 +49,12 @@ impl ErrorCode {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Error {
     pub code: ErrorCode,
     pub message: String,
-    pub data: Option<super::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
 }
 
 impl Error {
@@ -70,7 +74,7 @@ impl Error {
         }
     }
 
-    pub fn with_data(code: ErrorCode, data: super::Value) -> Self {
+    pub fn with_data(code: ErrorCode, data: Value) -> Self {
         Self {
             code,
             message: code.message().to_string(),
