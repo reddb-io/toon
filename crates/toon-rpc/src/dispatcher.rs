@@ -23,8 +23,7 @@ impl Dispatcher {
     }
 
     pub fn dispatch(&self, raw: &[u8]) -> Result<Vec<u8>, RpcError> {
-        let msg: Message = serde_json::from_slice(raw)
-            .map_err(|e| RpcError::ParseError(e.to_string()))?;
+        let msg = crate::from_wire(raw)?;
 
         let responses = self.handle_message(msg)?;
 
@@ -33,11 +32,9 @@ impl Dispatcher {
         }
 
         if responses.len() == 1 {
-            serde_json::to_vec(&responses[0])
-                .map_err(|e| RpcError::SerializationError(e.to_string()))
+            crate::to_wire(&Message::SingleResponse(responses[0].clone()))
         } else {
-            serde_json::to_vec(&responses)
-                .map_err(|e| RpcError::SerializationError(e.to_string()))
+            crate::to_wire(&Message::BatchResponse(responses))
         }
     }
 

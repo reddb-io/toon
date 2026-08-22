@@ -1,4 +1,5 @@
-import type { Value } from '@reddb-io/toon';
+import { decode, encode } from '@reddb-io/toon';
+import type { JsonValue } from '@reddb-io/toon';
 
 export const TOONRPC_VERSION = '1.0';
 
@@ -17,7 +18,7 @@ export interface Notification {
 
 export interface ResponseSuccess {
   toonrpc: '1.0';
-  result: Value;
+  result: JsonValue;
   id: Id;
 }
 
@@ -30,11 +31,11 @@ export interface ResponseError {
 export interface ErrorObject {
   code: number;
   message: string;
-  data?: Value;
+  data?: JsonValue;
 }
 
 export type Id = string | number | null;
-export type Params = Value[] | { [key: string]: Value };
+export type Params = JsonValue[] | Record<string, JsonValue>;
 
 export interface Transport {
   send(data: Uint8Array): Promise<void>;
@@ -46,7 +47,7 @@ export class RpcError extends Error {
   constructor(
     public code: number,
     message: string,
-    public data?: Value
+    public data?: JsonValue
   ) {
     super(message);
     this.name = 'RpcError';
@@ -54,7 +55,7 @@ export class RpcError extends Error {
 }
 
 export interface MethodHandler {
-  (params: Params, id: Id): Promise<Value>;
+  (params: Params, id: Id): Promise<JsonValue>;
 }
 
 export class Server {
@@ -68,13 +69,16 @@ export class Server {
 
   async handle(raw: Uint8Array): Promise<Uint8Array> {
     const text = new TextDecoder().decode(raw);
-    const req = JSON.parse(text) as Request | Request[];
+    const toonValue = decode(text);
+    const req = toonValue as unknown as Request | Request[];
 
     const responses = await this.dispatch(req);
     if (responses.length === 0) {
       return new Uint8Array(0);
     }
-    return new TextEncoder().encode(JSON.stringify(responses.length === 1 ? responses[0] : responses));
+    const response = responses.length === 1 ? responses[0] : responses;
+    const toonOutput = encode(response as unknown as JsonValue);
+    return new TextEncoder().encode(toonOutput);
   }
 
   private async dispatch(req: Request | Request[]): Promise<ResponseSuccess[]> {
@@ -92,7 +96,7 @@ export class Server {
           toonrpc: TOONRPC_VERSION,
           error: { code: -32601, message: 'Method not found' },
           id: r.id,
-        });
+        } as unknown as ResponseSuccess);
         continue;
       }
 
@@ -111,7 +115,7 @@ export class Server {
             message: err instanceof Error ? err.message : 'Internal error',
           },
           id: r.id,
-        });
+        } as unknown as ResponseSuccess);
       }
     }
 
@@ -121,11 +125,11 @@ export class Server {
 
 export class Client {
   private idCounter = 0;
-  private pending = new Map<Id, { resolve: (v: Value) => void; reject: (e: Error) => void }>();
+  private pending = new Map<Id, { resolve: (v: JsonValue) => void; reject: (e: Error) => void }>();
 
   constructor(private transport: Transport) {}
 
-  async call(method: string, params: Params): Promise<Value> {
+  async call(method: string, params: Params): Promise<JsonValue> {
     const id = this.idCounter++;
 
     return new Promise((resolve, reject) => {
@@ -138,8 +142,9 @@ export class Client {
         id,
       };
 
+      const toonInput = encode(request as unknown as JsonValue);
       this.transport
-        .send(new TextEncoder().encode(JSON.stringify(request)))
+        .send(new TextEncoder().encode(toonInput))
         .catch((err) => {
           this.pending.delete(id);
           reject(err);
@@ -153,7 +158,8 @@ export class Client {
       const lines = text.split('\n').filter((l) => l.trim());
 
       for (const line of lines) {
-        const resp = JSON.parse(line) as ResponseSuccess | ResponseError;
+        const toonValue = decode(line);
+        const resp = toonValue as unknown as ResponseSuccess | ResponseError;
         const pending = this.pending.get(resp.id);
         if (pending) {
           this.pending.delete(resp.id);
@@ -175,8 +181,11 @@ export class Client {
 export function createStdioTransport(): Transport {
   return {
     async send(data: Uint8Array): Promise<void> {
-      process.stdout.write(new TextDecoder().decode(data));
-      process.stdout.write('\n');
+      const text = new TextDecoder().decode(data);
+      process.stdout.write(text);
+      if (!text.endsWith('\n')) {
+        process.stdout.write('\n');
+      }
     },
     async *recv(): AsyncIterable<Uint8Array> {
       const stdin = process.stdin;

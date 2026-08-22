@@ -30,6 +30,19 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  packages/toon-rpc:
+    dependencies:
+      '@reddb-io/toon':
+        specifier: '>=0.28'
+        version: 0.28.2
+    devDependencies:
+      '@types/node':
+        specifier: 22.10.2
+        version: 22.10.2
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
   packages/vscode-toon: {}
 
 packages:
@@ -222,6 +235,11 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@reddb-io/toon@0.28.2':
+    resolution: {integrity: sha512-KO4+Rs4Lh1/BhIkZTUaC5Hv4K+06ZxY7L9djVYv0IHJl2p7JjxCgAgOahy1S1wDD/At5TdeHR6BGQKdJCf9dOw==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   '@rollup/rollup-android-arm-eabi@4.62.4':
     resolution: {integrity: sha512-RrPokAb7dmbxFoeO3TloqHyOjgye8RkBhSqmp4aJMIex4c9r46ZstPnleDQOq1t46VOVjwIuwNogIqbodV1Vvg==}
@@ -984,6 +1002,8 @@ snapshots:
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
+
+  '@reddb-io/toon@0.28.2': {}
 
   '@rollup/rollup-android-arm-eabi@4.62.4':
     optional: true
