@@ -1,0 +1,22 @@
+[package]
+name = "toon-rpc-ws"
+version = "0.1.0"
+description = "TOON-RPC WebSocket transport"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+toon-rpc = { path = "../toon-rpc" }
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.21"
+futures = "0.3"
+async-trait = "0.1"
+http = "1"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "service"] }
+serde_json = "1"
+
+[dev-dependencies]
+tokio-test = "0.4"
