@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use super::types::Value;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
     ParseError,
     InvalidRequest,
@@ -9,6 +9,22 @@ pub enum ErrorCode {
     InvalidParams,
     InternalError,
     ServerError(i16),
+}
+
+// Serialize as the numeric code so JSON-RPC and TOON-RPC wire formats both
+// carry `-32601` instead of the variant name.
+impl Serialize for ErrorCode {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_i32(self.code())
+    }
+}
+
+impl<'de> Deserialize<'de> for ErrorCode {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let code = i32::deserialize(d)?;
+        ErrorCode::from_code(code)
+            .ok_or_else(|| serde::de::Error::custom(format!("unknown error code: {}", code)))
+    }
 }
 
 impl ErrorCode {

@@ -23,6 +23,10 @@ path = "src/calculator_stdio_server.rs"
 name = "calculator_stdio_client"
 path = "src/calculator_stdio_client.rs"
 
+[[bin]]
+name = "multi_calculator_server"
+path = "src/multi_calculator_server.rs"
+
 [dependencies]
 reddb-io-toon-rpc = { path = "../reddb-io-toon-rpc" }
 reddb-io-toon-rpc-http = { path = "../reddb-io-toon-rpc-http" }
