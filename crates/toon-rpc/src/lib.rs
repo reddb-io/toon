@@ -9,7 +9,7 @@ pub mod types;
 
 pub use client::{Client, ClientTransport};
 pub use dispatcher::Dispatcher;
-pub use error::{Error, ErrorCode, RpcResult};
+pub use error::{Error, ErrorCode, RpcError, RpcResult};
 pub use protocol::{Call, Message, Notification, Request, Response, TOONRPC_VERSION};
 pub use serialization::{from_wire, to_wire};
 pub use types::{Id, Method, Params, Value};

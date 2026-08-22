@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/toon", "crates/tq", "crates/toon-rpc", "crates/toon-rpc-stdio", "crates/toon-rpc-codegen", "crates/toon-rpc-cli"]
+members = ["crates/toon", "crates/tq", "crates/toon-rpc", "crates/toon-rpc-stdio", "crates/toon-rpc-codegen", "crates/toon-rpc-cli", "crates/toon-rpc-http"]
 resolver = "2"
 
 [workspace.package]

@@ -1,17 +1,19 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::error::{Error, ErrorCode, RpcError};
 use crate::protocol::{Call, Message, Response};
 use crate::types::{Id, Params, Value};
 
+#[derive(Clone)]
 pub struct Dispatcher {
-    methods: HashMap<String, Box<dyn Fn(Params, Id) -> Result<Value, RpcError> + Send + Sync>>,
+    methods: Arc<HashMap<String, Arc<dyn Fn(Params, Id) -> Result<Value, RpcError> + Send + Sync>>>,
 }
 
 impl Dispatcher {
     pub fn new() -> Self {
         Self {
-            methods: HashMap::new(),
+            methods: Arc::new(HashMap::new()),
         }
     }
 
@@ -19,7 +21,9 @@ impl Dispatcher {
     where
         F: Fn(Params, Id) -> Result<Value, RpcError> + Send + Sync + 'static,
     {
-        self.methods.insert(method.into(), Box::new(handler));
+        let mut methods = (*self.methods).clone();
+        methods.insert(method.into(), Arc::new(handler));
+        self.methods = Arc::new(methods);
     }
 
     pub fn dispatch(&self, raw: &[u8]) -> Result<Vec<u8>, RpcError> {
