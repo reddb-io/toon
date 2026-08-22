@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use super::types::Value;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
@@ -46,7 +46,7 @@ impl ErrorCode {
             -32601 => Some(ErrorCode::MethodNotFound),
             -32602 => Some(ErrorCode::InvalidParams),
             -32603 => Some(ErrorCode::InternalError),
-            _ if code >= -32099 && code <= -32000 => {
+            _ if (-32099..=-32000).contains(&code) => {
                 Some(ErrorCode::ServerError((code + 32000) as i16))
             }
             _ => None,

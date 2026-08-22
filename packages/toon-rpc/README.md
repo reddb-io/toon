@@ -103,3 +103,38 @@ npm publish --access public
 ## License
 
 MIT
+
+## Multi-protocol: JSON-RPC 2.0 and TOON-RPC on one endpoint
+
+`MultiRpc` wraps a `Server` and answers each request in the dialect it arrived
+in — the same detection rules as the Rust `reddb_io_toon_rpc::multi` module:
+
+```ts
+import { Server } from '@reddb-io/toon-rpc';
+import { MultiRpc } from '@reddb-io/toon-rpc/multi';
+
+const server = new Server();
+server.register('add', async ([a, b]) => a + b);
+const multi = new MultiRpc(server);
+
+await multi.handle('{"jsonrpc":"2.0","method":"add","params":[2,3],"id":1}');
+// → {"jsonrpc":"2.0","result":5,"id":1}
+await multi.handle('toonrpc: "1.0"\nmethod: add\nparams[2]: 2,3\nid: 1');
+// → toonrpc: "1.0" / result: 5 / id: 1
+```
+
+## dualDialectStream: an ndJsonStream that speaks both dialects
+
+`dualDialectStream(output, input)` is signature-compatible with the ACP SDK's
+`ndJsonStream` and returns the same `{ writable, readable }` object-stream
+pair. Each inbound frame is sniffed on its own bytes (`{` opens a one-line
+JSON frame; anything else is a TOON document terminated by a blank line), the
+consumer always sees `jsonrpc: "2.0"` objects, and writes answer in the
+dialect the peer last proved — so a JSON-RPC peer and a TOON-RPC peer can
+share one socket with neither being configured.
+
+```ts
+import { dualDialectStream } from '@reddb-io/toon-rpc/acp-stream';
+
+const stream = dualDialectStream(socketWritable, socketReadable, { preferred: 'toonrpc' });
+```

@@ -52,9 +52,25 @@ const versionFixturePaths = [
   'Cargo.toml',
   'crates/toon/Cargo.toml',
   'crates/tq/Cargo.toml',
+  'crates/reddb-io-toon-rpc/Cargo.toml',
+  'crates/reddb-io-toon-rpc-stdio/Cargo.toml',
+  'crates/reddb-io-toon-rpc-codegen/Cargo.toml',
+  'crates/reddb-io-toon-rpc-cli/Cargo.toml',
+  'crates/reddb-io-toon-rpc-http/Cargo.toml',
+  'crates/reddb-io-toon-rpc-sse/Cargo.toml',
+  'crates/reddb-io-toon-rpc-tcp/Cargo.toml',
+  'crates/reddb-io-toon-rpc-ws/Cargo.toml',
+  'crates/reddb-io-toon-rpc-longpolling/Cargo.toml',
+  'crates/reddb-io-toon-rpc-examples/Cargo.toml',
+  'crates/reddb-io-toon-rpc-mcp/Cargo.toml',
+  'crates/reddb-io-toon-rpc-acp/Cargo.toml',
   'package.json',
   'packages/toon/dist/version.js',
+  'packages/toon/dist/version.d.ts',
   'packages/toon/package.json',
+  'packages/toon-rpc/package.json',
+  'packages/toon-rpc-mcp/package.json',
+  'packages/toon-rpc-acp/package.json',
   'packages/toon/src/version.ts',
   'packages/vscode-toon/package.json',
   'scripts/check-versions.sh',
@@ -128,14 +144,19 @@ test('workspace versioning keeps source, generated output, crates, and manifests
   assert.match(text(directory, 'Cargo.lock'), /name = "reddb-io-tq"\nversion = "9\.8\.7"/)
   assert.equal(JSON.parse(text(directory, 'package.json')).version, '9.8.7')
   assert.equal(JSON.parse(text(directory, 'packages/toon/package.json')).version, '9.8.7')
+  assert.equal(JSON.parse(text(directory, 'packages/toon-rpc/package.json')).version, '9.8.7')
+  assert.equal(JSON.parse(text(directory, 'packages/toon-rpc-mcp/package.json')).version, '9.8.7')
+  assert.equal(JSON.parse(text(directory, 'packages/toon-rpc-acp/package.json')).version, '9.8.7')
   assert.equal(JSON.parse(text(directory, 'packages/vscode-toon/package.json')).version, '9.8.7')
   assert.match(text(directory, 'packages/toon/src/version.ts'), /VERSION = '9\.8\.7'/)
   assert.match(text(directory, 'packages/toon/dist/version.js'), /VERSION = '9\.8\.7'/)
+  assert.match(text(directory, 'packages/toon/dist/version.d.ts'), /VERSION = "9\.8\.7"/)
 })
 
 for (const drift of [
   { name: 'TypeScript source', path: 'packages/toon/src/version.ts' },
   { name: 'generated JavaScript', path: 'packages/toon/dist/version.js' },
+  { name: 'generated declaration', path: 'packages/toon/dist/version.d.ts' },
   { name: 'package manifest', path: 'packages/toon/package.json' },
   { name: 'workspace dependency', path: 'crates/tq/Cargo.toml' },
 ]) {
@@ -253,7 +274,9 @@ test('stable releases document v4.1 and close only after public clean-room verif
   assert.match(manual, /name: Capture release-time upstream drift/)
   assert.match(manual, /name: Verify exact-commit CI/)
   assert.match(manual, /name: Verify public artifacts from clean consumers/)
-  assert.match(manual, /npm install --ignore-scripts "@reddb-io\/toon@\$\{VERSION\}"/)
+  for (const packageName of ['toon', 'toon-rpc', 'toon-rpc-mcp', 'toon-rpc-acp']) {
+    assert.match(manual, new RegExp(`"@reddb-io/${packageName}@\\$\\{VERSION\\}"`))
+  }
   assert.match(manual, /cargo install --version "\$\{VERSION\}" reddb-io-tq/)
   assert.match(manual, /releases\/download\/\$\{TAG\}\/reddb-toon\.vsix/)
   assert.match(manual, /gh issue close "\$CLOSURE_ISSUE"/)

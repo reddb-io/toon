@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use futures::Stream;
 use std::pin::Pin;
-use tokio::io::{AsyncRead, AsyncWrite, stdin, stdout, Stdout, Stdin};
 use std::task::{Context, Poll};
+use tokio::io::{stdin, stdout, AsyncRead, AsyncWrite, Stdin, Stdout};
 
 pub struct StdioTransport {
     input: Stdin,
@@ -34,7 +34,12 @@ pub struct StdioRecv {
 
 impl StdioTransport {
     pub fn split(self) -> (StdioSend, StdioRecv) {
-        (StdioSend { output: self.output }, StdioRecv { input: self.input })
+        (
+            StdioSend {
+                output: self.output,
+            },
+            StdioRecv { input: self.input },
+        )
     }
 }
 
@@ -44,7 +49,7 @@ impl Stream for StdioRecv {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut buf = vec![0u8; 4096];
         let mut read_buf = tokio::io::ReadBuf::new(&mut buf);
-        
+
         match Pin::new(&mut self.input).poll_read(cx, &mut read_buf) {
             Poll::Ready(Ok(())) => {
                 let n = read_buf.filled().len();
@@ -61,15 +66,25 @@ impl Stream for StdioRecv {
 }
 
 impl AsyncWrite for StdioSend {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, std::io::Error>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, std::io::Error>> {
         Pin::new(&mut self.output).poll_write(cx, buf)
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         Pin::new(&mut self.output).poll_flush(cx)
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         Pin::new(&mut self.output).poll_shutdown(cx)
     }
 }

@@ -1,11 +1,11 @@
 use parking_lot::Mutex;
+use reddb_io_toon_rpc::{Dispatcher, RpcError};
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::{channel, Sender};
-use reddb_io_toon_rpc::{Dispatcher, RpcError};
 
 /// Unique ID for each SSE subscription
 pub type SubscriptionId = String;
@@ -63,7 +63,7 @@ impl SseRegistry {
     }
 
     pub fn broadcast(&self, event: SseEvent) {
-        for (_, tx) in self.inner.lock().iter() {
+        for tx in self.inner.lock().values() {
             let _ = tx.try_send(event.clone());
         }
     }
@@ -135,7 +135,9 @@ impl SseServer {
 impl hyper::service::Service<http::Request<hyper::body::Incoming>> for SseServer {
     type Response = http::Response<String>;
     type Error = Infallible;
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
+    >;
 
     fn call(&self, req: http::Request<hyper::body::Incoming>) -> Self::Future {
         let server = self.clone();
@@ -160,16 +162,15 @@ impl hyper::service::Service<http::Request<hyper::body::Incoming>> for SseServer
 /// Build an SSE response that streams events
 fn build_sse_response(server: SseServer) -> http::Response<String> {
     let subscription_id = format!("sub-{}", uuid_simple());
-    let (tx, mut rx) = server.registry.subscribe_with_receiver(subscription_id.clone());
+    let (tx, mut rx) = server
+        .registry
+        .subscribe_with_receiver(subscription_id.clone());
 
     // Spawn task to forward events to SSE stream
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
             // Format SSE event
-            let sse = format!(
-                "event: {}\ndata: {}\n\n",
-                event.event, event.data
-            );
+            let sse = format!("event: {}\ndata: {}\n\n", event.event, event.data);
             println!("[SSE] Sending: {}", sse.trim());
         }
         drop(tx); // keep tx alive in scope
@@ -209,7 +210,7 @@ async fn handle_post(
         }
     };
 
-    match dispatcher.dispatch(&body.to_vec()) {
+    match dispatcher.dispatch(&body) {
         Ok(response) => Ok(http::Response::builder()
             .status(http::StatusCode::OK)
             .header("Content-Type", "application/toon")

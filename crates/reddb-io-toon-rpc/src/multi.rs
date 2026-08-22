@@ -167,9 +167,8 @@ impl MultiRpc {
     // ── JSON-RPC path ─────────────────────────────────────────────────────
 
     fn handle_jsonrpc(&self, raw: &[u8]) -> Result<Vec<u8>, RpcError> {
-        let value: JsonValue = serde_json::from_slice(raw).map_err(|e| {
-            RpcError::ParseError(format!("JSON parse error: {}", e))
-        })?;
+        let value: JsonValue = serde_json::from_slice(raw)
+            .map_err(|e| RpcError::ParseError(format!("JSON parse error: {}", e)))?;
 
         // Batch or single?
         let (entries, is_batch) = if value.is_array() {
@@ -252,7 +251,9 @@ impl MultiRpc {
             id: id.clone(),
         };
 
-        let responses = self.dispatcher.dispatch_message(Message::Single(Call::Request(request)))?;
+        let responses = self
+            .dispatcher
+            .dispatch_message(Message::Single(Call::Request(request)))?;
 
         if is_notification || responses.is_empty() {
             return Ok(None);
@@ -355,10 +356,7 @@ pub(crate) fn json_response_from(resp: Response) -> JsonValue {
         (None, Some(error)) => {
             let mut err = serde_json::Map::new();
             err.insert("code".into(), JsonValue::Number(error.code.code().into()));
-            err.insert(
-                "message".into(),
-                JsonValue::String(error.message.clone()),
-            );
+            err.insert("message".into(), JsonValue::String(error.message.clone()));
             if let Some(data) = error.data {
                 err.insert("data".into(), data);
             }
@@ -391,8 +389,12 @@ mod tests {
                 Params::ByPosition(arr) => arr,
                 _ => return Err(RpcError::InvalidParams("expected array".into())),
             };
-            let a = arr[0].as_i64().ok_or_else(|| RpcError::InvalidParams("a".into()))?;
-            let b = arr[1].as_i64().ok_or_else(|| RpcError::InvalidParams("b".into()))?;
+            let a = arr[0]
+                .as_i64()
+                .ok_or_else(|| RpcError::InvalidParams("a".into()))?;
+            let b = arr[1]
+                .as_i64()
+                .ok_or_else(|| RpcError::InvalidParams("b".into()))?;
             Ok(serde_json::json!(a + b))
         });
         d.register("echo", |params, _id| {
@@ -449,8 +451,16 @@ mod tests {
         let out = multi.handle(raw, None).unwrap();
         let text = std::str::from_utf8(&out).unwrap();
 
-        assert!(text.contains("toonrpc"), "expected TOON marker, got: {}", text);
-        assert!(text.contains("result"), "expected result field, got: {}", text);
+        assert!(
+            text.contains("toonrpc"),
+            "expected TOON marker, got: {}",
+            text
+        );
+        assert!(
+            text.contains("result"),
+            "expected result field, got: {}",
+            text
+        );
 
         // The TOON value should decode back to a Response with result=5
         let parsed = crate::from_wire(&out).unwrap();

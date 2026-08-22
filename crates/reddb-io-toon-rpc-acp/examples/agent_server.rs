@@ -10,9 +10,7 @@
 //!        -H 'Accept: application/toon' \
 //!        -d '{"parts":[{"kind":"text","content_type":"text/plain","content":"hello","status":"done"}]}'
 
-use reddb_io_toon_rpc_acp::{
-    AcpService, Agent, AgentMessage, AgentRun, MessagePart,
-};
+use reddb_io_toon_rpc_acp::{AcpService, Agent, AgentMessage, AgentRun, MessagePart};
 use serde_json::Value;
 use std::net::SocketAddr;
 

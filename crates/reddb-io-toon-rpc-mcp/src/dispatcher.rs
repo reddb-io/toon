@@ -1,8 +1,6 @@
 //! MCP method dispatcher — registers all MCP methods on a toon-rpc Dispatcher.
 
-use crate::types::{
-    DiscoverResponse, ListResponse, MCP_PROTOCOL_VERSION,
-};
+use crate::types::{DiscoverResponse, ListResponse, MCP_PROTOCOL_VERSION};
 use crate::{McpError, McpResult, McpService};
 use reddb_io_toon_rpc::{Dispatcher, Params, RpcError, Value};
 use serde_json::json;
@@ -108,8 +106,7 @@ impl<S: McpService> McpDispatcher<S> {
 
         let svc_for_register2 = svc.clone();
         dispatcher.register("tools/call", move |params, _id| {
-            let name = extract_named_string(&params, "name")
-                .map_err(into_rpc_error)?;
+            let name = extract_named_string(&params, "name").map_err(into_rpc_error)?;
             let arguments = extract_named_value(&params, "arguments").unwrap_or(json!({}));
             Ok(serde_json::to_value(svc_for_register2.call_tool(&name, arguments)).unwrap())
         });
@@ -217,9 +214,7 @@ fn into_rpc_error(e: McpError) -> RpcError {
         McpError::ResourceNotFound(r) => {
             RpcError::InvalidParams(format!("resource not found: {}", r))
         }
-        McpError::PromptNotFound(p) => {
-            RpcError::InvalidParams(format!("prompt not found: {}", p))
-        }
+        McpError::PromptNotFound(p) => RpcError::InvalidParams(format!("prompt not found: {}", p)),
         McpError::InvalidParams(p) => RpcError::InvalidParams(p),
         McpError::Internal(p) => RpcError::InternalError(p),
     }

@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon-rpc",
-  "version": "0.29.2",
+  "version": "0.29.3",
   "description": "TOON-RPC client and server. JSON-RPC 2.0 semantics with TOON serialization.",
   "type": "module",
   "main": "dist/index.js",
@@ -24,6 +24,14 @@
     "./tcp": {
       "types": "./dist/tcp.d.ts",
       "import": "./dist/tcp.js"
+    },
+    "./multi": {
+      "types": "./dist/multi.d.ts",
+      "import": "./dist/multi.js"
+    },
+    "./acp-stream": {
+      "types": "./dist/acp-stream.d.ts",
+      "import": "./dist/acp-stream.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -34,7 +42,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepublishOnly": "tsc -p tsconfig.json"
+    "prepublishOnly": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=18"

@@ -20,6 +20,7 @@ test('the TypeScript package enforces 95% line coverage', () => {
 
 test('CI and AFK validate TypeScript coverage beside Rust coverage', () => {
   const ci = read('.github/workflows/ci.yml')
+  assert.match(ci, /run: bash scripts\/check-rust-coverage\.sh/)
   assert.match(
     ci,
     /- name: TypeScript coverage\s+run: pnpm --filter @reddb-io\/toon test:coverage/,
@@ -28,6 +29,6 @@ test('CI and AFK validate TypeScript coverage beside Rust coverage', () => {
   const validation = read('.red/config.yaml')
   const postDone = validation.match(/post_done:[\s\S]*?landing:/)?.[0]
   assert.ok(postDone, 'AFK validation must declare a post_done moment')
-  assert.match(postDone, /cargo llvm-cov --workspace --fail-under-lines 95/)
+  assert.match(postDone, /bash scripts\/check-rust-coverage\.sh/)
   assert.match(postDone, /pnpm --filter @reddb-io\/toon test:coverage/)
 })

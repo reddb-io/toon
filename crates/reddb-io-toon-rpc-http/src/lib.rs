@@ -1,10 +1,10 @@
-use http_body_util::BodyExt;
 use http::{Request, Response, StatusCode};
+use http_body_util::BodyExt;
 use hyper::body::Incoming;
+use reddb_io_toon_rpc::Dispatcher;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
-use reddb_io_toon_rpc::Dispatcher;
 
 #[derive(Clone)]
 pub struct HttpService {
@@ -47,7 +47,9 @@ impl HttpService {
 impl hyper::service::Service<Request<Incoming>> for HttpService {
     type Response = Response<String>;
     type Error = Infallible;
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
+    >;
 
     fn call(&self, req: Request<Incoming>) -> Self::Future {
         let dispatcher = self.dispatcher.clone();

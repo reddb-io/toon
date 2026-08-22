@@ -39,15 +39,14 @@ pub mod http;
 pub mod stdio;
 pub mod types;
 
-pub use dispatcher::{McpDispatcher, dispatch_mcp};
+pub use dispatcher::{dispatch_mcp, McpDispatcher};
 pub use http::serve_streamable_http;
 pub use stdio::serve_stdio;
 pub use types::{
     CallToolResponse, Capability, ClientCapabilities, ClientInfo, Content, DiscoverMeta,
     DiscoverResponse, Prompt, PromptArgument, RequestMeta, Resource, ServerCapabilities,
-    ServerInfo, ToolsCapability, Tool, FIELD_CLIENT_CAPABILITIES, FIELD_CLIENT_INFO,
-    FIELD_PROTOCOL_VERSION, FIELD_SERVER_INFO, FIELD_SUBSCRIPTION_ID, MCP_NS,
-    MCP_PROTOCOL_VERSION,
+    ServerInfo, Tool, ToolsCapability, FIELD_CLIENT_CAPABILITIES, FIELD_CLIENT_INFO,
+    FIELD_PROTOCOL_VERSION, FIELD_SERVER_INFO, FIELD_SUBSCRIPTION_ID, MCP_NS, MCP_PROTOCOL_VERSION,
 };
 
 use serde_json::Value;

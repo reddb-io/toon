@@ -21,6 +21,8 @@ export interface ResponseError {
     error: ErrorObject;
     id: Id;
 }
+/** A response is exactly one of success or error — never both, never neither. */
+export type Response = ResponseSuccess | ResponseError;
 export interface ErrorObject {
     code: number;
     message: string;
@@ -47,7 +49,16 @@ export declare class Server {
     register(method: string, handler: MethodHandler): void;
     handle(raw: Uint8Array): Promise<Uint8Array>;
     handleText(text: string): Promise<Uint8Array>;
-    private dispatch;
+    /**
+     * Dispatch one already-parsed request entry.
+     *
+     * Returns the Response to send back, or `undefined` for a notification —
+     * a request whose `id` is ABSENT. A present-but-`null` id is still an id
+     * (discouraged, but legal), so it earns a response. Notifications run their
+     * handler; only the answer is withheld, and a notification for an unknown
+     * method or a throwing handler is dropped silently, as the spec requires.
+     */
+    dispatchEntry(entry: unknown): Promise<Response | undefined>;
 }
 export declare class Client {
     private transport;

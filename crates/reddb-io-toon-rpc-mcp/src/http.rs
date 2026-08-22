@@ -7,8 +7,8 @@
 
 use crate::dispatcher::dispatch_mcp;
 use crate::McpService;
-use http_body_util::BodyExt;
 use http::{Request, Response, StatusCode};
+use http_body_util::BodyExt;
 use hyper::body::Incoming;
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -26,12 +26,13 @@ pub async fn serve_streamable_http<S: McpService>(
     addr: SocketAddr,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let dispatcher = dispatch_mcp(Arc::new(service));
-    let registry: SseRegistry = Arc::new(tokio::sync::Mutex::new(
-        std::collections::HashMap::new(),
-    ));
+    let registry: SseRegistry = Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new()));
 
     let listener = TcpListener::bind(addr).await?;
-    println!("[toon-rpc-mcp] Streamable HTTP server listening on http://{}", addr);
+    println!(
+        "[toon-rpc-mcp] Streamable HTTP server listening on http://{}",
+        addr
+    );
 
     loop {
         let (stream, _) = listener.accept().await?;
@@ -40,9 +41,8 @@ pub async fn serve_streamable_http<S: McpService>(
 
         tokio::spawn(async move {
             let connection = hyper_util::rt::TokioIo::new(stream);
-            let svc = service_fn(move |req| {
-                handle_request(req, dispatcher.clone(), registry.clone())
-            });
+            let svc =
+                service_fn(move |req| handle_request(req, dispatcher.clone(), registry.clone()));
 
             if let Err(e) = hyper::server::conn::http1::Builder::new()
                 .serve_connection(connection, svc)
@@ -139,10 +139,7 @@ async fn handle_sse_open(registry: SseRegistry) -> Response<String> {
         }
     });
 
-    let body = format!(
-        "data: {{\"subscriptionId\":\"{}\"}}\n\n",
-        subscription_id
-    );
+    let body = format!("data: {{\"subscriptionId\":\"{}\"}}\n\n", subscription_id);
 
     Response::builder()
         .status(StatusCode::OK)
@@ -172,7 +169,7 @@ async fn handle_notify(
     let count = {
         let mut reg = registry.lock().await;
         if let Some(subs) = reg.get_mut(&subscription_id) {
-            let drained: Vec<_> = subs.drain(..).collect();
+            let drained = std::mem::take(subs);
             let n = drained.len();
             for tx in drained {
                 let _ = tx.try_send(("message".into(), text.clone()));

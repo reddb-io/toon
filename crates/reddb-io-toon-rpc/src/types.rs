@@ -1,18 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Id {
+    #[default]
     Null,
     String(String),
     Number(i64),
-}
-
-impl Default for Id {
-    fn default() -> Self {
-        Id::Null
-    }
 }
 
 impl Id {

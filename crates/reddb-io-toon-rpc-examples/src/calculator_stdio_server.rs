@@ -5,18 +5,20 @@
 //!
 //! Run with: cargo run --bin calculator_stdio_server
 
-use std::io::{self, BufRead, Write};
 use reddb_io_toon_rpc::{Dispatcher, Params};
+use std::io::{self, BufRead, Write};
 
 fn extract_numbers(params: &Params) -> Result<Vec<f64>, reddb_io_toon_rpc::RpcError> {
     match params {
         Params::ByPosition(values) => values
             .iter()
             .map(|v| match v {
-                serde_json::Value::Number(n) => n
-                    .as_f64()
-                    .ok_or_else(|| reddb_io_toon_rpc::RpcError::InvalidParams("not a number".to_string())),
-                _ => Err(reddb_io_toon_rpc::RpcError::InvalidParams("expected numbers".to_string())),
+                serde_json::Value::Number(n) => n.as_f64().ok_or_else(|| {
+                    reddb_io_toon_rpc::RpcError::InvalidParams("not a number".to_string())
+                }),
+                _ => Err(reddb_io_toon_rpc::RpcError::InvalidParams(
+                    "expected numbers".to_string(),
+                )),
             })
             .collect(),
         Params::ByName(_) => Err(reddb_io_toon_rpc::RpcError::InvalidParams(

@@ -27,16 +27,23 @@ sed_i() {
 }
 
 sed_i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
-sed_i "s|\(reddb-io-toon = { path = \"../toon\", version = \"\)[^\"]*|\1${VERSION}|" crates/tq/Cargo.toml
+while read -r member; do
+  [[ -n "$member" ]] || continue
+  sed_i "/path = / s/version = \"[^\"]*\"/version = \"${VERSION}\"/g" "${member}/Cargo.toml"
+done < <(workspace_member_paths)
 # Only the package's own "version" key, which is the second line of the file —
 # anchoring on the two-space indent keeps this away from any nested version.
 sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/toon/package.json
+sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/toon-rpc/package.json
+sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/toon-rpc-mcp/package.json
+sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" packages/toon-rpc-acp/package.json
 sed_i "s|^  \"version\": \".*\"|  \"version\": \"${VERSION}\"|" package.json
 # The runtime constant the JS package reports; a source constant on purpose,
 # so nothing has to read package.json at runtime. Keep the committed generated
 # JavaScript in lockstep with its TypeScript source for consumers of dist/.
 sed_i "s|^export const VERSION = '.*'|export const VERSION = '${VERSION}'|" packages/toon/src/version.ts
 sed_i "s|^export const VERSION = '.*'|export const VERSION = '${VERSION}'|" packages/toon/dist/version.js
+sed_i "s|^export declare const VERSION = \".*\"|export declare const VERSION = \"${VERSION}\"|" packages/toon/dist/version.d.ts
 
 # Cargo.lock pins the workspace crates by version as well, and a stale entry is
 # what lets a publish resolve a version the tree never declared. Rewriting the

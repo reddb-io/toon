@@ -1,6 +1,6 @@
 [package]
 name = "reddb-io-toon-rpc-examples"
-version = "0.29.0"
+version.workspace = true
 description = "TOON-RPC examples (calculator server/client)"
 edition.workspace = true
 license.workspace = true
@@ -28,9 +28,9 @@ name = "multi_calculator_server"
 path = "src/multi_calculator_server.rs"
 
 [dependencies]
-reddb-io-toon-rpc = { path = "../reddb-io-toon-rpc", version = "0.29" }
-reddb-io-toon-rpc-http = { path = "../reddb-io-toon-rpc-http", version = "0.29" }
-reddb-io-toon-rpc-tcp = { path = "../reddb-io-toon-rpc-tcp", version = "0.29" }
+reddb-io-toon-rpc = { path = "../reddb-io-toon-rpc", version = "0.29.3" }
+reddb-io-toon-rpc-http = { path = "../reddb-io-toon-rpc-http", version = "0.29.3" }
+reddb-io-toon-rpc-tcp = { path = "../reddb-io-toon-rpc-tcp", version = "0.29.3" }
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
 async-trait = "0.1"

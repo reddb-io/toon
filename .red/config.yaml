@@ -37,7 +37,7 @@ plugins:
         post_done:                # at the branch fork point after DONE (full CI mirror)
           - scripts/check-file-length.sh
           - cargo clippy --workspace -- -D warnings
-          - cargo llvm-cov --workspace --fail-under-lines 95
+          - bash scripts/check-rust-coverage.sh
           - pnpm --filter @reddb-io/toon test:coverage
           - pnpm -r test
         landing:                  # before push/PR/queue
