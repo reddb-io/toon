@@ -58,7 +58,7 @@ jobs:
             cargo generate-lockfile
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Cargo.toml crates/*/Cargo.toml package.json packages/toon/package.json packages/toon-rpc/package.json packages/toon-rpc-mcp/package.json packages/toon-rpc-acp/package.json packages/toon/src/version.ts packages/toon/dist/version.js packages/toon/dist/version.d.ts packages/vscode-toon/package.json Cargo.lock
+            git add Cargo.toml crates/*/Cargo.toml package.json packages/toon/package.json packages/toon-rpc/package.json packages/multi-rpc/package.json packages/toon-rpc-mcp/package.json packages/toon-rpc-acp/package.json packages/toon/src/version.ts packages/toon/dist/version.js packages/toon/dist/version.d.ts packages/vscode-toon/package.json Cargo.lock
             git commit -m "chore: release ${VERSION}"
             if ! git push origin HEAD:main; then
               # The newer main push gets its own auto-release run and re-plans
