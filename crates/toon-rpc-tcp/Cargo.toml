@@ -1,0 +1,17 @@
+[package]
+name = "toon-rpc-tcp"
+version = "0.1.0"
+description = "TOON-RPC TCP and Unix Socket transports"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+toon-rpc = { path = "../toon-rpc" }
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+serde_json = "1"
+
+[dev-dependencies]
+tokio-test = "0.4"

@@ -1309,6 +1309,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "toon-rpc-tcp"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+ "toon-rpc",
+]
+
+[[package]]
 name = "tower-service"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
