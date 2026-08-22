@@ -1,0 +1,22 @@
+[package]
+name = "reddb-io-toon-rpc-longpolling"
+version = "0.1.0"
+description = "TOON-RPC Long Polling transport"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+reddb-io-toon-rpc = { path = "../reddb-io-toon-rpc" }
+tokio = { version = "1", features = ["full"] }
+http = "1"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "service"] }
+http-body-util = "0.1"
+bytes = "1"
+serde_json = "1"
+parking_lot = "0.12"
+
+[dev-dependencies]
+tokio-test = "0.4"

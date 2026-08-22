@@ -1,0 +1,19 @@
+[package]
+name = "reddb-io-toon-rpc-cli"
+version = "0.1.0"
+description = "TOON-RPC CLI (dev server, call, generate)"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "reddb-io-toon-rpc"
+path = "src/main.rs"
+
+[dependencies]
+reddb-io-toon-rpc = { path = "../reddb-io-toon-rpc" }
+reddb-io-toon-rpc-stdio = { path = "../reddb-io-toon-rpc-stdio" }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"

@@ -1,0 +1,67 @@
+{
+  "name": "@reddb-io/toon-rpc",
+  "version": "0.1.0",
+  "description": "TOON-RPC client and server. JSON-RPC 2.0 semantics with TOON serialization.",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js"
+    },
+    "./websocket": {
+      "types": "./dist/websocket.d.ts",
+      "import": "./dist/websocket.js"
+    },
+    "./sse": {
+      "types": "./dist/sse.d.ts",
+      "import": "./dist/sse.js"
+    },
+    "./tcp": {
+      "types": "./dist/tcp.d.ts",
+      "import": "./dist/tcp.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "toon",
+    "toon-rpc",
+    "rpc",
+    "json-rpc"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/reddb-io/toon",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reddb-io/toon.git",
+    "directory": "packages/toon-rpc"
+  },
+  "bugs": {
+    "url": "https://github.com/reddb-io/toon/issues"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/ws": "^8.5.10",
+    "typescript": "5.9.2",
+    "ws": "^8.16.0"
+  },
+  "peerDependencies": {
+    "@reddb-io/toon": ">=0.28"
+  }
+}

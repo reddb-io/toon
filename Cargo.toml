@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/toon", "crates/tq"]
+members = ["crates/toon", "crates/tq", "crates/reddb-io-toon-rpc", "crates/reddb-io-toon-rpc-stdio", "crates/reddb-io-toon-rpc-codegen", "crates/reddb-io-toon-rpc-cli", "crates/reddb-io-toon-rpc-http", "crates/reddb-io-toon-rpc-sse", "crates/reddb-io-toon-rpc-tcp", "crates/reddb-io-toon-rpc-ws", "crates/reddb-io-toon-rpc-longpolling", "crates/reddb-io-toon-rpc-examples"]
 resolver = "2"
 
 [workspace.package]
