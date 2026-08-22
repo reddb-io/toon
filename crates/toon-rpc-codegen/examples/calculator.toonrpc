@@ -1,0 +1,15 @@
+# Calculator service definition in TOON format
+# This file is the IDL for toon-rpc code generation
+
+version: "1.0"
+service: "Calculator"
+types:
+  Vec2:
+    x: f64
+    y: f64
+  Result:
+    value: f64
+    message: string
+methods[2]{name,params,result}:
+  add,"\"a\":\"f64\",\"b\":\"f64\"",f64
+  subtract,"\"a\":\"f64\",\"b\":\"f64\"",f64
