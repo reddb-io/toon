@@ -42,6 +42,13 @@ impl Dispatcher {
         }
     }
 
+    /// Dispatch an already-parsed `Message`, returning the list of typed
+    /// `Response` values (no wire serialization). Used by [`crate::multi::MultiRpc`]
+    /// and any caller that wants to re-encode in a different wire format.
+    pub fn dispatch_message(&self, msg: Message) -> Result<Vec<Response>, RpcError> {
+        self.handle_message(msg)
+    }
+
     fn handle_message(&self, msg: Message) -> Result<Vec<Response>, RpcError> {
         match msg {
             Message::Single(Call::Request(req)) => {
@@ -84,10 +91,22 @@ impl Dispatcher {
 
         match handler(req.params, req.id.clone()) {
             Ok(result) => Response::success(result, req.id),
-            Err(e) => Response::error(
-                Error::with_message(ErrorCode::InternalError, e.to_string()),
-                req.id,
-            ),
+            Err(e) => {
+                // Map handler error variants to JSON-RPC / TOON-RPC error codes.
+                // Anything we don't have a specific code for falls back to
+                // InternalError so handlers can stay simple.
+                let code = match &e {
+                    crate::error::RpcError::ParseError(_) => ErrorCode::ParseError,
+                    crate::error::RpcError::InvalidRequest(_) => ErrorCode::InvalidRequest,
+                    crate::error::RpcError::MethodNotFound(_) => ErrorCode::MethodNotFound,
+                    crate::error::RpcError::InvalidParams(_) => ErrorCode::InvalidParams,
+                    crate::error::RpcError::InternalError(_) => ErrorCode::InternalError,
+                    crate::error::RpcError::ServerError(_, _) => ErrorCode::InternalError,
+                    crate::error::RpcError::TransportError(_) => ErrorCode::InternalError,
+                    crate::error::RpcError::SerializationError(_) => ErrorCode::InternalError,
+                };
+                Response::error(Error::with_message(code, e.to_string()), req.id)
+            }
         }
     }
 }

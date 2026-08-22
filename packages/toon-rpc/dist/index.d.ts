@@ -46,6 +46,7 @@ export declare class Server {
     constructor();
     register(method: string, handler: MethodHandler): void;
     handle(raw: Uint8Array): Promise<Uint8Array>;
+    handleText(text: string): Promise<Uint8Array>;
     private dispatch;
 }
 export declare class Client {

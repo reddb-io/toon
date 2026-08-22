@@ -1,0 +1,59 @@
+{
+  "name": "@reddb-io/toon-rpc-mcp",
+  "version": "0.29.0",
+  "description": "TOON-RPC implementation of Model Context Protocol (MCP). Wire-compatible with Claude Desktop / Claude Code.",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./stdio": {
+      "types": "./dist/stdio.d.ts",
+      "import": "./dist/stdio.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "toon",
+    "toon-rpc",
+    "claude"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/reddb-io/toon",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reddb-io/toon.git",
+    "directory": "packages/toon-rpc-mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/reddb-io/toon/issues"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "typescript": "5.9.2"
+  },
+  "dependencies": {
+    "@reddb-io/toon": "workspace:*",
+    "@reddb-io/toon-rpc": "workspace:*"
+  }
+}

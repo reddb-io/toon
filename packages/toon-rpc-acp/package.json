@@ -1,0 +1,49 @@
+{
+  "name": "@reddb-io/toon-rpc-acp",
+  "version": "0.29.0",
+  "description": "TOON-RPC implementation of Agent Communication Protocol (ACP). REST endpoints with TOON serialization.",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "acp",
+    "agent-communication-protocol",
+    "toon",
+    "toon-rpc"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/reddb-io/toon",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reddb-io/toon.git",
+    "directory": "packages/toon-rpc-acp"
+  },
+  "bugs": {
+    "url": "https://github.com/reddb-io/toon/issues"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "typescript": "5.9.2"
+  },
+  "dependencies": {
+    "@reddb-io/toon": "workspace:*"
+  }
+}
