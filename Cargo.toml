@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/toon", "crates/tq", "crates/toon-rpc", "crates/toon-rpc-stdio", "crates/toon-rpc-codegen", "crates/toon-rpc-cli", "crates/toon-rpc-http", "crates/toon-rpc-sse", "crates/toon-rpc-tcp", "crates/toon-rpc-ws"]
+members = ["crates/toon", "crates/tq", "crates/toon-rpc", "crates/toon-rpc-stdio", "crates/toon-rpc-codegen", "crates/toon-rpc-cli", "crates/toon-rpc-http", "crates/toon-rpc-sse", "crates/toon-rpc-tcp", "crates/toon-rpc-ws", "crates/toon-rpc-longpolling"]
 resolver = "2"
 
 [workspace.package]

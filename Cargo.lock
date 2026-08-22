@@ -1533,6 +1533,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "toon-rpc-longpolling"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "parking_lot",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+ "toon-rpc",
+]
+
+[[package]]
 name = "toon-rpc-sse"
 version = "0.1.0"
 dependencies = [
