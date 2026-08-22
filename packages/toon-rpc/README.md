@@ -123,9 +123,6 @@ await multi.handle('toonrpc: "1.0"\nmethod: add\nparams[2]: 2,3\nid: 1');
 // → toonrpc: "1.0" / result: 5 / id: 1
 ```
 
-The `@reddb-io/toon-rpc/multi` subpath remains available for compatibility
-with `0.29.3` consumers.
-
 ## dualDialectStream: an ndJsonStream that speaks both dialects
 
 `dualDialectStream(output, input)` is signature-compatible with the ACP SDK's

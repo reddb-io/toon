@@ -769,13 +769,14 @@ jobs:
           import assert from 'node:assert/strict'
           import { VERSION, decode, encode } from '@reddb-io/toon'
           import { MultiRpc, Server } from '@reddb-io/multi-rpc'
-          import { MultiRpc as SubpathMultiRpc } from '@reddb-io/toon-rpc/multi'
           assert.equal(VERSION, process.env.VERSION)
           const value = decode('name: Ada')
           assert.deepEqual(value, { name: 'Ada' })
           assert.equal(encode(value), 'name: Ada')
           const server = new Server()
-          assert.equal(MultiRpc, SubpathMultiRpc)
+          await assert.rejects(import('@reddb-io/toon-rpc/multi'), {
+            code: 'ERR_PACKAGE_PATH_NOT_EXPORTED',
+          })
           server.register('echo', async (params) => params)
           const multi = new MultiRpc(server)
           const response = await multi.handle('{"jsonrpc":"2.0","method":"echo","params":{"name":"Ada"},"id":1}')

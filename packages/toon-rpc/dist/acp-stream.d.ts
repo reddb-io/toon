@@ -18,7 +18,7 @@
  *    a frame, writes use `preferred` (default `"json"`, the maximally
  *    compatible opener); after that, writes follow the peer.
  */
-import { type Protocol } from './multi.js';
+type Protocol = 'jsonrpc' | 'toonrpc';
 export interface DualDialectOptions {
     /** Dialect written before the peer has proven one. Default `"json"`. */
     preferred?: Protocol;
@@ -34,4 +34,5 @@ export interface DualDialectStream {
  * dialects. Signature-compatible with `ndJsonStream(output, input)`.
  */
 export declare function dualDialectStream(output: WritableStream<Uint8Array>, input: ReadableStream<Uint8Array>, options?: DualDialectOptions): DualDialectStream;
+export {};
 //# sourceMappingURL=acp-stream.d.ts.map

@@ -25,10 +25,6 @@
       "types": "./dist/tcp.d.ts",
       "import": "./dist/tcp.js"
     },
-    "./multi": {
-      "types": "./dist/multi.d.ts",
-      "import": "./dist/multi.js"
-    },
     "./acp-stream": {
       "types": "./dist/acp-stream.d.ts",
       "import": "./dist/acp-stream.js"
