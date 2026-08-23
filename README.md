@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/hero.svg" alt="TOON &amp; TOONL — token-oriented data formats. tq CLI, Rust crate, JS/TS package." width="100%">
+<img src="docs/hero.svg" alt="TOON and TOONL formats, TypeScript and Rust libraries, RPC stack, command-line tools, benchmarks, and editor support." width="100%">
 
 [![Release](https://img.shields.io/github/v/release/reddb-io/toon?include_prereleases&style=for-the-badge&color=ff2056&labelColor=0d1117)](https://github.com/reddb-io/toon/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/reddb-io/toon/ci.yml?branch=main&style=for-the-badge&label=CI&labelColor=0d1117)](https://github.com/reddb-io/toon/actions/workflows/ci.yml)
@@ -8,6 +8,26 @@
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macOS%20%7C%20windows-8b949e?style=for-the-badge&labelColor=0d1117)](#prebuilt-binaries)
 
 </div>
+
+---
+
+## Repository map
+
+This repository has grown from a format implementation into a complete TOON
+toolkit. Use this map to find each user-facing area; detailed API and protocol
+documentation remains in the linked package, crate, and specification pages.
+
+| Area | What is here |
+| --- | --- |
+| **Formats and specifications** | The pinned [official TOON v4.1.1 baseline](docs/toon-official-spec.md), [RedDB opt-in extensions](docs/toon-reddb-spec.md), and the [TOONL streaming specification](docs/toonl-reddb-spec.md). |
+| **Codec libraries and streaming** | The [`@reddb-io/toon`](packages/toon) package and [`reddb-io-toon`](crates/toon) crate: codecs, event streams, truncation reports, TOONL readers/writers, and JSON bridges. See [What ships](#what-ships). |
+| **RPC family** | The draft [TOON-RPC protocol](docs/toon-rpc-spec.md), TypeScript packages, Rust core and transports, JSON-RPC/TOON-RPC negotiation, MCP/ACP adapters, code generation, CLI tooling, and examples. Kept together under [RPC family](#rpc-family). |
+| **Command-line tools** | The drop-in `toon` converter and the [`tq`](crates/tq) query/conversion CLI for TOON, TOONL, JSON, YAML, and XML, with its [language reference](docs/tq-language.md) and [jq parity record](docs/tq-jq-parity.md). |
+| **Editor integration** | The [RedDB Toon VS Code extension](packages/vscode-toon) for `.toon`, `.toonl`, and fenced Markdown blocks. |
+| **Benchmarks and evidence** | Reproducible [accuracy, token-efficiency, and runtime benchmarks](benchmarks/), shared [conformance, parity, golden, and adversarial test corpora](tests/), and pinned [specification](vendor/toon-spec) and [reference implementation](vendor/toon) checkpoints. |
+| **Examples** | [RPC clients and servers](crates/reddb-io-toon-rpc-examples), [codec examples](crates/toon/examples), and [editor grammar samples](packages/vscode-toon/examples). |
+| **Design and migration records** | The [v4.1 migration guide](docs/migration-v4.md), [design-history proposals](docs/proposals/), [upstream monitoring](docs/upstream-monitoring.md), and [feedback ledger](docs/upstream-feedback.md). |
+| **Install, releases, and development** | [Prebuilt binaries](#prebuilt-binaries), the [`install.sh`](install.sh) installer, [release history](CHANGELOG.md), [GitHub releases](https://github.com/reddb-io/toon/releases), and the [development workflow](#develop). |
 
 ---
 
@@ -41,7 +61,7 @@ and layers a set of opt-in extensions on top of it.
 ## Command-line tools
 
 - **`toon`** is the drop-in converter. Its TypeScript and Rust front ends are compatible with the pinned upstream v4.1.1 package and CLI contract.
-- **`tq`** is the advanced jq-style query and transformation tool. It reads TOON, JSON, YAML, and TOONL and can emit TOON, JSON, or TOONL.
+- **`tq`** is the advanced jq-style query and transformation tool. It reads TOON, JSON, YAML, XML, and TOONL and can emit TOON, JSON, XML, or TOONL.
 
 ## Verified compatibility
 
@@ -120,16 +140,18 @@ array_length_mismatch
 
 Details: [`packages/toon`](packages/toon), [TOON spec companion](docs/toon-official-spec.md), [RedDB TOON extensions](docs/toon-reddb-spec.md), [TOONL spec](docs/toonl-reddb-spec.md), and the [truncation report model](docs/proposals/detect-truncation.md).
 
-### RPC packages
+### RPC family
 
-The TypeScript RPC stack is split by responsibility:
+TOON-RPC is a draft transport-independent protocol with JSON-RPC semantics and
+TOON serialization. Its protocol, packages, transports, adapters, tooling, and
+examples stay together here even though they ship across npm and crates.io.
 
-| Package | Purpose |
+| Surface | Contents |
 | --- | --- |
-| [`@reddb-io/toon-rpc`](packages/toon-rpc) | TOON-RPC client, server, transports, and ACP stream adapter |
-| [`@reddb-io/multi-rpc`](packages/multi-rpc) | One server registry that accepts JSON-RPC 2.0 and TOON-RPC 1.0 |
-| [`@reddb-io/toon-rpc-mcp`](packages/toon-rpc-mcp) | MCP adapter backed by a TOON-RPC server |
-| [`@reddb-io/toon-rpc-acp`](packages/toon-rpc-acp) | ACP codec and framing integration |
+| Protocol | [TOON-RPC specification](docs/toon-rpc-spec.md) and JSON-RPC/TOON-RPC wire negotiation |
+| TypeScript | [`@reddb-io/toon-rpc`](packages/toon-rpc) client/server, [`@reddb-io/multi-rpc`](packages/multi-rpc) multi-protocol dispatcher, [`@reddb-io/toon-rpc-mcp`](packages/toon-rpc-mcp), and [`@reddb-io/toon-rpc-acp`](packages/toon-rpc-acp) |
+| Rust core and transports | [`reddb-io-toon-rpc`](crates/reddb-io-toon-rpc), [stdio](crates/reddb-io-toon-rpc-stdio), [HTTP](crates/reddb-io-toon-rpc-http), [SSE](crates/reddb-io-toon-rpc-sse), [TCP](crates/reddb-io-toon-rpc-tcp), [WebSocket](crates/reddb-io-toon-rpc-ws), and [long polling](crates/reddb-io-toon-rpc-longpolling) |
+| Tooling and adapters | [IDL code generation](crates/reddb-io-toon-rpc-codegen), [RPC CLI](crates/reddb-io-toon-rpc-cli), [MCP](crates/reddb-io-toon-rpc-mcp), [ACP](crates/reddb-io-toon-rpc-acp), and [end-to-end examples](crates/reddb-io-toon-rpc-examples) |
 
 Install `@reddb-io/multi-rpc` directly when one endpoint must answer both wire
 formats:
@@ -212,7 +234,7 @@ Details: [`crates/toon`](crates/toon), [decoder and encoder options](docs/toon-o
 
 ### `tq` — CLI
 
-An advanced jq-style command-line tool for querying and transforming data at the terminal. It queries TOON, JSON, YAML input, and TOONL rows; converts between TOON, TOONL, and JSON; checks TOON or TOONL for truncation; and closes or trims append-only streams.
+An advanced jq-style command-line tool for querying and transforming data at the terminal. It queries TOON, JSON, YAML, XML, and TOONL rows; converts between TOON, TOONL, JSON, and XML; checks TOON or TOONL for truncation; and closes or trims append-only streams.
 
 The shipped language includes `def` functions with closures and bounded recursion, paths and recursive descent, assignments, string interpolation and `@formats` such as `@json` and `@csv`, and `--arg`/`--argjson` bindings. The [language catalog](docs/tq-language.md) marks every builtin as supported, deferred, or never; the jq parity record above documents the precise compatibility boundary.
 
@@ -292,24 +314,6 @@ VSCodium and Cursor users: swap `code` for `codium` / `cursor`. Once the extensi
 Or open `packages/vscode-toon` in VS Code and press `F5` to try the grammars in an Extension Development Host against `examples/sample.toon` and `examples/sample.toonl`.
 
 Details: [`packages/vscode-toon`](packages/vscode-toon), [TOON spec companion](docs/toon-official-spec.md), [RedDB TOON extensions](docs/toon-reddb-spec.md), and [TOONL streaming format](docs/toonl-reddb-spec.md).
-
----
-
-## Navigation
-
-| Need | Go to |
-| --- | --- |
-| Performance methodology and reports | [`benchmarks/`](benchmarks/) |
-| TOON format detail | [`docs/toon-official-spec.md`](docs/toon-official-spec.md) and [`docs/toon-reddb-spec.md`](docs/toon-reddb-spec.md) |
-| TOONL stream detail | [`docs/toonl-reddb-spec.md`](docs/toonl-reddb-spec.md) |
-| Extension design history | [`docs/proposals/`](docs/proposals/) |
-| v4.1 migration notes | [`docs/migration-v4.md`](docs/migration-v4.md) |
-| JavaScript and TypeScript package | [`packages/toon`](packages/toon) |
-| TypeScript RPC packages | [`packages/toon-rpc`](packages/toon-rpc), [`packages/multi-rpc`](packages/multi-rpc), [`packages/toon-rpc-mcp`](packages/toon-rpc-mcp), and [`packages/toon-rpc-acp`](packages/toon-rpc-acp) |
-| Rust format crate | [`crates/toon`](crates/toon) |
-| CLI crate and binary | [`crates/tq`](crates/tq) |
-| VS Code extension | [`packages/vscode-toon`](packages/vscode-toon) |
-| Releases and binary downloads | [GitHub releases](https://github.com/reddb-io/toon/releases) |
 
 ---
 
