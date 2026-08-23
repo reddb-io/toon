@@ -120,6 +120,39 @@ array_length_mismatch
 
 Details: [`packages/toon`](packages/toon), [TOON spec companion](docs/toon-official-spec.md), [RedDB TOON extensions](docs/toon-reddb-spec.md), [TOONL spec](docs/toonl-reddb-spec.md), and the [truncation report model](docs/proposals/detect-truncation.md).
 
+### RPC packages
+
+The TypeScript RPC stack is split by responsibility:
+
+| Package | Purpose |
+| --- | --- |
+| [`@reddb-io/toon-rpc`](packages/toon-rpc) | TOON-RPC client, server, transports, and ACP stream adapter |
+| [`@reddb-io/multi-rpc`](packages/multi-rpc) | One server registry that accepts JSON-RPC 2.0 and TOON-RPC 1.0 |
+| [`@reddb-io/toon-rpc-mcp`](packages/toon-rpc-mcp) | MCP adapter backed by a TOON-RPC server |
+| [`@reddb-io/toon-rpc-acp`](packages/toon-rpc-acp) | ACP codec and framing integration |
+
+Install `@reddb-io/multi-rpc` directly when one endpoint must answer both wire
+formats:
+
+```bash
+pnpm add @reddb-io/multi-rpc
+```
+
+```js
+import { MultiRpc, Server } from '@reddb-io/multi-rpc'
+
+const server = new Server()
+server.register('echo', async (params) => params)
+
+const rpc = new MultiRpc(server)
+const response = await rpc.handle(
+  '{"jsonrpc":"2.0","method":"echo","params":{"name":"Ada"},"id":1}',
+)
+```
+
+`MultiRpc` is owned and exported only by `@reddb-io/multi-rpc`; it is not a
+subpath of `@reddb-io/toon-rpc`.
+
 <img src="docs/rust-crate.svg" alt="reddb-io-toon Rust crate banner" width="100%">
 
 ### `reddb-io-toon` — Rust crate
@@ -221,7 +254,7 @@ Update in place — `tq upgrade` resolves the latest release, verifies the downl
 ```bash
 tq upgrade            # no-op when already current
 tq upgrade --check    # exit 0 up to date, exit 1 update available
-tq upgrade 0.28.2     # pin a version
+tq upgrade X.Y.Z      # pin a version
 ```
 
 It honours the same knobs as the installer: `TQ_CHANNEL` (`stable`/`next`), `TQ_VERSION` (a pin, which the positional argument overrides), and `GITHUB_TOKEN`. Upgrading needs write permission on the directory holding the binary; without it, `tq` says so and points at the installer. On Windows a running `tq.exe` cannot be overwritten, so upgrade renames it aside before writing the new one and cleans the leftover up on the next run.
@@ -242,7 +275,7 @@ Declarative syntax highlighting for `.toon` and `.toonl` files, plus `toon`/`too
 
 Use it when reading or writing TOON documents, TOONL streams, or the spec documents in [`docs/`](docs/) inside VS Code.
 
-The stable v0.28.2 release already includes the `.vsix` as a release asset:
+Every stable release includes the `.vsix` as a release asset:
 
 ```bash
 curl -fsSL https://github.com/reddb-io/toon/releases/latest/download/reddb-toon.vsix -o /tmp/reddb-toon.vsix && code --install-extension /tmp/reddb-toon.vsix
@@ -272,6 +305,7 @@ Details: [`packages/vscode-toon`](packages/vscode-toon), [TOON spec companion](d
 | Extension design history | [`docs/proposals/`](docs/proposals/) |
 | v4.1 migration notes | [`docs/migration-v4.md`](docs/migration-v4.md) |
 | JavaScript and TypeScript package | [`packages/toon`](packages/toon) |
+| TypeScript RPC packages | [`packages/toon-rpc`](packages/toon-rpc), [`packages/multi-rpc`](packages/multi-rpc), [`packages/toon-rpc-mcp`](packages/toon-rpc-mcp), and [`packages/toon-rpc-acp`](packages/toon-rpc-acp) |
 | Rust format crate | [`crates/toon`](crates/toon) |
 | CLI crate and binary | [`crates/tq`](crates/tq) |
 | VS Code extension | [`packages/vscode-toon`](packages/vscode-toon) |
@@ -315,7 +349,17 @@ pnpm install
 pnpm -r test
 ```
 
-The Rust workspace contains `crates/toon` (`reddb-io-toon`) and `crates/tq` (`reddb-io-tq`). The pnpm workspace contains `packages/toon` (`@reddb-io/toon`) and `packages/vscode-toon` (`reddb-toon`). Release automation keeps both Rust crates, the npm package, and the extension on the same version.
+The Rust and pnpm workspaces include the format, CLI, RPC, MCP, ACP, and editor
+packages shown above. Release automation keeps every published crate, npm
+package, and the extension on the same version.
+
+`Auto release` is the controller for pushes to `main`: it derives the stable
+SemVer bump from conventional commits, synchronizes every manifest, creates the
+release commit, and dispatches the exact SHA. `Release` is the executor: it
+builds platform assets, publishes registries, creates the GitHub Release, and
+verifies clean consumers. It can also be dispatched manually for a `next`
+prerelease or to retry a stable release; normal pushes do not run both workflows
+independently.
 
 ## License
 
