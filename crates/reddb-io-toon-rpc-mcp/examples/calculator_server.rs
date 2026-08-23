@@ -1,19 +1,7 @@
 //! Calculator MCP server — exposes a `calculator_arithmetic` tool to AI agents.
 //!
-//! Run with: cargo run --bin calculator-mcp-server
-//!
-//! Wire it into Claude Desktop via `claude_desktop_config.json`:
-//!
-//! ```json
-//! {
-//!   "mcpServers": {
-//!     "calculator": {
-//!       "command": "calculator-mcp-server",
-//!       "args": []
-//!     }
-//!   }
-//! }
-//! ```
+//! This example exercises the quarantined prototype only. It is not currently
+//! compatible with MCP hosts.
 
 use reddb_io_toon_rpc_mcp::{CallToolResponse, McpError, McpResult, McpService, ServerInfo, Tool};
 use serde_json::{json, Value};

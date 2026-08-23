@@ -1,7 +1,8 @@
 {
   "name": "@reddb-io/multi-rpc",
   "version": "0.29.7",
-  "description": "Multi-protocol RPC dispatcher for JSON-RPC 2.0 and TOON-RPC 1.0.",
+  "private": true,
+  "description": "Experimental JSON-RPC and TOON-RPC dispatcher under protocol recovery.",
   "type": "module",
   "main": "dist/index.js",
   "exports": {

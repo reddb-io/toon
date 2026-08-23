@@ -1,6 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-sse"
 version.workspace = true
+publish = false
 description = "TOON-RPC Server-Sent Events (SSE) transport"
 edition.workspace = true
 license.workspace = true

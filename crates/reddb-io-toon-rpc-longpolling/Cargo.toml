@@ -1,6 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-longpolling"
 version.workspace = true
+publish = false
 description = "TOON-RPC Long Polling transport"
 edition.workspace = true
 license.workspace = true

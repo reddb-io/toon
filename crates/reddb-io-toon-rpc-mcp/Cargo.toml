@@ -1,7 +1,8 @@
 [package]
 name = "reddb-io-toon-rpc-mcp"
 version.workspace = true
-description = "TOON-RPC implementation of Model Context Protocol (MCP)"
+publish = false
+description = "Non-conformant MCP prototype quarantined during protocol recovery"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

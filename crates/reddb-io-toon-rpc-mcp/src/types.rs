@@ -1,11 +1,11 @@
 //! MCP types — Tool, Resource, Prompt, Content
 //!
-//! Mirrors the JSON Schema definitions from the Model Context Protocol spec.
+//! Prototype models pending validation against a pinned MCP schema.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// MCP-compliant protocol version (latest stable as of 2026-07-28)
+/// Protocol revision targeted by the recovery work; conformance is not claimed.
 pub const MCP_PROTOCOL_VERSION: &str = "2026-07-28";
 
 /// Reserved namespace for MCP metadata fields

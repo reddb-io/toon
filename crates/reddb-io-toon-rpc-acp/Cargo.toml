@@ -1,7 +1,8 @@
 [package]
 name = "reddb-io-toon-rpc-acp"
 version.workspace = true
-description = "TOON-RPC implementation of Agent Communication Protocol (ACP)"
+publish = false
+description = "Legacy ACP prototype quarantined during protocol recovery"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

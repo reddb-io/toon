@@ -1,6 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-codegen"
 version.workspace = true
+publish = false
 description = "TOON-RPC code generator (IDL → Rust + TypeScript)"
 edition.workspace = true
 license.workspace = true

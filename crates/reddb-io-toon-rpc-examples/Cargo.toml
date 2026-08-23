@@ -1,6 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-examples"
 version.workspace = true
+publish = false
 description = "TOON-RPC examples (calculator server/client)"
 edition.workspace = true
 license.workspace = true

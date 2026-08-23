@@ -1,9 +1,6 @@
-//! Stdio transport for MCP — reads newline-delimited TOON requests from stdin,
-//! writes newline-delimited TOON responses to stdout.
+//! Experimental stdio transport for the quarantined MCP prototype.
 //!
-//! This is the transport Claude Desktop / Claude Code uses for local MCP
-//! servers. Messages are framed by an empty line (matching the toon-rpc
-//! stdio convention).
+//! Its current blank-line-delimited TOON framing is not MCP-conformant.
 
 use crate::dispatcher::dispatch_mcp;
 use crate::McpService;
@@ -12,7 +9,7 @@ use std::sync::Arc;
 
 /// Run an MCP server over stdio until EOF.
 ///
-/// This is the entry point Claude Desktop / Claude Code spawn.
+/// This entry point is retained for recovery tests only.
 /// Logs go to stderr; the wire protocol lives on stdin/stdout only.
 pub fn serve_stdio<S: McpService>(service: S) -> io::Result<()> {
     let dispatcher = dispatch_mcp(Arc::new(service));

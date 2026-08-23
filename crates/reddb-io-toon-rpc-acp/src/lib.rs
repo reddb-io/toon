@@ -1,7 +1,7 @@
-//! TOON-RPC implementation of Agent Communication Protocol (ACP)
+//! Experimental legacy ACP adapter under protocol recovery.
 //!
-//! ACP is REST-based: HTTP POST/GET endpoints return JSON (or TOON if the
-//! client requests `Accept: application/toon`). This crate provides:
+//! This prototype does not currently conform to the terminal legacy ACP
+//! contract. It retains the following intended surfaces for recovery work:
 //!
 //! - [`AcpService`] trait for implementing agents
 //! - REST endpoints: `GET /agents`, `POST /agents/:name/runs`, etc.

@@ -1,6 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc"
 version.workspace = true
+publish = false
 description = "TOON-RPC core protocol (JSON-RPC 2.0 semantics with TOON serialization)"
 edition.workspace = true
 license.workspace = true

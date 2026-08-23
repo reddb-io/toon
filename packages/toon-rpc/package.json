@@ -1,7 +1,8 @@
 {
   "name": "@reddb-io/toon-rpc",
   "version": "0.29.7",
-  "description": "TOON-RPC client and server. JSON-RPC 2.0 semantics with TOON serialization.",
+  "private": true,
+  "description": "Experimental TOON-RPC client and server under protocol recovery.",
   "type": "module",
   "main": "dist/index.js",
   "exports": {

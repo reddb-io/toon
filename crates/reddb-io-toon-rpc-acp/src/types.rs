@@ -1,7 +1,7 @@
 //! ACP types — Agent, Message, Run, Content
 //!
-//! Mirrors the Agent Communication Protocol spec, with TOON serialization
-//! instead of JSON for the wire format.
+//! Prototype models pending validation against the pinned terminal legacy ACP
+//! contract. TOON serialization is a project extension, not ACP conformance.
 
 use serde::{Deserialize, Serialize};
 
