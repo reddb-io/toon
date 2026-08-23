@@ -273,14 +273,6 @@ test('main pushes invoke only the automatic release controller', () => {
   assert.match(release, /options:\s*\n\s+- stable\s*\n\s+- next/)
 })
 
-test('temporary npm deprecation is restricted to the invalid multi-rpc version', () => {
-  const cleanup = text(root, '.github/workflows/deprecate-multi-rpc-0.29.4.yml')
-
-  assert.match(cleanup, /run: npm deprecate @reddb-io\/multi-rpc@0\.29\.4/)
-  assert.equal(cleanup.match(/npm deprecate/g)?.length, 1)
-  assert.doesNotMatch(cleanup, /inputs\./)
-})
-
 test('stable releases document v4.1 and close only after public clean-room verification', () => {
   const automatic = text(root, '.github/workflows/auto-release.yml')
   const manual = text(root, '.github/workflows/release.yml')
