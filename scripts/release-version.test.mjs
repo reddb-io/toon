@@ -267,9 +267,18 @@ test('main pushes invoke only the automatic release controller', () => {
 
   assert.match(automaticTrigger, /push:\s*\n\s+branches:\s*\n\s+- main/)
   assert.doesNotMatch(releaseTrigger, /branches:\s*\n\s+- main/)
+  assert.match(releaseTrigger, /push:\s*\n\s+tags:\s*\n\s+- 'v\*\.\*\.\*'/)
   assert.doesNotMatch(release, /refs\/heads\/main/)
   assert.match(releaseTrigger, /workflow_dispatch:/)
   assert.match(release, /options:\s*\n\s+- stable\s*\n\s+- next/)
+})
+
+test('temporary npm cleanup is restricted to the invalid multi-rpc version', () => {
+  const cleanup = text(root, '.github/workflows/unpublish-multi-rpc-0.29.4.yml')
+
+  assert.match(cleanup, /run: npm unpublish @reddb-io\/multi-rpc@0\.29\.4 --force/)
+  assert.equal(cleanup.match(/npm unpublish/g)?.length, 1)
+  assert.doesNotMatch(cleanup, /inputs\./)
 })
 
 test('stable releases document v4.1 and close only after public clean-room verification', () => {
