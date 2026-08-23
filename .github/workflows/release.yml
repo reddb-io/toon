@@ -1,17 +1,13 @@
 name: Release
 
-# reddb-style release pipeline (ADR 0003): a `plan` job resolving stable
-# (tag v*.*.*) vs `next` (push to main → prerelease) channels, a
-# multi-platform build matrix including fully-static musl assets, a GitHub
-# Release with checksums/attestations, and lockstep crate publishing
-# (reddb-io-toon → reddb-io-tq).
+# Release executor for stable and manually requested `next` channels. Automatic
+# stable version planning lives in auto-release.yml, which dispatches this
+# workflow at an exact commit.
 
 on:
   push:
     tags:
       - 'v*.*.*'
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       channel:
@@ -73,8 +69,6 @@ jobs:
           fetch-depth: 0
       - name: Decide release target
         id: plan
-        env:
-          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
           EVENT_NAME="${{ github.event_name }}"
@@ -103,16 +97,6 @@ jobs:
             # `workflow_dispatch` toggle below stays as the escape hatch for
             # re-running publish-cargo independently of a tag bump.
             PUBLISH_CARGO=true
-          elif [[ "$EVENT_NAME" == "push" && "$REF" == "refs/heads/main" ]]; then
-            COMMIT_MSG="${HEAD_COMMIT_MESSAGE}"
-            if [[ "$COMMIT_MSG" =~ ^chore:\ release ]] || [[ "$COMMIT_MSG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              SHOULD_SKIP=true
-            else
-              PACKAGE_VERSION="$(next_version)"
-              RELEASE_CHANNEL="next"
-              RELEASE_TAG="v${PACKAGE_VERSION}"
-              IS_PRERELEASE=true
-            fi
           elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             if [[ "$INPUT_CHANNEL" == "stable" ]]; then
               [[ -z "$INPUT_VERSION" ]] && { echo "Stable requires version"; exit 1; }
@@ -575,8 +559,8 @@ jobs:
     name: Publish @reddb-io/toon to npm
     # Like publish-cargo, this is a source publish: it needs nothing from the
     # binary build matrix, so it runs in parallel with everything else. npm
-    # publishing follows the reddb pattern: stable tags only — main-push
-    # prereleases ship binaries on the GitHub Release but never hit npm.
+    # Publishing follows the reddb pattern: stable tags only. Manually
+    # dispatched prereleases ship binaries on GitHub but never hit npm.
     needs: [plan]
     runs-on: ubuntu-latest
     if: |
