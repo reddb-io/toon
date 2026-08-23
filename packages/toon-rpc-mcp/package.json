@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon-rpc-mcp",
-  "version": "0.29.6",
+  "version": "0.29.7",
   "description": "TOON-RPC implementation of Model Context Protocol (MCP). Wire-compatible with Claude Desktop / Claude Code.",
   "type": "module",
   "main": "dist/index.js",
