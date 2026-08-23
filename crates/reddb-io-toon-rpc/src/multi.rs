@@ -42,7 +42,7 @@
 //! assert!(std::str::from_utf8(&toon_resp).unwrap().contains("toonrpc"));
 //! ```
 
-use crate::error::{ErrorCode, RpcError};
+use crate::error::{Error, ErrorCode, RpcError};
 use crate::protocol::{Call, Message, Response};
 use crate::types::{Id, Params};
 use crate::Dispatcher;
@@ -167,8 +167,16 @@ impl MultiRpc {
     // ── JSON-RPC path ─────────────────────────────────────────────────────
 
     fn handle_jsonrpc(&self, raw: &[u8]) -> Result<Vec<u8>, RpcError> {
-        let value: JsonValue = serde_json::from_slice(raw)
-            .map_err(|e| RpcError::ParseError(format!("JSON parse error: {}", e)))?;
+        let value: JsonValue = match serde_json::from_slice(raw) {
+            Ok(value) => value,
+            Err(error) => {
+                return json_bytes(json_error_response(
+                    Id::Null,
+                    ErrorCode::ParseError.code(),
+                    &format!("JSON parse error: {error}"),
+                ));
+            }
+        };
 
         // Batch or single?
         let (entries, is_batch) = if value.is_array() {
@@ -177,20 +185,12 @@ impl MultiRpc {
             (vec![value.clone()], false)
         };
 
-        if !is_batch {
-            // Validate protocol version on single requests only — for batches,
-            // each entry carries its own version.
-            let version = entries[0]["jsonrpc"].as_str();
-            if version != Some(JSONRPC_VERSION) {
-                return Err(RpcError::InvalidRequest(format!(
-                    "expected jsonrpc {}, got {:?}",
-                    JSONRPC_VERSION, version
-                )));
-            }
-        }
-
         if entries.is_empty() {
-            return Err(RpcError::InvalidRequest("empty batch".into()));
+            return json_bytes(json_error_response(
+                Id::Null,
+                ErrorCode::InvalidRequest.code(),
+                "empty batch",
+            ));
         }
 
         let mut responses = Vec::with_capacity(entries.len());
@@ -208,11 +208,10 @@ impl MultiRpc {
         // Echo the batch shape: array if the request was an array, otherwise a
         // single object.
         if is_batch {
-            let arr: Vec<JsonValue> = responses.into_iter().collect();
-            serde_json::to_vec(&arr).map_err(|e| RpcError::SerializationError(e.to_string()))
+            json_bytes(JsonValue::Array(responses))
         } else {
             let obj = responses.into_iter().next().unwrap();
-            serde_json::to_vec(&obj).map_err(|e| RpcError::SerializationError(e.to_string()))
+            json_bytes(obj)
         }
     }
 
@@ -222,23 +221,39 @@ impl MultiRpc {
         // Sanity-check that this looks like a request, not a stray response.
         let obj = match entry.as_object() {
             Some(o) => o,
-            None => return Ok(None),
-        };
-
-        let method = match obj.get("method").and_then(JsonValue::as_str) {
-            Some(m) => m.to_string(),
             None => {
-                let id = id_from_json(obj.get("id"));
                 return Ok(Some(json_error_response(
-                    id,
-                    -32600,
-                    "missing method field",
+                    Id::Null,
+                    ErrorCode::InvalidRequest.code(),
+                    "request must be an object",
                 )));
             }
         };
 
         let id = id_from_json(obj.get("id"));
-        let is_notification = matches!(id, Id::Null);
+        if obj.get("jsonrpc").and_then(JsonValue::as_str) != Some(JSONRPC_VERSION) {
+            return Ok(Some(json_error_response(
+                id,
+                ErrorCode::InvalidRequest.code(),
+                &format!(
+                    "expected jsonrpc {JSONRPC_VERSION}, got {:?}",
+                    obj.get("jsonrpc")
+                ),
+            )));
+        }
+
+        let method = match obj.get("method").and_then(JsonValue::as_str) {
+            Some(m) => m.to_string(),
+            None => {
+                return Ok(Some(json_error_response(
+                    id,
+                    ErrorCode::InvalidRequest.code(),
+                    "missing method field",
+                )));
+            }
+        };
+
+        let is_notification = !obj.contains_key("id");
 
         // Build a TOON-RPC Request so we can reuse the dispatcher.
         let params_value = obj.get("params").cloned().unwrap_or(JsonValue::Null);
@@ -266,25 +281,41 @@ impl MultiRpc {
     // ── TOON-RPC path ──────────────────────────────────────────────────────
 
     fn handle_toonrpc(&self, raw: &[u8]) -> Result<Vec<u8>, RpcError> {
-        let msg = crate::from_wire(raw)?;
+        let msg = match crate::from_wire(raw) {
+            Ok(message) => message,
+            Err(error) => {
+                return toon_error_bytes(ErrorCode::ParseError, error.to_string());
+            }
+        };
+        let is_batch = matches!(&msg, Message::Batch(_));
+
+        if matches!(&msg, Message::Batch(calls) if calls.is_empty()) {
+            return toon_error_bytes(ErrorCode::InvalidRequest, "empty batch".into());
+        }
 
         // Sanity check: TOON-RPC body must carry `toonrpc: "1.0"`.
         if !has_toonrpc_marker(&msg) {
-            return Err(RpcError::InvalidRequest(
-                "missing toonrpc field on request".into(),
-            ));
+            return toon_error_bytes(
+                ErrorCode::InvalidRequest,
+                format!("expected toonrpc {TOONRPC_VERSION}"),
+            );
         }
 
-        let responses = self.dispatcher.dispatch_message(msg)?;
+        let responses = match self.dispatcher.dispatch_message(msg) {
+            Ok(responses) => responses,
+            Err(error) => {
+                return toon_error_bytes(ErrorCode::InvalidRequest, error.to_string());
+            }
+        };
 
         if responses.is_empty() {
             return Ok(vec![]);
         }
 
-        if responses.len() == 1 {
-            crate::to_wire(&Message::SingleResponse(responses[0].clone()))
-        } else {
+        if is_batch {
             crate::to_wire(&Message::BatchResponse(responses))
+        } else {
+            crate::to_wire(&Message::SingleResponse(responses[0].clone()))
         }
     }
 }
@@ -299,9 +330,16 @@ impl Default for MultiRpc {
 
 fn has_toonrpc_marker(msg: &Message) -> bool {
     match msg {
-        Message::Single(Call::Request(r)) => r.toonrpc == TOONRPC_VERSION,
-        Message::Single(Call::Notification(n)) => n.toonrpc == TOONRPC_VERSION,
+        Message::Single(call) => call_has_toonrpc_marker(call),
+        Message::Batch(calls) => calls.iter().all(call_has_toonrpc_marker),
         _ => false,
+    }
+}
+
+fn call_has_toonrpc_marker(call: &Call) -> bool {
+    match call {
+        Call::Request(request) => request.toonrpc == TOONRPC_VERSION,
+        Call::Notification(notification) => notification.toonrpc == TOONRPC_VERSION,
     }
 }
 
@@ -343,6 +381,15 @@ pub(crate) fn json_error_response(id: Id, code: i32, message: &str) -> JsonValue
     })
 }
 
+fn json_bytes(value: JsonValue) -> Result<Vec<u8>, RpcError> {
+    serde_json::to_vec(&value).map_err(|error| RpcError::SerializationError(error.to_string()))
+}
+
+fn toon_error_bytes(code: ErrorCode, message: String) -> Result<Vec<u8>, RpcError> {
+    let response = Response::error(Error::with_message(code, message), Id::Null);
+    crate::to_wire(&Message::SingleResponse(response))
+}
+
 /// Convert a typed `Response` (TOON-RPC) into a JSON-RPC 2.0 response object.
 pub(crate) fn json_response_from(resp: Response) -> JsonValue {
     let mut obj = serde_json::Map::new();
@@ -381,6 +428,10 @@ pub use Protocol as DetectedProtocol;
 mod tests {
     use super::*;
     use crate::types::{Id, Params};
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
 
     fn build_dispatcher() -> Dispatcher {
         let mut d = Dispatcher::new();
@@ -551,5 +602,129 @@ mod tests {
         let parsed: JsonValue = serde_json::from_slice(&out).unwrap();
         assert!(parsed["error"].is_object());
         assert_eq!(parsed["error"]["code"], -32602);
+    }
+
+    #[test]
+    fn notifications_execute_handlers_in_both_dialects() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = Arc::clone(&calls);
+        let mut dispatcher = Dispatcher::new();
+        dispatcher.register("observe", move |_params, _id| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            Ok(JsonValue::Null)
+        });
+        let multi = MultiRpc::new(dispatcher);
+
+        let json = br#"{"jsonrpc":"2.0","method":"observe","params":[]}"#;
+        assert!(multi.handle(json, None).unwrap().is_empty());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        let toon = b"toonrpc: \"1.0\"\nmethod: observe\nparams[0]:\n";
+        assert!(multi.handle(toon, None).unwrap().is_empty());
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn jsonrpc_null_id_is_answered() {
+        let multi = MultiRpc::new(build_dispatcher());
+        let raw = br#"{"jsonrpc":"2.0","method":"add","params":[2,3],"id":null}"#;
+        let out = multi.handle(raw, None).unwrap();
+        let parsed: JsonValue = serde_json::from_slice(&out).unwrap();
+
+        assert_eq!(parsed["result"], 5);
+        assert!(parsed["id"].is_null());
+    }
+
+    #[test]
+    fn jsonrpc_parse_error_is_encoded_as_a_response() {
+        let multi = MultiRpc::new(build_dispatcher());
+        let raw = br#"{"jsonrpc":"2.0","method":"add"#;
+        let out = multi.handle(raw, Some("application/json")).unwrap();
+        let parsed: JsonValue = serde_json::from_slice(&out).unwrap();
+
+        assert_eq!(parsed["error"]["code"], -32700);
+        assert!(parsed["id"].is_null());
+    }
+
+    #[test]
+    fn jsonrpc_invalid_requests_are_encoded_as_responses() {
+        let multi = MultiRpc::new(build_dispatcher());
+
+        let wrong_version = br#"{"jsonrpc":"1.0","method":"add","params":[2,3],"id":7}"#;
+        let out = multi.handle(wrong_version, None).unwrap();
+        let parsed: JsonValue = serde_json::from_slice(&out).unwrap();
+        assert_eq!(parsed["error"]["code"], -32600);
+        assert_eq!(parsed["id"], 7);
+
+        let empty_batch = multi.handle(b"[]", Some("application/json")).unwrap();
+        let parsed: JsonValue = serde_json::from_slice(&empty_batch).unwrap();
+        assert_eq!(parsed["error"]["code"], -32600);
+        assert!(parsed["id"].is_null());
+
+        let scalar = multi.handle(b"42", Some("application/json")).unwrap();
+        let parsed: JsonValue = serde_json::from_slice(&scalar).unwrap();
+        assert_eq!(parsed["error"]["code"], -32600);
+        assert!(parsed["id"].is_null());
+    }
+
+    #[test]
+    fn jsonrpc_batch_validates_each_entry_version() {
+        let multi = MultiRpc::new(build_dispatcher());
+        let raw = br#"[{"jsonrpc":"1.0","method":"add","params":[2,3],"id":1},{"jsonrpc":"2.0","method":"add","params":[3,4],"id":2}]"#;
+        let out = multi.handle(raw, None).unwrap();
+        let parsed: JsonValue = serde_json::from_slice(&out).unwrap();
+        let responses = parsed.as_array().unwrap();
+
+        assert_eq!(responses[0]["error"]["code"], -32600);
+        assert_eq!(responses[0]["id"], 1);
+        assert_eq!(responses[1]["result"], 7);
+        assert_eq!(responses[1]["id"], 2);
+    }
+
+    #[test]
+    fn toonrpc_protocol_errors_are_encoded_as_responses() {
+        let multi = MultiRpc::new(build_dispatcher());
+
+        let malformed = multi
+            .handle(b"toonrpc: [", Some("application/toon"))
+            .unwrap();
+        let Message::SingleResponse(response) = crate::from_wire(&malformed).unwrap() else {
+            panic!("expected a TOON-RPC parse error response");
+        };
+        assert_eq!(response.error.unwrap().code, ErrorCode::ParseError);
+        assert_eq!(response.id, Id::Null);
+
+        let wrong_version = b"toonrpc: \"0.9\"\nmethod: add\nparams[2]: 2,3\nid: 4\n";
+        let invalid = multi.handle(wrong_version, None).unwrap();
+        let Message::SingleResponse(response) = crate::from_wire(&invalid).unwrap() else {
+            panic!("expected a TOON-RPC invalid request response");
+        };
+        assert_eq!(response.error.unwrap().code, ErrorCode::InvalidRequest);
+        assert_eq!(response.id, Id::Null);
+    }
+
+    #[test]
+    fn toonrpc_batch_is_validated_and_preserves_batch_shape() {
+        let multi = MultiRpc::new(build_dispatcher());
+        let batch = Message::Batch(vec![
+            Call::Request(crate::protocol::Request::new(
+                "add".into(),
+                Params::ByPosition(vec![json!(2), json!(3)]),
+                Id::Number(1),
+            )),
+            Call::Notification(crate::protocol::Notification::new(
+                "add".into(),
+                Params::ByPosition(vec![json!(4), json!(5)]),
+            )),
+        ]);
+        let raw = crate::to_wire(&batch).unwrap();
+        let out = multi.handle(&raw, Some("application/toon")).unwrap();
+
+        let Message::BatchResponse(responses) = crate::from_wire(&out).unwrap() else {
+            panic!("expected a TOON-RPC batch response");
+        };
+        assert_eq!(responses.len(), 1);
+        assert_eq!(responses[0].result, Some(json!(5)));
+        assert_eq!(responses[0].id, Id::Number(1));
     }
 }
