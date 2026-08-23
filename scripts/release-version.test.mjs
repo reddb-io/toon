@@ -90,7 +90,7 @@ function text(directory, path) {
   return readFileSync(join(directory, path), 'utf8')
 }
 
-function unknownWorkflowDependencies(source) {
+function workflowDependencies(source) {
   const jobs = new Set()
   const dependencies = []
   let currentJob = ''
@@ -119,6 +119,11 @@ function unknownWorkflowDependencies(source) {
     }
   }
 
+  return { jobs, dependencies }
+}
+
+function unknownWorkflowDependencies(source) {
+  const { jobs, dependencies } = workflowDependencies(source)
   return dependencies.filter(({ dependency }) => !jobs.has(dependency))
 }
 
@@ -130,6 +135,37 @@ test('GitHub Actions jobs depend only on jobs declared by their workflow', () =>
       [],
       `${filename} contains an unknown job dependency`,
     )
+  }
+})
+
+test('release publication waits for drift and exact-commit CI gates', () => {
+  const release = text(root, '.github/workflows/release.yml')
+  const { dependencies } = workflowDependencies(release)
+  const dependencyNames = (job) =>
+    dependencies.filter((entry) => entry.job === job).map((entry) => entry.dependency)
+
+  for (const job of ['publish-github', 'publish-cargo', 'publish-npm']) {
+    assert.deepEqual(
+      dependencyNames(job).filter((name) => ['upstream-drift', 'verify-ci'].includes(name)),
+      ['upstream-drift', 'verify-ci'],
+      `${job} must wait for every prepublication gate`,
+    )
+  }
+  assert.deepEqual(
+    dependencyNames('verify-public').filter((name) => name.startsWith('publish-')),
+    ['publish-github', 'publish-cargo', 'publish-npm'],
+  )
+  assert.match(release, /upstream-drift:[\s\S]*?if: needs\.plan\.outputs\.should_skip != 'true'/)
+  assert.match(release, /verify-ci:[\s\S]*?if: needs\.plan\.outputs\.should_skip != 'true'/)
+})
+
+test('GitHub Actions run project JavaScript on the pinned Node version', () => {
+  const workflowDirectory = join(root, '.github/workflows')
+  for (const filename of readdirSync(workflowDirectory).filter((name) => name.endsWith('.yml'))) {
+    const versions = [...text(workflowDirectory, filename).matchAll(/node-version: ([^\s]+)/g)]
+    for (const [, version] of versions) {
+      assert.equal(version, '26.7.0', `${filename} uses Node ${version}`)
+    }
   }
 })
 

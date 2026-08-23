@@ -257,7 +257,7 @@ jobs:
           ref: ${{ needs.plan.outputs.release_sha }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26.7.0
       - name: Enable pnpm
         run: corepack enable
       - name: Sync release version
@@ -280,7 +280,7 @@ jobs:
 
   publish-github:
     name: GitHub Release
-    needs: [plan, build, build-vsix]
+    needs: [plan, build, build-vsix, upstream-drift, verify-ci]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -490,9 +490,9 @@ jobs:
 
   publish-cargo:
     name: Publish crates to crates.io
-    # Only depends on `plan`. Source publishing doesn't need binaries from
-    # the `build` matrix, so it runs in parallel with everything else.
-    needs: [plan]
+    # Source publication can run in parallel with the binary build, but only
+    # after every release-wide prepublication gate has passed.
+    needs: [plan, upstream-drift, verify-ci]
     runs-on: ubuntu-latest
     if: |
       needs.plan.outputs.should_skip != 'true' &&
@@ -543,11 +543,11 @@ jobs:
 
   publish-npm:
     name: Publish @reddb-io/toon to npm
-    # Like publish-cargo, this is a source publish: it needs nothing from the
-    # binary build matrix, so it runs in parallel with everything else. npm
-    # Publishing follows the reddb pattern: stable tags only. Manually
+    # Like publish-cargo, this source publish can run in parallel with the
+    # binary build after every release-wide prepublication gate passes. npm
+    # publishing follows the reddb pattern: stable tags only. Manually
     # dispatched prereleases ship binaries on GitHub but never hit npm.
-    needs: [plan]
+    needs: [plan, upstream-drift, verify-ci]
     runs-on: ubuntu-latest
     if: |
       needs.plan.outputs.should_skip != 'true' &&
@@ -559,7 +559,7 @@ jobs:
           submodules: true
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26.7.0
           registry-url: https://registry.npmjs.org
       - name: Enable pnpm
         run: corepack enable
@@ -619,9 +619,7 @@ jobs:
   upstream-drift:
     name: Capture release-time upstream drift
     needs: [plan]
-    if: |
-      needs.plan.outputs.should_skip != 'true' &&
-      needs.plan.outputs.release_channel == 'stable'
+    if: needs.plan.outputs.should_skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -630,7 +628,7 @@ jobs:
           ref: ${{ needs.plan.outputs.release_sha }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26.7.0
       - name: Capture dated report
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -647,9 +645,7 @@ jobs:
   verify-ci:
     name: Verify exact-commit CI
     needs: [plan]
-    if: |
-      needs.plan.outputs.should_skip != 'true' &&
-      needs.plan.outputs.release_channel == 'stable'
+    if: needs.plan.outputs.should_skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -691,7 +687,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26.7.0
           registry-url: https://registry.npmjs.org
       - uses: dtolnay/rust-toolchain@stable
       - name: Install and exercise registry packages and release assets

@@ -25,11 +25,10 @@ jobs:
           submodules: true
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26.7.0
       - name: Report upstream release drift
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
           node scripts/upstream-release-watch.mjs --write-issue | tee -a "$GITHUB_STEP_SUMMARY"
-
