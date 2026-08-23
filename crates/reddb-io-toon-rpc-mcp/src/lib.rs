@@ -1,12 +1,13 @@
-//! TOON-RPC implementation of the Model Context Protocol (MCP)
+//! Experimental MCP adapter under protocol recovery.
 //!
-//! MCP is JSON-RPC 2.0 over stdio / Streamable HTTP. This crate provides:
+//! This prototype is not currently MCP-conformant and must not be presented as
+//! compatible with MCP hosts. Its intended surfaces are:
 //!
 //! - MCP-specific types (Tool, Resource, Prompt, Content)
 //! - [`McpService`] trait for implementing MCP servers
 //! - A [`Dispatcher`] adapter that registers all MCP methods automatically
-//! - stdio transport compatible with Claude Desktop / Claude Code
-//! - Streamable HTTP transport (POST + SSE)
+//! - experimental stdio transport
+//! - experimental HTTP transport
 //!
 //! # Example
 //!

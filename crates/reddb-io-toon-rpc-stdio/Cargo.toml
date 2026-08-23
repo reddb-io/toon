@@ -1,6 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-stdio"
 version.workspace = true
+publish = false
 description = "TOON-RPC stdio transport"
 edition.workspace = true
 license.workspace = true

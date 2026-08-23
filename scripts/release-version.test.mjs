@@ -290,7 +290,7 @@ test('stable releases document v4.1 and close only after public clean-room verif
   assert.match(manual, /name: Capture release-time upstream drift/)
   assert.match(manual, /name: Verify exact-commit CI/)
   assert.match(manual, /name: Verify public artifacts from clean consumers/)
-  for (const packageName of ['toon', 'toon-rpc', 'multi-rpc', 'toon-rpc-mcp', 'toon-rpc-acp']) {
+  for (const packageName of ['toon']) {
     assert.match(manual, new RegExp(`"@reddb-io/${packageName}@\\$\\{VERSION\\}"`))
   }
   assert.match(manual, /cargo install --version "\$\{VERSION\}" reddb-io-tq/)
@@ -299,6 +299,43 @@ test('stable releases document v4.1 and close only after public clean-room verif
   assert.match(manual, /gh issue close "\$CLOSURE_SPEC"/)
   assert.match(automatic, /closure_issue=247/)
   assert.match(automatic, /closure_spec=203/)
+})
+
+test('RPC packages and crates stay quarantined from stable publication', () => {
+  const release = text(root, '.github/workflows/release.yml')
+  assert.match(release, /publish_npm_pkg "@reddb-io\/toon"/)
+  assert.match(release, /publish_one reddb-io-toon\n/)
+  assert.match(release, /publish_one reddb-io-tq\n/)
+
+  const npmPackages = [
+    ['packages/toon-rpc/package.json', '@reddb-io/toon-rpc'],
+    ['packages/multi-rpc/package.json', '@reddb-io/multi-rpc'],
+    ['packages/toon-rpc-mcp/package.json', '@reddb-io/toon-rpc-mcp'],
+    ['packages/toon-rpc-acp/package.json', '@reddb-io/toon-rpc-acp'],
+  ]
+
+  for (const [path, name] of npmPackages) {
+    const manifest = JSON.parse(text(root, path))
+    assert.equal(manifest.private, true, `${name} must remain private during recovery`)
+    assert.doesNotMatch(release, new RegExp(`publish_npm_pkg "${name}"`))
+    assert.doesNotMatch(release, new RegExp(`"${name}@\\$\\{VERSION\\}"`))
+  }
+
+  const cargoManifests = readdirSync(join(root, 'crates'), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('reddb-io-toon-rpc'))
+    .map((entry) => `crates/${entry.name}/Cargo.toml`)
+  for (const path of cargoManifests) {
+    const manifest = text(root, path)
+    const name = manifest.match(/^name = "([^"]+)"$/m)?.[1]
+    assert.ok(name, `${path} must declare a package name`)
+    assert.match(manifest, /^publish = false$/m, `${name} must remain unpublished during recovery`)
+    assert.doesNotMatch(release, new RegExp(`publish_one ${name}`))
+    assert.doesNotMatch(release, new RegExp(`${name} = "=%s"`))
+  }
+
+  const mcpManifest = JSON.parse(text(root, 'packages/toon-rpc-mcp/package.json'))
+  assert.equal(mcpManifest.exports['./http'], undefined, 'MCP must not export a missing HTTP build')
+  assert.doesNotMatch(mcpManifest.description, /wire-compatible|Claude Desktop|Claude Code/i)
 })
 
 test('automatic release dispatch recovers the exact untagged v4.1 release commit', () => {
