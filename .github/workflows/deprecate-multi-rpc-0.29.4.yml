@@ -1,4 +1,4 @@
-name: Unpublish invalid multi-rpc 0.29.4
+name: Deprecate invalid multi-rpc 0.29.4
 
 on:
   workflow_dispatch:
@@ -7,15 +7,15 @@ permissions:
   contents: read
 
 jobs:
-  unpublish:
-    name: Remove @reddb-io/multi-rpc@0.29.4 from npm
+  deprecate:
+    name: Deprecate @reddb-io/multi-rpc@0.29.4 on npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - name: Unpublish invalid facade version
+      - name: Deprecate invalid facade version
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm unpublish @reddb-io/multi-rpc@0.29.4 --force
+        run: npm deprecate @reddb-io/multi-rpc@0.29.4 "Invalid facade; use @reddb-io/multi-rpc@0.29.5 or later."
