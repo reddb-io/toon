@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::error::{Error, ErrorCode, RpcError};
-use crate::protocol::{Call, Message, Response};
+use crate::protocol::{Call, Message, Notification, Response};
 use crate::types::{Id, Params, Value};
 
 type Handler = dyn Fn(Params, Id) -> Result<Value, RpcError> + Send + Sync;
@@ -55,7 +55,7 @@ impl Dispatcher {
         match msg {
             Message::Single(Call::Request(req)) => Ok(vec![self.handle_request(req)]),
             Message::Single(Call::Notification(notif)) => {
-                drop(notif);
+                self.handle_notification(notif);
                 Ok(vec![])
             }
             Message::Batch(calls) => {
@@ -66,7 +66,7 @@ impl Dispatcher {
                             responses.push(self.handle_request(req));
                         }
                         Call::Notification(notif) => {
-                            drop(notif);
+                            self.handle_notification(notif);
                         }
                     }
                 }
@@ -108,6 +108,17 @@ impl Dispatcher {
                 Response::error(Error::with_message(code, e.to_string()), req.id)
             }
         }
+    }
+
+    fn handle_notification(&self, notification: Notification) {
+        let Some(handler) = self.methods.get(&notification.method) else {
+            return;
+        };
+
+        // Notifications execute like requests, but neither success nor failure
+        // produces a response. `Id::Null` is the handler-level placeholder for
+        // the absent wire id; notification-ness itself lives in `Call`.
+        let _ = handler(notification.params, Id::Null);
     }
 }
 
