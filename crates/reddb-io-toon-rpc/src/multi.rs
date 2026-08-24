@@ -42,14 +42,13 @@
 //! assert!(std::str::from_utf8(&toon_resp).unwrap().contains("toonrpc"));
 //! ```
 
-use crate::error::{Error, ErrorCode, RpcError};
+use crate::error::{ErrorCode, RpcError};
 use crate::protocol::{Call, Message, Response};
 use crate::types::{Id, Params};
 use crate::Dispatcher;
 use serde_json::{json, Value as JsonValue};
 
 const JSONRPC_VERSION: &str = "2.0";
-const TOONRPC_VERSION: &str = "1.0";
 
 /// Wire protocol variants the dispatcher can negotiate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -281,42 +280,7 @@ impl MultiRpc {
     // ── TOON-RPC path ──────────────────────────────────────────────────────
 
     fn handle_toonrpc(&self, raw: &[u8]) -> Result<Vec<u8>, RpcError> {
-        let msg = match crate::from_wire(raw) {
-            Ok(message) => message,
-            Err(error) => {
-                return toon_error_bytes(ErrorCode::ParseError, error.to_string());
-            }
-        };
-        let is_batch = matches!(&msg, Message::Batch(_));
-
-        if matches!(&msg, Message::Batch(calls) if calls.is_empty()) {
-            return toon_error_bytes(ErrorCode::InvalidRequest, "empty batch".into());
-        }
-
-        // Sanity check: TOON-RPC body must carry `toonrpc: "1.0"`.
-        if !has_toonrpc_marker(&msg) {
-            return toon_error_bytes(
-                ErrorCode::InvalidRequest,
-                format!("expected toonrpc {TOONRPC_VERSION}"),
-            );
-        }
-
-        let responses = match self.dispatcher.dispatch_message(msg) {
-            Ok(responses) => responses,
-            Err(error) => {
-                return toon_error_bytes(ErrorCode::InvalidRequest, error.to_string());
-            }
-        };
-
-        if responses.is_empty() {
-            return Ok(vec![]);
-        }
-
-        if is_batch {
-            crate::to_wire(&Message::BatchResponse(responses))
-        } else {
-            crate::to_wire(&Message::SingleResponse(responses[0].clone()))
-        }
+        self.dispatcher.dispatch(raw)
     }
 }
 
@@ -327,21 +291,6 @@ impl Default for MultiRpc {
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────
-
-fn has_toonrpc_marker(msg: &Message) -> bool {
-    match msg {
-        Message::Single(call) => call_has_toonrpc_marker(call),
-        Message::Batch(calls) => calls.iter().all(call_has_toonrpc_marker),
-        _ => false,
-    }
-}
-
-fn call_has_toonrpc_marker(call: &Call) -> bool {
-    match call {
-        Call::Request(request) => request.toonrpc == TOONRPC_VERSION,
-        Call::Notification(notification) => notification.toonrpc == TOONRPC_VERSION,
-    }
-}
 
 /// Convert a JSON-RPC `id` field (string | number | null) into our typed `Id`.
 pub(crate) fn id_from_json(v: Option<&JsonValue>) -> Id {
@@ -383,11 +332,6 @@ pub(crate) fn json_error_response(id: Id, code: i32, message: &str) -> JsonValue
 
 fn json_bytes(value: JsonValue) -> Result<Vec<u8>, RpcError> {
     serde_json::to_vec(&value).map_err(|error| RpcError::SerializationError(error.to_string()))
-}
-
-fn toon_error_bytes(code: ErrorCode, message: String) -> Result<Vec<u8>, RpcError> {
-    let response = Response::error(Error::with_message(code, message), Id::Null);
-    crate::to_wire(&Message::SingleResponse(response))
 }
 
 /// Convert a typed `Response` (TOON-RPC) into a JSON-RPC 2.0 response object.
@@ -686,7 +630,7 @@ mod tests {
         let multi = MultiRpc::new(build_dispatcher());
 
         let malformed = multi
-            .handle(b"toonrpc: [", Some("application/toon"))
+            .handle(b"toonrpc: \"unterminated", Some("application/toon"))
             .unwrap();
         let Message::SingleResponse(response) = crate::from_wire(&malformed).unwrap() else {
             panic!("expected a TOON-RPC parse error response");

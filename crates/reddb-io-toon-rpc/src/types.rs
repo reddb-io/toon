@@ -10,21 +10,18 @@ pub enum Id {
     Number(i64),
 }
 
-impl Id {
-    pub fn is_notification(&self) -> bool {
-        matches!(self, Id::Null)
-    }
-}
-
 pub type Value = JsonValue;
 
 pub type Method = String;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Params {
     ByPosition(Vec<Value>),
     ByName(serde_json::Map<String, Value>),
+    #[serde(skip)]
+    #[default]
+    Absent,
 }
 
 impl Params {
@@ -32,12 +29,11 @@ impl Params {
         match self {
             Params::ByPosition(v) => v.is_empty(),
             Params::ByName(m) => m.is_empty(),
+            Params::Absent => true,
         }
     }
-}
 
-impl Default for Params {
-    fn default() -> Self {
-        Params::ByPosition(vec![])
+    pub fn is_absent(&self) -> bool {
+        matches!(self, Params::Absent)
     }
 }
