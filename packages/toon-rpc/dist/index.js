@@ -5,6 +5,7 @@ export * from './protocol.js';
 export * from './client.js';
 export * from './rpc-error.js';
 export * from './transport.js';
+export * from './framing.js';
 export class Server {
     methods = new Map();
     constructor() { }
@@ -201,25 +202,5 @@ function encodeToonBatch(responses) {
 }
 function encodeResponse(response) {
     return new TextEncoder().encode(encode(response));
-}
-export function createStdioTransport() {
-    return {
-        async send(data) {
-            const text = new TextDecoder().decode(data);
-            process.stdout.write(text);
-            if (!text.endsWith('\n')) {
-                process.stdout.write('\n');
-            }
-        },
-        async *recv() {
-            const stdin = process.stdin;
-            for await (const chunk of stdin) {
-                yield new TextEncoder().encode(chunk);
-            }
-        },
-        async close() {
-            process.stdin.pause();
-        },
-    };
 }
 //# sourceMappingURL=index.js.map

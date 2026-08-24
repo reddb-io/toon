@@ -22,13 +22,7 @@ export * from './protocol.js';
 export * from './client.js';
 export * from './rpc-error.js';
 export * from './transport.js';
-
-/** @deprecated Concrete transports will migrate to the 0.30 contracts in slice 7. */
-export interface Transport {
-  send(data: Uint8Array): Promise<void>;
-  recv(): AsyncIterable<Uint8Array>;
-  close(): Promise<void>;
-}
+export * from './framing.js';
 
 export interface MethodHandler {
   (params: Params | undefined, id: Id | undefined): Promise<CoreValue>;
@@ -237,25 +231,4 @@ function encodeToonBatch(responses: Response[]): Uint8Array {
 
 function encodeResponse(response: Response | Response[]): Uint8Array {
   return new TextEncoder().encode(encode(response as unknown as JsonValue));
-}
-
-export function createStdioTransport(): Transport {
-  return {
-    async send(data: Uint8Array): Promise<void> {
-      const text = new TextDecoder().decode(data);
-      process.stdout.write(text);
-      if (!text.endsWith('\n')) {
-        process.stdout.write('\n');
-      }
-    },
-    async *recv(): AsyncIterable<Uint8Array> {
-      const stdin = process.stdin;
-      for await (const chunk of stdin) {
-        yield new TextEncoder().encode(chunk);
-      }
-    },
-    async close(): Promise<void> {
-      process.stdin.pause();
-    },
-  };
 }
