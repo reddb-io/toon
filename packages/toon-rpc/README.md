@@ -1,6 +1,7 @@
 # @reddb-io/toon-rpc
 
-TOON-RPC client and server. JSON-RPC 2.0 semantics with TOON serialization.
+TOON-RPC 1.0 client and server. TOON-RPC borrows JSON-RPC's envelope model but
+is a separate wire protocol encoded as UTF-8 TOON.
 
 > **Recovery status:** this package is an experimental prototype with known
 > protocol, client, and transport correctness gaps. Publication is paused under
@@ -56,19 +57,47 @@ id: 1
 # Response
 toonrpc: "1.0"
 result: 3
-error: null
 id: 1
 
 # Error
 toonrpc: "1.0"
-result: null
-error: { code: -32601 message: "Method not found" data: null }
+error:
+  code: -32601
+  message: "Method not found"
 id: 1
 ```
 
+Success responses contain `result` and no `error`; error responses contain
+`error` and no `result`. `result: null` is a successful result. Error `data` is
+optional, and an explicit `data: null` is preserved. Only an absent request
+`id` is a notification; `id: null` is a request. Omitted `params` stay omitted,
+while present `params` must be an array or object.
+
+Runtime validators and snapshots reject present members whose value is
+`undefined`, including `data: undefined`. TypeScript projects that do not enable
+`exactOptionalPropertyTypes` can still construct that optional-property shape,
+so it must not be treated as runtime-valid; the `RpcError` constructor overloads
+reject an explicit third `undefined` argument under `strict` typing.
+With `exactOptionalPropertyTypes`, explicit `undefined` is also rejected for
+optional envelope members. The exported `CoreValue` type excludes `undefined`
+recursively and accepts readonly arrays, while the
+`snapshotCoreValue`, `snapshotRequestObject`, and `snapshotResponse` helpers
+validate own data properties and return stable local containers.
+Snapshots reject cycles, materialize acyclic aliases as independent
+wire-equivalent copies, and use a fixed defensive expansion budget to bound
+large DAGs and hostile expanding Proxies. Avoiding redundant work for repeated
+aliases is a future resource-slice optimization; configurable protocol limits
+remain deferred to the limits work in slice 11.
+The budget bounds processing after an `ownKeys` result is returned; JavaScript
+cannot interrupt a blocking `ownKeys` Proxy trap itself.
+
+`Server.dispatchEntry` performs codec-independent validation and dispatch.
+`Server.handle` and `handleText` additionally preflight generated responses in
+their final TOON root context before emission.
+
 ## Error Codes
 
-Standard JSON-RPC 2.0 error codes:
+TOON-RPC reserved error codes:
 
 | Code | Message |
 |------|---------|

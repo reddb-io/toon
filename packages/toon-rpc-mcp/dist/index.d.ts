@@ -1,5 +1,6 @@
 import type { JsonValue } from '@reddb-io/toon';
 import { Server } from '@reddb-io/toon-rpc';
+import type { CoreValue } from '@reddb-io/toon-rpc';
 export declare const MCP_PROTOCOL_VERSION = "2026-07-28";
 export declare const MCP_NS = "io.modelcontextprotocol";
 export interface ServerInfo {
@@ -80,6 +81,7 @@ export interface DiscoverResponse {
     ttlMs?: number;
     cacheScope?: string;
 }
+export declare function normalizeMcpCoreValue(value: unknown): CoreValue;
 export declare function createMcpDispatcher(service: McpService): Server;
 export declare function encodeMcpMessage(value: JsonValue): string;
 export declare function decodeMcpMessage(text: string): JsonValue;

@@ -1,6 +1,7 @@
 import { decode, encode } from '@reddb-io/toon';
 import type { JsonValue } from '@reddb-io/toon';
-import { Server } from '@reddb-io/toon-rpc';
+import { Server, snapshotCoreValueOmittingUndefinedProperties } from '@reddb-io/toon-rpc';
+import type { CoreValue } from '@reddb-io/toon-rpc';
 
 export const MCP_PROTOCOL_VERSION = '2026-07-28';
 export const MCP_NS = 'io.modelcontextprotocol';
@@ -93,6 +94,14 @@ export interface DiscoverResponse {
   cacheScope?: string;
 }
 
+export function normalizeMcpCoreValue(value: unknown): CoreValue {
+  const normalized = snapshotCoreValueOmittingUndefinedProperties(value);
+  if (normalized === undefined) {
+    throw new TypeError('MCP value is not representable as a core RPC value');
+  }
+  return normalized;
+}
+
 export function createMcpDispatcher(service: McpService): Server {
   const server = new Server();
 
@@ -112,29 +121,29 @@ export function createMcpDispatcher(service: McpService): Server {
       ttlMs: 3600000,
       cacheScope: 'public',
     };
-    return response as unknown as JsonValue;
+    return normalizeMcpCoreValue(response);
   });
 
   server.register('tools/list', async () => {
-    return {
+    return normalizeMcpCoreValue({
       resultType: 'complete',
       items: service.listTools(),
-    } as unknown as JsonValue;
+    });
   });
 
   server.register('tools/call', async (params: unknown) => {
     const p = params as { name: string; arguments?: JsonValue };
     if (!p || typeof p.name !== 'string') {
-      return CallToolResponse.error('missing tool name') as unknown as JsonValue;
+      return normalizeMcpCoreValue(CallToolResponse.error('missing tool name'));
     }
-    return (await service.callTool(p.name, p.arguments ?? {})) as unknown as JsonValue;
+    return normalizeMcpCoreValue(await service.callTool(p.name, p.arguments ?? {}));
   });
 
   server.register('resources/list', async () => {
-    return {
+    return normalizeMcpCoreValue({
       resultType: 'complete',
       items: service.listResources(),
-    } as unknown as JsonValue;
+    });
   });
 
   server.register('resources/read', async (params: unknown) => {
@@ -142,14 +151,14 @@ export function createMcpDispatcher(service: McpService): Server {
     if (!p || typeof p.uri !== 'string') {
       throw new Error('missing resource uri');
     }
-    return await service.readResource(p.uri);
+    return normalizeMcpCoreValue(await service.readResource(p.uri));
   });
 
   server.register('prompts/list', async () => {
-    return {
+    return normalizeMcpCoreValue({
       resultType: 'complete',
       items: service.listPrompts(),
-    } as unknown as JsonValue;
+    });
   });
 
   server.register('prompts/get', async (params: unknown) => {
@@ -157,7 +166,7 @@ export function createMcpDispatcher(service: McpService): Server {
     if (!p || typeof p.name !== 'string') {
       throw new Error('missing prompt name');
     }
-    return await service.getPrompt(p.name, p.arguments);
+    return normalizeMcpCoreValue(await service.getPrompt(p.name, p.arguments));
   });
 
   return server;

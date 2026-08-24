@@ -32,7 +32,19 @@ await multi.handle('toonrpc: "1.0"\nmethod: add\nparams[2]: 2,3\nid: 1');
 ```
 
 The package also exports `detectProtocol`, `contentTypeFor`, `encodeMessage`,
-`decodeMessage`, and their associated TypeScript types.
+`decodeMessage`, and their associated TypeScript types. Message helpers accept
+both single objects and batches; batch entries are translated independently and
+the root array is preserved.
+
+Recognized content types are the exact media types `application/json` and
+`application/toon`, compared case-insensitively before optional parameters.
+Without a recognized content type, detection parses JSON-looking input and
+selects JSON-RPC only when the root request or a root batch entry owns a
+`jsonrpc` member; the existing fallback is TOON-RPC.
+
+JSON responses are stringified and isolated entry by entry before a batch is
+assembled. TOON requests remain delegated to `Server`, including its TOON
+depth and batch-shape preflight.
 
 ## License
 
