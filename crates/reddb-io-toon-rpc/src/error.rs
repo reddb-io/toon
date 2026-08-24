@@ -9,12 +9,27 @@ pub enum ErrorCode {
     InvalidParams,
     InternalError,
     ServerError(i16),
+    Other(i32),
 }
 
 // Serialize as the numeric code so JSON-RPC and TOON-RPC wire formats both
 // carry `-32601` instead of the variant name.
 impl Serialize for ErrorCode {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            ErrorCode::ServerError(offset) if !Self::is_valid_server_offset(*offset) => {
+                return Err(serde::ser::Error::custom(
+                    "server error offset must be between 0 and 99",
+                ));
+            }
+            ErrorCode::Other(code) if !matches!(Self::from_code(*code), Some(ErrorCode::Other(mapped)) if mapped == *code) =>
+            {
+                return Err(serde::ser::Error::custom(
+                    "error code must use its canonical named variant",
+                ));
+            }
+            _ => {}
+        }
         s.serialize_i32(self.code())
     }
 }
@@ -23,7 +38,7 @@ impl<'de> Deserialize<'de> for ErrorCode {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let code = i32::deserialize(d)?;
         ErrorCode::from_code(code)
-            .ok_or_else(|| serde::de::Error::custom(format!("unknown error code: {}", code)))
+            .ok_or_else(|| serde::de::Error::custom("error code must be a signed 32-bit integer"))
     }
 }
 
@@ -36,21 +51,22 @@ impl ErrorCode {
             ErrorCode::InvalidParams => -32602,
             ErrorCode::InternalError => -32603,
             ErrorCode::ServerError(n) => -32000 - *n as i32,
+            ErrorCode::Other(code) => *code,
         }
     }
 
     pub fn from_code(code: i32) -> Option<Self> {
-        match code {
-            -32700 => Some(ErrorCode::ParseError),
-            -32600 => Some(ErrorCode::InvalidRequest),
-            -32601 => Some(ErrorCode::MethodNotFound),
-            -32602 => Some(ErrorCode::InvalidParams),
-            -32603 => Some(ErrorCode::InternalError),
+        Some(match code {
+            -32700 => ErrorCode::ParseError,
+            -32600 => ErrorCode::InvalidRequest,
+            -32601 => ErrorCode::MethodNotFound,
+            -32602 => ErrorCode::InvalidParams,
+            -32603 => ErrorCode::InternalError,
             _ if (-32099..=-32000).contains(&code) => {
-                Some(ErrorCode::ServerError((code + 32000) as i16))
+                ErrorCode::ServerError((-32000 - code) as i16)
             }
-            _ => None,
-        }
+            _ => ErrorCode::Other(code),
+        })
     }
 
     pub fn message(&self) -> &'static str {
@@ -61,16 +77,50 @@ impl ErrorCode {
             ErrorCode::InvalidParams => "Invalid params",
             ErrorCode::InternalError => "Internal error",
             ErrorCode::ServerError(_) => "Server error",
+            ErrorCode::Other(_) => "Application error",
         }
+    }
+
+    pub(crate) fn is_valid_server_offset(offset: i16) -> bool {
+        (0..=99).contains(&offset)
+    }
+
+    pub(crate) fn is_reserved_code(code: i32) -> bool {
+        (-32768..=-32000).contains(&code)
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Error {
     pub code: ErrorCode,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
+}
+
+impl<'de> Deserialize<'de> for Error {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let mut object = value
+            .as_object()
+            .cloned()
+            .ok_or_else(|| serde::de::Error::custom("error must be an object"))?;
+        let code = object
+            .remove("code")
+            .ok_or_else(|| serde::de::Error::missing_field("code"))?;
+        let code = serde_json::from_value(code).map_err(serde::de::Error::custom)?;
+        let message = object
+            .remove("message")
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .ok_or_else(|| serde::de::Error::custom("error message must be a string"))?;
+        let data = object.remove("data");
+
+        Ok(Self {
+            code,
+            message,
+            data,
+        })
+    }
 }
 
 impl Error {
@@ -121,6 +171,10 @@ pub enum RpcError {
     InternalError(String),
     #[error("server error: {0}")]
     ServerError(i16, String),
+    #[error("application error: {1}")]
+    ApplicationError(i32, String),
+    #[error(transparent)]
+    ResponseError(#[from] Error),
     #[error("transport error: {0}")]
     TransportError(String),
     #[error("serialization error: {0}")]
@@ -128,16 +182,3 @@ pub enum RpcError {
 }
 
 pub type RpcResult<T> = Result<T, RpcError>;
-
-impl From<Error> for RpcError {
-    fn from(e: Error) -> Self {
-        match e.code {
-            ErrorCode::ParseError => RpcError::ParseError(e.message),
-            ErrorCode::InvalidRequest => RpcError::InvalidRequest(e.message),
-            ErrorCode::MethodNotFound => RpcError::MethodNotFound(e.message),
-            ErrorCode::InvalidParams => RpcError::InvalidParams(e.message),
-            ErrorCode::InternalError => RpcError::InternalError(e.message),
-            ErrorCode::ServerError(n) => RpcError::ServerError(n, e.message),
-        }
-    }
-}

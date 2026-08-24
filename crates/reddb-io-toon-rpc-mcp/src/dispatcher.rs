@@ -197,6 +197,7 @@ fn extract_named_string(params: &Params, key: &str) -> McpResult<String> {
                 )))
             }
         }
+        Params::Absent => Err(McpError::InvalidParams(format!("missing field: {}", key))),
     }
 }
 
@@ -204,6 +205,7 @@ fn extract_named_value(params: &Params, key: &str) -> Option<Value> {
     match params {
         Params::ByName(map) => map.get(key).cloned(),
         Params::ByPosition(arr) => arr.get(1).cloned(),
+        Params::Absent => None,
     }
 }
 

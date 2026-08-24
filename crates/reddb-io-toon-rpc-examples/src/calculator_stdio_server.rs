@@ -24,6 +24,9 @@ fn extract_numbers(params: &Params) -> Result<Vec<f64>, reddb_io_toon_rpc::RpcEr
         Params::ByName(_) => Err(reddb_io_toon_rpc::RpcError::InvalidParams(
             "named params not supported".to_string(),
         )),
+        Params::Absent => Err(reddb_io_toon_rpc::RpcError::InvalidParams(
+            "params are required".to_string(),
+        )),
     }
 }
 
