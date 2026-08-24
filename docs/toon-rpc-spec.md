@@ -238,17 +238,27 @@ permit it.
 
 The core protocol operates on complete RPC documents. It does not define byte
 framing, connection ownership, retries, cancellation, backpressure, HTTP
-status codes, or connection shutdown.
+status codes, or connection shutdown. A client or transport profile MUST define
+those lifecycle rules without weakening response validation or correlation.
 
 Transport profiles MUST preserve the document boundaries and no-response
 semantics defined here:
 
 - request/response transports such as HTTP map one request body to zero or one
-  response body; HTTP is not a fake duplex stream;
+  response body; the response is scoped to that exchange and cannot settle a
+  different concurrent call; HTTP is not a fake duplex stream;
 - frame transports such as WebSocket carry one complete document per selected
   frame profile; and
 - byte streams such as TCP, Unix sockets, and stdio require an explicit framing
   profile and MUST NOT infer boundaries from arbitrary newlines.
+
+When a direct request/response exchange completes without a valid response for
+its initiating call, the exchange is exhausted and that call terminates with a
+protocol error. The rule in section 5.1 that unmatched calls remain pending
+continues to apply to duplex response documents, where later documents can still
+provide the match. A duplex transport's close operation MUST terminate its
+receive iterator; cancellation-aware operations SHOULD stop promptly when their
+supplied abort signal fires.
 
 For example, an HTTP profile will normally represent a notification-only result
 with status 204 and no RPC body. A stream profile emits no response frame. These
@@ -278,7 +288,9 @@ first verify that decoding `wire` produces `value`.
 
 Client inputs declare `pendingIds`; runners MUST seed exactly those pending
 calls before delivering the response. Client batch expectations identify every
-settled call, rejected entry, and still-pending ID. Case names are globally
+settled call, rejected entry, and still-pending ID. TypeScript seeds the
+production `Client`; Rust uses its harness oracle until slice 8 recovers the
+production Rust client. Case names are globally
 unique fixture identifiers, and runners MUST reject duplicate names across the
 complete `valid` and `malformed` arrays before executing any case.
 
@@ -301,13 +313,20 @@ present in the expectation.
 The corpus is the acceptance contract for the 0.30 recovery. Rust and
 TypeScript semantic runners execute every vector directly from these shared
 files; expected failure ledgers are not permitted for this corpus. Server cases
-exercise the production dispatcher/server. Client cases remain harness-only
-oracles until the production client work in slices 6/8 lands.
+exercise the production dispatcher/server. TypeScript client cases exercise the
+production client and its public diagnostic mechanism; Rust client cases remain
+harness-only until slice 8.
 
 ## 11. Implementation Status
 
+The TypeScript client owns one receive pump for a framed duplex transport and
+supports a separate direct request/response contract. Pending calls are removed
+before settlement on success, RPC error, abort, timeout, send failure, transport
+failure/completion, or client close. Invalid, unknown-ID, and duplicate-ID
+responses are observable diagnostics, and valid batch siblings are isolated.
+
 The existing TypeScript and Rust packages remain quarantined while Spec #389 is
-in progress. Shared semantic runners now cover this core corpus, but their
-presence does not imply that every deferred production component conforms.
-Publication resumes only after lifecycle, transport, package, and exact-commit
-release gates pass.
+in progress. The concrete TypeScript transports and Rust production client are
+still deferred, so shared semantic coverage does not imply that every production
+component conforms. Publication resumes only after lifecycle, transport,
+package, and exact-commit release gates pass.

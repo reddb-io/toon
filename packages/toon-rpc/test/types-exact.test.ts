@@ -1,4 +1,4 @@
-import type { ErrorObject, Notification, Request } from '../dist/index.js';
+import type { CallOptions, ErrorObject, Notification, Request } from '../dist/index.js';
 
 // @ts-expect-error exactOptionalPropertyTypes rejects present undefined data.
 const error: ErrorObject = { code: 1, message: 'invalid', data: undefined };
@@ -9,6 +9,10 @@ const request: Request = { toonrpc: '1.0', method: 'call', params: undefined, id
 // @ts-expect-error exactOptionalPropertyTypes rejects an explicit notification id.
 const notification: Notification = { toonrpc: '1.0', method: 'notify', id: undefined };
 
+// @ts-expect-error exactOptionalPropertyTypes rejects an explicit undefined ID.
+const callOptions: CallOptions = { id: undefined };
+
 void error;
 void request;
 void notification;
+void callOptions;

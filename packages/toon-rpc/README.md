@@ -19,14 +19,30 @@ pnpm add @reddb-io/toon-rpc @reddb-io/toon
 ### Client
 
 ```typescript
-import { Client, createStdioTransport } from '@reddb-io/toon-rpc';
+import { Client, type DuplexTransport } from '@reddb-io/toon-rpc';
 
-const transport = createStdioTransport();
-const client = new Client(transport);
+declare const transport: DuplexTransport;
+const client = new Client(transport, {
+  onDiagnostic(diagnostic) {
+    console.warn('Rejected RPC response', diagnostic);
+  },
+});
 
-const result = await client.call('sum', [1, 2]);
+const result = await client.call('sum', [1, 2], {
+  timeoutMs: 5_000,
+});
 console.log(result); // 3
+
+await client.notify('telemetry.flush');
+await client.close();
 ```
+
+The client starts its receive pump lazily, validates each complete response
+document, and owns pending-call cleanup. Calls may use generated numeric IDs or
+an explicit string, safe-integer, or `null` ID. Abort, timeout, send failure,
+transport failure, normal transport completion, and explicit close each settle
+affected calls exactly once. `pendingCallCount` and `status` expose lifecycle
+state without exposing mutable pending entries.
 
 ### Server
 
@@ -109,17 +125,45 @@ TOON-RPC reserved error codes:
 
 ## Transports
 
-`@reddb-io/toon-rpc` is transport-agnostic. Implement the `Transport` interface:
+`@reddb-io/toon-rpc` separates framed duplex transports from direct
+request/response transports:
 
 ```typescript
-interface Transport {
-  send(data: Uint8Array): Promise<void>;
-  recv(): AsyncIterable<Uint8Array>;
+interface DuplexTransport {
+  readonly kind: 'duplex';
+  send(document: Uint8Array, options?: { signal?: AbortSignal }): Promise<void>;
+  receive(options?: { signal?: AbortSignal }): AsyncIterable<Uint8Array>;
+  close(): Promise<void>;
+}
+
+interface RequestResponseTransport {
+  readonly kind: 'request-response';
+  request(
+    document: Uint8Array,
+    options?: { signal?: AbortSignal }
+  ): Promise<Uint8Array | undefined>;
   close(): Promise<void>;
 }
 ```
 
-A stdio transport is included via `createStdioTransport()`. For HTTP, WebSocket, and other transports, see the Rust packages: `@reddb-io/toon-rpc-http`, `@reddb-io/toon-rpc-ws`, etc.
+Each duplex `receive()` item and each direct `request()` result is one complete
+UTF-8 TOON document, not an arbitrary byte chunk. A direct transport returns
+`undefined` only when no response document exists, such as for a notification;
+it is never modeled as a duplex transport with a failing receive method. Its
+response is scoped to that exchange and cannot settle another concurrent call.
+If the direct exchange ends without the initiating call's response, that call
+rejects with `ClientProtocolError`; the document's rejected entries still emit
+diagnostics. Closing a duplex transport must terminate its `receive()` iterator,
+and transports should honor the supplied abort signal for prompt cancellation.
+
+Rejected malformed, unknown-ID, and duplicate-ID response entries are reported
+through `ClientOptions.onDiagnostic`. Valid batch siblings still settle their
+calls, and unmatched calls remain pending until a response, abort, timeout,
+transport termination, or client close.
+
+The existing HTTP, WebSocket, TCP, stdio, and SSE prototypes remain quarantined
+until the concrete-transport recovery slice. Their legacy `Transport` shapes are
+not accepted by the recovered `Client`.
 
 ## Publishing
 
