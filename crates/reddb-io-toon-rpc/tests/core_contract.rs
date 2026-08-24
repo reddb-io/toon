@@ -4,8 +4,8 @@ use std::sync::{
 };
 
 use reddb_io_toon_rpc::{
-    from_wire, to_wire, Call, Dispatcher, Error, ErrorCode, Id, Message, Params, Request, Response,
-    RpcError,
+    from_wire, response_from_wire, to_wire, Call, Dispatcher, Error, ErrorCode, Id, Message,
+    Params, Request, Response, RpcError,
 };
 use serde_json::{json, Value};
 
@@ -187,6 +187,29 @@ fn response_branch_and_error_data_use_member_presence() {
     let encoded = value(&to_wire(&Message::SingleResponse(explicit_null)).unwrap());
     assert_eq!(encoded["error"]["data"], Value::Null);
     assert!(encoded["error"].as_object().unwrap().contains_key("data"));
+}
+
+#[test]
+fn response_decoder_ignores_unknown_method_and_emits_canonical_members() {
+    let parsed = response_from_wire(&wire(json!({
+        "toonrpc": "1.0",
+        "method": "unknown.response.member",
+        "error": {"code": 1000, "message": "failed", "extension": true},
+        "id": "call-1"
+    })))
+    .expect("unknown response members must be ignored");
+    assert_eq!(parsed.id, Id::String("call-1".into()));
+    assert_eq!(parsed.error.as_ref().unwrap().code.code(), 1000);
+
+    let encoded = value(&to_wire(&Message::SingleResponse(parsed)).unwrap());
+    assert_eq!(
+        encoded,
+        json!({
+            "toonrpc": "1.0",
+            "error": {"code": 1000, "message": "failed"},
+            "id": "call-1"
+        })
+    );
 }
 
 #[test]

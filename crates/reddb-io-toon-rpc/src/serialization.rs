@@ -7,11 +7,7 @@ use serde_json::Value;
 const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 
 pub fn from_wire(raw: &[u8]) -> Result<Message, RpcError> {
-    let text = std::str::from_utf8(raw)
-        .map_err(|e| RpcError::ParseError(format!("invalid UTF-8: {}", e)))?;
-
-    let toon_value = reddb_io_toon::decode(text)
-        .map_err(|e| RpcError::ParseError(format!("TOON parse error: {}", e.message())))?;
+    let toon_value = decode_wire_value(raw)?;
     if let ToonValue::Array(Array::List(entries)) = &toon_value {
         return Ok(message_from_toon_batch(entries));
     }
@@ -21,6 +17,26 @@ pub fn from_wire(raw: &[u8]) -> Result<Message, RpcError> {
 
     let json_value = toon_value.to_json_value();
     Ok(message_from_value(json_value))
+}
+
+/// Decode one response without classifying request-shaped unknown members first.
+pub fn response_from_wire(raw: &[u8]) -> Result<Response, RpcError> {
+    let toon_value = decode_wire_value(raw)?;
+    validate_toon_value(&toon_value).map_err(RpcError::InvalidRequest)?;
+    let value = toon_value.to_json_value();
+    if !value.is_object() {
+        return Err(RpcError::InvalidRequest(
+            "response must be an object".into(),
+        ));
+    }
+    serde_json::from_value(value).map_err(|error| RpcError::InvalidRequest(error.to_string()))
+}
+
+fn decode_wire_value(raw: &[u8]) -> Result<ToonValue, RpcError> {
+    let text = std::str::from_utf8(raw)
+        .map_err(|e| RpcError::ParseError(format!("invalid UTF-8: {}", e)))?;
+    reddb_io_toon::decode(text)
+        .map_err(|e| RpcError::ParseError(format!("TOON parse error: {}", e.message())))
 }
 
 fn message_from_toon_batch(entries: &[ToonValue]) -> Message {
