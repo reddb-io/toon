@@ -19,6 +19,7 @@ tests/
   runners/
     rust/              — Rust integration test entry points (.rs)
       toon/            — crate `reddb-io-toon` runners + ledgers
+      toon-rpc/        — crate `reddb-io-toon-rpc` shared contract runner
       tq/              — crate `reddb-io-tq` runners
   golden/
     tq/                — `tq` CLI golden test cases (31 scenarios)
@@ -36,7 +37,7 @@ point to the same `tests/corpus/` files.
 | `corpus/toon/` | encode/decode round-trip parity with local extensions | `runners/rust/toon/spec_conformance.rs` | `packages/toon/test/conformance.test.mjs` | ours |
 | `vendor/toon-spec/tests/fixtures` | official spec conformance (official TOON v3.x fixtures) | `runners/rust/toon/spec_conformance.rs` | `packages/toon/test/conformance.test.mjs` | upstream spec ([toon-format/spec](https://github.com/toon-format/spec)) |
 | `corpus/toonl/` | TOONL v0.1 / v0.2 stream encode+decode | `runners/rust/toon/spec_conformance.rs` | `packages/toon/test/conformance.test.mjs` | ours |
-| `corpus/toon-rpc/contract.json` | TOON-RPC 1.0 envelope, error, ID, notification, response and batch contract | planned in Spec #389 | planned in Spec #389 | ours; schema: `corpus/toon-rpc/fixtures.schema.json` |
+| `corpus/toon-rpc/contract.json` | TOON-RPC 1.0 envelope, error, ID, notification, response and batch contract | `runners/rust/toon-rpc/contract.rs` | `packages/toon-rpc/test/contract-corpus.test.mjs` | ours; schema: `corpus/toon-rpc/fixtures.schema.json` |
 | `corpus/truncation.json` | truncation-detection structured report | _(api.rs covers the API; no dedicated Rust runner)_ | `packages/toon/test/toon.test.mjs` | ours |
 | `corpus/json-limits.json` | numbers, unicode strings, depth limits, adversarial round-trip | `runners/rust/toon/json_limits.rs` | `packages/toon/test/json-limits.test.mjs` | ours |
 | `corpus/wire-efficiency/` | encoded byte sizes for tabular and map-collapse modes | `runners/rust/toon/wire_efficiency.rs` | `packages/toon/test/wire-efficiency.test.mjs` | ours |
@@ -46,9 +47,14 @@ point to the same `tests/corpus/` files.
 | _every file above_ | the `tq` binary never hangs, panics or dies on a signal on any corpus file, and valid documents survive a round trip | `runners/rust/tq/corpus.rs` | — | ours |
 
 The generic `tq` corpus runner proves that the TOON-RPC JSON files are safe
-round-trip inputs. It does not claim RPC semantic conformance. Dedicated Rust
-and TypeScript consumers will land after the core implementations are aligned;
-the TOON-RPC corpus does not permit an expected-failure ledger.
+round-trip inputs. It does not claim RPC semantic conformance. The dedicated
+Rust and TypeScript runners consume the same files directly and do not permit
+an expected-failure ledger. Server vectors use the production dispatcher and
+server. Client vectors temporarily use harness-only oracles built on the TOON
+codec and response validators because the production clients do not yet expose
+the per-entry batch diagnostics required by the recovery contract; the oracles
+are harness-only, are not alternate exported clients, and remain so until the
+production client work in slices 6/8 lands.
 
 ## Expected-failure ledgers
 

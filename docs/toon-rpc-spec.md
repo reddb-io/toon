@@ -299,12 +299,15 @@ ordering is also ignored. Error wording is compared only when `message` is
 present in the expectation.
 
 The corpus is the acceptance contract for the 0.30 recovery. Rust and
-TypeScript semantic runners are added by later slices of Spec #389; expected
-failure ledgers are not permitted for this corpus.
+TypeScript semantic runners execute every vector directly from these shared
+files; expected failure ledgers are not permitted for this corpus. Server cases
+exercise the production dispatcher/server. Client cases remain harness-only
+oracles until the production client work in slices 6/8 lands.
 
 ## 11. Implementation Status
 
-The existing TypeScript and Rust packages are quarantined while Spec #389 is in
-progress. The presence of source code or package versions does not imply that a
-component conforms to this document. Publication resumes only after shared
-corpus, lifecycle, transport, package, and exact-commit release gates pass.
+The existing TypeScript and Rust packages remain quarantined while Spec #389 is
+in progress. Shared semantic runners now cover this core corpus, but their
+presence does not imply that every deferred production component conforms.
+Publication resumes only after lifecycle, transport, package, and exact-commit
+release gates pass.
