@@ -1,0 +1,77 @@
+name: Quarantine RPC 0.29 line on the registries
+
+# One-shot maintenance workflow (same pattern as the removed
+# deprecate-multi-rpc-0.29.4.yml): the 0.29.x RPC family shipped with known
+# interop and transport defects and is quarantined under the 0.30 recovery
+# (https://github.com/reddb-io/toon/issues/389). Deprecates every 0.29.x npm
+# version and yanks every published RPC crate version. Remove this file after
+# a successful dispatch.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NOTICE: >-
+    The 0.29.x TOON-RPC line is a broken prototype with known interop and
+    transport defects and is quarantined under the 0.30 recovery
+    (https://github.com/reddb-io/toon/issues/389). Do not use it in
+    production; wait for 0.30.
+
+jobs:
+  deprecate-npm:
+    name: Deprecate 0.29.x npm packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.7.0
+          registry-url: https://registry.npmjs.org
+      - name: Deprecate every 0.29.x version of the RPC family
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          for package in @reddb-io/toon-rpc @reddb-io/toon-rpc-mcp @reddb-io/toon-rpc-acp @reddb-io/multi-rpc; do
+            echo "::group::${package}"
+            npm deprecate "${package}@<0.30.0" "${NOTICE}"
+            echo "::endgroup::"
+          done
+
+  yank-crates:
+    name: Yank 0.29.x RPC crates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Yank every published RPC crate version
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -uo pipefail
+          crates="reddb-io-toon-rpc reddb-io-toon-rpc-acp reddb-io-toon-rpc-cli reddb-io-toon-rpc-codegen reddb-io-toon-rpc-http reddb-io-toon-rpc-longpolling reddb-io-toon-rpc-mcp reddb-io-toon-rpc-sse reddb-io-toon-rpc-stdio reddb-io-toon-rpc-tcp reddb-io-toon-rpc-ws reddb-io-toon-rpc-examples"
+          failures=0
+          for crate in ${crates}; do
+            versions=$(curl -sf -H 'User-Agent: reddb-io/toon maintenance workflow' \
+              "https://crates.io/api/v1/crates/${crate}" |
+              jq -r '.versions[] | select(.yanked | not) | .num')
+            for version in ${versions}; do
+              echo "::group::yank ${crate}@${version}"
+              ok=0
+              for attempt in 1 2 3; do
+                if cargo yank --version "${version}" "${crate}"; then
+                  ok=1
+                  break
+                fi
+                echo "attempt ${attempt} failed; backing off"
+                sleep 30
+              done
+              if [ "${ok}" -ne 1 ]; then
+                echo "::error::could not yank ${crate}@${version}"
+                failures=$((failures + 1))
+              fi
+              echo "::endgroup::"
+              sleep 5
+            done
+          done
+          exit "${failures}"
