@@ -28,4 +28,23 @@ for crate in "${EXCLUDED_RPC_CRATES[@]}"; do
   EXCLUDE_ARGS+=(--exclude "$crate")
 done
 
-cargo llvm-cov --workspace "${EXCLUDE_ARGS[@]}" --fail-under-lines 95
+# Coverage builds write multi-GB target trees; worker worktrees can live on a
+# small tmpfs (4 GiB /tmp), where the build dies mid-compile on ENOSPC. Build
+# into a shared cache on the real disk instead — cargo locks the directory
+# against concurrent builds, and reuse keeps the gate warm across runs.
+# Override with TOON_COVERAGE_TARGET_DIR when needed.
+export CARGO_TARGET_DIR="${TOON_COVERAGE_TARGET_DIR:-${HOME}/.cache/toon-coverage-target}"
+mkdir -p "$CARGO_TARGET_DIR"
+
+run_coverage() {
+  cargo llvm-cov --workspace "${EXCLUDE_ARGS[@]}" --fail-under-lines 95
+}
+
+# A run killed mid-build (worker timeout, operator interrupt) can leave the
+# shared cache with profdata pointing at half-written test binaries, which
+# fails every later run. Clean only the coverage artifacts and retry once
+# before reporting red.
+if ! run_coverage; then
+  cargo llvm-cov clean --workspace
+  run_coverage
+fi
