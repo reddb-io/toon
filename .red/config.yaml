@@ -33,17 +33,17 @@ plugins:
       validation:                 # sole local validation authority (declared moments)
         iteration:                # handed to the inner agent while it writes (fast)
           - pnpm -r test
-          - cargo test --workspace
+          - bash scripts/with-rust-target-cache.sh cargo test --workspace
         post_done:                # at the branch fork point after DONE (full CI mirror)
           - scripts/check-file-length.sh
-          - cargo clippy --workspace -- -D warnings
+          - bash scripts/with-rust-target-cache.sh cargo clippy --workspace -- -D warnings
           - bash scripts/check-rust-coverage.sh
           - pnpm --filter @reddb-io/toon test:coverage
           - pnpm -r test
         landing:                  # before push/PR/queue
-          - cargo fmt --all -- --check
-          - cargo clippy --workspace -- -D warnings
-          - cargo test --workspace
+          - bash scripts/with-rust-target-cache.sh cargo fmt --all -- --check
+          - bash scripts/with-rust-target-cache.sh cargo clippy --workspace -- -D warnings
+          - bash scripts/with-rust-target-cache.sh cargo test --workspace
           - pnpm -r test
   #   trunk: main                 # the Trunk (ADR 0083): the focal branch agent work
   #                               # bases on and lands to when no lock/pin names one
