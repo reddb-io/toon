@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { decode, encode } from '@reddb-io/toon';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { RpcError, Server, snapshotResponse } from '../dist/index.js';
+import { Client, RpcError, Server } from '../dist/index.js';
 
 const SCHEMA_VERSION = 'toon-rpc-fixtures-v1';
 const PROTOCOL_VERSION = '1.0';
@@ -38,7 +38,7 @@ test('shared TOON-RPC contract corpus (66 cases)', async (t) => {
         await runServerCase(fixture, raw);
       } else {
         clientCount += 1;
-        runClientCase(fixture, raw);
+        await runClientCase(fixture, raw);
       }
     });
   }
@@ -346,77 +346,147 @@ function checkCalls(fixture, calls) {
   }
 }
 
-function runClientCase(fixture, raw) {
-  const outcome = clientOracle(raw, fixture.input.pendingIds);
-  switch (fixture.expect.kind) {
-    case 'accept':
-      assert.equal(outcome.kind, 'accept', `${fixture.name}: ${outcome.reason ?? outcome.kind}`);
-      break;
-    case 'reject':
-      assert.deepEqual(outcome, { kind: 'reject', reason: fixture.expect.reason }, fixture.name);
-      break;
-    case 'client-batch':
-      assert.equal(outcome.kind, 'client-batch', `${fixture.name}: ${outcome.reason ?? outcome.kind}`);
-      assert.equal(outcome.settled.length, fixture.expect.settled.length, `${fixture.name}: settled count`);
-      outcome.settled.forEach((response, index) => {
-        assert.equal(
-          responseMatches(response, fixture.expect.settled[index], false),
-          true,
-          `${fixture.name}: settled ${index}`
-        );
+async function runClientCase(fixture, raw) {
+  const transport = new CorpusTransport();
+  const diagnostics = [];
+  const settled = [];
+  const failures = [];
+  let collecting = true;
+  const client = new Client(transport, {
+    onDiagnostic(entry) {
+      diagnostics.push({
+        ...(entry.index === undefined ? {} : { index: entry.index }),
+        reason: entry.reason,
       });
-      assert.deepEqual(outcome.rejected, fixture.expect.rejected, `${fixture.name}: rejected entries`);
-      assert.deepEqual(outcome.remainingPendingIds, fixture.expect.remainingPendingIds, `${fixture.name}: remaining`);
-      break;
-    default:
-      assert.fail(`${fixture.name}: unknown client expectation ${fixture.expect.kind}`);
+    },
+  });
+  const completions = fixture.input.pendingIds.map((id) =>
+    client.call('fixture.pending', undefined, { id }).then(
+      (result) => {
+        if (collecting) settled.push({ toonrpc: PROTOCOL_VERSION, result, id });
+      },
+      (error) => {
+        if (!collecting) return;
+        if (error instanceof RpcError) {
+          settled.push({
+            toonrpc: PROTOCOL_VERSION,
+            error: {
+              code: error.code,
+              message: error.message,
+              ...(error.hasData ? { data: error.data } : {}),
+            },
+            id,
+          });
+        } else {
+          failures.push(error);
+        }
+      }
+    )
+  );
+
+  await waitForClient(
+    () =>
+      client.pendingCallCount === fixture.input.pendingIds.length &&
+      transport.sent.length === fixture.input.pendingIds.length,
+    fixture.name
+  );
+  transport.push(raw);
+  const expectedEvents =
+    fixture.expect.kind === 'client-batch'
+      ? fixture.expect.settled.length + fixture.expect.rejected.length
+      : 1;
+  await waitForClient(
+    () => settled.length + diagnostics.length + failures.length >= expectedEvents,
+    fixture.name
+  );
+  assert.deepEqual(failures, [], `${fixture.name}: lifecycle failures`);
+
+  try {
+    switch (fixture.expect.kind) {
+      case 'accept':
+        assert.equal(settled.length, 1, `${fixture.name}: settled count`);
+        assert.deepEqual(diagnostics, [], `${fixture.name}: diagnostics`);
+        assert.equal(client.pendingCallCount, 0, `${fixture.name}: remaining`);
+        break;
+      case 'reject':
+        assert.deepEqual(diagnostics, [{ reason: fixture.expect.reason }], fixture.name);
+        assert.deepEqual(settled, [], `${fixture.name}: settled`);
+        assert.equal(
+          client.pendingCallCount,
+          fixture.input.pendingIds.length,
+          `${fixture.name}: remaining`
+        );
+        break;
+      case 'client-batch':
+        assert.equal(settled.length, fixture.expect.settled.length, `${fixture.name}: settled count`);
+        settled.forEach((response, index) => {
+          assert.equal(
+            responseMatches(response, fixture.expect.settled[index], false),
+            true,
+            `${fixture.name}: settled ${index}`
+          );
+        });
+        assert.deepEqual(diagnostics, fixture.expect.rejected, `${fixture.name}: rejected entries`);
+        assert.deepEqual(
+          fixture.input.pendingIds.filter(
+            (id) => !settled.some((response) => isDeepStrictEqual(response.id, id))
+          ),
+          fixture.expect.remainingPendingIds,
+          `${fixture.name}: remaining`
+        );
+        assert.equal(
+          client.pendingCallCount,
+          fixture.expect.remainingPendingIds.length,
+          `${fixture.name}: pending count`
+        );
+        break;
+      default:
+        assert.fail(`${fixture.name}: unknown client expectation ${fixture.expect.kind}`);
+    }
+  } finally {
+    collecting = false;
+    await client.close();
+    await Promise.all(completions);
   }
 }
 
-// Harness-only oracle: production clients do not yet expose independent batch
-// diagnostics. TOON performs wire decoding and snapshotResponse is the protocol
-// validator; this code must not be exported as a second client implementation.
-function clientOracle(raw, pendingIds) {
-  let value;
-  try {
-    value = decode(new TextDecoder('utf8', { fatal: true }).decode(raw));
-  } catch {
-    return { kind: 'reject', reason: 'parse-error' };
+class CorpusTransport {
+  kind = 'duplex';
+  sent = [];
+  #events = [];
+  #waiters = [];
+
+  async send(document) {
+    this.sent.push(document);
   }
 
-  const pending = new Map(pendingIds.map((id) => [id, true]));
-  if (!Array.isArray(value)) {
-    const response = snapshotResponse(value);
-    if (!response) return { kind: 'reject', reason: 'invalid-response' };
-    if (!pending.has(response.id)) return { kind: 'reject', reason: 'unknown-id' };
-    return { kind: 'accept' };
-  }
-  if (value.length === 0) return { kind: 'reject', reason: 'invalid-response' };
-
-  const settledIds = new Set();
-  const settled = [];
-  const rejected = [];
-  value.forEach((entry, index) => {
-    const response = snapshotResponse(entry);
-    if (!response) {
-      rejected.push({ index, reason: 'invalid-response' });
-    } else if (settledIds.has(response.id)) {
-      rejected.push({ index, reason: 'duplicate-id' });
-    } else if (!pending.has(response.id)) {
-      rejected.push({ index, reason: 'unknown-id' });
-    } else {
-      pending.delete(response.id);
-      settledIds.add(response.id);
-      settled.push(response);
+  async *receive() {
+    while (true) {
+      const event = this.#events.shift() ?? (await new Promise((resolve) => this.#waiters.push(resolve)));
+      if (event) yield event;
+      else return;
     }
-  });
+  }
 
-  return {
-    kind: 'client-batch',
-    settled,
-    rejected,
-    remainingPendingIds: pendingIds.filter((id) => pending.has(id)),
-  };
+  push(document) {
+    const waiter = this.#waiters.shift();
+    if (waiter) waiter(document);
+    else this.#events.push(document);
+  }
+
+  async close() {
+    const waiter = this.#waiters.shift();
+    if (waiter) waiter(undefined);
+    else this.#events.push(undefined);
+  }
+}
+
+async function waitForClient(predicate, name) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.fail(`${name}: client did not reach expected state`);
 }
 
 function responseMatches(actual, expected, generated) {

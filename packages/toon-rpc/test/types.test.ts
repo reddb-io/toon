@@ -1,5 +1,13 @@
-import { RpcError } from '../dist/index.js';
-import type { CoreArray, CoreValue, ErrorObject, MethodHandler, Params } from '../dist/index.js';
+import { Client, RpcError } from '../dist/index.js';
+import type {
+  CoreArray,
+  CoreValue,
+  DuplexTransport,
+  ErrorObject,
+  MethodHandler,
+  Params,
+  RequestResponseTransport,
+} from '../dist/index.js';
 
 new RpcError(1, 'without data');
 new RpcError(1, 'with null data', null);
@@ -19,6 +27,23 @@ const invalidCore: CoreValue = { value: undefined };
 const handler: MethodHandler = async (params: Params | undefined): Promise<CoreValue> =>
   params ?? null;
 const error: ErrorObject = { code: 1, message: 'application error', data: null };
+const duplex: DuplexTransport = {
+  kind: 'duplex',
+  async send() {},
+  async *receive() {},
+  async close() {},
+};
+const requestResponse: RequestResponseTransport = {
+  kind: 'request-response',
+  async request() {
+    return undefined;
+  },
+  async close() {},
+};
+const duplexClient = new Client(duplex);
+const requestClient = new Client(requestResponse);
+duplexClient.call('typed IDs', undefined, { id: null, timeoutMs: 10 });
+requestClient.notify('notice', { ok: true });
 
 void invalidCore;
 void handler;
@@ -26,3 +51,5 @@ void error;
 void coreArray;
 void coreValue;
 void params;
+void duplexClient;
+void requestClient;

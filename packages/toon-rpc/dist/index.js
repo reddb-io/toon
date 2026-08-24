@@ -1,18 +1,10 @@
 import { decode, encode } from '@reddb-io/toon';
 import { TOONRPC_VERSION, isUnicodeScalarString, snapshotCoreValue, snapshotErrorObject, snapshotRequestObject, snapshotResponse, } from './protocol.js';
+import { RpcError } from './rpc-error.js';
 export * from './protocol.js';
-export class RpcError extends Error {
-    code;
-    data;
-    hasData;
-    constructor(code, message, data) {
-        super(message);
-        this.name = 'RpcError';
-        this.code = code;
-        this.data = data;
-        this.hasData = arguments.length >= 3;
-    }
-}
+export * from './client.js';
+export * from './rpc-error.js';
+export * from './transport.js';
 export class Server {
     methods = new Map();
     constructor() { }
@@ -209,58 +201,6 @@ function encodeToonBatch(responses) {
 }
 function encodeResponse(response) {
     return new TextEncoder().encode(encode(response));
-}
-export class Client {
-    transport;
-    idCounter = 0;
-    pending = new Map();
-    constructor(transport) {
-        this.transport = transport;
-    }
-    async call(method, params) {
-        const id = this.idCounter++;
-        return new Promise((resolve, reject) => {
-            this.pending.set(id, { resolve, reject });
-            const request = {
-                toonrpc: TOONRPC_VERSION,
-                method,
-                params,
-                id,
-            };
-            const toonInput = encode(request);
-            this.transport
-                .send(new TextEncoder().encode(toonInput))
-                .catch((err) => {
-                this.pending.delete(id);
-                reject(err);
-            });
-        });
-    }
-    async *recv() {
-        for await (const chunk of this.transport.recv()) {
-            const text = new TextDecoder().decode(chunk);
-            const lines = text.split('\n').filter((l) => l.trim());
-            for (const line of lines) {
-                const toonValue = decode(line);
-                const resp = toonValue;
-                const pending = this.pending.get(resp.id);
-                if (pending) {
-                    this.pending.delete(resp.id);
-                    if ('error' in resp) {
-                        pending.reject(Object.prototype.hasOwnProperty.call(resp.error, 'data')
-                            ? new RpcError(resp.error.code, resp.error.message, resp.error.data)
-                            : new RpcError(resp.error.code, resp.error.message));
-                    }
-                    else {
-                        pending.resolve(resp.result);
-                    }
-                }
-            }
-        }
-    }
-    close() {
-        return this.transport.close();
-    }
 }
 export function createStdioTransport() {
     return {

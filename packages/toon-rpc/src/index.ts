@@ -13,34 +13,21 @@ import type {
   ErrorObject,
   Id,
   Params,
-  Request,
   Response,
   ResponseError,
-  ResponseSuccess,
 } from './protocol.js';
+import { RpcError } from './rpc-error.js';
 
 export * from './protocol.js';
+export * from './client.js';
+export * from './rpc-error.js';
+export * from './transport.js';
 
+/** @deprecated Concrete transports will migrate to the 0.30 contracts in slice 7. */
 export interface Transport {
   send(data: Uint8Array): Promise<void>;
   recv(): AsyncIterable<Uint8Array>;
   close(): Promise<void>;
-}
-
-export class RpcError extends Error {
-  readonly code: number;
-  readonly data: CoreValue | undefined;
-  readonly hasData: boolean;
-
-  constructor(code: number, message: string);
-  constructor(code: number, message: string, data: CoreValue);
-  constructor(code: number, message: string, data?: CoreValue) {
-    super(message);
-    this.name = 'RpcError';
-    this.code = code;
-    this.data = data;
-    this.hasData = arguments.length >= 3;
-  }
 }
 
 export interface MethodHandler {
@@ -250,65 +237,6 @@ function encodeToonBatch(responses: Response[]): Uint8Array {
 
 function encodeResponse(response: Response | Response[]): Uint8Array {
   return new TextEncoder().encode(encode(response as unknown as JsonValue));
-}
-
-export class Client {
-  private idCounter = 0;
-  private pending = new Map<Id, { resolve: (v: CoreValue) => void; reject: (e: Error) => void }>();
-
-  constructor(private transport: Transport) {}
-
-  async call(method: string, params: Params): Promise<CoreValue> {
-    const id = this.idCounter++;
-
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-
-      const request: Request = {
-        toonrpc: TOONRPC_VERSION,
-        method,
-        params,
-        id,
-      };
-
-      const toonInput = encode(request as unknown as JsonValue);
-      this.transport
-        .send(new TextEncoder().encode(toonInput))
-        .catch((err) => {
-          this.pending.delete(id);
-          reject(err);
-        });
-    });
-  }
-
-  async *recv() {
-    for await (const chunk of this.transport.recv()) {
-      const text = new TextDecoder().decode(chunk);
-      const lines = text.split('\n').filter((l) => l.trim());
-
-      for (const line of lines) {
-        const toonValue = decode(line);
-        const resp = toonValue as unknown as ResponseSuccess | ResponseError;
-        const pending = this.pending.get(resp.id);
-        if (pending) {
-          this.pending.delete(resp.id);
-          if ('error' in resp) {
-            pending.reject(
-              Object.prototype.hasOwnProperty.call(resp.error, 'data')
-                ? new RpcError(resp.error.code, resp.error.message, resp.error.data!)
-                : new RpcError(resp.error.code, resp.error.message)
-            );
-          } else {
-            pending.resolve(resp.result);
-          }
-        }
-      }
-    }
-  }
-
-  close(): Promise<void> {
-    return this.transport.close();
-  }
 }
 
 export function createStdioTransport(): Transport {

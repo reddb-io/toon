@@ -50,11 +50,11 @@ The generic `tq` corpus runner proves that the TOON-RPC JSON files are safe
 round-trip inputs. It does not claim RPC semantic conformance. The dedicated
 Rust and TypeScript runners consume the same files directly and do not permit
 an expected-failure ledger. Server vectors use the production dispatcher and
-server. Client vectors temporarily use harness-only oracles built on the TOON
-codec and response validators because the production clients do not yet expose
-the per-entry batch diagnostics required by the recovery contract; the oracles
-are harness-only, are not alternate exported clients, and remain so until the
-production client work in slices 6/8 lands.
+server. TypeScript client vectors seed and exercise the production `Client`,
+including its per-entry batch diagnostics and typed-ID correlation. Rust client
+vectors temporarily use a harness-only oracle built on the TOON codec and
+response validator until the production Rust client work in slice 8 lands; that
+oracle is not an alternate exported client.
 
 ## Expected-failure ledgers
 
