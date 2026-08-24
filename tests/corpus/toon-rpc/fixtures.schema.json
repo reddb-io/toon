@@ -1,0 +1,690 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reddb.io/schemas/toon-rpc-fixtures-v1.json",
+  "title": "TOON-RPC shared conformance fixtures",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "protocolVersion",
+    "toonCheckpoint",
+    "handlers",
+    "valid",
+    "malformed"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "toon-rpc-fixtures-v1"
+    },
+    "protocolVersion": {
+      "const": "1.0"
+    },
+    "toonCheckpoint": {
+      "$ref": "#/$defs/toonCheckpoint"
+    },
+    "handlers": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/handler"
+      }
+    },
+    "valid": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    },
+    "malformed": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "toonCheckpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "repository", "revision"],
+      "properties": {
+        "version": {
+          "const": "4.1.1"
+        },
+        "repository": {
+          "const": "toon-format/spec"
+        },
+        "revision": {
+          "const": "62f16b369408180f1faf1cba7da1b46d1f336f12"
+        }
+      }
+    },
+    "safeId": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ]
+    },
+    "errorCode": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
+    },
+    "coreValue": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "number",
+          "not": {
+            "type": "integer"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/coreValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/coreValue"
+          }
+        }
+      ]
+    },
+    "pendingIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/safeId"
+      }
+    },
+    "invocationCounts": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "resultHandler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {
+          "const": "result"
+        },
+        "value": {
+          "$ref": "#/$defs/coreValue"
+        }
+      }
+    },
+    "errorHandler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "code", "message"],
+      "properties": {
+        "kind": {
+          "const": "error"
+        },
+        "code": {
+          "$ref": "#/$defs/errorCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/coreValue"
+        }
+      }
+    },
+    "echoHandler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "const": "echo-params"
+        }
+      }
+    },
+    "rejectParamsHandler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "message"],
+      "properties": {
+        "kind": {
+          "const": "reject-params"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "internalErrorHandler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "const": "internal-error"
+        }
+      }
+    },
+    "handler": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/resultHandler"
+        },
+        {
+          "$ref": "#/$defs/errorHandler"
+        },
+        {
+          "$ref": "#/$defs/echoHandler"
+        },
+        {
+          "$ref": "#/$defs/rejectParamsHandler"
+        },
+        {
+          "$ref": "#/$defs/internalErrorHandler"
+        }
+      ]
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wire": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/coreValue"
+        },
+        "bytesBase64": {
+          "type": "string",
+          "minLength": 4,
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "contentEncoding": "base64"
+        },
+        "pendingIds": {
+          "$ref": "#/$defs/pendingIds"
+        }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["wire"],
+          "properties": {
+            "wire": true,
+            "value": false,
+            "bytesBase64": false
+          }
+        },
+        {
+          "type": "object",
+          "required": ["value"],
+          "properties": {
+            "wire": false,
+            "value": true,
+            "bytesBase64": false
+          }
+        },
+        {
+          "type": "object",
+          "required": ["bytesBase64"],
+          "properties": {
+            "wire": false,
+            "value": false,
+            "bytesBase64": true
+          }
+        },
+        {
+          "type": "object",
+          "required": ["wire", "value"],
+          "properties": {
+            "wire": true,
+            "value": true,
+            "bytesBase64": false
+          }
+        }
+      ]
+    },
+    "successExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "result", "callCount", "exactMembers"],
+      "properties": {
+        "kind": {
+          "const": "success"
+        },
+        "id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "result": {
+          "$ref": "#/$defs/coreValue"
+        },
+        "callCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "calls": {
+          "$ref": "#/$defs/invocationCounts"
+        },
+        "exactMembers": {
+          "const": ["toonrpc", "result", "id"]
+        }
+      }
+    },
+    "errorExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "code",
+        "hasData",
+        "callCount",
+        "exactMembers"
+      ],
+      "properties": {
+        "kind": {
+          "const": "error"
+        },
+        "id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "code": {
+          "$ref": "#/$defs/errorCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "hasData": {
+          "type": "boolean"
+        },
+        "data": {
+          "$ref": "#/$defs/coreValue"
+        },
+        "callCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "calls": {
+          "$ref": "#/$defs/invocationCounts"
+        },
+        "exactMembers": {
+          "const": ["toonrpc", "error", "id"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "hasData": {
+                "const": true
+              }
+            },
+            "required": ["hasData"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/coreValue"
+              }
+            },
+            "required": ["data"]
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "data": false
+            }
+          }
+        }
+      ]
+    },
+    "successMatcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "result", "exactMembers"],
+      "properties": {
+        "kind": {
+          "const": "success"
+        },
+        "id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "result": {
+          "$ref": "#/$defs/coreValue"
+        },
+        "exactMembers": {
+          "const": ["toonrpc", "result", "id"]
+        }
+      }
+    },
+    "errorMatcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "code", "hasData", "exactMembers"],
+      "properties": {
+        "kind": {
+          "const": "error"
+        },
+        "id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "code": {
+          "$ref": "#/$defs/errorCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "hasData": {
+          "type": "boolean"
+        },
+        "data": {
+          "$ref": "#/$defs/coreValue"
+        },
+        "exactMembers": {
+          "const": ["toonrpc", "error", "id"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "hasData": {
+                "const": true
+              }
+            },
+            "required": ["hasData"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/coreValue"
+              }
+            },
+            "required": ["data"]
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "data": false
+            }
+          }
+        }
+      ]
+    },
+    "responseMatcher": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/successMatcher"
+        },
+        {
+          "$ref": "#/$defs/errorMatcher"
+        }
+      ]
+    },
+    "noResponseExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "callCount"],
+      "properties": {
+        "kind": {
+          "const": "no-response"
+        },
+        "callCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "calls": {
+          "$ref": "#/$defs/invocationCounts"
+        }
+      }
+    },
+    "batchExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ordered", "callCount", "responses"],
+      "properties": {
+        "kind": {
+          "const": "batch"
+        },
+        "ordered": {
+          "const": false
+        },
+        "callCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "calls": {
+          "$ref": "#/$defs/invocationCounts"
+        },
+        "responses": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/responseMatcher"
+          }
+        }
+      }
+    },
+    "acceptExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "const": "accept"
+        }
+      }
+    },
+    "rejectExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reason"],
+      "properties": {
+        "kind": {
+          "const": "reject"
+        },
+        "reason": {
+          "enum": ["parse-error", "invalid-response", "unknown-id", "duplicate-id"]
+        }
+      }
+    },
+    "rejectedBatchEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "reason"],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "enum": ["invalid-response", "unknown-id", "duplicate-id"]
+        }
+      }
+    },
+    "clientBatchExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "settled", "rejected", "remainingPendingIds"],
+      "properties": {
+        "kind": {
+          "const": "client-batch"
+        },
+        "settled": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/responseMatcher"
+          }
+        },
+        "rejected": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rejectedBatchEntry"
+          }
+        },
+        "remainingPendingIds": {
+          "$ref": "#/$defs/pendingIds"
+        }
+      }
+    },
+    "expectation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/noResponseExpectation"
+        },
+        {
+          "$ref": "#/$defs/successExpectation"
+        },
+        {
+          "$ref": "#/$defs/errorExpectation"
+        },
+        {
+          "$ref": "#/$defs/batchExpectation"
+        },
+        {
+          "$ref": "#/$defs/acceptExpectation"
+        },
+        {
+          "$ref": "#/$defs/rejectExpectation"
+        },
+        {
+          "$ref": "#/$defs/clientBatchExpectation"
+        }
+      ]
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "direction", "encoding", "input", "expect"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:[a-z0-9./-]*[a-z0-9])?$"
+        },
+        "direction": {
+          "enum": ["server", "client"]
+        },
+        "encoding": {
+          "const": "toon"
+        },
+        "input": {
+          "$ref": "#/$defs/input"
+        },
+        "expect": {
+          "$ref": "#/$defs/expectation"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "direction": {
+                "const": "client"
+              }
+            },
+            "required": ["direction"]
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "type": "object",
+                "properties": {
+                  "pendingIds": {
+                    "$ref": "#/$defs/pendingIds"
+                  }
+                },
+                "required": ["pendingIds"]
+              },
+              "expect": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/acceptExpectation"
+                  },
+                  {
+                    "$ref": "#/$defs/rejectExpectation"
+                  },
+                  {
+                    "$ref": "#/$defs/clientBatchExpectation"
+                  }
+                ]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "input": {
+                "type": "object",
+                "properties": {
+                  "pendingIds": false
+                }
+              },
+              "expect": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/noResponseExpectation"
+                  },
+                  {
+                    "$ref": "#/$defs/successExpectation"
+                  },
+                  {
+                    "$ref": "#/$defs/errorExpectation"
+                  },
+                  {
+                    "$ref": "#/$defs/batchExpectation"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

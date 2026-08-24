@@ -1,0 +1,1519 @@
+{
+  "$schema": "./fixtures.schema.json",
+  "schemaVersion": "toon-rpc-fixtures-v1",
+  "protocolVersion": "1.0",
+  "toonCheckpoint": {
+    "version": "4.1.1",
+    "repository": "toon-format/spec",
+    "revision": "62f16b369408180f1faf1cba7da1b46d1f336f12"
+  },
+  "handlers": {
+    "fixture.ok": {
+      "kind": "result",
+      "value": {
+        "ok": true
+      }
+    },
+    "fixture.null": {
+      "kind": "result",
+      "value": null
+    },
+    "fixture.echo": {
+      "kind": "echo-params"
+    },
+    "fixture.fail": {
+      "kind": "error",
+      "code": 1000,
+      "message": "fixture failure"
+    },
+    "fixture.fail-data": {
+      "kind": "error",
+      "code": 1001,
+      "message": "fixture failure with data",
+      "data": null
+    },
+    "fixture.observe": {
+      "kind": "result",
+      "value": null
+    },
+    "fixture.reject-params": {
+      "kind": "reject-params",
+      "message": "fixture params rejected"
+    },
+    "fixture.internal-error": {
+      "kind": "internal-error"
+    },
+    "fixture.minimum-code": {
+      "kind": "error",
+      "code": -2147483648,
+      "message": "minimum application code"
+    },
+    "fixture.maximum-code": {
+      "kind": "error",
+      "code": 2147483647,
+      "message": "maximum application code"
+    }
+  },
+  "valid": [
+    {
+      "name": "request/positional-params",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"1.0\"\nmethod: \"fixture.echo\"\nparams[2]: 1,2\nid: 1",
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.echo",
+          "params": [1, 2],
+          "id": 1
+        }
+      },
+      "expect": {
+        "kind": "success",
+        "id": 1,
+        "result": [1, 2],
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "result", "id"]
+      }
+    },
+    {
+      "name": "request/named-params",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"1.0\"\nmethod: \"fixture.echo\"\nparams:\n  left: 1\n  right: 2\nid: 2",
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.echo",
+          "params": {
+            "left": 1,
+            "right": 2
+          },
+          "id": 2
+        }
+      },
+      "expect": {
+        "kind": "success",
+        "id": 2,
+        "result": {
+          "left": 1,
+          "right": 2
+        },
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "result", "id"]
+      }
+    },
+    {
+      "name": "request/omitted-params",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"1.0\"\nmethod: \"fixture.ok\"\nid: 3",
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": 3
+        }
+      },
+      "expect": {
+        "kind": "success",
+        "id": 3,
+        "result": {
+          "ok": true
+        },
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "result", "id"]
+      }
+    },
+    {
+      "name": "request/string-id",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": "call-4"
+        }
+      },
+      "expect": {
+        "kind": "success",
+        "id": "call-4",
+        "result": {
+          "ok": true
+        },
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "result", "id"]
+      }
+    },
+    {
+      "name": "request/minimum-safe-integer-id",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": -9007199254740991
+        }
+      },
+      "expect": {
+        "kind": "success",
+        "id": -9007199254740991,
+        "result": {
+          "ok": true
+        },
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "result", "id"]
+      }
+    },
+    {
+      "name": "request/maximum-safe-integer-id",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": 9007199254740991
+        }
+      },
+      "expect": {
+        "kind": "success",
+        "id": 9007199254740991,
+        "result": {
+          "ok": true
+        },
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "result", "id"]
+      }
+    },
+    {
+      "name": "request/null-id-receives-response",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"1.0\"\nmethod: \"fixture.ok\"\nid: null",
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": null
+        }
+      },
+      "expect": {
+        "kind": "success",
+        "id": null,
+        "result": {
+          "ok": true
+        },
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "result", "id"]
+      }
+    },
+    {
+      "name": "notification/absent-id-produces-no-response",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"1.0\"\nmethod: \"fixture.observe\"",
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.observe"
+        }
+      },
+      "expect": {
+        "kind": "no-response",
+        "callCount": 1,
+        "calls": {
+          "fixture.observe": 1
+        }
+      }
+    },
+    {
+      "name": "notification/invalid-params-produces-no-response",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.reject-params",
+          "params": {
+            "value": 1
+          }
+        }
+      },
+      "expect": {
+        "kind": "no-response",
+        "callCount": 1,
+        "calls": {
+          "fixture.reject-params": 1
+        }
+      }
+    },
+    {
+      "name": "notification/internal-error-produces-no-response",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.internal-error"
+        }
+      },
+      "expect": {
+        "kind": "no-response",
+        "callCount": 1,
+        "calls": {
+          "fixture.internal-error": 1
+        }
+      }
+    },
+    {
+      "name": "response/null-result-is-success",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.null",
+          "id": 5
+        }
+      },
+      "expect": {
+        "kind": "success",
+        "id": 5,
+        "result": null,
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "result", "id"]
+      }
+    },
+    {
+      "name": "error/application-code-without-data",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.fail",
+          "id": 6
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": 6,
+        "code": 1000,
+        "message": "fixture failure",
+        "hasData": false,
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "error/application-code-with-null-data",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.fail-data",
+          "id": 7
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": 7,
+        "code": 1001,
+        "message": "fixture failure with data",
+        "hasData": true,
+        "data": null,
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "error/unknown-method-preserves-id",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.missing",
+          "id": 8
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": 8,
+        "code": -32601,
+        "message": "Method not found",
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/unknown-member-is-ignored",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": 9,
+          "trace": "abc"
+        }
+      },
+      "expect": {
+        "kind": "success",
+        "id": 9,
+        "result": {
+          "ok": true
+        },
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "result", "id"]
+      }
+    },
+    {
+      "name": "error/method-params-rejected",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.reject-params",
+          "params": {
+            "value": 1
+          },
+          "id": 16
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": 16,
+        "code": -32602,
+        "message": "fixture params rejected",
+        "hasData": false,
+        "callCount": 1,
+        "calls": {
+          "fixture.reject-params": 1
+        },
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "error/internal-handler-failure",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.internal-error",
+          "id": 17
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": 17,
+        "code": -32603,
+        "message": "Internal error",
+        "hasData": false,
+        "callCount": 1,
+        "calls": {
+          "fixture.internal-error": 1
+        },
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "error/minimum-signed-32-bit-code",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.minimum-code",
+          "id": 18
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": 18,
+        "code": -2147483648,
+        "message": "minimum application code",
+        "hasData": false,
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "error/maximum-signed-32-bit-code",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.maximum-code",
+          "id": 19
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": 19,
+        "code": 2147483647,
+        "message": "maximum application code",
+        "hasData": false,
+        "callCount": 1,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "batch/mixed-request-and-notification",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": [
+          {
+            "toonrpc": "1.0",
+            "method": "fixture.ok",
+            "id": 10
+          },
+          {
+            "toonrpc": "1.0",
+            "method": "fixture.observe"
+          },
+          {
+            "toonrpc": "1.0",
+            "method": "fixture.fail",
+            "id": 11
+          }
+        ]
+      },
+      "expect": {
+        "kind": "batch",
+        "ordered": false,
+        "callCount": 3,
+        "calls": {
+          "fixture.ok": 1,
+          "fixture.observe": 1,
+          "fixture.fail": 1
+        },
+        "responses": [
+          {
+            "kind": "success",
+            "id": 10,
+            "result": {
+              "ok": true
+            },
+            "exactMembers": ["toonrpc", "result", "id"]
+          },
+          {
+            "kind": "error",
+            "id": 11,
+            "code": 1000,
+            "message": "fixture failure",
+            "hasData": false,
+            "exactMembers": ["toonrpc", "error", "id"]
+          }
+        ]
+      }
+    },
+    {
+      "name": "batch/single-response-stays-array",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": [
+          {
+            "toonrpc": "1.0",
+            "method": "fixture.observe"
+          },
+          {
+            "toonrpc": "1.0",
+            "method": "fixture.ok",
+            "id": 12
+          }
+        ]
+      },
+      "expect": {
+        "kind": "batch",
+        "ordered": false,
+        "callCount": 2,
+        "calls": {
+          "fixture.observe": 1,
+          "fixture.ok": 1
+        },
+        "responses": [
+          {
+            "kind": "success",
+            "id": 12,
+            "result": {
+              "ok": true
+            },
+            "exactMembers": ["toonrpc", "result", "id"]
+          }
+        ]
+      }
+    },
+    {
+      "name": "batch/all-notifications-produce-no-response",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": [
+          {
+            "toonrpc": "1.0",
+            "method": "fixture.observe"
+          },
+          {
+            "toonrpc": "1.0",
+            "method": "fixture.observe",
+            "params": {
+              "source": "batch"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "kind": "no-response",
+        "callCount": 2,
+        "calls": {
+          "fixture.observe": 2
+        }
+      }
+    },
+    {
+      "name": "client/accepts-null-result",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "result": null,
+          "id": 13
+        },
+        "pendingIds": [13]
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "name": "client/accepts-application-error",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "error": {
+            "code": 1001,
+            "message": "fixture failure with data",
+            "data": null
+          },
+          "id": "call-14"
+        },
+        "pendingIds": ["call-14"]
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "name": "client/accepts-correlated-null-id",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "result": {
+            "ok": true
+          },
+          "id": null
+        },
+        "pendingIds": [null]
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "name": "client/accepts-minimum-error-code",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "error": {
+            "code": -2147483648,
+            "message": "minimum application code"
+          },
+          "id": 80
+        },
+        "pendingIds": [80]
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "name": "client/accepts-maximum-error-code",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "error": {
+            "code": 2147483647,
+            "message": "maximum application code"
+          },
+          "id": 81
+        },
+        "pendingIds": [81]
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "name": "client/ignores-unknown-response-member",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "result": {
+            "ok": true
+          },
+          "id": 15,
+          "trace": "abc"
+        },
+        "pendingIds": [15]
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "name": "client/batch-settles-all-valid-entries",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": [
+          {
+            "toonrpc": "1.0",
+            "result": {
+              "ok": true
+            },
+            "id": 50
+          },
+          {
+            "toonrpc": "1.0",
+            "error": {
+              "code": 1000,
+              "message": "fixture failure"
+            },
+            "id": 51
+          }
+        ],
+        "pendingIds": [50, 51]
+      },
+      "expect": {
+        "kind": "client-batch",
+        "settled": [
+          {
+            "kind": "success",
+            "id": 50,
+            "result": {
+              "ok": true
+            },
+            "exactMembers": ["toonrpc", "result", "id"]
+          },
+          {
+            "kind": "error",
+            "id": 51,
+            "code": 1000,
+            "message": "fixture failure",
+            "hasData": false,
+            "exactMembers": ["toonrpc", "error", "id"]
+          }
+        ],
+        "rejected": [],
+        "remainingPendingIds": []
+      }
+    }
+  ],
+  "malformed": [
+    {
+      "name": "parse/invalid-utf8",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "bytesBase64": "//4="
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32700,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "parse/invalid-toon",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"unterminated"
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32700,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/top-level-scalar",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": 1
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "batch/empty",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": []
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/missing-version",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "method": "fixture.ok",
+          "id": 20
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/wrong-version",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "0.9",
+          "method": "fixture.ok",
+          "id": 21
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/non-string-version",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": 1,
+          "method": "fixture.ok",
+          "id": 22
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/missing-method",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "id": 23
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/empty-method",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "",
+          "id": 24
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/non-string-method",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": 25,
+          "id": 25
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/null-params",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.echo",
+          "params": null,
+          "id": 26
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/scalar-params",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.echo",
+          "params": 1,
+          "id": 27
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/boolean-id",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": true
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/object-id",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": {
+            "value": 28
+          }
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/array-id",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": [29]
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/fractional-id",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "method": "fixture.ok",
+          "id": 29.5
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/unsafe-integer-id",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"1.0\"\nmethod: \"fixture.ok\"\nid: 9007199254740992"
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/unsafe-integer-wire-token",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"1.0\"\nmethod: \"fixture.ok\"\nid: 9007199254740993"
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "request/non-finite-number-wire-token",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"1.0\"\nmethod: \"fixture.echo\"\nparams[1]: 1e400\nid: 32"
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "notification/malformed-envelope-is-not-notification",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "params": {
+            "source": "invalid"
+          }
+        }
+      },
+      "expect": {
+        "kind": "error",
+        "id": null,
+        "code": -32600,
+        "hasData": false,
+        "callCount": 0,
+        "exactMembers": ["toonrpc", "error", "id"]
+      }
+    },
+    {
+      "name": "batch/entry-validation-preserves-shape",
+      "direction": "server",
+      "encoding": "toon",
+      "input": {
+        "value": [
+          {
+            "toonrpc": "0.9",
+            "method": "fixture.ok",
+            "id": 30
+          },
+          {
+            "toonrpc": "1.0",
+            "method": "fixture.observe"
+          },
+          {
+            "toonrpc": "1.0",
+            "method": "fixture.ok",
+            "id": 31
+          }
+        ]
+      },
+      "expect": {
+        "kind": "batch",
+        "ordered": false,
+        "callCount": 2,
+        "calls": {
+          "fixture.observe": 1,
+          "fixture.ok": 1
+        },
+        "responses": [
+          {
+            "kind": "error",
+            "id": null,
+            "code": -32600,
+            "hasData": false,
+            "exactMembers": ["toonrpc", "error", "id"]
+          },
+          {
+            "kind": "success",
+            "id": 31,
+            "result": {
+              "ok": true
+            },
+            "exactMembers": ["toonrpc", "result", "id"]
+          }
+        ]
+      }
+    },
+    {
+      "name": "client/batch-isolates-invalid-and-unknown-entries",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": [
+          {
+            "toonrpc": "1.0",
+            "result": {
+              "ok": true
+            },
+            "id": 60
+          },
+          {
+            "toonrpc": "1.0",
+            "result": 1,
+            "error": {
+              "code": -32603,
+              "message": "bad"
+            },
+            "id": 61
+          },
+          {
+            "toonrpc": "1.0",
+            "error": {
+              "code": 1000,
+              "message": "fixture failure"
+            },
+            "id": 62
+          },
+          {
+            "toonrpc": "1.0",
+            "result": 1,
+            "id": "unknown"
+          }
+        ],
+        "pendingIds": [60, 61, 62, 63]
+      },
+      "expect": {
+        "kind": "client-batch",
+        "settled": [
+          {
+            "kind": "success",
+            "id": 60,
+            "result": {
+              "ok": true
+            },
+            "exactMembers": ["toonrpc", "result", "id"]
+          },
+          {
+            "kind": "error",
+            "id": 62,
+            "code": 1000,
+            "message": "fixture failure",
+            "hasData": false,
+            "exactMembers": ["toonrpc", "error", "id"]
+          }
+        ],
+        "rejected": [
+          {
+            "index": 1,
+            "reason": "invalid-response"
+          },
+          {
+            "index": 3,
+            "reason": "unknown-id"
+          }
+        ],
+        "remainingPendingIds": [61, 63]
+      }
+    },
+    {
+      "name": "client/batch-rejects-duplicate-id",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": [
+          {
+            "toonrpc": "1.0",
+            "result": "first",
+            "id": 70
+          },
+          {
+            "toonrpc": "1.0",
+            "result": "second",
+            "id": 70
+          }
+        ],
+        "pendingIds": [70]
+      },
+      "expect": {
+        "kind": "client-batch",
+        "settled": [
+          {
+            "kind": "success",
+            "id": 70,
+            "result": "first",
+            "exactMembers": ["toonrpc", "result", "id"]
+          }
+        ],
+        "rejected": [
+          {
+            "index": 1,
+            "reason": "duplicate-id"
+          }
+        ],
+        "remainingPendingIds": []
+      }
+    },
+    {
+      "name": "client/rejects-empty-batch",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": [],
+        "pendingIds": [71]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-result-and-error",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "result": 1,
+          "error": {
+            "code": -32603,
+            "message": "bad"
+          },
+          "id": 40
+        },
+        "pendingIds": [40]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-neither-result-nor-error",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "id": 41
+        },
+        "pendingIds": [41]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-missing-id",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "result": 1
+        },
+        "pendingIds": [41]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-wrong-version",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "0.9",
+          "result": 1,
+          "id": 42
+        },
+        "pendingIds": [42]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-invalid-id",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "result": 1,
+          "id": false
+        },
+        "pendingIds": [43]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-non-integer-error-code",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "error": {
+            "code": -32603.5,
+            "message": "bad"
+          },
+          "id": 43
+        },
+        "pendingIds": [43]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-fractional-id",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "result": 1,
+          "id": 82.5
+        },
+        "pendingIds": [82]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-unsafe-integer-id",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"1.0\"\nresult: 1\nid: 9007199254740993",
+        "pendingIds": [83]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-non-string-error-message",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "error": {
+            "code": -32603,
+            "message": 44
+          },
+          "id": 44
+        },
+        "pendingIds": [44]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-out-of-range-error-code",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "error": {
+            "code": 2147483648,
+            "message": "bad"
+          },
+          "id": 45
+        },
+        "pendingIds": [45]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-negative-out-of-range-error-code",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "error": {
+            "code": -2147483649,
+            "message": "bad"
+          },
+          "id": 46
+        },
+        "pendingIds": [46]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "invalid-response"
+      }
+    },
+    {
+      "name": "client/rejects-unknown-id",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "value": {
+          "toonrpc": "1.0",
+          "result": 1,
+          "id": "not-pending"
+        },
+        "pendingIds": ["other-pending"]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "unknown-id"
+      }
+    },
+    {
+      "name": "client/rejects-invalid-toon",
+      "direction": "client",
+      "encoding": "toon",
+      "input": {
+        "wire": "toonrpc: \"unterminated",
+        "pendingIds": [45]
+      },
+      "expect": {
+        "kind": "reject",
+        "reason": "parse-error"
+      }
+    }
+  ]
+}

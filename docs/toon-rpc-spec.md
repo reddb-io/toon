@@ -1,266 +1,310 @@
-# TOON-RPC Specification
+# TOON-RPC 1.0 Core Protocol
 
-**Version:** 0.1.0 (draft)
-**Status:** Draft
-**Supersedes:** JSON-RPC 2.0
+**Wire version:** 1.0
+**Status:** Normative recovery contract
+**TOON checkpoint:** v4.1.1, `toon-format/spec` revision
+`62f16b369408180f1faf1cba7da1b46d1f336f12`
 
-## 1. Overview
+TOON-RPC is an RPC envelope protocol encoded as UTF-8 TOON. It borrows the
+request, notification, response, error, and batch model from JSON-RPC 2.0, but
+it is a separate wire protocol. A TOON-RPC peer MUST NOT advertise a TOON-RPC
+document as JSON-RPC, MCP, or ACP traffic.
 
-TOON-RPC is a remote procedure call protocol that uses TOON (Token-Oriented Object Notation) as its serialization format, replacing JSON with a more efficient and human-readable alternative.
+The package recovery target is 0.30.0. Package versions are not wire versions;
+every message defined here carries `toonrpc: "1.0"`.
 
-The protocol is transport-agnostic and designed to be simple, following the same semantics as JSON-RPC 2.0 with extensions for Server-Side Events and subscriptions.
+## 1. Normative Language
 
-## 2. Transport Independence
+The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT,
+RECOMMENDED, NOT RECOMMENDED, MAY, and OPTIONAL are to be interpreted as
+described in BCP 14 when they appear in capitals.
 
-TOON-RPC is designed to work over any bidirectional streaming transport:
+## 2. Data Model
 
-- **stdio** — Local IPC, CLI tools, debugging
-- **HTTP** — Web APIs (stateless request/response)
-- **TCP** — Network services, microservices
-- **Unix Socket** — Local IPC with filesystem permissions
-- **WebSocket** — Bidirectional streaming, real-time apps
+A TOON-RPC document MUST be valid UTF-8 and valid TOON at the pinned checkpoint.
+Its values are the common JSON-compatible model:
 
-Each transport implements the `Transport` trait providing send/recv streams.
+- null;
+- booleans;
+- finite numbers representable as IEEE-754 binary64 values;
+- UTF-8 strings;
+- arrays; and
+- objects with string keys.
 
-## 3. Wire Protocol
+NaN, positive or negative infinity, binary values, and implementation-specific
+integer types are outside the core wire model. Every integer value, not only an
+ID, MUST be within the JSON-safe range. Decimal fractions are decoded using
+correct IEEE-754 binary64 rounding. A numeric token that overflows to a
+non-finite value or an integer token outside the safe range MUST be rejected;
+it MUST NOT be rounded to another integer or reinterpreted as a string.
+Applications that require larger exact integers SHOULD encode them as strings.
 
-All messages are valid TOON documents. The protocol reuses JSON-RPC 2.0 semantics with TOON serialization.
+Object member order has no meaning. Unless this document says otherwise, a
+recipient MUST ignore unknown object members. Unknown members do not relax the
+requirements on known members.
 
-### 3.1 Request Object
+## 3. IDs
+
+An ID is one of:
+
+- a string;
+- null; or
+- an integer from `-9007199254740991` through `9007199254740991`, inclusive.
+
+Fractional numbers, unsafe integers, booleans, arrays, and objects are invalid
+IDs. Implementations MUST preserve the ID value and type exactly.
+
+Only the absence of the `id` member denotes a notification. An explicit
+`id: null` is a request and MUST receive a response. A malformed object does not
+become a notification merely because it has no `id` member.
+
+## 4. Request Objects
+
+A Request Object MUST contain:
+
+| Member | Requirement |
+|---|---|
+| `toonrpc` | REQUIRED string with the exact value `"1.0"` |
+| `method` | REQUIRED non-empty string; names beginning with `rpc.` are reserved |
+| `params` | OPTIONAL array for positional parameters or object for named parameters |
+| `id` | OPTIONAL ID; absence makes the request a notification |
+
+`params: null`, scalar `params`, and any other `params` shape are invalid
+request envelopes. Absence is preserved as absence; a protocol implementation
+MUST NOT silently rewrite it to an empty array or object.
+
+Request with positional parameters:
 
 ```toon
-{
-  toonrpc: "1.0"
-  method: "subtract"
-  params: [42, 23]
-  id: 1
-}
+toonrpc: "1.0"
+method: "subtract"
+params[2]: 42,23
+id: 1
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `toonrpc` | String | Yes | MUST be exactly `"1.0"` |
-| `method` | String | Yes | Name of method to invoke. `rpc.*` prefix reserved. |
-| `params` | Value | No | Method parameters (by-position Array or by-name Object) |
-| `id` | String\|Number\|Null | No | If omitted = notification |
-
-### 3.2 Notification
-
-A Request without `id` is a notification. No response is sent.
+Notification with named parameters:
 
 ```toon
-{ toonrpc: "1.0" method: "update" params: [1, 2, 3, 4, 5] }
+toonrpc: "1.0"
+method: "cache.invalidate"
+params:
+  key: "users"
 ```
 
-### 3.3 Response Object
+A server MUST invoke a handler only after the complete Request Object has passed
+envelope validation. It MUST invoke a valid notification exactly once and MUST
+NOT produce an RPC Response Object for it.
 
-**Success:**
+## 5. Response Objects
+
+A Response Object has these protocol-defined members:
+
+| Member | Requirement |
+|---|---|
+| `toonrpc` | REQUIRED string with the exact value `"1.0"` |
+| `id` | REQUIRED ID copied from a valid request, or null for an uncorrelated protocol error |
+| `result` | REQUIRED on success and forbidden on error; any core data-model value is valid |
+| `error` | REQUIRED on error and forbidden on success; MUST be an Error Object |
+
+Exactly one of `result` and `error` MUST be present. Member presence, not value,
+selects the branch: `result: null` is a valid success. A response with both
+members or neither member is invalid.
+
+A conforming emitter MUST generate no response members beyond `toonrpc`, `id`,
+and the selected branch. A recipient still follows the general compatibility
+rule and ignores unknown members after validating every known member.
+
+Success:
+
 ```toon
-{ toonrpc: "1.0" result: 19 id: 1 }
+toonrpc: "1.0"
+result: 19
+id: 1
 ```
 
-**Error:**
-```toon
-{ toonrpc: "1.0" error: { code: -32601 message: "Method not found" data: null } id: 1 }
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `toonrpc` | String | Yes | MUST be `"1.0"` |
-| `result` | Value | Yes (success) | Method return value |
-| `error` | Error | Yes (error) | Error object |
-| `id` | Any | Yes | Matches request `id`, or `null` if parse error |
-
-### 3.4 Error Object
+Error:
 
 ```toon
-{
+toonrpc: "1.0"
+error:
   code: -32601
   message: "Method not found"
-  data: null
-}
+id: 1
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `code` | Integer | Error type (see below) |
-| `message` | String | Short description (one sentence) |
-| `data` | Value | Additional error info (optional) |
+A client MUST validate the version, ID, branch exclusivity, and Error Object
+before accepting a response. It MUST reject a response that cannot be
+correlated to a pending request.
 
-### 3.5 Error Codes
+### 5.1 Client Batch Processing
 
-| Code | Message | Description |
-|------|---------|-------------|
-| -32700 | Parse error | Invalid TOON received |
-| -32600 | Invalid Request | Not a valid Request object |
-| -32601 | Method not found | Method does not exist |
-| -32602 | Invalid params | Invalid method parameters |
-| -32603 | Internal error | Internal RPC error |
-| -32000 to -32099 | Server error | Implementation-defined |
+A response batch is a non-empty root array of Response Objects. A client MUST
+validate and correlate every entry independently:
 
-### 3.6 Batch
+1. A valid entry settles its matching pending call at most once.
+2. A malformed entry is rejected without preventing valid sibling entries from
+   settling their calls.
+3. An unknown ID is rejected without affecting sibling entries.
+4. If an ID appears more than once, the first valid entry settles the call and
+   every later entry with that ID is rejected as a duplicate.
+5. Calls without a valid matching entry remain pending.
+6. An empty response batch is invalid.
+
+Implementations MUST surface rejected entries through their normal protocol
+error or diagnostic mechanism; they MUST NOT silently settle a call from an
+invalid entry.
+
+## 6. Error Objects
+
+An Error Object contains:
+
+| Member | Requirement |
+|---|---|
+| `code` | REQUIRED signed 32-bit integer |
+| `message` | REQUIRED string with a concise description |
+| `data` | OPTIONAL core data-model value with implementation-specific detail |
+
+The presence of `data` is significant. `data: null` differs from an absent
+`data` member and MUST survive a decode/encode round trip.
+
+### 6.1 Reserved Codes
+
+| Code | Meaning | Use |
+|---|---|---|
+| -32700 | Parse error | Input is not valid UTF-8 or valid TOON |
+| -32600 | Invalid Request | Decoded value is not a valid request envelope |
+| -32601 | Method not found | No handler exists for a valid request method |
+| -32602 | Invalid params | A valid request's structured parameters fail method validation |
+| -32603 | Internal error | Unexpected internal RPC failure |
+| -32099 through -32000 | Server error | Implementation-defined server failures |
+
+Codes from `-32768` through `-32000` are reserved for protocol and server
+errors. Applications MAY use any other signed 32-bit code. Implementations MUST
+preserve unknown application codes exactly rather than mapping them to a closed
+enum or a different server-error code.
+
+### 6.2 Error Correlation
+
+- Parse errors use `id: null` because no envelope was decoded.
+- Invalid Request errors use `id: null`, even if the malformed value contains
+  something named `id`.
+- Method-not-found, invalid-params, handler, and internal errors for a valid
+  request preserve that request's ID.
+- An error caused by a valid notification produces no RPC response document.
+
+Implementations MAY choose diagnostic wording, except where a conformance case
+explicitly pins `message`. Conformance always pins the error code, ID, and
+response shape.
+
+## 7. Batch Documents
+
+A batch request is a non-empty root array. Each array entry is processed and
+validated independently as a Request Object.
 
 ```toon
-[
-  { toonrpc: "1.0" method: "sum" params: [1, 2, 4] id: "1" }
-  { toonrpc: "1.0" method: "notify_hello" params: [7] }
-  { toonrpc: "1.0" method: "subtract" params: [42, 23] id: "2" }
-]
+[3]:
+  - toonrpc: "1.0"
+    method: "sum"
+    params[3]: 1,2,4
+    id: "1"
+  - toonrpc: "1.0"
+    method: "notify.hello"
+    params[1]: 7
+  - toonrpc: "1.0"
+    method: "subtract"
+    params[2]: 42,23
+    id: "2"
 ```
 
-Response contains one Response per non-notification Request, in any order.
+Batch processing follows these rules:
 
-## 4. Extensions
+1. Every malformed entry contributes an Invalid Request response with
+   `id: null`; it does not prevent valid sibling entries from running.
+2. Valid notification entries run exactly once and contribute no response
+   element.
+3. The response to a batch is an array, even when only one response element
+   remains after notifications are omitted.
+4. Response element order is not guaranteed.
+5. An all-notification batch produces no RPC response document.
+6. An empty root array is invalid and produces one non-batch Invalid Request
+   Response Object with `id: null`.
+7. A syntax error prevents decoding the root and produces one non-batch Parse
+   Error Response Object with `id: null`.
 
-### 4.1 Server-Side Events (SSE)
+A server MAY process entries concurrently if handler and transport guarantees
+permit it.
 
-SSE allows servers to push events to clients over HTTP-like transports.
+## 8. Processing Boundary
 
-**Subscribe method:**
-```toon
-{ toonrpc: "1.0" method: "rpc.sse.subscribe" params: { event: "onUpdate" } id: 1 }
-```
+The core protocol operates on complete RPC documents. It does not define byte
+framing, connection ownership, retries, cancellation, backpressure, HTTP
+status codes, or connection shutdown.
 
-**Event push:**
-```toon
-{ toonrpc: "1.0" method: "rpc.sse.event" params: { event: "onUpdate" data: { value: 42 } } }
-```
+Transport profiles MUST preserve the document boundaries and no-response
+semantics defined here:
 
-### 4.2 Subscriptions
+- request/response transports such as HTTP map one request body to zero or one
+  response body; HTTP is not a fake duplex stream;
+- frame transports such as WebSocket carry one complete document per selected
+  frame profile; and
+- byte streams such as TCP, Unix sockets, and stdio require an explicit framing
+  profile and MUST NOT infer boundaries from arbitrary newlines.
 
-Long-lived subscriptions with explicit unsubscribe.
+For example, an HTTP profile will normally represent a notification-only result
+with status 204 and no RPC body. A stream profile emits no response frame. These
+are transport rules, not extra RPC messages.
 
-**Subscribe:**
-```toon
-{ toonrpc: "1.0" method: "rpc.subscribe" params: { method: "events.onValue" } id: 1 }
-```
+## 9. Deferred Features
 
-**Response:**
-```toon
-{ toonrpc: "1.0" result: { subscriptionId: "abc123" } id: 1 }
-```
+SSE, long polling, subscriptions, cancellation, capability negotiation, IDL,
+code generation, and protocol multiplexing are not part of this core contract.
+They require separate profiles that cannot weaken the core envelope rules.
 
-**Unsubscribe:**
-```toon
-{ toonrpc: "1.0" method: "rpc.unsubscribe" params: { subscriptionId: "abc123" } id: 2 }
-```
+MCP and legacy ACP adapters must target their independently pinned standards.
+TOON-RPC extensions MUST NOT be presented as standard MCP or ACP wire formats.
 
-## 5. IDL (`.toonrpc`)
+## 10. Conformance Corpus
 
-Service definitions in TOON format:
+The normative machine-readable vectors live at:
 
-```toon
-{
-  version: "1.0"
-  service: "Calculator"
-  types: {
-    Vec2: { x: f64 y: f64 }
-  }
-  methods: [
-    { name: "add"      params: [{ a: i32 } { b: i32 }]      result: i32 }
-    { name: "subtract" params: [{ a: i32 } { b: i32 }]      result: i32 }
-    { name: "dot"      params: [{ v1: Vec2 } { v2: Vec2 }]  result: f64 }
-  ]
-  events: [
-    { name: "onResult" payload: { value: i32 } }
-  ]
-}
-```
+- `tests/corpus/toon-rpc/fixtures.schema.json`; and
+- `tests/corpus/toon-rpc/contract.json`.
 
-### 5.1 Type System
+The corpus defines declarative fixture handlers so Rust and TypeScript runners
+exercise the same service behavior. A case provides exactly one source form:
+exact wire text, a decoded logical value, raw bytes encoded as canonical base64,
+or the explicit pair of `wire` and `value`. For the paired form, a runner MUST
+first verify that decoding `wire` produces `value`.
 
-| TOON-RPC Type | Description |
-|---------------|-------------|
-| `i8`, `i16`, `i32`, `i64` | Signed integers |
-| `u8`, `u16`, `u32`, `u64` | Unsigned integers |
-| `f32`, `f64` | Floating point |
-| `bool` | Boolean |
-| `string` | UTF-8 string |
-| `bytes` | Binary data (base64) |
-| `null` | Null value |
-| `Object` | Named fields `{ field: Type }` |
-| `Array` | Homogeneous list `[Type]` |
-| `Vector` | Dynamic list `Type[]` |
+Client inputs declare `pendingIds`; runners MUST seed exactly those pending
+calls before delivering the response. Client batch expectations identify every
+settled call, rejected entry, and still-pending ID. Case names are globally
+unique fixture identifiers, and runners MUST reject duplicate names across the
+complete `valid` and `malformed` arrays before executing any case.
 
-## 6. Code Generation
+When an expectation contains `calls`, it is the exact per-method invocation
+map: omitted methods have count zero and the sum of its values MUST equal
+`callCount`. Before executing a `bytesBase64` case, a runner MUST decode and
+re-encode the bytes and reject the fixture unless the result exactly matches
+the source string; this enforces canonical base64 beyond JSON Schema's lexical
+check.
 
-Code generators produce:
+Server cases pin handler call counts and one of: no response, success, error, or
+batch response. Client cases pin acceptance or rejection of response envelopes.
+Success and error matchers require exact protocol members; extra members are
+permitted on received requests but MUST NOT appear in generated responses.
 
-- **Rust**: Server trait + client stub + types
-- **TypeScript**: Client class + types
+Batch responses are always compared without relying on order. Object member
+ordering is also ignored. Error wording is compared only when `message` is
+present in the expectation.
 
-### 6.1 Generated Rust
+The corpus is the acceptance contract for the 0.30 recovery. Rust and
+TypeScript semantic runners are added by later slices of Spec #389; expected
+failure ledgers are not permitted for this corpus.
 
-```rust
-// Generated from calculator.toonrpc
-pub trait Calculator {
-    fn add(&self, ctx: &RpcContext, a: i32, b: i32) -> RpcResult<i32>;
-    fn subtract(&self, ctx: &RpcContext, a: i32, b: i32) -> RpcResult<i32>;
-    fn dot(&self, ctx: &RpcContext, v1: Vec2, v2: Vec2) -> RpcResult<f64>;
-}
+## 11. Implementation Status
 
-#[derive(Serialize, Deserialize)]
-pub struct Vec2 { pub x: f64, pub y: f64 }
-```
-
-### 6.2 Generated TypeScript
-
-```typescript
-// Generated from calculator.toonrpc
-export interface Vec2 { x: number; y: number }
-
-export class CalculatorClient {
-  constructor(private transport: ToonRpcTransport)
-  async add(a: number, b: number): Promise<number>
-  async subtract(a: number, b: number): Promise<number>
-  async dot(v1: Vec2, v2: Vec2): Promise<number>
-}
-```
-
-## 7. Transport Trait
-
-```rust
-pub trait Transport {
-    type Send: Stream<Item = Result<Bytes, Error>> + Unpin;
-    type Recv: Stream<Item = Result<Bytes, Error>> + Unpin;
-
-    fn split(self) -> (Self::Send, Self::Recv);
-}
-```
-
-## 8. Examples
-
-### 8.1 stdio
-
-Server reads requests from stdin, writes responses to stdout.
-
-### 8.2 HTTP
-
-POST requests with TOON body, response in TOON.
-
-### 8.3 WebSocket
-
-Full-duplex channel with JSON-RPC-like framing over WebSocket frames.
-
-## 9. Implementation Status
-
-| Component | Status |
-|-----------|--------|
-| Core Protocol | Planned |
-| stdio Transport | Planned |
-| HTTP Transport | Planned |
-| TCP/Unix Socket | Planned |
-| WebSocket + SSE | Planned |
-| Rust Codegen | Planned |
-| TypeScript Codegen | Planned |
-| CLI | Planned |
-
-## 10. Differences from JSON-RPC
-
-| Aspect | JSON-RPC | TOON-RPC |
-|--------|----------|----------|
-| Serialization | JSON | TOON |
-| Human-readable | Moderate | Better (no quotes on keys) |
-| Type system | JSON types | Extended with bytes, u64, i64 |
-| Streaming | Not specified | Via SSE extension |
-| Transport | HTTP only (commonly) | Any bidirectional stream |
+The existing TypeScript and Rust packages are quarantined while Spec #389 is in
+progress. The presence of source code or package versions does not imply that a
+component conforms to this document. Publication resumes only after shared
+corpus, lifecycle, transport, package, and exact-commit release gates pass.
