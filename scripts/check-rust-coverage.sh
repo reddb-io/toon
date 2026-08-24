@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The spec-conformance tests need the vendored fixture submodules; validation
+# moments may run this script in a fresh worktree where project setup has not,
+# so the gate provisions its own inputs instead of assuming them.
+git -C "$(dirname "$0")/.." submodule update --init vendor/toon vendor/toon-spec
+
 # RPC crates run under `cargo test --workspace`; keep the established 95% line
 # gate on the mature codec and CLI until each new transport has its own suite.
 EXCLUDED_RPC_CRATES=(
