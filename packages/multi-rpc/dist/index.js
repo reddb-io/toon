@@ -3,7 +3,7 @@
  * and answers in the same format the client used.
  */
 import { decode, encode } from '@reddb-io/toon';
-import { TOONRPC_VERSION } from '@reddb-io/toon-rpc';
+import { TOONRPC_VERSION, snapshotCoreValue } from '@reddb-io/toon-rpc';
 export { Server } from '@reddb-io/toon-rpc';
 export const JSONRPC_VERSION = '2.0';
 /** MIME type for HTTP `Content-Type` / `Accept` negotiation. */
@@ -12,22 +12,42 @@ export function contentTypeFor(protocol) {
 }
 /** Detect the protocol from a content-type hint and/or raw bytes. */
 export function detectProtocol(raw, contentType) {
+    return detect(raw, contentType).protocol;
+}
+function detect(raw, contentType) {
     if (contentType !== undefined) {
-        const lower = contentType.toLowerCase();
-        if (lower.includes('application/json'))
-            return 'jsonrpc';
-        if (lower.includes('application/toon'))
-            return 'toonrpc';
+        const mediaType = contentType.split(';', 1)[0].trim().toLowerCase();
+        if (mediaType === 'application/json')
+            return { protocol: 'jsonrpc' };
+        if (mediaType === 'application/toon')
+            return { protocol: 'toonrpc' };
     }
-    const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+    let text;
+    try {
+        text =
+            typeof raw === 'string'
+                ? raw
+                : new TextDecoder('utf-8', { fatal: true }).decode(raw);
+    }
+    catch {
+        return { protocol: 'toonrpc' };
+    }
     const trimmed = text.trimStart();
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        // An inline TOON object may also start with `{`; only the JSON-RPC marker
-        // makes that prefix unambiguous.
-        if (trimmed.slice(0, 80).includes('"jsonrpc"'))
-            return 'jsonrpc';
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('['))
+        return { protocol: 'toonrpc' };
+    try {
+        const value = JSON.parse(trimmed);
+        if (hasJsonRpcMember(value)) {
+            return {
+                protocol: 'jsonrpc',
+                cachedJson: { value },
+            };
+        }
     }
-    return 'toonrpc';
+    catch {
+        // Existing fallback policy treats unrecognized input as TOON-RPC.
+    }
+    return { protocol: 'toonrpc' };
 }
 /** A single method registry behind JSON-RPC and TOON-RPC wire formats. */
 export class MultiRpc {
@@ -40,15 +60,26 @@ export class MultiRpc {
         return body;
     }
     async handleWithProtocol(raw, contentType) {
-        const protocol = detectProtocol(raw, contentType);
-        const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
-        const body = protocol === 'jsonrpc' ? await this.handleJsonRpc(text) : await this.server.handleText(text);
+        const { protocol, cachedJson } = detect(raw, contentType);
+        const body = protocol === 'jsonrpc'
+            ? await this.handleJsonRpc(raw, cachedJson)
+            : typeof raw === 'string'
+                ? await this.server.handleText(raw)
+                : await this.server.handle(raw);
         return { protocol, body };
     }
-    async handleJsonRpc(text) {
+    async handleJsonRpc(raw, cached) {
         let value;
         try {
-            value = JSON.parse(text);
+            if (cached) {
+                value = cached.value;
+            }
+            else {
+                const text = typeof raw === 'string'
+                    ? raw
+                    : new TextDecoder('utf-8', { fatal: true }).decode(raw);
+                value = JSON.parse(text);
+            }
         }
         catch (err) {
             const message = err instanceof Error ? err.message : 'Parse error';
@@ -59,7 +90,7 @@ export class MultiRpc {
             });
         }
         const isBatch = Array.isArray(value);
-        const entries = (isBatch ? value : [value]);
+        const entries = Array.isArray(value) ? value : [value];
         if (entries.length === 0) {
             return jsonBytes({
                 jsonrpc: JSONRPC_VERSION,
@@ -75,55 +106,118 @@ export class MultiRpc {
         }
         if (responses.length === 0)
             return new Uint8Array(0);
-        return jsonBytes(isBatch ? responses : responses[0]);
+        return textBytes(isBatch
+            ? `[${responses.map(({ encoded }) => encoded).join(',')}]`
+            : responses[0].encoded);
     }
     async dispatchJsonRpcEntry(entry) {
-        if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
-            return {
-                jsonrpc: JSONRPC_VERSION,
-                error: { code: -32600, message: 'Invalid Request: not an object' },
-                id: null,
-            };
-        }
-        if (entry.jsonrpc !== JSONRPC_VERSION) {
-            return {
-                jsonrpc: JSONRPC_VERSION,
-                error: { code: -32600, message: `Invalid Request: expected jsonrpc "${JSONRPC_VERSION}"` },
-                id: idOf(entry),
-            };
-        }
-        const dispatched = await this.server.dispatchEntry({
-            toonrpc: TOONRPC_VERSION,
-            method: entry.method,
-            params: entry.params,
-            id: entry.id,
-        });
+        const snapshot = snapshotCoreValue(entry);
+        const dispatched = await this.server.dispatchEntry(snapshot === undefined ? undefined : toToonEntry(snapshot));
         if (dispatched === undefined)
             return undefined;
-        const { toonrpc: _drop, ...rest } = dispatched;
-        return { jsonrpc: JSONRPC_VERSION, ...rest };
+        return preflightJsonResponse(dispatched);
     }
 }
-function idOf(entry) {
-    const id = entry.id;
-    return typeof id === 'string' || typeof id === 'number' ? id : null;
+function hasJsonRpcMember(value) {
+    if (Array.isArray(value))
+        return value.some(hasOwnJsonRpcMember);
+    return hasOwnJsonRpcMember(value);
+}
+function hasOwnJsonRpcMember(value) {
+    return (value !== null &&
+        typeof value === 'object' &&
+        !Array.isArray(value) &&
+        Object.prototype.hasOwnProperty.call(value, 'jsonrpc'));
+}
+function toToonEntry(entry) {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry))
+        return entry;
+    const record = entry;
+    const members = [];
+    if (Object.prototype.hasOwnProperty.call(record, 'jsonrpc') &&
+        record.jsonrpc === JSONRPC_VERSION) {
+        members.push(['toonrpc', TOONRPC_VERSION]);
+    }
+    for (const [key, value] of Object.entries(record)) {
+        if (key !== 'jsonrpc' && key !== 'toonrpc')
+            members.push([key, value]);
+    }
+    return Object.fromEntries(members);
+}
+function toJsonResponse(response) {
+    const members = Object.entries(response).filter(([key]) => key !== 'toonrpc');
+    return Object.fromEntries([['jsonrpc', JSONRPC_VERSION], ...members]);
+}
+function preflightJsonResponse(response) {
+    const value = toJsonResponse(response);
+    try {
+        return { value, encoded: stringifyJson(value) };
+    }
+    catch {
+        const fallback = toJsonResponse({
+            toonrpc: TOONRPC_VERSION,
+            error: { code: -32603, message: 'Internal error' },
+            id: response.id,
+        });
+        return { value: fallback, encoded: stringifyJson(fallback) };
+    }
 }
 function jsonBytes(value) {
-    return new TextEncoder().encode(JSON.stringify(value));
+    return textBytes(stringifyJson(value));
 }
-/** Re-encode an already-parsed RPC message in the named dialect. */
+function textBytes(value) {
+    return new TextEncoder().encode(value);
+}
+function stringifyJson(value) {
+    const encoded = JSON.stringify(value);
+    if (encoded === undefined)
+        throw new TypeError('JSON value is not encodable');
+    return encoded;
+}
+/** Re-encode an already-parsed RPC message or batch in the named dialect. */
 export function encodeMessage(message, protocol) {
-    const { jsonrpc: _j, toonrpc: _t, ...rest } = message;
-    if (protocol === 'jsonrpc') {
-        return JSON.stringify({ jsonrpc: JSONRPC_VERSION, ...rest });
-    }
-    return encode({ toonrpc: TOONRPC_VERSION, ...rest });
+    const snapshot = snapshotMessageDocument(message);
+    const translated = isMessageBatch(snapshot)
+        ? snapshot.map((entry) => translateMessage(entry, protocol))
+        : translateMessage(snapshot, protocol);
+    return protocol === 'jsonrpc'
+        ? JSON.stringify(translated)
+        : encode(translated);
 }
 /** Decode a framed message into the JSON-RPC-compatible object shape. */
 export function decodeMessage(frame) {
-    const protocol = frame.trimStart().startsWith('{') ? 'jsonrpc' : 'toonrpc';
-    const raw = (protocol === 'jsonrpc' ? JSON.parse(frame) : decode(frame));
-    const { jsonrpc: _j, toonrpc: _t, ...rest } = raw;
-    return { message: { jsonrpc: JSONRPC_VERSION, ...rest }, protocol };
+    const { protocol, cachedJson } = detect(frame);
+    const raw = protocol === 'jsonrpc' ? cachedJson.value : decode(frame);
+    const snapshot = snapshotMessageDocument(raw);
+    const message = isMessageBatch(snapshot)
+        ? snapshot.map((entry) => translateMessage(entry, 'jsonrpc'))
+        : translateMessage(snapshot, 'jsonrpc');
+    return { message, protocol };
+}
+function snapshotMessageDocument(value) {
+    const snapshot = snapshotCoreValue(value);
+    if (snapshot === undefined)
+        throw new TypeError('RPC message is not a core value');
+    const entries = Array.isArray(snapshot) ? snapshot : [snapshot];
+    if (entries.some((entry) => entry === null || typeof entry !== 'object' || Array.isArray(entry))) {
+        throw new TypeError('RPC message entries must be objects');
+    }
+    return (Array.isArray(snapshot) ? entries : entries[0]);
+}
+function isMessageBatch(message) {
+    return Array.isArray(message);
+}
+function translateMessage(message, protocol) {
+    const members = [
+        [
+            protocol === 'jsonrpc' ? 'jsonrpc' : 'toonrpc',
+            protocol === 'jsonrpc' ? JSONRPC_VERSION : TOONRPC_VERSION,
+        ],
+    ];
+    for (const [key, value] of Object.entries(message)) {
+        if (key !== 'jsonrpc' && key !== 'toonrpc')
+            members.push([key, value]);
+    }
+    return Object.fromEntries(members);
 }
 //# sourceMappingURL=index.js.map

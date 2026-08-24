@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test test/*.test.mjs"
+    "test": "tsc -p tsconfig.json && tsc --noEmit --strict --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext test/types.test.ts && node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=18"

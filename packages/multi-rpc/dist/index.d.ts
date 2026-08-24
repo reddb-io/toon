@@ -2,13 +2,14 @@
  * Multi-protocol RPC: auto-detects JSON-RPC 2.0 vs TOON-RPC 1.0 on the wire
  * and answers in the same format the client used.
  */
-import type { JsonValue } from '@reddb-io/toon';
 import { Server } from '@reddb-io/toon-rpc';
-import type { Id, Params } from '@reddb-io/toon-rpc';
+import type { CoreObject, Id, Params } from '@reddb-io/toon-rpc';
 export { Server } from '@reddb-io/toon-rpc';
 export declare const JSONRPC_VERSION = "2.0";
 /** Wire protocol variants the dispatcher can negotiate. */
 export type Protocol = 'jsonrpc' | 'toonrpc';
+export type Message = CoreObject;
+export type MessageDocument = Message | readonly Message[];
 /** MIME type for HTTP `Content-Type` / `Accept` negotiation. */
 export declare function contentTypeFor(protocol: Protocol): string;
 /** Detect the protocol from a content-type hint and/or raw bytes. */
@@ -25,11 +26,11 @@ export declare class MultiRpc {
     private handleJsonRpc;
     private dispatchJsonRpcEntry;
 }
-/** Re-encode an already-parsed RPC message in the named dialect. */
-export declare function encodeMessage(message: Record<string, JsonValue>, protocol: Protocol): string;
+/** Re-encode an already-parsed RPC message or batch in the named dialect. */
+export declare function encodeMessage(message: MessageDocument, protocol: Protocol): string;
 /** Decode a framed message into the JSON-RPC-compatible object shape. */
 export declare function decodeMessage(frame: string): {
-    message: Record<string, JsonValue>;
+    message: MessageDocument;
     protocol: Protocol;
 };
 export type { Id, Params };
