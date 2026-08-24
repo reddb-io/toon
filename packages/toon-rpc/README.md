@@ -161,9 +161,33 @@ through `ClientOptions.onDiagnostic`. Valid batch siblings still settle their
 calls, and unmatched calls remain pending until a response, abort, timeout,
 transport termination, or client close.
 
-The existing HTTP, WebSocket, TCP, stdio, and SSE prototypes remain quarantined
-until the concrete-transport recovery slice. Their legacy `Transport` shapes are
-not accepted by the recovered `Client`.
+### Concrete transports
+
+Every concrete transport implements one of the two contracts above and plugs
+into `Client` directly:
+
+| Subpath | Transport | Contract | Notes |
+| --- | --- | --- | --- |
+| `@reddb-io/toon-rpc/http` | `HttpTransport` | request/response | one POST per document; 204 or an empty body means no response document |
+| `@reddb-io/toon-rpc/websocket` | `WebSocketTransport` | duplex | one complete document per text or binary frame; unsupported payloads fail deterministically; drives a browser `WebSocket` or the `ws` package via `options.webSocket` (or `createNodeWebSocketTransport`) |
+| `@reddb-io/toon-rpc/tcp` | `TcpTransport` | duplex | length-prefixed stream framing; injectable socket factory |
+| `@reddb-io/toon-rpc/stdio` | `StdioTransport` | duplex | length-prefixed stream framing over injectable stdin/stdout |
+| `@reddb-io/toon-rpc/sse` | `SseTransport` | duplex | POST for outbound documents, one complete document per `data:` event inbound; built on fetch streaming, not `EventSource` |
+
+```typescript
+import { Client } from '@reddb-io/toon-rpc';
+import { TcpTransport } from '@reddb-io/toon-rpc/tcp';
+
+const client = new Client(new TcpTransport({ host: '127.0.0.1', port: 7333 }));
+const sum = await client.call('sum', [1, 2]);
+await client.close();
+```
+
+Byte-stream transports (TCP, stdio) speak the length-prefixed framing profile
+from `@reddb-io/toon-rpc/framing` — `<decimal payload length>\n<payload>\n` —
+never newline inference; `encodeFrame` and `FrameDecoder` are exported for
+servers and other peers, and any framing violation fails the stream instead of
+resynchronizing. The legacy 0.29 `Transport` shapes are gone.
 
 ## Publishing
 

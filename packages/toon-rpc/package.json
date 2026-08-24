@@ -29,6 +29,14 @@
     "./acp-stream": {
       "types": "./dist/acp-stream.d.ts",
       "import": "./dist/acp-stream.js"
+    },
+    "./framing": {
+      "types": "./dist/framing.d.ts",
+      "import": "./dist/framing.js"
+    },
+    "./stdio": {
+      "types": "./dist/stdio.d.ts",
+      "import": "./dist/stdio.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -70,6 +78,12 @@
     "ws": "^8.16.0"
   },
   "peerDependencies": {
-    "@reddb-io/toon": ">=0.28"
+    "@reddb-io/toon": ">=0.28",
+    "ws": "^8.16.0"
+  },
+  "peerDependenciesMeta": {
+    "ws": {
+      "optional": true
+    }
   }
 }

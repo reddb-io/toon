@@ -252,6 +252,31 @@ semantics defined here:
 - byte streams such as TCP, Unix sockets, and stdio require an explicit framing
   profile and MUST NOT infer boundaries from arbitrary newlines.
 
+### 8.1 Length-Prefixed Stream Framing Profile
+
+Byte-stream transports in this repository frame each document as:
+
+    frame = length , LF , payload , LF
+
+`length` is the payload size in bytes as ASCII decimal digits with no sign,
+no leading zeros (a lone `0` is valid), and at most 15 digits. LF is byte
+0x0A. `payload` is exactly `length` bytes carrying one complete RPC document;
+the trailing LF terminates the frame and is not part of the payload. Any
+deviation is a framing error: a decoder MUST fail the stream instead of
+resynchronizing, and a stream that ends inside a frame is an error, not a
+clean close.
+
+### 8.2 SSE Duplex Profile
+
+The SSE profile composes a duplex transport from two HTTP legs: documents
+travel to the server as POST bodies, and documents travel back as complete
+`data:` events on one long-lived `text/event-stream` response. Each event
+carries exactly one document; a multi-line document's lines are the event's
+`data:` lines, rejoined with LF exactly as the SSE specification defines. A
+2xx status acknowledges a POST; the RPC response document, when one exists,
+arrives only on the event stream. Closing the event stream terminates the
+duplex transport.
+
 When a direct request/response exchange completes without a valid response for
 its initiating call, the exchange is exhausted and that call terminates with a
 protocol error. The rule in section 5.1 that unmatched calls remain pending
@@ -266,7 +291,7 @@ are transport rules, not extra RPC messages.
 
 ## 9. Deferred Features
 
-SSE, long polling, subscriptions, cancellation, capability negotiation, IDL,
+Long polling, subscriptions, cancellation, capability negotiation, IDL,
 code generation, and protocol multiplexing are not part of this core contract.
 They require separate profiles that cannot weaken the core envelope rules.
 

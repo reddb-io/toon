@@ -3,12 +3,7 @@ export * from './protocol.js';
 export * from './client.js';
 export * from './rpc-error.js';
 export * from './transport.js';
-/** @deprecated Concrete transports will migrate to the 0.30 contracts in slice 7. */
-export interface Transport {
-    send(data: Uint8Array): Promise<void>;
-    recv(): AsyncIterable<Uint8Array>;
-    close(): Promise<void>;
-}
+export * from './framing.js';
 export interface MethodHandler {
     (params: Params | undefined, id: Id | undefined): Promise<CoreValue>;
 }
@@ -26,5 +21,4 @@ export declare class Server {
      */
     dispatchEntry(entry: unknown): Promise<Response | undefined>;
 }
-export declare function createStdioTransport(): Transport;
 //# sourceMappingURL=index.d.ts.map
