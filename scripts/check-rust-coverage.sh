@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Persist the full run output: the AFK park evidence truncates to the last
+# line, which has repeatedly hidden the real failure. One timestamped log
+# per run, plus environment facts that have distinguished past failures.
+LOG_DIR="${TOON_GATE_LOG_DIR:-${HOME:-/tmp}/.cache/toon-gate-logs}"
+mkdir -p "$LOG_DIR"
+exec > >(tee "$LOG_DIR/coverage-$(date +%Y%m%dT%H%M%S)-$$.log") 2>&1
+echo "[gate-env] pwd=$(pwd) user=$(id -un) home=${HOME:-<unset>} fs=$(stat -f -c %T . 2>/dev/null)"
+echo "[gate-env] df-pwd: $(df -h . | tail -1)"
+echo "[gate-env] df-home: $(df -h "${HOME:-/tmp}" | tail -1)"
+
 # The spec-conformance tests need the vendored fixture submodules; validation
 # moments may run this script in a fresh worktree where project setup has not,
 # so the gate provisions its own inputs instead of assuming them.
@@ -40,11 +50,14 @@ run_coverage() {
   cargo llvm-cov --workspace "${EXCLUDE_ARGS[@]}" --fail-under-lines 95
 }
 
-# A run killed mid-build (worker timeout, operator interrupt) can leave the
-# shared cache with profdata pointing at half-written test binaries, which
-# fails every later run. Clean only the coverage artifacts and retry once
-# before reporting red.
+# Every AFK worker checkout is named "worktree", so sequential runs collide
+# on the same profraw-list/profdata names in the shared cache, and a run
+# killed mid-collection leaves stale profraws behind (observed: an orphaned
+# worktree-profraw-list with no profdata). Sweep coverage artifacts on entry
+# — cheap, keeps the build cache — and retry once the same way before
+# reporting red.
+cargo llvm-cov clean --profraw-only
 if ! run_coverage; then
-  cargo llvm-cov clean --workspace
+  cargo llvm-cov clean --profraw-only
   run_coverage
 fi
