@@ -229,11 +229,22 @@ await multi.handle('toonrpc: "1.0"\nmethod: add\nparams[2]: 2,3\nid: 1');
 
 `dualDialectStream(output, input)` is signature-compatible with the ACP SDK's
 `ndJsonStream` and returns the same `{ writable, readable }` object-stream
-pair. Each inbound frame is sniffed on its own bytes (`{` opens a one-line
-JSON frame; anything else is a TOON document terminated by a blank line), the
-consumer always sees `jsonrpc: "2.0"` objects, and writes answer in the
-dialect the peer last proved — so a JSON-RPC peer and a TOON-RPC peer can
-share one socket with neither being configured.
+pair, at ndJsonStream behavioral parity. Each inbound frame is sniffed on its
+own bytes (`{` **or `[`** opens a one-line JSON frame — a `[` can only be a
+JSON-RPC batch; anything else is a TOON document terminated by a blank line),
+the consumer always sees `jsonrpc: "2.0"` objects (a batch arrives as an array
+of them), and writes answer in the dialect the peer last **decoded** in — the
+latch moves on proof, never on the framing sniff alone.
+
+Parity rules, each of them load-bearing: a top-level array is always written
+as one JSON line in either dialect (TOON cannot carry a root array as one
+document); a malformed frame is reported through `onDiagnostic` and skipped,
+never a torn-down connection; the final unterminated frame at end of input is
+flushed; and cancelling the readable cancels the underlying byte reader.
+`preferred` selects only the pre-proof opener: the default `"jsonrpc"` is the
+only opener safe against a stock JSON-RPC peer, and `preferred: "toonrpc"` is
+an explicit opt-in for closed deployments whose peers are known to read
+TOON-RPC — a negotiated downgrade proof for open systems is future spec work.
 
 ```ts
 import { dualDialectStream } from '@reddb-io/toon-rpc/acp-stream';
