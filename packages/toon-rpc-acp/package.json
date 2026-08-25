@@ -2,7 +2,7 @@
   "name": "@reddb-io/toon-rpc-acp",
   "version": "0.29.9",
   "private": true,
-  "description": "Legacy ACP prototype quarantined during protocol recovery.",
+  "description": "Client for this repository's own legacy, terminal ACP-style REST contract. Not IBM/BeeAI ACP, not Zed's Agent Client Protocol, not interoperable with either.",
   "type": "module",
   "main": "dist/index.js",
   "exports": {
@@ -19,14 +19,15 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepublishOnly": "tsc -p tsconfig.json"
+    "prepublishOnly": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=18"
   },
   "keywords": [
     "acp",
-    "agent-communication-protocol",
+    "legacy",
     "toon",
     "toon-rpc"
   ],

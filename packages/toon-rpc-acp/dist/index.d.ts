@@ -48,7 +48,16 @@ export interface AcpService {
     cancel(runId: string): Promise<void> | void;
 }
 export interface AcpOptions {
+    /**
+     * Send and receive TOON instead of JSON. This switches the request body
+     * encoding, the `Content-Type`, the `Accept` header and the response parser
+     * together — they are never allowed to disagree.
+     */
     toon?: boolean;
+    /** Abort signal for the underlying fetch. */
+    signal?: AbortSignal;
+    /** Abort the request after this many milliseconds. */
+    timeoutMs?: number;
 }
 export declare function callAgent(baseUrl: string, agentName: string, parts: MessagePart[], options?: AcpOptions): Promise<AgentRun>;
 export declare function listAgents(baseUrl: string, options?: AcpOptions): Promise<AgentSummary[]>;
