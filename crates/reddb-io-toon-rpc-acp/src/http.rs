@@ -1,44 +1,72 @@
-//! REST transport for ACP — agents and runs over HTTP.
+//! REST transport for the legacy ACP-style contract — agents and runs over HTTP.
 //!
-//! Endpoints (matching the ACP REST spec):
+//! The wire shapes served here are pinned by `docs/acp-legacy-openapi.yaml`.
+//! They are this repository's own legacy contract, not IBM/BeeAI's Agent
+//! Communication Protocol and not Zed's Agent Client Protocol.
 //!
 //! - `GET    /agents`              — list all agents
 //! - `POST   /agents/{name}/runs`  — start a new run
-//! - `GET    /runs/{id}`          — fetch a run by id
-//! - `DELETE /runs/{id}`          — cancel a run
+//! - `GET    /runs/{id}`           — fetch a retained run by id
+//! - `DELETE /runs/{id}`           — cancel a live run, or release a finished one
 //!
 //! Responses are JSON by default. Clients that send `Accept: application/toon`
 //! get TOON-encoded responses (the wire format that powers toon-rpc).
 
-use crate::types::{AgentRun, AgentRunInput, AgentSummary, ACP_API_VERSION};
+use crate::runs::{is_terminal, RunStore, DEFAULT_MAX_RUNS};
+use crate::types::{AgentRunInput, AgentSummary, ACP_API_VERSION};
 use crate::AcpService;
 use http::{Request, Response, StatusCode};
 use http_body_util::BodyExt;
 use hyper::body::Incoming;
 use parking_lot::Mutex;
 use reddb_io_toon::Value as ToonValue;
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
-type RunsMap = Arc<Mutex<HashMap<String, AgentRun>>>;
+type RunsMap = Arc<Mutex<RunStore>>;
+
+/// Server-side limits for the legacy ACP HTTP surface.
+#[derive(Debug, Clone)]
+pub struct AcpHttpConfig {
+    /// Maximum number of runs retained for later `GET /runs/{id}` reads.
+    pub max_runs: usize,
+}
+
+impl Default for AcpHttpConfig {
+    fn default() -> Self {
+        Self {
+            max_runs: DEFAULT_MAX_RUNS,
+        }
+    }
+}
 
 /// Run the ACP server over HTTP until the process is killed.
 pub async fn serve_http<S: AcpService>(
     service: S,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let service = Arc::new(service);
-    let runs: RunsMap = Arc::new(Mutex::new(HashMap::new()));
-
     let listener = TcpListener::bind(addr).await?;
     println!("[toon-rpc-acp] HTTP server listening on http://{}", addr);
     println!(
         "[toon-rpc-acp] try: curl -H 'Accept: application/toon' http://{}/agents",
         addr
     );
+    serve_listener(service, listener, AcpHttpConfig::default()).await
+}
+
+/// Serve the ACP HTTP surface on an already-bound listener.
+///
+/// Tests and embedders use this to bind an ephemeral port and learn its
+/// address before any request is made.
+pub async fn serve_listener<S: AcpService>(
+    service: S,
+    listener: TcpListener,
+    config: AcpHttpConfig,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let service = Arc::new(service);
+    let runs: RunsMap = Arc::new(Mutex::new(RunStore::new(config.max_runs)));
 
     loop {
         let (stream, _) = listener.accept().await?;
@@ -81,7 +109,7 @@ async fn handle_request<S: AcpService>(
             .trim_start_matches("/agents/")
             .trim_end_matches("/runs")
             .to_string();
-        return Ok(handle_create_run(req, &*service, runs, &agent_name, accept_toon).await);
+        return Ok(handle_create_run(req, service, runs, agent_name, accept_toon).await);
     }
 
     if method == http::Method::GET && path.starts_with("/runs/") {
@@ -91,7 +119,7 @@ async fn handle_request<S: AcpService>(
 
     if method == http::Method::DELETE && path.starts_with("/runs/") {
         let run_id = path.trim_start_matches("/runs/").to_string();
-        return Ok(handle_cancel_run(&*service, &runs, &run_id, accept_toon));
+        return Ok(handle_cancel_run(service, runs, run_id, accept_toon).await);
     }
 
     if method == http::Method::GET && path == "/" {
@@ -133,9 +161,9 @@ fn handle_list_agents<S: AcpService>(service: &S, toon: bool) -> Response<String
 
 async fn handle_create_run<S: AcpService>(
     req: Request<Incoming>,
-    service: &S,
+    service: Arc<S>,
     runs: RunsMap,
-    agent_name: &str,
+    agent_name: String,
     toon: bool,
 ) -> Response<String> {
     let body = match req.into_body().collect().await {
@@ -160,7 +188,7 @@ async fn handle_create_run<S: AcpService>(
         }
     };
 
-    if service.get_agent(agent_name).is_none() {
+    if service.get_agent(&agent_name).is_none() {
         return json_or_toon(
             &serde_json::json!({"error": format!("agent not found: {}", agent_name)}),
             toon,
@@ -168,10 +196,32 @@ async fn handle_create_run<S: AcpService>(
         );
     }
 
-    let mut run = service.run(agent_name, input.parts);
+    // `AcpService::run` is a synchronous, caller-defined agent body: it may
+    // block for the whole length of an agent run. Running it inline would pin
+    // a tokio worker for that duration and stall every other connection, so it
+    // goes to the blocking pool. The trait stays synchronous on purpose — this
+    // contract is terminal, and an async trait method would break every
+    // existing implementor for no wire-visible gain.
+    let blocking_service = service.clone();
+    let blocking_name = agent_name.clone();
+    let parts = input.parts.clone();
+    let run =
+        tokio::task::spawn_blocking(move || blocking_service.run(&blocking_name, parts)).await;
+
+    let mut run = match run {
+        Ok(run) => run,
+        Err(e) => {
+            return json_or_toon(
+                &serde_json::json!({"error": format!("agent run panicked: {}", e)}),
+                toon,
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
+        }
+    };
+
     let run_id = uuid::Uuid::new_v4().to_string();
     run.agent_run_id = run_id.clone();
-    runs.lock().insert(run_id.clone(), run.clone());
+    runs.lock().insert(run_id, run.clone());
 
     json_or_toon(&serde_json::to_value(&run).unwrap(), toon, StatusCode::OK)
 }
@@ -187,31 +237,52 @@ fn handle_get_run(runs: &RunsMap, run_id: &str, toon: bool) -> Response<String> 
     }
 }
 
-fn handle_cancel_run<S: AcpService>(
-    service: &S,
-    runs: &RunsMap,
-    run_id: &str,
+async fn handle_cancel_run<S: AcpService>(
+    service: Arc<S>,
+    runs: RunsMap,
+    run_id: String,
     toon: bool,
 ) -> Response<String> {
-    if !runs.lock().contains_key(run_id) {
+    let terminal = runs.lock().get(&run_id).map(|run| is_terminal(&run.status));
+
+    let Some(terminal) = terminal else {
         return json_or_toon(
             &serde_json::json!({"error": format!("run not found: {}", run_id)}),
             toon,
             StatusCode::NOT_FOUND,
         );
+    };
+
+    // A finished run has nothing to cancel: releasing it is bookkeeping, and
+    // must not be routed through a `cancel` hook that is allowed to fail.
+    if terminal {
+        let status = runs.lock().remove(&run_id).map(|run| run.status);
+        return json_or_toon(
+            &serde_json::json!({"status": status, "runId": run_id}),
+            toon,
+            StatusCode::OK,
+        );
     }
 
-    match service.cancel(run_id) {
-        Ok(()) => {
-            runs.lock().remove(run_id);
+    let cancel_id = run_id.clone();
+    let cancelled = tokio::task::spawn_blocking(move || service.cancel(&cancel_id)).await;
+
+    match cancelled {
+        Ok(Ok(())) => {
+            runs.lock().remove(&run_id);
             json_or_toon(
                 &serde_json::json!({"status": "cancelled", "runId": run_id}),
                 toon,
                 StatusCode::OK,
             )
         }
-        Err(e) => json_or_toon(
+        Ok(Err(e)) => json_or_toon(
             &serde_json::json!({"error": e.to_string()}),
+            toon,
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ),
+        Err(e) => json_or_toon(
+            &serde_json::json!({"error": format!("cancel panicked: {}", e)}),
             toon,
             StatusCode::INTERNAL_SERVER_ERROR,
         ),

@@ -2,7 +2,7 @@
 name = "reddb-io-toon-rpc-acp"
 version.workspace = true
 publish = false
-description = "Legacy ACP prototype quarantined during protocol recovery"
+description = "Server for this repository's own legacy, terminal ACP-style REST contract (not IBM/BeeAI ACP, not Zed's Agent Client Protocol)"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

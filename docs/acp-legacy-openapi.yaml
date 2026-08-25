@@ -1,0 +1,306 @@
+openapi: 3.1.0
+info:
+  title: Legacy ACP-style REST contract (reddb-io/toon)
+  version: 0.1.0
+  summary: Pinned terminal contract for the legacy ACP-style REST surface.
+  description: |
+    This document pins the wire contract implemented by
+    `crates/reddb-io-toon-rpc-acp` and `packages/toon-rpc-acp`.
+
+    **This is not a published standard.** It is this repository's own legacy
+    ACP-style REST shape. It is NOT IBM/BeeAI's Agent Communication Protocol,
+    NOT Zed's Agent Client Protocol, and NOT compatible with either. The
+    resemblance is nominal only: the field names (`agentRunId`, `agentName`),
+    the message-part model (`kind`/`status`) and the run status vocabulary
+    were invented here.
+
+    **Status: LEGACY / TERMINAL.** This contract is frozen as documented
+    below. It exists so the two existing implementations have one agreed
+    shape to be tested against. No new endpoints, fields, status values or
+    part kinds will be added; the surface will only receive correctness,
+    safety and lifecycle fixes that keep these shapes byte-identical. New
+    agent-protocol work goes to a different, non-legacy surface.
+
+    Content negotiation is a project extension: every response is JSON unless
+    the request carries `Accept: application/toon`, in which case the same
+    JSON value is emitted as TOON. Request bodies are accepted as JSON; the
+    TypeScript client may send `Content-Type: application/toon` when TOON mode
+    is selected, and servers implementing this contract MAY accept it.
+servers:
+  - url: http://localhost:9000
+    description: Example local agent server.
+tags:
+  - name: agents
+  - name: runs
+paths:
+  /:
+    get:
+      tags: [agents]
+      summary: Service descriptor.
+      responses:
+        '200':
+          description: Descriptor.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [apiVersion, transport, endpoints]
+                properties:
+                  apiVersion:
+                    type: string
+                    const: '0.1.0'
+                  transport:
+                    type: string
+                    const: toon-rpc
+                  endpoints:
+                    type: array
+                    items:
+                      type: string
+            application/toon: {}
+  /agents:
+    get:
+      tags: [agents]
+      summary: List agents.
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Agent summaries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AgentSummary'
+            application/toon: {}
+  /agents/{name}/runs:
+    post:
+      tags: [runs]
+      summary: Create a run for one agent and return its state.
+      description: |
+        The run is executed by the service implementation. The response is the
+        run state produced by that implementation, with `agentRunId` replaced
+        by a server-assigned UUIDv4 under which the run is retained.
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRunInput'
+          application/toon:
+            schema:
+              $ref: '#/components/schemas/AgentRunInput'
+      responses:
+        '200':
+          description: Run state. Note that creation answers 200, not 201.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRun'
+            application/toon: {}
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /runs/{id}:
+    get:
+      tags: [runs]
+      summary: Read a retained run.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Run state. Reading does not consume the run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRun'
+            application/toon: {}
+        '404':
+          $ref: '#/components/responses/Error'
+    delete:
+      tags: [runs]
+      summary: Cancel a live run, or release a finished one.
+      description: |
+        A run in a terminal state (`completed`, `failed`, `cancelled`) is
+        removed from the server's retention map and answered with its own
+        terminal status; the service's `cancel` hook is not invoked. A run in
+        a non-terminal state is passed to the service's `cancel` hook, and is
+        removed only when that hook succeeds.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Run released.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelAck'
+            application/toon: {}
+        '404':
+          $ref: '#/components/responses/Error'
+        '500':
+          description: The service refused to cancel a live run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+            application/toon: {}
+components:
+  parameters:
+    Accept:
+      name: Accept
+      in: header
+      required: false
+      description: >
+        `application/toon` selects the TOON encoding of the same value.
+        Anything else (including absence) yields JSON.
+      schema:
+        type: string
+    RunId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Error:
+      description: Error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+        application/toon: {}
+  schemas:
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+      additionalProperties: false
+    CancelAck:
+      type: object
+      required: [status, runId]
+      properties:
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        runId:
+          type: string
+      additionalProperties: false
+    RunStatus:
+      description: Invented vocabulary, frozen as-is.
+      type: string
+      enum: [created, in_progress, awaiting, cancelled, failed, completed]
+    MessagePartKind:
+      description: Invented vocabulary, frozen as-is.
+      type: string
+      enum: [text, file, data, resource, resource_link]
+    MessagePartStatus:
+      description: Invented vocabulary, frozen as-is.
+      type: string
+      enum: [in_progress, done, failed]
+    AgentSummary:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+      additionalProperties: false
+    Agent:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        metadata: {}
+      additionalProperties: false
+    MessagePart:
+      type: object
+      required: [kind, status]
+      properties:
+        kind:
+          $ref: '#/components/schemas/MessagePartKind'
+        content_type:
+          type: string
+        content: {}
+        content_encoding:
+          type: string
+        content_url:
+          type: string
+        status:
+          $ref: '#/components/schemas/MessagePartStatus'
+      additionalProperties: false
+    AgentMessage:
+      type: object
+      required: [role, parts]
+      properties:
+        role:
+          type: string
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagePart'
+        metadata: {}
+      additionalProperties: false
+    AgentRunInput:
+      type: object
+      required: [parts]
+      properties:
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagePart'
+      additionalProperties: false
+    AgentError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data: {}
+      additionalProperties: false
+    AgentRun:
+      description: >
+        Note the mixed casing, frozen as-is: the run envelope is camelCase
+        (`agentRunId`, `agentName`) while message parts are snake_case.
+      type: object
+      required: [agentRunId, agentName, status, input, output]
+      properties:
+        agentRunId:
+          type: string
+        agentName:
+          type: string
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        input:
+          $ref: '#/components/schemas/AgentRunInput'
+        output:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentMessage'
+        error:
+          $ref: '#/components/schemas/AgentError'
+        metadata: {}
+      additionalProperties: false
