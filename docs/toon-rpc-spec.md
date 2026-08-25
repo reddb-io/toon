@@ -313,9 +313,11 @@ first verify that decoding `wire` produces `value`.
 
 Client inputs declare `pendingIds`; runners MUST seed exactly those pending
 calls before delivering the response. Client batch expectations identify every
-settled call, rejected entry, and still-pending ID. TypeScript seeds the
-production `Client`; Rust uses its harness oracle until slice 8 recovers the
-production Rust client. Case names are globally
+settled call, rejected entry, and still-pending ID. Both runners seed their
+production client. Because a settlement order across independent tasks is not
+observable in every language, settled client-batch responses are matched
+without relying on order, while rejected entries keep their batch positions.
+Case names are globally
 unique fixture identifiers, and runners MUST reject duplicate names across the
 complete `valid` and `malformed` arrays before executing any case.
 
@@ -338,9 +340,8 @@ present in the expectation.
 The corpus is the acceptance contract for the 0.30 recovery. Rust and
 TypeScript semantic runners execute every vector directly from these shared
 files; expected failure ledgers are not permitted for this corpus. Server cases
-exercise the production dispatcher/server. TypeScript client cases exercise the
-production client and its public diagnostic mechanism; Rust client cases remain
-harness-only until slice 8.
+exercise the production dispatcher/server. Client cases exercise the production
+client of each language and its public diagnostic mechanism.
 
 ## 11. Implementation Status
 
@@ -350,8 +351,14 @@ before settlement on success, RPC error, abort, timeout, send failure, transport
 failure/completion, or client close. Invalid, unknown-ID, and duplicate-ID
 responses are observable diagnostics, and valid batch siblings are isolated.
 
+The Rust client mirrors those rules over the same two transport contracts. Its
+pending map is keyed by the typed ID, a cancellation token and a per-call
+deadline settle a call locally, and transport failure, stream completion, or
+`close` settle every pending call exactly once. Section 8.1 framing ships as
+the `framing` module of `reddb-io-toon-rpc`.
+
 The existing TypeScript and Rust packages remain quarantined while Spec #389 is
-in progress. The concrete TypeScript transports and Rust production client are
-still deferred, so shared semantic coverage does not imply that every production
-component conforms. Publication resumes only after lifecycle, transport,
-package, and exact-commit release gates pass.
+in progress. The concrete Rust transports are still deferred, so shared semantic
+coverage does not imply that every production component conforms. Publication
+resumes only after lifecycle, transport, package, and exact-commit release gates
+pass.

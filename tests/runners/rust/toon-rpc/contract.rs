@@ -1,15 +1,22 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
+use async_trait::async_trait;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use jsonschema::{Draft, JSONSchema};
-use reddb_io_toon::{Array as ToonArray, Value as ToonValue};
-use reddb_io_toon_rpc::{response_from_wire, Dispatcher, Error, ErrorCode, Id, Params, RpcError};
+use reddb_io_toon::Value as ToonValue;
+use reddb_io_toon_rpc::client::{
+    CallOptions, Client, ClientError, ClientOptions, DiagnosticReason,
+};
+use reddb_io_toon_rpc::transport::{DuplexTransport, TransportError};
+use reddb_io_toon_rpc::{Dispatcher, Error, ErrorCode, Id, Params, RpcError};
 use serde::Deserialize;
 use serde_json::{Map, Value};
+use tokio::sync::{mpsc, Mutex as AsyncMutex};
 
 const SCHEMA_VERSION: &str = "toon-rpc-fixtures-v1";
 const PROTOCOL_VERSION: &str = "1.0";
@@ -62,18 +69,8 @@ enum TypedId {
     Number(i64),
 }
 
-enum ClientOutcome {
-    Accept,
-    Reject(&'static str),
-    Batch {
-        settled: Vec<Value>,
-        rejected: Vec<(usize, &'static str)>,
-        remaining: Vec<Value>,
-    },
-}
-
-#[test]
-fn shared_toon_rpc_contract() {
+#[tokio::test]
+async fn shared_toon_rpc_contract() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let corpus_dir = root.join("tests/corpus/toon-rpc");
     let schema: Value = read_json(&corpus_dir.join("fixtures.schema.json"));
@@ -90,7 +87,7 @@ fn shared_toon_rpc_contract() {
         let raw = materialize(case);
         match case.direction.as_str() {
             "server" => run_server_case(case, &corpus.handlers, &raw),
-            "client" => run_client_case(case, &raw),
+            "client" => run_client_case(case, &raw).await,
             other => panic!("{}: unknown direction {other}", case.name),
         }
         executed += 1;
@@ -509,7 +506,7 @@ fn run_server_case(case: &Case, handlers: &BTreeMap<String, Value>, raw: &[u8]) 
                 .as_array()
                 .unwrap_or_else(|| panic!("{}: expected batch response", case.name));
             let expected = required_array(&case.expect, "responses", &case.name);
-            assert_unordered_responses(actual, expected, &case.name);
+            assert_unordered_responses(actual, expected, &case.name, true);
         }
         kind => panic!("{}: invalid server expectation {kind}", case.name),
     }
@@ -562,46 +559,167 @@ fn check_calls(case: &Case, actual: &BTreeMap<String, u64>) {
     }
 }
 
-fn run_client_case(case: &Case, raw: &[u8]) {
+/// Exercise the production client: seed exactly the declared pending calls on a
+/// duplex transport, deliver the fixture document, and observe settlement
+/// through the public API and the public diagnostic mechanism.
+async fn run_client_case(case: &Case, raw: &[u8]) {
     let pending_values = required_array(&case.input, "pendingIds", &case.name).to_vec();
-    let pending = pending_values
-        .iter()
-        .map(|id| (typed_id(id, &case.name), id.clone()))
-        .collect::<Vec<_>>();
-    let outcome = client_oracle(raw, pending);
-    let kind = required_str(&case.expect, "kind", &case.name);
+    let transport = CorpusTransport::new();
+    let diagnostics = Arc::new(Mutex::new(Vec::<(usize, String)>::new()));
+    let indexless = Arc::new(Mutex::new(0usize));
+    let options = {
+        let diagnostics = Arc::clone(&diagnostics);
+        let indexless = Arc::clone(&indexless);
+        ClientOptions::new().with_diagnostics(move |diagnostic| {
+            if diagnostic.index.is_none() {
+                *indexless.lock().expect("diagnostic lock") += 1;
+            }
+            diagnostics.lock().expect("diagnostic lock").push((
+                diagnostic.index.unwrap_or_default(),
+                diagnostic.reason.as_str().to_owned(),
+            ));
+        })
+    };
+    let client = Arc::new(Client::duplex_with(transport.clone(), options));
 
-    match (kind, outcome) {
-        ("accept", ClientOutcome::Accept) => {}
-        ("reject", ClientOutcome::Reject(actual)) => assert_eq!(
-            actual,
-            required_str(&case.expect, "reason", &case.name),
-            "{}: rejection reason",
+    let settled = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let failures = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut calls = Vec::new();
+    for value in &pending_values {
+        let id = fixture_id(value, &case.name);
+        let client = Arc::clone(&client);
+        let settled = Arc::clone(&settled);
+        let failures = Arc::clone(&failures);
+        let value = value.clone();
+        calls.push(tokio::spawn(async move {
+            let outcome = client
+                .call_with(
+                    "fixture.pending",
+                    Params::Absent,
+                    CallOptions::new().with_id(id),
+                )
+                .await;
+            match outcome {
+                Ok(result) => settled.lock().expect("settled lock").push(
+                    serde_json::json!({ "toonrpc": PROTOCOL_VERSION, "result": result, "id": value }),
+                ),
+                Err(ClientError::Rpc(error)) => {
+                    let error = serde_json::to_value(&error).expect("serialize error object");
+                    settled.lock().expect("settled lock").push(
+                        serde_json::json!({ "toonrpc": PROTOCOL_VERSION, "error": error, "id": value }),
+                    );
+                }
+                Err(error) => failures
+                    .lock()
+                    .expect("failure lock")
+                    .push(error.to_string()),
+            }
+        }));
+    }
+
+    let expected = pending_values.len();
+    wait_for_client(
+        || client.pending_call_count() == expected && transport.sent_count() == expected,
+        &case.name,
+    )
+    .await;
+    transport.push(raw.to_vec());
+
+    let kind = required_str(&case.expect, "kind", &case.name);
+    let expected_events = if kind == "client-batch" {
+        required_array(&case.expect, "settled", &case.name).len()
+            + required_array(&case.expect, "rejected", &case.name).len()
+    } else {
+        1
+    };
+    wait_for_client(
+        || {
+            settled.lock().expect("settled lock").len()
+                + diagnostics.lock().expect("diagnostic lock").len()
+                + failures.lock().expect("failure lock").len()
+                >= expected_events
+        },
+        &case.name,
+    )
+    .await;
+
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert_eq!(
+            *failures.lock().expect("failure lock"),
+            Vec::<String>::new(),
+            "{}: lifecycle failures",
             case.name
-        ),
-        (
-            "client-batch",
-            ClientOutcome::Batch {
-                settled,
-                rejected,
-                remaining,
-            },
-        ) => {
-            let expected_settled = required_array(&case.expect, "settled", &case.name);
+        );
+        let settled = settled.lock().expect("settled lock").clone();
+        let diagnostics = diagnostics.lock().expect("diagnostic lock").clone();
+        let indexless = *indexless.lock().expect("diagnostic lock");
+        check_client_expectation(
+            case,
+            kind,
+            &pending_values,
+            &settled,
+            &diagnostics,
+            indexless,
+            client.pending_call_count(),
+        );
+    }));
+
+    for call in &calls {
+        call.abort();
+    }
+    client.close().await.expect("client close");
+    if let Err(panic) = outcome {
+        std::panic::resume_unwind(panic);
+    }
+}
+
+fn check_client_expectation(
+    case: &Case,
+    kind: &str,
+    pending_values: &[Value],
+    settled: &[Value],
+    diagnostics: &[(usize, String)],
+    indexless: usize,
+    still_pending: usize,
+) {
+    match kind {
+        "accept" => {
+            assert_eq!(settled.len(), 1, "{}: settled count", case.name);
+            assert!(diagnostics.is_empty(), "{}: diagnostics", case.name);
+            assert_eq!(still_pending, 0, "{}: remaining", case.name);
+        }
+        "reject" => {
             assert_eq!(
-                settled.len(),
-                expected_settled.len(),
-                "{}: settled count",
+                diagnostics.len(),
+                1,
+                "{}: diagnostic count: {diagnostics:?}",
                 case.name
             );
-            for (index, (actual, expected)) in settled.iter().zip(expected_settled).enumerate() {
-                let expected = expected.as_object().expect("settled matcher object");
-                assert!(
-                    response_matches(actual, expected, false),
-                    "{}: settled response at index {index}",
-                    case.name
-                );
-            }
+            assert_eq!(
+                indexless, 1,
+                "{}: single documents carry no index",
+                case.name
+            );
+            assert_eq!(
+                diagnostics[0].1,
+                required_str(&case.expect, "reason", &case.name),
+                "{}: rejection reason",
+                case.name
+            );
+            assert!(settled.is_empty(), "{}: settled", case.name);
+            assert_eq!(
+                still_pending,
+                pending_values.len(),
+                "{}: remaining",
+                case.name
+            );
+        }
+        "client-batch" => {
+            // Settlement order across independent call tasks is not observable,
+            // so settled responses are matched without relying on order; the
+            // per-entry diagnostics keep their batch positions.
+            let expected_settled = required_array(&case.expect, "settled", &case.name);
+            assert_unordered_responses(settled, expected_settled, &case.name, false);
 
             let expected_rejected = required_array(&case.expect, "rejected", &case.name)
                 .iter()
@@ -609,112 +727,115 @@ fn run_client_case(case: &Case, raw: &[u8]) {
                     let entry = entry.as_object().expect("rejected entry object");
                     (
                         required_u64(entry, "index", &case.name) as usize,
-                        required_str(entry, "reason", &case.name),
+                        required_str(entry, "reason", &case.name).to_owned(),
                     )
                 })
                 .collect::<Vec<_>>();
             assert_eq!(
-                rejected, expected_rejected,
+                diagnostics, expected_rejected,
                 "{}: rejected entries",
                 case.name
             );
+            assert_eq!(indexless, 0, "{}: batch entries carry an index", case.name);
+
+            let settled_ids = settled
+                .iter()
+                .map(|response| response["id"].clone())
+                .collect::<Vec<_>>();
+            let remaining = pending_values
+                .iter()
+                .filter(|id| !settled_ids.contains(id))
+                .cloned()
+                .collect::<Vec<_>>();
             assert_eq!(
                 remaining,
                 required_array(&case.expect, "remainingPendingIds", &case.name),
                 "{}: remaining pending ids",
                 case.name
             );
+            assert_eq!(
+                still_pending,
+                remaining.len(),
+                "{}: pending count",
+                case.name
+            );
         }
-        (_, ClientOutcome::Reject(reason)) => {
-            panic!("{}: unexpected client rejection {reason}", case.name)
-        }
-        (_, ClientOutcome::Accept) => panic!("{}: unexpected client acceptance", case.name),
-        (_, ClientOutcome::Batch { .. }) => panic!("{}: unexpected client batch", case.name),
+        other => panic!("{}: unknown client expectation {other}", case.name),
     }
 }
 
-// Harness-only client oracle. It deliberately tests the recovery contract
-// without blessing either production client, which does not yet expose the
-// required per-entry batch diagnostics.
-fn client_oracle(raw: &[u8], pending: Vec<(TypedId, Value)>) -> ClientOutcome {
-    let text = match std::str::from_utf8(raw) {
-        Ok(text) => text,
-        Err(_) => return ClientOutcome::Reject("parse-error"),
-    };
-    let root = match reddb_io_toon::decode(text) {
-        Ok(root) => root,
-        Err(_) => return ClientOutcome::Reject("parse-error"),
-    };
+/// Duplex transport for the corpus: it records requests and delivers exactly
+/// the fixture document the case declares.
+struct CorpusTransport {
+    sent: Mutex<Vec<Vec<u8>>>,
+    inbox: AsyncMutex<mpsc::UnboundedReceiver<Option<Vec<u8>>>>,
+    outbox: mpsc::UnboundedSender<Option<Vec<u8>>>,
+}
 
-    match root {
-        ToonValue::Array(ToonArray::List(entries)) => {
-            if entries.is_empty() {
-                return ClientOutcome::Reject("invalid-response");
-            }
-            client_batch_oracle(entries, pending)
-        }
-        _ => match response_from_wire(raw).ok() {
-            Some(response) => {
-                let id = response_id(&response);
-                if pending.iter().any(|(pending_id, _)| *pending_id == id) {
-                    ClientOutcome::Accept
-                } else {
-                    ClientOutcome::Reject("unknown-id")
-                }
-            }
-            None => ClientOutcome::Reject("invalid-response"),
-        },
+impl CorpusTransport {
+    fn new() -> Arc<Self> {
+        let (outbox, inbox) = mpsc::unbounded_channel();
+        Arc::new(Self {
+            sent: Mutex::new(Vec::new()),
+            inbox: AsyncMutex::new(inbox),
+            outbox,
+        })
+    }
+
+    fn push(&self, document: Vec<u8>) {
+        let _ = self.outbox.send(Some(document));
+    }
+
+    fn sent_count(&self) -> usize {
+        self.sent.lock().expect("sent lock").len()
     }
 }
 
-fn client_batch_oracle(entries: Vec<ToonValue>, pending: Vec<(TypedId, Value)>) -> ClientOutcome {
-    let mut pending_map = pending.iter().cloned().collect::<HashMap<TypedId, Value>>();
-    let mut settled_ids = HashSet::new();
-    let mut settled = Vec::new();
-    let mut rejected = Vec::new();
-
-    for (index, entry) in entries.into_iter().enumerate() {
-        // Mixed response batches cannot be represented atomically by Message::BatchResponse.
-        // Re-encoding each root entry preserves independent validation and recovery.
-        let wire = match reddb_io_toon::encode(&entry) {
-            Ok(wire) => wire,
-            Err(_) => {
-                rejected.push((index, "invalid-response"));
-                continue;
-            }
-        };
-        let Some(response) = response_from_wire(wire.as_bytes()).ok() else {
-            rejected.push((index, "invalid-response"));
-            continue;
-        };
-        let id = response_id(&response);
-        if settled_ids.contains(&id) {
-            rejected.push((index, "duplicate-id"));
-        } else if pending_map.remove(&id).is_some() {
-            settled_ids.insert(id);
-            settled.push(serde_json::to_value(response).expect("serialize parsed response"));
-        } else {
-            rejected.push((index, "unknown-id"));
-        }
+#[async_trait]
+impl DuplexTransport for CorpusTransport {
+    async fn send(&self, document: Vec<u8>) -> Result<(), TransportError> {
+        self.sent.lock().expect("sent lock").push(document);
+        Ok(())
     }
 
-    let remaining = pending
-        .into_iter()
-        .filter_map(|(id, value)| pending_map.contains_key(&id).then_some(value))
-        .collect();
-    ClientOutcome::Batch {
-        settled,
-        rejected,
-        remaining,
+    async fn receive(&self) -> Result<Option<Vec<u8>>, TransportError> {
+        Ok(self.inbox.lock().await.recv().await.flatten())
+    }
+
+    async fn close(&self) -> Result<(), TransportError> {
+        let _ = self.outbox.send(None);
+        Ok(())
     }
 }
 
-fn response_id(response: &reddb_io_toon_rpc::Response) -> TypedId {
-    match &response.id {
-        Id::Null => TypedId::Null,
-        Id::String(value) => TypedId::String(value.clone()),
-        Id::Number(value) => TypedId::Number(*value),
+async fn wait_for_client(mut condition: impl FnMut() -> bool, name: &str) {
+    for _ in 0..2000 {
+        if condition() {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
     }
+    panic!("{name}: client did not reach the expected state");
+}
+
+fn fixture_id(value: &Value, context: &str) -> Id {
+    match typed_id(value, context) {
+        TypedId::Null => Id::Null,
+        TypedId::String(value) => Id::String(value),
+        TypedId::Number(value) => Id::Number(value),
+    }
+}
+
+/// Assert that the production diagnostic vocabulary still matches the corpus.
+#[test]
+fn diagnostic_reasons_match_the_corpus_vocabulary() {
+    assert_eq!(DiagnosticReason::ParseError.as_str(), "parse-error");
+    assert_eq!(
+        DiagnosticReason::InvalidResponse.as_str(),
+        "invalid-response"
+    );
+    assert_eq!(DiagnosticReason::UnknownId.as_str(), "unknown-id");
+    assert_eq!(DiagnosticReason::DuplicateId.as_str(), "duplicate-id");
 }
 
 fn response_matches(actual: &Value, expected: &Map<String, Value>, generated: bool) -> bool {
@@ -778,7 +899,12 @@ fn response_matches(actual: &Value, expected: &Map<String, Value>, generated: bo
     }
 }
 
-fn assert_unordered_responses(actual: &[Value], expected: &[Value], case_name: &str) {
+fn assert_unordered_responses(
+    actual: &[Value],
+    expected: &[Value],
+    case_name: &str,
+    generated: bool,
+) {
     assert_eq!(
         actual.len(),
         expected.len(),
@@ -789,7 +915,7 @@ fn assert_unordered_responses(actual: &[Value], expected: &[Value], case_name: &
         let matcher = matcher.as_object().expect("response matcher object");
         let index = unused
             .iter()
-            .position(|response| response_matches(response, matcher, true))
+            .position(|response| response_matches(response, matcher, generated))
             .unwrap_or_else(|| panic!("{case_name}: no response matched {matcher:#?}"));
         unused.remove(index);
     }

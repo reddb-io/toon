@@ -21,8 +21,14 @@ pub fn from_wire(raw: &[u8]) -> Result<Message, RpcError> {
 
 /// Decode one response without classifying request-shaped unknown members first.
 pub fn response_from_wire(raw: &[u8]) -> Result<Response, RpcError> {
-    let toon_value = decode_wire_value(raw)?;
-    validate_toon_value(&toon_value).map_err(RpcError::InvalidRequest)?;
+    response_from_value(&decode_wire_value(raw)?)
+}
+
+/// Validate one already-decoded document, or one batch entry, as a response
+/// envelope. Batch entries are validated independently so a valid sibling is
+/// never lost to an invalid neighbour.
+pub fn response_from_value(toon_value: &ToonValue) -> Result<Response, RpcError> {
+    validate_toon_value(toon_value).map_err(RpcError::InvalidRequest)?;
     let value = toon_value.to_json_value();
     if !value.is_object() {
         return Err(RpcError::InvalidRequest(
@@ -32,7 +38,7 @@ pub fn response_from_wire(raw: &[u8]) -> Result<Response, RpcError> {
     serde_json::from_value(value).map_err(|error| RpcError::InvalidRequest(error.to_string()))
 }
 
-fn decode_wire_value(raw: &[u8]) -> Result<ToonValue, RpcError> {
+pub(crate) fn decode_wire_value(raw: &[u8]) -> Result<ToonValue, RpcError> {
     let text = std::str::from_utf8(raw)
         .map_err(|e| RpcError::ParseError(format!("invalid UTF-8: {}", e)))?;
     reddb_io_toon::decode(text)
