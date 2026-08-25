@@ -1,200 +1,126 @@
-//! Streamable HTTP transport for MCP — POST + Server-Sent Events
+//! MCP over HTTP POST — request/response only.
 //!
-//! Mirrors the MCP "Streamable HTTP" transport:
-//! - `POST /mcp` for client-to-server messages
-//! - `GET /mcp` opens an SSE stream for server-pushed events
-//! - Responses are TOON (or JSON if `Accept: application/json`)
+//! # What this is, and what it is not
+//!
+//! This is **not** the full Streamable HTTP transport of the pinned revision.
+//! It implements only the half that is a plain request/response exchange:
+//!
+//! - `POST /mcp` with a JSON-RPC request body returns a JSON-RPC response body
+//!   as `application/json`.
+//!
+//! It does **not** implement Server-Sent Events, `subscriptions/listen`
+//! streams, resumability, or session headers. A previous revision of this file
+//! answered `GET /mcp` with an SSE content type and then dropped every event
+//! into an unread channel; that route is gone rather than left to look like a
+//! working stream. Clients needing server-initiated messages must use stdio.
+//!
+//! The `MCP-Protocol-Version` header is read and echoed, but version
+//! enforcement happens in the dispatcher against the request's `_meta`, so that
+//! stdio and HTTP agree on one rule.
 
-use crate::dispatcher::dispatch_mcp;
+use crate::dispatcher::McpDispatcher;
+use crate::jsonrpc::{to_line, JsonRpcError, JsonRpcResponse, INVALID_REQUEST, PARSE_ERROR};
+use crate::types::MCP_PROTOCOL_VERSION;
 use crate::McpService;
 use http::{Request, Response, StatusCode};
 use http_body_util::BodyExt;
 use hyper::body::Incoming;
+use hyper::service::service_fn;
+use serde_json::Value;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio::sync::mpsc::{channel, Sender};
 
-type SseEvent = (String, String); // (event, data)
-type SseRegistry =
-    Arc<tokio::sync::Mutex<std::collections::HashMap<String, Vec<Sender<SseEvent>>>>>;
+/// Maximum accepted request body, so a peer cannot force unbounded buffering.
+pub const MAX_BODY_BYTES: usize = 4 * 1024 * 1024;
 
-/// Run an MCP server over Streamable HTTP until the process is killed.
-pub async fn serve_streamable_http<S: McpService>(
+/// Serve MCP over HTTP POST until the process is stopped.
+pub async fn serve_http_post<S: McpService>(
     service: S,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let dispatcher = dispatch_mcp(Arc::new(service));
-    let registry: SseRegistry = Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new()));
-
+    let dispatcher = Arc::new(McpDispatcher::new(Arc::new(service)));
     let listener = TcpListener::bind(addr).await?;
-    println!(
-        "[toon-rpc-mcp] Streamable HTTP server listening on http://{}",
-        addr
-    );
+    eprintln!("[toon-rpc-mcp] HTTP POST endpoint listening on http://{addr}/mcp");
 
     loop {
         let (stream, _) = listener.accept().await?;
         let dispatcher = dispatcher.clone();
-        let registry = registry.clone();
 
         tokio::spawn(async move {
-            let connection = hyper_util::rt::TokioIo::new(stream);
-            let svc =
-                service_fn(move |req| handle_request(req, dispatcher.clone(), registry.clone()));
-
+            let io = hyper_util::rt::TokioIo::new(stream);
+            let svc = service_fn(move |req| handle(req, dispatcher.clone()));
             if let Err(e) = hyper::server::conn::http1::Builder::new()
-                .serve_connection(connection, svc)
+                .serve_connection(io, svc)
                 .await
             {
-                eprintln!("[toon-rpc-mcp] connection error: {}", e);
+                eprintln!("[toon-rpc-mcp] connection error: {e}");
             }
         });
     }
 }
 
-async fn handle_request(
+async fn handle<S: McpService>(
     req: Request<Incoming>,
-    dispatcher: reddb_io_toon_rpc::Dispatcher,
-    registry: SseRegistry,
+    dispatcher: Arc<McpDispatcher<S>>,
 ) -> Result<Response<String>, Infallible> {
-    let path = req.uri().path().to_string();
-    let method = req.method().clone();
-
-    if method == http::Method::POST && path == "/mcp" {
-        return Ok(handle_post(req, dispatcher).await);
+    if req.method() != http::Method::POST || req.uri().path() != "/mcp" {
+        return Ok(plain(
+            StatusCode::NOT_FOUND,
+            "Not found. This endpoint serves POST /mcp only; it does not implement SSE.",
+        ));
     }
 
-    if method == http::Method::GET && path == "/mcp" {
-        return Ok(handle_sse_open(registry).await);
-    }
-
-    if method == http::Method::POST && path.starts_with("/mcp/notify/") {
-        let subscription_id = path.trim_start_matches("/mcp/notify/").to_string();
-        return Ok(handle_notify(req, registry, subscription_id).await);
-    }
-
-    Ok(Response::builder()
-        .status(StatusCode::NOT_FOUND)
-        .body("Not found".to_string())
-        .unwrap())
-}
-
-async fn handle_post(
-    req: Request<Incoming>,
-    dispatcher: reddb_io_toon_rpc::Dispatcher,
-) -> Response<String> {
-    let body = match req.into_body().collect().await {
-        Ok(b) => b.to_bytes().to_vec(),
-        Err(_) => {
-            let err = serde_json::json!({
-                "jsonrpc": "2.0",
-                "error": {"code": -32700, "message": "body error"},
-                "id": null
-            });
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/toon")
-                .body(err.to_string())
-                .unwrap();
-        }
+    let collected = match req.into_body().collect().await {
+        Ok(b) => b.to_bytes(),
+        Err(_) => return Ok(json_error(PARSE_ERROR, "Parse error: could not read body")),
     };
 
-    match dispatcher.dispatch(&body) {
-        Ok(bytes) => Response::builder()
-            .status(StatusCode::OK)
-            .header("Content-Type", "application/toon")
-            .body(String::from_utf8(bytes).unwrap())
-            .unwrap(),
-        Err(e) => {
-            let err = serde_json::json!({
-                "jsonrpc": "2.0",
-                "error": {"code": -32603, "message": e.to_string()},
-                "id": null
-            });
-            Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/toon")
-                .body(err.to_string())
-                .unwrap()
-        }
+    if collected.len() > MAX_BODY_BYTES {
+        return Ok(json_error(
+            INVALID_REQUEST,
+            format!("Invalid Request: body exceeds {MAX_BODY_BYTES} bytes"),
+        ));
     }
+
+    let text = match std::str::from_utf8(&collected) {
+        Ok(t) => t,
+        Err(_) => return Ok(json_error(PARSE_ERROR, "Parse error: body is not UTF-8")),
+    };
+
+    Ok(match dispatcher.handle_line(text) {
+        // A notification gets 202 with no body, since there is nothing to send.
+        None => Response::builder()
+            .status(StatusCode::ACCEPTED)
+            .header("MCP-Protocol-Version", MCP_PROTOCOL_VERSION)
+            .body(String::new())
+            .unwrap(),
+        Some(body) => Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "application/json")
+            .header("MCP-Protocol-Version", MCP_PROTOCOL_VERSION)
+            .body(body)
+            .unwrap(),
+    })
 }
 
-async fn handle_sse_open(registry: SseRegistry) -> Response<String> {
-    let subscription_id = format!("sub-{}", uuid_simple());
-    let (tx, mut rx) = channel::<SseEvent>(64);
-    registry
-        .lock()
-        .await
-        .insert(subscription_id.clone(), vec![tx]);
-
-    // Spawn the consumer that drains the channel. In a fuller impl we'd write
-    // SSE frames into the response stream; for now we hand the client a
-    // subscription id it can use to push events.
-    tokio::spawn(async move {
-        while rx.recv().await.is_some() {
-            // Sink: a real impl would flush these into the SSE response body.
-        }
-    });
-
-    let body = format!("data: {{\"subscriptionId\":\"{}\"}}\n\n", subscription_id);
-
+fn json_error(code: i32, message: impl Into<String>) -> Response<String> {
+    let body = to_line(&JsonRpcResponse::failure(
+        Value::Null,
+        JsonRpcError::new(code, message),
+    ));
     Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/event-stream")
-        .header("Cache-Control", "no-cache")
-        .header("Connection", "keep-alive")
+        .status(StatusCode::BAD_REQUEST)
+        .header("Content-Type", "application/json")
         .body(body)
         .unwrap()
 }
 
-async fn handle_notify(
-    req: Request<Incoming>,
-    registry: SseRegistry,
-    subscription_id: String,
-) -> Response<String> {
-    let body = match req.into_body().collect().await {
-        Ok(b) => b.to_bytes().to_vec(),
-        Err(_) => {
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body("body error".to_string())
-                .unwrap();
-        }
-    };
-
-    let text = String::from_utf8_lossy(&body).to_string();
-    let count = {
-        let mut reg = registry.lock().await;
-        if let Some(subs) = reg.get_mut(&subscription_id) {
-            let drained = std::mem::take(subs);
-            let n = drained.len();
-            for tx in drained {
-                let _ = tx.try_send(("message".into(), text.clone()));
-            }
-            n
-        } else {
-            0
-        }
-    };
-
+fn plain(status: StatusCode, message: &str) -> Response<String> {
     Response::builder()
-        .status(StatusCode::OK)
-        .body(format!("notified {} subscribers", count))
+        .status(status)
+        .header("Content-Type", "text/plain; charset=utf-8")
+        .body(message.to_string())
         .unwrap()
 }
-
-fn uuid_simple() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    format!("{:x}", nanos)
-}
-
-/// Re-export of `hyper::service::service_fn` so the caller doesn't have to
-/// import hyper directly.
-use hyper::service::service_fn;

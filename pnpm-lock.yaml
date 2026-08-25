@@ -85,13 +85,6 @@ importers:
         version: 5.9.2
 
   packages/toon-rpc-mcp:
-    dependencies:
-      '@reddb-io/toon':
-        specifier: workspace:*
-        version: link:../toon
-      '@reddb-io/toon-rpc':
-        specifier: workspace:*
-        version: link:../toon-rpc
     devDependencies:
       '@types/node':
         specifier: 22.10.2

@@ -1246,16 +1246,10 @@ dependencies = [
 name = "reddb-io-toon-rpc-mcp"
 version = "0.29.9"
 dependencies = [
- "anyhow",
- "async-trait",
- "bytes",
  "http",
  "http-body-util",
  "hyper",
  "hyper-util",
- "reddb-io-toon",
- "reddb-io-toon-rpc",
- "reddb-io-toon-rpc-http",
  "serde",
  "serde_json",
  "thiserror 2.0.20",

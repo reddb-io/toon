@@ -21,7 +21,7 @@ documentation or source directory, depending on the component's maturity.
 | --- | --- |
 | **Formats and specifications** | The pinned [official TOON v4.1.1 baseline](docs/toon-official-spec.md), [RedDB opt-in extensions](docs/toon-reddb-spec.md), and the [TOONL streaming specification](docs/toonl-reddb-spec.md). |
 | **Codec libraries and streaming** | The [`@reddb-io/toon`](packages/toon) package and [`reddb-io-toon`](crates/toon) crate: codecs, event streams, truncation reports, TOONL readers/writers, and JSON bridges. See [What ships](#what-ships). |
-| **RPC family** | The quarantined draft [TOON-RPC protocol](docs/toon-rpc-spec.md), experimental libraries and transports, JSON-RPC/TOON-RPC negotiation, MCP/legacy ACP adapters, prototype code generation and CLI tooling, and examples. Kept together under [RPC family](#rpc-family). |
+| **RPC family** | The quarantined draft [TOON-RPC protocol](docs/toon-rpc-spec.md), experimental libraries and transports, JSON-RPC/TOON-RPC negotiation, an MCP server pinned to revision 2026-07-28 ([conformance notes](docs/mcp-conformance.md)), a legacy ACP adapter, prototype code generation and CLI tooling, and examples. Kept together under [RPC family](#rpc-family). |
 | **Command-line tools** | The drop-in `toon` converter and the [`tq`](crates/tq) query/conversion CLI for TOON, TOONL, JSON, YAML, and XML, with its [language reference](docs/tq-language.md) and [jq parity record](docs/tq-jq-parity.md). |
 | **Editor integration** | The [RedDB Toon VS Code extension](packages/vscode-toon) for `.toon`, `.toonl`, and fenced Markdown blocks. |
 | **Benchmarks and evidence** | Reproducible [accuracy, token-efficiency, and runtime benchmarks](benchmarks/), shared [conformance, parity, golden, and adversarial test corpora](tests/), and pinned [specification](vendor/toon-spec) and [reference implementation](vendor/toon) checkpoints. |
@@ -151,9 +151,9 @@ the protocol, interoperability, lifecycle, and package gates pass.
 | Surface | Contents |
 | --- | --- |
 | Protocol | [TOON-RPC specification](docs/toon-rpc-spec.md) and JSON-RPC/TOON-RPC wire negotiation |
-| TypeScript prototypes | [`@reddb-io/toon-rpc`](packages/toon-rpc) client/server, [`@reddb-io/multi-rpc`](packages/multi-rpc) multi-protocol dispatcher, and quarantined [MCP](packages/toon-rpc-mcp) and legacy [ACP](packages/toon-rpc-acp) adapters |
+| TypeScript prototypes | [`@reddb-io/toon-rpc`](packages/toon-rpc) client/server, [`@reddb-io/multi-rpc`](packages/multi-rpc) multi-protocol dispatcher, an [MCP](packages/toon-rpc-mcp) server for revision 2026-07-28, and a legacy [ACP](packages/toon-rpc-acp) adapter |
 | Rust prototypes | [`reddb-io-toon-rpc`](crates/reddb-io-toon-rpc), [stdio](crates/reddb-io-toon-rpc-stdio), [HTTP](crates/reddb-io-toon-rpc-http), [SSE](crates/reddb-io-toon-rpc-sse), [TCP](crates/reddb-io-toon-rpc-tcp), [WebSocket](crates/reddb-io-toon-rpc-ws), and [long polling](crates/reddb-io-toon-rpc-longpolling) |
-| Tooling prototypes | [IDL code generation](crates/reddb-io-toon-rpc-codegen), [RPC CLI](crates/reddb-io-toon-rpc-cli), quarantined [MCP](crates/reddb-io-toon-rpc-mcp), legacy [ACP](crates/reddb-io-toon-rpc-acp), and [examples](crates/reddb-io-toon-rpc-examples) |
+| Tooling prototypes | [IDL code generation](crates/reddb-io-toon-rpc-codegen), [RPC CLI](crates/reddb-io-toon-rpc-cli), [MCP](crates/reddb-io-toon-rpc-mcp) for revision 2026-07-28, legacy [ACP](crates/reddb-io-toon-rpc-acp), and [examples](crates/reddb-io-toon-rpc-examples) |
 
 The source owner of `MultiRpc` remains `packages/multi-rpc`; it is not a
 subpath of `packages/toon-rpc`.

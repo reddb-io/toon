@@ -1,59 +1,47 @@
-//! Experimental stdio transport for the quarantined MCP prototype.
+//! MCP stdio transport: one JSON-RPC message per line.
 //!
-//! Its current blank-line-delimited TOON framing is not MCP-conformant.
+//! Framing follows the stdio binding of the pinned revision:
+//!
+//! - the server reads JSON-RPC messages from stdin, one per line;
+//! - it writes JSON-RPC messages to stdout, one per line, never containing an
+//!   embedded newline;
+//! - nothing that is not a valid MCP message is written to stdout, so all
+//!   logging goes to stderr;
+//! - EOF on stdin is the graceful shutdown signal, and the server exits.
 
-use crate::dispatcher::dispatch_mcp;
+use crate::dispatcher::McpDispatcher;
 use crate::McpService;
 use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
-/// Run an MCP server over stdio until EOF.
-///
-/// This entry point is retained for recovery tests only.
-/// Logs go to stderr; the wire protocol lives on stdin/stdout only.
+/// Serve MCP over stdin/stdout until EOF.
 pub fn serve_stdio<S: McpService>(service: S) -> io::Result<()> {
-    let dispatcher = dispatch_mcp(Arc::new(service));
+    let dispatcher = McpDispatcher::new(Arc::new(service));
     let stdin = io::stdin();
-    let mut stdout = io::stdout();
+    let stdout = io::stdout();
+    serve_stdio_with(&dispatcher, &mut stdin.lock(), &mut stdout.lock())
+}
 
-    eprintln!("[toon-rpc-mcp] stdio server ready");
-
-    let mut buffer = String::new();
-    for line in stdin.lock().lines() {
+/// Serve MCP over arbitrary line-oriented streams.
+///
+/// The framing is not specific to the standard streams, so the same loop drives
+/// a Unix socket, a TCP connection, or an in-memory buffer in tests.
+pub fn serve_stdio_with<S: McpService, R: BufRead, W: Write>(
+    dispatcher: &McpDispatcher<S>,
+    input: &mut R,
+    output: &mut W,
+) -> io::Result<()> {
+    for line in input.lines() {
         let line = line?;
-
-        // Empty line marks the end of a TOON message
-        if line.is_empty() {
-            if !buffer.is_empty() {
-                let response = match dispatcher.dispatch(buffer.trim().as_bytes()) {
-                    Ok(bytes) => {
-                        let mut s = String::from_utf8(bytes).unwrap_or_default();
-                        s.push_str("\n\n");
-                        s
-                    }
-                    Err(e) => {
-                        let err = serde_json::json!({
-                            "jsonrpc": "2.0",
-                            "error": {
-                                "code": -32603,
-                                "message": e.to_string()
-                            },
-                            "id": null
-                        });
-                        let mut s = err.to_string();
-                        s.push_str("\n\n");
-                        s
-                    }
-                };
-                stdout.write_all(response.as_bytes())?;
-                stdout.flush()?;
-                buffer.clear();
-            }
-        } else {
-            buffer.push_str(&line);
-            buffer.push('\n');
+        if let Some(response) = dispatcher.handle_line(&line) {
+            debug_assert!(
+                !response.contains('\n'),
+                "a stdio message must not contain an embedded newline"
+            );
+            output.write_all(response.as_bytes())?;
+            output.write_all(b"\n")?;
+            output.flush()?;
         }
     }
-
     Ok(())
 }

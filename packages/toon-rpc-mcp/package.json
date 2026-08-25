@@ -2,7 +2,7 @@
   "name": "@reddb-io/toon-rpc-mcp",
   "version": "0.29.9",
   "private": true,
-  "description": "Non-conformant MCP prototype quarantined during protocol recovery.",
+  "description": "Model Context Protocol server helpers for MCP revision 2026-07-28 (JSON-RPC 2.0, stdio transport).",
   "type": "module",
   "main": "dist/index.js",
   "exports": {
@@ -32,9 +32,8 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "toon",
-    "toon-rpc",
-    "claude"
+    "json-rpc",
+    "toon-rpc"
   ],
   "license": "MIT",
   "homepage": "https://github.com/reddb-io/toon",
@@ -50,8 +49,5 @@
     "@types/node": "22.10.2",
     "typescript": "5.9.2"
   },
-  "dependencies": {
-    "@reddb-io/toon": "workspace:*",
-    "@reddb-io/toon-rpc": "workspace:*"
-  }
+  "dependencies": {}
 }

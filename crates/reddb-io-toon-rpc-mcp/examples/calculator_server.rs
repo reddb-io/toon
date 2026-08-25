@@ -1,9 +1,9 @@
-//! Calculator MCP server — exposes a `calculator_arithmetic` tool to AI agents.
+//! Calculator MCP server — exposes a `calculator_arithmetic` tool.
 //!
-//! This example exercises the quarantined prototype only. It is not currently
-//! compatible with MCP hosts.
+//! Speaks MCP revision 2026-07-28 over the stdio transport, so it can be
+//! launched by any MCP client that supports that revision.
 
-use reddb_io_toon_rpc_mcp::{CallToolResponse, McpError, McpResult, McpService, ServerInfo, Tool};
+use reddb_io_toon_rpc_mcp::{CallToolResult, McpError, McpResult, McpService, ServerInfo, Tool};
 use serde_json::{json, Value};
 
 struct CalculatorMcp;
@@ -12,9 +12,13 @@ impl McpService for CalculatorMcp {
     fn server_info(&self) -> ServerInfo {
         ServerInfo {
             name: "calculator".into(),
-            version: "0.29.0".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
             title: Some("Calculator".into()),
         }
+    }
+
+    fn instructions(&self) -> Option<String> {
+        Some("Evaluates arithmetic expressions with + - * / and parentheses.".into())
     }
 
     fn list_tools(&self) -> Vec<Tool> {
@@ -22,35 +26,35 @@ impl McpService for CalculatorMcp {
             name: "calculator_arithmetic".into(),
             title: Some("Calculator".into()),
             description: Some(
-                "Perform mathematical calculations including basic arithmetic, trigonometric functions, and algebraic operations".into(),
+                "Evaluate an arithmetic expression using + - * / and parentheses".into(),
             ),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "expression": {
                         "type": "string",
-                        "description": "Mathematical expression to evaluate (e.g., '2 + 3 * 4', 'sin(30)', 'sqrt(16)')"
+                        "description": "Arithmetic expression to evaluate, e.g. '2 + 3 * 4'"
                     }
                 },
-                "required": ["expression"]
+                "required": ["expression"],
+                "additionalProperties": false
             }),
+            output_schema: None,
             annotations: None,
         }]
     }
 
-    fn call_tool(&self, name: &str, args: Value) -> CallToolResponse {
-        if name != "calculator_arithmetic" {
-            return CallToolResponse::error(format!("unknown tool: {}", name));
-        }
-
+    fn call_tool(&self, _name: &str, args: Value) -> CallToolResult {
+        // An unknown tool never reaches here: the dispatcher rejects it with a
+        // JSON-RPC error before calling the service.
         let expression = match args.get("expression").and_then(Value::as_str) {
             Some(s) => s,
-            None => return CallToolResponse::error("missing 'expression' argument"),
+            None => return CallToolResult::error("missing 'expression' argument"),
         };
 
         match evaluate(expression) {
-            Ok(result) => CallToolResponse::text(format!("= {}", result)),
-            Err(e) => CallToolResponse::error(format!("evaluation error: {}", e)),
+            Ok(result) => CallToolResult::text(format!("= {result}")),
+            Err(e) => CallToolResult::error(format!("evaluation error: {e}")),
         }
     }
 }
@@ -193,5 +197,5 @@ fn eval_rpn(rpn: &[Token]) -> McpResult<f64> {
 }
 
 fn main() {
-    reddb_io_toon_rpc_mcp::serve_stdio(CalculatorMcp).unwrap();
+    reddb_io_toon_rpc_mcp::serve_stdio(CalculatorMcp).expect("stdio server failed");
 }

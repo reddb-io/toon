@@ -1,90 +1,45 @@
-import { decode, encode } from '@reddb-io/toon';
-import { Server, snapshotCoreValueOmittingUndefinedProperties } from '@reddb-io/toon-rpc';
-export const MCP_PROTOCOL_VERSION = '2026-07-28';
-export const MCP_NS = 'io.modelcontextprotocol';
-export const CallToolResponse = {
-    text: (text) => ({
-        resultType: 'complete',
-        content: [{ type: 'text', text }],
-    }),
-    error: (message) => ({
-        resultType: 'complete',
-        content: [{ type: 'text', text: message }],
-        isError: true,
-    }),
-};
-export function normalizeMcpCoreValue(value) {
-    const normalized = snapshotCoreValueOmittingUndefinedProperties(value);
-    if (normalized === undefined) {
-        throw new TypeError('MCP value is not representable as a core RPC value');
-    }
-    return normalized;
-}
-export function createMcpDispatcher(service) {
-    const server = new Server();
-    server.register('server/discover', async () => {
-        const info = service.serverInfo();
-        const response = {
-            resultType: 'complete',
-            supportedVersions: [MCP_PROTOCOL_VERSION],
-            capabilities: {
-                tools: { listChanged: false },
-                resources: {},
-                prompts: {},
-            },
-            _meta: {
-                [MCP_NS + '/serverInfo']: info,
-            },
-            ttlMs: 3600000,
-            cacheScope: 'public',
-        };
-        return normalizeMcpCoreValue(response);
-    });
-    server.register('tools/list', async () => {
-        return normalizeMcpCoreValue({
-            resultType: 'complete',
-            items: service.listTools(),
-        });
-    });
-    server.register('tools/call', async (params) => {
-        const p = params;
-        if (!p || typeof p.name !== 'string') {
-            return normalizeMcpCoreValue(CallToolResponse.error('missing tool name'));
-        }
-        return normalizeMcpCoreValue(await service.callTool(p.name, p.arguments ?? {}));
-    });
-    server.register('resources/list', async () => {
-        return normalizeMcpCoreValue({
-            resultType: 'complete',
-            items: service.listResources(),
-        });
-    });
-    server.register('resources/read', async (params) => {
-        const p = params;
-        if (!p || typeof p.uri !== 'string') {
-            throw new Error('missing resource uri');
-        }
-        return normalizeMcpCoreValue(await service.readResource(p.uri));
-    });
-    server.register('prompts/list', async () => {
-        return normalizeMcpCoreValue({
-            resultType: 'complete',
-            items: service.listPrompts(),
-        });
-    });
-    server.register('prompts/get', async (params) => {
-        const p = params;
-        if (!p || typeof p.name !== 'string') {
-            throw new Error('missing prompt name');
-        }
-        return normalizeMcpCoreValue(await service.getPrompt(p.name, p.arguments));
-    });
-    return server;
-}
-export function encodeMcpMessage(value) {
-    return encode(value);
-}
-export function decodeMcpMessage(text) {
-    return decode(text);
-}
+/**
+ * A Model Context Protocol server for MCP revision `2026-07-28`.
+ *
+ * # Protocol pin
+ *
+ * This package targets exactly one revision, {@link MCP_PROTOCOL_VERSION}. That
+ * revision carries the protocol version, client identity, and client
+ * capabilities as per-request `_meta` and requires servers to implement
+ * `server/discover`; it replaces the `initialize` handshake used by
+ * `2025-11-25` and earlier. A dual-era server that also answers `initialize` is
+ * available through the `legacyInitialize` dispatcher option.
+ *
+ * # Wire format
+ *
+ * MCP is plain JSON-RPC 2.0. Per Spec #389 §9, TOON and TOON-RPC extensions are
+ * never presented as MCP wire, so this package shares no codec with
+ * `@reddb-io/toon-rpc`.
+ *
+ * # Transports
+ *
+ * Only stdio is implemented, framed as one JSON-RPC message per line. There is
+ * no HTTP transport in this package; the Rust crate
+ * `reddb-io-toon-rpc-mcp` provides a POST-only HTTP endpoint.
+ *
+ * @example
+ * ```ts
+ * import { createMcpDispatcher, serveStdio, CallToolResult } from '@reddb-io/toon-rpc-mcp';
+ *
+ * const dispatcher = createMcpDispatcher({
+ *   serverInfo: () => ({ name: 'echo', version: '1.0.0' }),
+ *   listTools: () => [{
+ *     name: 'echo',
+ *     inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+ *   }],
+ *   callTool: (_name, args) => CallToolResult.text(String((args as any).text)),
+ * });
+ *
+ * serveStdio(dispatcher);
+ * ```
+ */
+export { McpDispatcher, createMcpDispatcher } from './dispatcher.js';
+export { serveStdio, serveStdioWith } from './stdio.js';
+export { CallToolResult, McpError, MCP_LEGACY_PROTOCOL_VERSION, MCP_NS, MCP_PROTOCOL_VERSION, FIELD_CLIENT_CAPABILITIES, FIELD_CLIENT_INFO, FIELD_PROTOCOL_VERSION, FIELD_SERVER_INFO, FIELD_SUBSCRIPTION_ID, } from './types.js';
+export { INTERNAL_ERROR, INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR, UNSUPPORTED_PROTOCOL_VERSION, } from './jsonrpc.js';
 //# sourceMappingURL=index.js.map

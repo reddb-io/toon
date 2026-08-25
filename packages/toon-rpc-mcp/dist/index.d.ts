@@ -1,88 +1,49 @@
-import type { JsonValue } from '@reddb-io/toon';
-import { Server } from '@reddb-io/toon-rpc';
-import type { CoreValue } from '@reddb-io/toon-rpc';
-export declare const MCP_PROTOCOL_VERSION = "2026-07-28";
-export declare const MCP_NS = "io.modelcontextprotocol";
-export interface ServerInfo {
-    name: string;
-    version: string;
-    title?: string;
-}
-export interface ClientInfo {
-    name: string;
-    version: string;
-    title?: string;
-}
-export interface Capability {
-}
-export interface ToolsCapability {
-    listChanged?: boolean;
-}
-export interface ServerCapabilities {
-    tools?: ToolsCapability;
-    resources?: Capability;
-    prompts?: Capability;
-    [k: string]: unknown;
-}
-export interface Tool {
-    name: string;
-    title?: string;
-    description?: string;
-    inputSchema: JsonValue;
-    annotations?: JsonValue;
-    [k: string]: unknown;
-}
-export interface Resource {
-    uri: string;
-    name: string;
-    title?: string;
-    description?: string;
-    mimeType?: string;
-    [k: string]: unknown;
-}
-export interface Prompt {
-    name: string;
-    title?: string;
-    description?: string;
-    arguments?: Array<{
-        name: string;
-        description?: string;
-        required?: boolean;
-        [k: string]: unknown;
-    }>;
-    [k: string]: unknown;
-}
-export interface CallToolResponse {
-    resultType: 'complete';
-    content: Array<{
-        type: string;
-        [k: string]: JsonValue;
-    }>;
-    isError?: boolean;
-}
-export declare const CallToolResponse: {
-    text: (text: string) => CallToolResponse;
-    error: (message: string) => CallToolResponse;
-};
-export interface McpService {
-    serverInfo(): ServerInfo;
-    listTools(): Tool[];
-    listResources(): Resource[];
-    listPrompts(): Prompt[];
-    readResource(uri: string): Promise<JsonValue> | JsonValue;
-    getPrompt(name: string, args?: JsonValue): Promise<JsonValue> | JsonValue;
-    callTool(name: string, args: JsonValue): CallToolResponse | Promise<CallToolResponse>;
-}
-export interface DiscoverResponse {
-    resultType: 'complete';
-    supportedVersions: string[];
-    capabilities: ServerCapabilities;
-    _meta?: Record<string, ServerInfo>;
-    ttlMs?: number;
-    cacheScope?: string;
-}
-export declare function normalizeMcpCoreValue(value: unknown): CoreValue;
-export declare function createMcpDispatcher(service: McpService): Server;
-export declare function encodeMcpMessage(value: JsonValue): string;
-export declare function decodeMcpMessage(text: string): JsonValue;
+/**
+ * A Model Context Protocol server for MCP revision `2026-07-28`.
+ *
+ * # Protocol pin
+ *
+ * This package targets exactly one revision, {@link MCP_PROTOCOL_VERSION}. That
+ * revision carries the protocol version, client identity, and client
+ * capabilities as per-request `_meta` and requires servers to implement
+ * `server/discover`; it replaces the `initialize` handshake used by
+ * `2025-11-25` and earlier. A dual-era server that also answers `initialize` is
+ * available through the `legacyInitialize` dispatcher option.
+ *
+ * # Wire format
+ *
+ * MCP is plain JSON-RPC 2.0. Per Spec #389 §9, TOON and TOON-RPC extensions are
+ * never presented as MCP wire, so this package shares no codec with
+ * `@reddb-io/toon-rpc`.
+ *
+ * # Transports
+ *
+ * Only stdio is implemented, framed as one JSON-RPC message per line. There is
+ * no HTTP transport in this package; the Rust crate
+ * `reddb-io-toon-rpc-mcp` provides a POST-only HTTP endpoint.
+ *
+ * @example
+ * ```ts
+ * import { createMcpDispatcher, serveStdio, CallToolResult } from '@reddb-io/toon-rpc-mcp';
+ *
+ * const dispatcher = createMcpDispatcher({
+ *   serverInfo: () => ({ name: 'echo', version: '1.0.0' }),
+ *   listTools: () => [{
+ *     name: 'echo',
+ *     inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+ *   }],
+ *   callTool: (_name, args) => CallToolResult.text(String((args as any).text)),
+ * });
+ *
+ * serveStdio(dispatcher);
+ * ```
+ */
+export { McpDispatcher, createMcpDispatcher } from './dispatcher.js';
+export type { McpDispatcherOptions } from './dispatcher.js';
+export { serveStdio, serveStdioWith } from './stdio.js';
+export type { StdioStreams } from './stdio.js';
+export { CallToolResult, McpError, MCP_LEGACY_PROTOCOL_VERSION, MCP_NS, MCP_PROTOCOL_VERSION, FIELD_CLIENT_CAPABILITIES, FIELD_CLIENT_INFO, FIELD_PROTOCOL_VERSION, FIELD_SERVER_INFO, FIELD_SUBSCRIPTION_ID, } from './types.js';
+export type { ClientInfo, Content, DiscoverResult, GetPromptResult, InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult, McpService, Prompt, PromptArgument, PromptMessage, PromptsCapability, ReadResourceResult, Resource, ResourceContents, ResourcesCapability, ServerCapabilities, ServerInfo, Tool, ToolsCapability, } from './types.js';
+export { INTERNAL_ERROR, INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR, UNSUPPORTED_PROTOCOL_VERSION, } from './jsonrpc.js';
+export type { JsonRpcError, JsonRpcRequest, JsonRpcResponse, JsonValue } from './jsonrpc.js';
 //# sourceMappingURL=index.d.ts.map
