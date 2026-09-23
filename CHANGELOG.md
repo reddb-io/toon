@@ -13,6 +13,12 @@ now; this file is how it got there.
 
 ### Changed
 
+- **Rust decoding scans bytes instead of chars.** Delimiters, quotes and colons
+  are ASCII, so the hot scanners no longer decode UTF-8 one `char` at a time.
+  Cells are borrowed slices, and quoted strings copy whole runs between
+  escapes. Decode throughput rises 25–46% on tabular, nested and list inputs
+  and doubles on long text, ahead of toon-rust on tables and long text.
+
 - **The TypeScript codec is faster than the upstream reference.** Object keys
   were set with `Object.defineProperty`, three times the cost of an assignment,
   which made normalization half of a tabular encode; only `__proto__` still
@@ -161,6 +167,10 @@ now; this file is how it got there.
 
 ### Added
 
+- **A weekly cross-implementation diff.** `.github/workflows/toon-diff.yml`
+  runs toon-diff's corpus and mutation generator through every ordered pair of
+  the upstream TypeScript reference, `@reddb-io/toon` and the Rust `toon` CLI,
+  using the driver in `scripts/toon-diff/`. It is report-only.
 - **Decode limits for untrusted input:** `maxInputBytes`, `maxArrayLength` and
   `maxKeys` in TypeScript (`max_input_bytes`, `max_array_length`, `max_keys` in
   Rust); `0` or `Infinity` means unlimited, the default.
