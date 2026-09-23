@@ -69,8 +69,7 @@ fn number_eq(left: &serde_json::Number, right: &serde_json::Number) -> bool {
 /// whitespace that is significant at a line edge, C0 controls, and multi-byte
 /// codepoints (including one above the BMP), plus the byte-order mark and the
 /// Unicode whitespace that §12 token trimming must leave alone.
-const SPICY: &str =
-    "\"'\\,:[]{}# \t\n\r\u{0}\u{1f}\u{7f}áé中🙂\u{feff}\u{a0}\u{2028}\u{3000}";
+const SPICY: &str = "\"'\\,:[]{}# \t\n\r\u{0}\u{1f}\u{7f}áé中🙂\u{feff}\u{a0}\u{2028}\u{3000}";
 
 fn key_strategy() -> impl Strategy<Value = String> {
     prop_oneof![

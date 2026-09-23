@@ -483,7 +483,7 @@ fn emit_stream_structured_rows<S: EventSink>(
             break;
         }
         if line.blank_before && ctx.strict {
-            return Err(stream_error(line.number, "blank line inside a header span"));
+            return Err(stream_error(line.blank_line, "blank line inside a header span"));
         }
         let cells = split_delimited(&line.content, delimiter, line.number)?;
         let mut state = StreamStructuredState {

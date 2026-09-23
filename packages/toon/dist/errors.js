@@ -4,16 +4,35 @@
  */
 export class ToonDecodeError extends SyntaxError {
     line;
+    /** 1-based column, when the decoder knows where on the line it failed. */
+    column;
     source;
     reason;
+    kind;
     constructor(message, context = {}) {
         const prefix = context.line === undefined || context.line === 0 ? '' : `Line ${context.line}: `;
         super(prefix + message, context.cause === undefined ? undefined : { cause: context.cause });
         this.name = 'ToonDecodeError';
         this.line = context.line;
+        this.column = context.column;
         this.source = context.source;
         this.reason = message;
+        this.kind = errorKind(message);
     }
+}
+/** Classifies a decoder reason; message wording may change, kinds do not. */
+export function errorKind(reason) {
+    if (/^(over-indented line|invalid indentation|tab used as indentation)$/.test(reason))
+        return 'indentation';
+    if (/length mismatch|count mismatch|^expected \d+ .*, but got \d+$/.test(reason))
+        return 'length-mismatch';
+    if (/^duplicate (object key|field name in header)$/.test(reason))
+        return 'duplicate-key';
+    if (reason.startsWith('maximum nesting depth exceeded'))
+        return 'depth-limit';
+    if (/ exceeds max(InputBytes|ArrayLength|Keys) \(/.test(reason))
+        return 'input-limit';
+    return 'syntax';
 }
 /**
  * Positioned error raised inside the decoder. `decode` re-raises it as a
@@ -22,14 +41,18 @@ export class ToonDecodeError extends SyntaxError {
  */
 export class ToonError extends SyntaxError {
     line;
+    column;
     source;
     reason;
+    kind;
     constructor(line, message, context = {}) {
         super(line === 0 ? message : `line ${line}: ${message}`, context.cause === undefined ? undefined : { cause: context.cause });
         this.name = 'ToonError';
         this.line = line;
+        this.column = context.column;
         this.source = context.source;
         this.reason = message;
+        this.kind = errorKind(message);
     }
 }
 export class ToonlError extends Error {

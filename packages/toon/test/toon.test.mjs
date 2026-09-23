@@ -288,3 +288,46 @@ test('a __proto__ key becomes an own property, not a prototype write', () => {
   assert.equal(document.__proto__, 1)
   assert.equal(({}).polluted, undefined)
 })
+
+test('decode limits bound untrusted input by bytes, declared length and keys', () => {
+  assert.deepEqual(parse('a: 1\nb: 2', { maxInputBytes: 9 }), { a: 1, b: 2 })
+  assert.throws(() => parse('a: 1\nb: 2', { maxInputBytes: 8 }), { reason: 'input exceeds maxInputBytes (8)' })
+  // Bytes are UTF-8, not UTF-16 units: `é` is two.
+  assert.throws(() => parse('a: é', { maxInputBytes: 4 }), { line: 1, reason: 'input exceeds maxInputBytes (4)' })
+
+  assert.deepEqual(parse('a[3]: 1,2,3', { maxArrayLength: 3 }), { a: [1, 2, 3] })
+  assert.throws(
+    () => parse('a[4294967296]: 1', { maxArrayLength: 1000 }),
+    { line: 1, reason: 'array length exceeds maxArrayLength (1000)' },
+  )
+
+  assert.deepEqual(parse('a: 1\nb:\n  c: 1\n  d: 2', { maxKeys: 2 }), { a: 1, b: { c: 1, d: 2 } })
+  assert.throws(() => parse('a: 1\nb: 2\nc: 3', { maxKeys: 2 }), { line: 3, reason: 'object exceeds maxKeys (2)' })
+  assert.throws(() => parse('r[1]{a,b,c}:\n  1,2,3', { maxKeys: 2 }), { line: 1, reason: 'object exceeds maxKeys (2)' })
+
+  // 0 and Infinity mean unlimited, like maxDepth.
+  for (const unlimited of [0, Number.POSITIVE_INFINITY]) {
+    assert.deepEqual(
+      parse('a[2]: 1,2', { maxInputBytes: unlimited, maxArrayLength: unlimited, maxKeys: unlimited }),
+      { a: [1, 2] },
+    )
+  }
+})
+
+test('decode errors report a kind shared with Rust and an indentation column', () => {
+  const failure = (input) => caught(() => parse(input))
+
+  const indentation = failure('a:\n   b: 1')
+  assert.equal(indentation.kind, 'indentation')
+  assert.equal(indentation.column, 4)
+  assert.equal(failure('a:\n \tb: 1').column, 2)
+
+  const mismatch = failure('items[2]: one')
+  assert.equal(mismatch.kind, 'length-mismatch')
+  assert.equal(mismatch.column, undefined)
+
+  assert.equal(failure('a: 1\na: 2').kind, 'duplicate-key')
+  assert.equal(failure('v: "open').kind, 'syntax')
+  assert.equal(caught(() => parse('a:\n  b:\n    c: 1', { maxDepth: 1 })).kind, 'depth-limit')
+  assert.equal(caught(() => parse('a: 1', { maxInputBytes: 2 })).kind, 'input-limit')
+})

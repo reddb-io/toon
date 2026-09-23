@@ -10,6 +10,7 @@ import type { DecodeStreamOptions } from './stream.js'
 import { expandCyclicDiscriminatedArrays } from '../cyclic.js'
 import type { DecodeOptions, JsonValue } from '../types.js'
 import { applyReviver } from './reviver.js'
+import { ToonDecodeError } from '../errors.js'
 
 const UNSET = Symbol('unset')
 
@@ -76,6 +77,12 @@ export function decodeFromLines(
 
 export function decodeValue(input: string, options?: DecodeOptions): JsonValue {
   const { reviver, ...streamOptions } = options ?? {}
+  // A UTF-16 unit never encodes to fewer UTF-8 bytes, so an oversized string
+  // fails here without being split; the line classifier counts the rest.
+  const maxInputBytes = options?.maxInputBytes ?? 0
+  if (maxInputBytes > 0 && maxInputBytes !== Number.POSITIVE_INFINITY && input.length > maxInputBytes) {
+    throw new ToonDecodeError(`input exceeds maxInputBytes (${Math.floor(maxInputBytes)})`, { line: 0 })
+  }
   const value = decodeFromLines(linesFromString(input), streamOptions)
   const decoded = (options?.cyclicDiscriminatedArrays === true
     ? expandCyclicDiscriminatedArrays(value)

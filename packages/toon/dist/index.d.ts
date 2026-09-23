@@ -7,6 +7,7 @@ import { decodeValue } from './decode/build.js';
 import { encode } from './encode/serialize.js';
 export { VERSION } from './version.js';
 export { ToonDecodeError, ToonError, ToonlCursorInvalidationError, ToonlError } from './errors.js';
+export type { ToonErrorKind } from './errors.js';
 export { DEFAULT_DELIMITER, DEFAULT_INDENT, DEFAULT_MAX_DEPTH, DELIMITERS } from './constants.js';
 export { detectTruncation } from './decode/truncation.js';
 export type { TruncationOptions, TruncationReport } from './decode/truncation.js';

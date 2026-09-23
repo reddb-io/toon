@@ -211,7 +211,7 @@ fn rejects_malformed_keyed_map_rows() {
         ),
         (
             "m[2:]{a,b}:\n  k: 1,2\n\n  j: 3,4\n",
-            "line 4: blank line inside a header span",
+            "line 3: blank line inside a header span",
         ),
         ("m[1:]{a,b}:\n  k: 1,2,3\n", "line 2: array count mismatch"),
         (
@@ -283,7 +283,7 @@ fn rejects_malformed_structured_rows() {
         ("items[1]{a,b}:\n  1,2\n  3,4\n", "line 3: array count mismatch"),
         (
             "items[2]{a,b}:\n  1,2\n\n  3,4\n",
-            "line 4: blank line inside a header span",
+            "line 3: blank line inside a header span",
         ),
         (
             "items[1]{a,kids{x}}:\n  1,2\n    r1\n",

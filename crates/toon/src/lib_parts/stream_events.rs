@@ -89,6 +89,9 @@ where
         strict: options.strict,
         object_array_columns: options.object_array_columns,
         max_depth: options.max_depth,
+        max_input_bytes: options.max_input_bytes,
+        max_array_length: options.max_array_length,
+        max_keys: options.max_keys,
         truncation_span: Cell::new(None),
     };
     let error_sender = sender.clone();

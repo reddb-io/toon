@@ -16,6 +16,7 @@ export interface ExtensionLine {
   depth: number
   content: string
   blankBefore: boolean
+  blankLine: number
 }
 
 export interface ExtensionDecodeOptions {
@@ -84,7 +85,7 @@ function* emitStructuredRows(
     const line = lines[cursor.index]
     if (line === undefined || line.depth < rowDepth) break
     if (line.depth > rowDepth) throw toonError(line.number, 'invalid indentation')
-    if (line.blankBefore && options.strict) throw toonError(line.number, 'blank line inside array')
+    if (line.blankBefore && options.strict) throw toonError(line.blankLine, 'blank line inside array')
     if (!isTabularRow(line.content, delimiter, line.number)) break
 
     const cells = splitDelimited(line.content, delimiter, line.number)
