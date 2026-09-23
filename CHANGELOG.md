@@ -82,6 +82,20 @@ now; this file is how it got there.
   (`toonContent` / `toon_content`, `CallToolResult.toon`). Both implementations
   replay the shared transcript `tests/corpus/mcp/transcript.json`.
 
+- **Breaking (toon-rpc codegen and CLI):** generated code compiles and runs.
+  The IDL lists method params as an object in declaration order, and names
+  are validated. The generator emits the declared types, a service trait or
+  interface, a `register_*` function that reads params by name or by position,
+  and a typed client, in both languages and in a deterministic order. It no
+  longer emits `todo!()`, closures that could not compile, or TypeScript that
+  never read its params. The calculator's generated code is committed and
+  compiled, run by the examples and by the TypeScript tests, and checked
+  against the IDL. The derive macro, which targeted a trait that did not
+  exist, is removed. The `reddb-io-toon-rpc` CLI keeps two working commands,
+  `generate` and `call <http|ws|tcp URL> <method> [TOON params]`, and reports
+  the crate version instead of `0.1.0`. The examples use the generated code
+  and §8.1 framing, and run as integration tests.
+
 - **Rust `decode` builds its `Value` directly and jumps with `memchr`.** The
   value is assembled while the grammar emits, without an intermediate event
   vector, and strict mode skips the duplicate-key search it never needs
