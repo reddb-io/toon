@@ -2,7 +2,7 @@
   "name": "@reddb-io/toon-rpc-mcp",
   "version": "0.30.4",
   "private": true,
-  "description": "Non-conformant MCP prototype quarantined during protocol recovery.",
+  "description": "Model Context Protocol server pinned to the 2025-06-18 schema, with optional TOON text content.",
   "type": "module",
   "main": "dist/index.js",
   "exports": {

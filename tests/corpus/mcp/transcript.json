@@ -1,0 +1,628 @@
+{
+  "schemaVersion": "mcp-transcript-v1",
+  "protocolVersion": "2025-06-18",
+  "description": "MCP 2025-06-18 over newline-delimited JSON-RPC 2.0, shared by @reddb-io/toon-rpc-mcp and reddb-io-toon-rpc-mcp. Each session runs on a fresh server exposing the fixture: tools echo (returns arguments.text) and fail (a tool error \"boom\"); resource memo://hello (text/plain \"Hello\"); prompt greet (required argument name, a user message \"Hello, {name}!\"). A step sends one line (send is encoded as JSON, sendRaw is sent as is) and expects exactly one response line, or none when expect is null. Responses compare exactly, except that an error message is only compared when the expectation gives one.",
+  "server": {
+    "name": "fixture-server",
+    "version": "1.0.0",
+    "instructions": "A fixture server for the shared MCP transcript."
+  },
+  "tools": [
+    {
+      "name": "echo",
+      "title": "Echo",
+      "description": "Return the given text.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      }
+    },
+    {
+      "name": "fail",
+      "description": "Always fails.",
+      "inputSchema": {
+        "type": "object"
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uri": "memo://hello",
+      "name": "hello",
+      "mimeType": "text/plain"
+    }
+  ],
+  "prompts": [
+    {
+      "name": "greet",
+      "description": "Greet someone.",
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "name": "lifecycle-and-features",
+      "steps": [
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "ping"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": {}
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-06-18",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "fixture-client",
+                "version": "1.0.0"
+              }
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "protocolVersion": "2025-06-18",
+              "capabilities": {
+                "tools": {
+                  "listChanged": false
+                },
+                "resources": {
+                  "subscribe": false,
+                  "listChanged": false
+                },
+                "prompts": {
+                  "listChanged": false
+                }
+              },
+              "serverInfo": {
+                "name": "fixture-server",
+                "version": "1.0.0"
+              },
+              "instructions": "A fixture server for the shared MCP transcript."
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+          },
+          "expect": null
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": {
+              "tools": [
+                {
+                  "name": "echo",
+                  "title": "Echo",
+                  "description": "Return the given text.",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "text"
+                    ]
+                  }
+                },
+                {
+                  "name": "fail",
+                  "description": "Always fails.",
+                  "inputSchema": {
+                    "type": "object"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {
+              "name": "echo",
+              "arguments": {
+                "text": "hi"
+              }
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "hi"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+              "name": "fail",
+              "arguments": {}
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "boom"
+                }
+              ],
+              "isError": true
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/call",
+            "params": {
+              "name": "missing",
+              "arguments": {}
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "error": {
+              "code": -32602
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "resources/list"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 6,
+            "result": {
+              "resources": [
+                {
+                  "uri": "memo://hello",
+                  "name": "hello",
+                  "mimeType": "text/plain"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "resources/read",
+            "params": {
+              "uri": "memo://hello"
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 7,
+            "result": {
+              "contents": [
+                {
+                  "uri": "memo://hello",
+                  "mimeType": "text/plain",
+                  "text": "Hello"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "resources/read",
+            "params": {
+              "uri": "memo://missing"
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 8,
+            "error": {
+              "code": -32002,
+              "data": {
+                "uri": "memo://missing"
+              }
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "prompts/list"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 9,
+            "result": {
+              "prompts": [
+                {
+                  "name": "greet",
+                  "description": "Greet someone.",
+                  "arguments": [
+                    {
+                      "name": "name",
+                      "required": true
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": "p",
+            "method": "prompts/get",
+            "params": {
+              "name": "greet",
+              "arguments": {
+                "name": "Ada"
+              }
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": "p",
+            "result": {
+              "description": "Greet someone.",
+              "messages": [
+                {
+                  "role": "user",
+                  "content": {
+                    "type": "text",
+                    "text": "Hello, Ada!"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "prompts/get",
+            "params": {
+              "name": "greet",
+              "arguments": {}
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "error": {
+              "code": -32602
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "no/such/method"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "error": {
+              "code": -32601
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "method": "notifications/cancelled",
+            "params": {
+              "requestId": 3
+            }
+          },
+          "expect": null
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "ping"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 12,
+            "result": {}
+          }
+        }
+      ]
+    },
+    {
+      "name": "version-negotiation",
+      "steps": [
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "1999-01-01",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "old-client",
+                "version": "0.1.0"
+              }
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "protocolVersion": "2025-06-18",
+              "capabilities": {
+                "tools": {
+                  "listChanged": false
+                },
+                "resources": {
+                  "subscribe": false,
+                  "listChanged": false
+                },
+                "prompts": {
+                  "listChanged": false
+                }
+              },
+              "serverInfo": {
+                "name": "fixture-server",
+                "version": "1.0.0"
+              },
+              "instructions": "A fixture server for the shared MCP transcript."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "requests-before-initialize",
+      "steps": [
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "code": -32600
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+              "protocolVersion": "2025-06-18",
+              "capabilities": {},
+              "clientInfo": {
+                "name": "fixture-client",
+                "version": "1.0.0"
+              }
+            }
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "protocolVersion": "2025-06-18",
+              "capabilities": {
+                "tools": {
+                  "listChanged": false
+                },
+                "resources": {
+                  "subscribe": false,
+                  "listChanged": false
+                },
+                "prompts": {
+                  "listChanged": false
+                }
+              },
+              "serverInfo": {
+                "name": "fixture-server",
+                "version": "1.0.0"
+              },
+              "instructions": "A fixture server for the shared MCP transcript."
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": {
+              "tools": [
+                {
+                  "name": "echo",
+                  "title": "Echo",
+                  "description": "Return the given text.",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "text"
+                    ]
+                  }
+                },
+                {
+                  "name": "fail",
+                  "description": "Always fails.",
+                  "inputSchema": {
+                    "type": "object"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "malformed-messages",
+      "steps": [
+        {
+          "sendRaw": "{\"jsonrpc\":\"2.0\",",
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": null,
+            "error": {
+              "code": -32700
+            }
+          }
+        },
+        {
+          "send": [
+            {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "ping"
+            },
+            {
+              "jsonrpc": "2.0",
+              "id": 2,
+              "method": "ping"
+            }
+          ],
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": null,
+            "error": {
+              "code": -32600
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": null,
+            "method": "ping"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": null,
+            "error": {
+              "code": -32600
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "1.0",
+            "id": 3,
+            "method": "ping"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": null,
+            "error": {
+              "code": -32600
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "ping",
+            "params": [
+              1
+            ]
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": null,
+            "error": {
+              "code": -32600
+            }
+          }
+        },
+        {
+          "send": {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "ping"
+          },
+          "expect": {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "result": {}
+          }
+        }
+      ]
+    }
+  ]
+}
