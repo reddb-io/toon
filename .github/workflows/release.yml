@@ -66,6 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Decide release target
         id: plan
@@ -167,6 +168,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           ref: ${{ needs.plan.outputs.release_sha }}
 
       - name: Sync release version
@@ -254,6 +256,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           ref: ${{ needs.plan.outputs.release_sha }}
       - uses: actions/setup-node@v4
         with:
@@ -293,6 +296,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           ref: ${{ needs.plan.outputs.release_sha }}
           # git-cliff walks the full commit history to build the changelog.
           fetch-depth: 0
@@ -504,6 +508,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           ref: ${{ needs.plan.outputs.release_sha }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Sync release version
@@ -558,6 +563,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           ref: ${{ needs.plan.outputs.release_sha }}
           submodules: true
       - uses: actions/setup-node@v4
@@ -628,6 +634,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           ref: ${{ needs.plan.outputs.release_sha }}
       - uses: actions/setup-node@v4
         with:
