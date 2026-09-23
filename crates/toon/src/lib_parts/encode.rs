@@ -146,6 +146,13 @@ fn validate_encode_depth_recursive(value: &Value, depth: usize, max_depth: usize
 }
 
 fn encode_value(value: &Value, options: ResolvedEncode) -> Vec<String> {
+    if let Value::String(text) = value {
+        // A document-leading U+FEFF is a byte-order mark the decoder removes
+        // (§12), so a root string beginning with one is quoted to keep it.
+        if text.starts_with('\u{feff}') {
+            return vec![quote_string(text)];
+        }
+    }
     if value.is_primitive() {
         return vec![canonical_primitive_text(value, options.delimiter)];
     }
