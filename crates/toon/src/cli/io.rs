@@ -320,24 +320,43 @@ impl Read for TextReader {
 /// with a newline. Pieces accumulate in a batch, so a large document costs one
 /// write per batch rather than one per piece — and a run that fails partway
 /// through drops the batch instead of emitting a half-written document.
+///
+/// A file is written beside its target and renamed into place by
+/// [`OutputSink::finish`]; a sink dropped before finishing removes the
+/// temporary file, so a failed conversion never truncates an existing output.
 pub struct OutputSink {
     file: Option<File>,
+    target: Option<OutputTarget>,
     batch: String,
+}
+
+struct OutputTarget {
+    temp: PathBuf,
+    path: PathBuf,
 }
 
 impl OutputSink {
     pub fn open(output: Option<&Path>) -> Result<Self, CliError> {
-        let file = match output {
-            None => None,
-            Some(path) => Some(File::create(path).map_err(|error| {
-                CliError::with_cause(
-                    format!("Failed to write `{}`: {error}", path.display()),
-                    error,
-                )
-            })?),
+        let (file, target) = match output {
+            None => (None, None),
+            Some(path) => {
+                let temp = temporary_sibling(path);
+                let file = File::create(&temp).map_err(|error| {
+                    CliError::with_cause(
+                        format!("Failed to write `{}`: {error}", path.display()),
+                        error,
+                    )
+                })?;
+                let target = OutputTarget {
+                    temp,
+                    path: path.to_path_buf(),
+                };
+                (Some(file), Some(target))
+            }
         };
         Ok(Self {
             file,
+            target,
             batch: String::new(),
         })
     }
@@ -350,10 +369,22 @@ impl OutputSink {
         Ok(())
     }
 
-    /// Ends the document with the newline every upstream conversion writes.
+    /// Ends the document with the newline every upstream conversion writes,
+    /// then moves a file output into place.
     pub fn finish(mut self, io: &mut dyn CliIo) -> Result<(), CliError> {
         self.batch.push('\n');
-        self.flush(io)
+        self.flush(io)?;
+        self.file.take();
+        if let Some(target) = self.target.take() {
+            if let Err(error) = std::fs::rename(&target.temp, &target.path) {
+                let _ = std::fs::remove_file(&target.temp);
+                return Err(CliError::with_cause(
+                    format!("Failed to write `{}`: {error}", target.path.display()),
+                    error,
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn flush(&mut self, io: &mut dyn CliIo) -> Result<(), CliError> {
@@ -368,5 +399,26 @@ impl OutputSink {
         }
         self.batch.clear();
         Ok(())
+    }
+}
+
+impl Drop for OutputSink {
+    fn drop(&mut self) {
+        self.file.take();
+        if let Some(target) = self.target.take() {
+            let _ = std::fs::remove_file(&target.temp);
+        }
+    }
+}
+
+fn temporary_sibling(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let temp = format!(".{name}.tmp-{}", std::process::id());
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.join(temp),
+        _ => PathBuf::from(temp),
     }
 }
