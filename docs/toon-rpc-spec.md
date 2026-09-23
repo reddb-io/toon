@@ -338,9 +338,8 @@ present in the expectation.
 The corpus is the acceptance contract for the 0.31 recovery. Rust and
 TypeScript semantic runners execute every vector directly from these shared
 files; expected failure ledgers are not permitted for this corpus. Server cases
-exercise the production dispatcher/server. TypeScript client cases exercise the
-production client and its public diagnostic mechanism; Rust client cases remain
-harness-only until slice 8.
+exercise the production dispatcher/server. Client cases exercise each production
+client and its public diagnostic mechanism.
 
 ## 11. Implementation Status
 
