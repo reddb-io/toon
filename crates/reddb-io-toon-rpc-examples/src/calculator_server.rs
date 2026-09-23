@@ -1,80 +1,17 @@
-//! Calculator server using HTTP transport
+//! The calculator over HTTP.
 //!
-//! Run with: cargo run --bin calculator_server
+//! Usage: calculator_server [address]   (default 127.0.0.1:8080; port 0 picks one)
+//! Prints `listening on http://<address>` once it is ready.
 
-use reddb_io_toon_rpc::{Dispatcher, Params};
+use reddb_io_toon_rpc_examples::calculator_dispatcher;
 use reddb_io_toon_rpc_http::HttpServer;
-use std::net::SocketAddr;
-
-fn extract_numbers(params: &Params) -> Result<Vec<f64>, reddb_io_toon_rpc::RpcError> {
-    match params {
-        Params::ByPosition(values) => {
-            let mut nums = Vec::new();
-            for v in values {
-                match v {
-                    serde_json::Value::Number(n) => {
-                        nums.push(n.as_f64().ok_or_else(|| {
-                            reddb_io_toon_rpc::RpcError::InvalidParams("not a number".to_string())
-                        })?);
-                    }
-                    _ => {
-                        return Err(reddb_io_toon_rpc::RpcError::InvalidParams(
-                            "expected numbers".to_string(),
-                        ))
-                    }
-                }
-            }
-            Ok(nums)
-        }
-        Params::ByName(_) => Err(reddb_io_toon_rpc::RpcError::InvalidParams(
-            "named params not supported".to_string(),
-        )),
-        Params::Absent => Err(reddb_io_toon_rpc::RpcError::InvalidParams(
-            "params are required".to_string(),
-        )),
-    }
-}
-
-fn build_dispatcher() -> Dispatcher {
-    let mut dispatcher = Dispatcher::new();
-
-    dispatcher.register("add", |params, _id| {
-        let nums = extract_numbers(&params)?;
-        Ok(serde_json::json!(nums[0] + nums[1]))
-    });
-
-    dispatcher.register("subtract", |params, _id| {
-        let nums = extract_numbers(&params)?;
-        Ok(serde_json::json!(nums[0] - nums[1]))
-    });
-
-    dispatcher.register("multiply", |params, _id| {
-        let nums = extract_numbers(&params)?;
-        Ok(serde_json::json!(nums[0] * nums[1]))
-    });
-
-    dispatcher.register("divide", |params, _id| {
-        let nums = extract_numbers(&params)?;
-        if nums[1] == 0.0 {
-            Err(reddb_io_toon_rpc::RpcError::InvalidParams(
-                "division by zero".to_string(),
-            ))
-        } else {
-            Ok(serde_json::json!(nums[0] / nums[1]))
-        }
-    });
-
-    dispatcher
-}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let dispatcher = build_dispatcher();
-    let addr: SocketAddr = "127.0.0.1:8080".parse()?;
-    let server = HttpServer::bind(addr, dispatcher).await?;
-    println!(
-        "Calculator HTTP server listening on http://{}",
-        server.local_addr()?
-    );
-    Ok(server.serve().await?)
+async fn main() -> std::io::Result<()> {
+    let address = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "127.0.0.1:8080".into());
+    let server = HttpServer::bind(address, calculator_dispatcher()).await?;
+    println!("listening on http://{}", server.local_addr()?);
+    server.serve().await
 }
