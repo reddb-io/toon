@@ -1,261 +1,288 @@
-use http::{Request, Response, StatusCode};
-use http_body_util::BodyExt;
-use hyper::body::Incoming;
-use parking_lot::Mutex;
-use reddb_io_toon_rpc::Dispatcher;
+//! Experimental TOON-RPC long polling. Unpublished: spec §9 defers long
+//! polling, so this crate has no transport profile and no client.
+//!
+//! `POST /rpc` is a plain request/response exchange (204 when there is no
+//! response). `GET /poll/{id}` waits up to the poll timeout for an event the
+//! host application pushes in-process with `push_event`. Events can only be
+//! pushed from inside the process; there is no HTTP route for it. The waiter
+//! table is bounded in keys and in waiters per key, and a key is removed as
+//! soon as its last waiter leaves.
+
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::io;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::net::TcpListener;
+
+use bytes::Bytes;
+use http::{header, Method, Request, Response, StatusCode};
+use http_body_util::{BodyExt, Full, Limited};
+use hyper::body::{Body, Incoming};
+use hyper_util::rt::TokioIo;
+use reddb_io_toon_rpc::{dispatch_document, Dispatcher, DEFAULT_MAX_FRAME_BYTES};
+use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::oneshot;
 
-/// Maps poll_id -> waiting channels
-type PendingPolls = Arc<Mutex<HashMap<String, Vec<oneshot::Sender<String>>>>>;
+pub const DEFAULT_POLL_TIMEOUT: Duration = Duration::from_secs(30);
+pub const DEFAULT_MAX_POLL_KEYS: usize = 1024;
+pub const DEFAULT_MAX_WAITERS_PER_KEY: usize = 16;
+
+type Waiters = Arc<Mutex<HashMap<String, Vec<(u64, oneshot::Sender<Bytes>)>>>>;
 
 #[derive(Clone)]
-pub struct LongPollingServer {
+pub struct LongPollingService {
     dispatcher: Dispatcher,
-    pending: PendingPolls,
+    waiters: Waiters,
+    next_waiter: Arc<std::sync::atomic::AtomicU64>,
+    poll_timeout: Duration,
+    max_poll_keys: usize,
+    max_waiters_per_key: usize,
+    max_body_bytes: usize,
 }
 
-impl LongPollingServer {
+impl LongPollingService {
     pub fn new(dispatcher: Dispatcher) -> Self {
         Self {
             dispatcher,
-            pending: Arc::new(Mutex::new(HashMap::new())),
+            waiters: Arc::default(),
+            next_waiter: Arc::default(),
+            poll_timeout: DEFAULT_POLL_TIMEOUT,
+            max_poll_keys: DEFAULT_MAX_POLL_KEYS,
+            max_waiters_per_key: DEFAULT_MAX_WAITERS_PER_KEY,
+            max_body_bytes: DEFAULT_MAX_FRAME_BYTES,
         }
     }
 
-    /// Send a notification to all waiters of a poll_id
-    pub fn push_event(&self, poll_id: &str, data: String) {
-        let mut pending = self.pending.lock();
-        if let Some(waiters) = pending.get_mut(poll_id) {
-            let drained = std::mem::take(waiters);
-            for waiter in drained {
-                let _ = waiter.send(data.clone());
-            }
-        }
+    pub fn with_poll_timeout(mut self, poll_timeout: Duration) -> Self {
+        self.poll_timeout = poll_timeout;
+        self
     }
 
-    pub async fn serve(self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let addr: SocketAddr = "0.0.0.0:8082".parse()?;
-        let listener = TcpListener::bind(addr).await?;
-        println!("TOON-RPC Long Polling server listening on http://{}", addr);
-
-        loop {
-            let (stream, _) = listener.accept().await?;
-            let service = self.clone();
-
-            tokio::spawn(async move {
-                let connection = hyper_util::rt::TokioIo::new(stream);
-
-                let hyper_service = hyper::service::service_fn(move |req| {
-                    let svc = service.clone();
-                    async move { hyper::service::Service::call(&svc, req).await }
-                });
-
-                if let Err(e) = hyper::server::conn::http1::Builder::new()
-                    .serve_connection(connection, hyper_service)
-                    .await
-                {
-                    eprintln!("Error serving connection: {}", e);
-                }
-            });
-        }
+    pub fn with_limits(mut self, max_poll_keys: usize, max_waiters_per_key: usize) -> Self {
+        self.max_poll_keys = max_poll_keys;
+        self.max_waiters_per_key = max_waiters_per_key;
+        self
     }
-}
 
-impl hyper::service::Service<Request<Incoming>> for LongPollingServer {
-    type Response = Response<String>;
-    type Error = Infallible;
-    type Future = std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
-    >;
-
-    fn call(&self, req: Request<Incoming>) -> Self::Future {
-        let dispatcher = self.dispatcher.clone();
-        let pending = self.pending.clone();
-        let path = req.uri().path().to_string();
-        let method = req.method().clone();
-
-        Box::pin(async move {
-            if method == http::Method::POST && path == "/rpc" {
-                handle_rpc(req, dispatcher).await
-            } else if method == http::Method::GET && path.starts_with("/poll/") {
-                let poll_id = path.trim_start_matches("/poll/").to_string();
-                handle_poll(poll_id, pending).await
-            } else if method == http::Method::POST && path.starts_with("/notify/") {
-                let poll_id = path.trim_start_matches("/notify/").to_string();
-                handle_notify(req, poll_id, pending).await
-            } else {
-                Ok(Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body("Not found".to_string())
-                    .unwrap())
-            }
-        })
+    /// Deliver `event` to every current waiter of `poll_id`; returns how many
+    /// received it.
+    pub fn push_event(&self, poll_id: &str, event: impl Into<Bytes>) -> usize {
+        let waiters = lock(&self.waiters).remove(poll_id).unwrap_or_default();
+        let event = event.into();
+        waiters
+            .into_iter()
+            .filter_map(|(_, waiter)| waiter.send(event.clone()).ok())
+            .count()
     }
-}
 
-/// Handle regular RPC POST request
-async fn handle_rpc(
-    req: Request<Incoming>,
-    dispatcher: Dispatcher,
-) -> Result<Response<String>, Infallible> {
-    let body = match req.into_body().collect().await {
-        Ok(b) => b.to_bytes(),
-        Err(_) => {
-            let err = serde_json::json!({
-                "toonrpc": "1.0",
-                "error": {"code": -32700, "message": "body error"},
-                "id": null
-            });
-            return Ok(Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/toon")
-                .body(err.to_string())
-                .unwrap());
-        }
-    };
-
-    match dispatcher.dispatch(&body) {
-        Ok(bytes) => Ok(Response::builder()
-            .status(StatusCode::OK)
-            .header("Content-Type", "application/toon")
-            .body(String::from_utf8(bytes).unwrap())
-            .unwrap()),
-        Err(e) => {
-            let err = serde_json::json!({
-                "toonrpc": "1.0",
-                "error": {"code": -32603, "message": e.to_string()},
-                "id": null
-            });
-            Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/toon")
-                .body(err.to_string())
-                .unwrap())
-        }
+    /// Poll keys with at least one waiter.
+    pub fn poll_key_count(&self) -> usize {
+        lock(&self.waiters).len()
     }
-}
 
-/// Long-poll endpoint: holds request open until event arrives or timeout
-async fn handle_poll(
-    poll_id: String,
-    pending: PendingPolls,
-) -> Result<Response<String>, Infallible> {
-    let (tx, rx) = oneshot::channel::<String>();
-
-    // Register waiter
+    pub async fn handle<B>(&self, request: Request<B>) -> Response<Full<Bytes>>
+    where
+        B: Body,
+        B::Error: std::error::Error + Send + Sync + 'static,
     {
-        let mut pending = pending.lock();
-        pending.entry(poll_id.clone()).or_default().push(tx);
+        let path = request.uri().path().to_owned();
+        match (request.method(), path.as_str()) {
+            (&Method::POST, "/rpc") => self.rpc(request.into_body()).await,
+            (&Method::GET, path) => match path.strip_prefix("/poll/") {
+                Some(poll_id) if !poll_id.is_empty() => self.poll(poll_id.to_owned()).await,
+                _ => empty(StatusCode::NOT_FOUND),
+            },
+            _ => empty(StatusCode::NOT_FOUND),
+        }
     }
 
-    // Wait with timeout (30 seconds)
-    let result = tokio::time::timeout(Duration::from_secs(30), rx).await;
-
-    match result {
-        Ok(Ok(data)) => Ok(Response::builder()
-            .status(StatusCode::OK)
-            .header("Content-Type", "application/toon")
-            .body(data)
-            .unwrap()),
-        Ok(Err(_)) => Ok(Response::builder()
-            .status(StatusCode::NO_CONTENT)
-            .body("".to_string())
-            .unwrap()),
-        Err(_) => {
-            // Timeout: remove from pending
-            let mut pending = pending.lock();
-            if let Some(waiters) = pending.get_mut(&poll_id) {
-                waiters.retain(|w| !w.is_closed());
+    async fn rpc<B>(&self, body: B) -> Response<Full<Bytes>>
+    where
+        B: Body,
+        B::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let body = match Limited::new(body, self.max_body_bytes).collect().await {
+            Ok(body) => body.to_bytes(),
+            Err(error) if error.is::<http_body_util::LengthLimitError>() => {
+                return empty(StatusCode::PAYLOAD_TOO_LARGE)
             }
-            Ok(Response::builder()
-                .status(StatusCode::NO_CONTENT)
-                .body("".to_string())
-                .unwrap())
+            Err(_) => return empty(StatusCode::BAD_REQUEST),
+        };
+        let document = dispatch_document(&self.dispatcher, &body);
+        if document.is_empty() {
+            return empty(StatusCode::NO_CONTENT);
+        }
+        toon(document.into())
+    }
+
+    async fn poll(&self, poll_id: String) -> Response<Full<Bytes>> {
+        let (sender, receiver) = oneshot::channel();
+        let waiter = self
+            .next_waiter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        {
+            let mut waiters = lock(&self.waiters);
+            if !waiters.contains_key(&poll_id) && waiters.len() >= self.max_poll_keys {
+                return empty(StatusCode::SERVICE_UNAVAILABLE);
+            }
+            let entry = waiters.entry(poll_id.clone()).or_default();
+            if entry.len() >= self.max_waiters_per_key {
+                return empty(StatusCode::SERVICE_UNAVAILABLE);
+            }
+            entry.push((waiter, sender));
+        }
+        // Leaves the table however the wait ends, including a dropped request.
+        let _guard = WaiterGuard {
+            waiters: self.waiters.clone(),
+            poll_id,
+            waiter,
+        };
+        match tokio::time::timeout(self.poll_timeout, receiver).await {
+            Ok(Ok(event)) => toon(event),
+            _ => empty(StatusCode::NO_CONTENT),
         }
     }
 }
 
-/// Notify endpoint: push event to all waiters of poll_id
-async fn handle_notify(
-    req: Request<Incoming>,
+struct WaiterGuard {
+    waiters: Waiters,
     poll_id: String,
-    pending: PendingPolls,
-) -> Result<Response<String>, Infallible> {
-    // Drain waiters and send data
-    let body = match req.into_body().collect().await {
-        Ok(b) => b.to_bytes(),
-        Err(_) => {
-            return Ok(Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body("body error".to_string())
-                .unwrap());
+    waiter: u64,
+}
+
+impl Drop for WaiterGuard {
+    fn drop(&mut self) {
+        let mut waiters = lock(&self.waiters);
+        if let Some(entry) = waiters.get_mut(&self.poll_id) {
+            entry.retain(|(waiter, _)| *waiter != self.waiter);
+            if entry.is_empty() {
+                waiters.remove(&self.poll_id);
+            }
         }
-    };
+    }
+}
 
-    let data = String::from_utf8_lossy(&body).to_string();
+fn toon(body: Bytes) -> Response<Full<Bytes>> {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/toon")
+        .body(Full::new(body))
+        .expect("valid response")
+}
 
-    let waiters: Vec<_> = {
-        let mut pending = pending.lock();
-        if let Some(waiters) = pending.get_mut(&poll_id) {
-            std::mem::take(waiters)
-        } else {
-            vec![]
-        }
-    };
+fn empty(status: StatusCode) -> Response<Full<Bytes>> {
+    Response::builder()
+        .status(status)
+        .body(Full::default())
+        .expect("valid response")
+}
 
-    let count = waiters.len();
-    for waiter in waiters {
-        let _ = waiter.send(data.clone());
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// A long-polling server bound to an address the caller chose.
+pub struct LongPollingServer {
+    listener: TcpListener,
+    service: LongPollingService,
+}
+
+impl LongPollingServer {
+    pub async fn bind(addr: impl ToSocketAddrs, dispatcher: Dispatcher) -> io::Result<Self> {
+        let listener = TcpListener::bind(addr).await?;
+        Ok(Self::from_listener(
+            listener,
+            LongPollingService::new(dispatcher),
+        ))
     }
 
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .body(format!("notified {} waiters", count))
-        .unwrap())
+    pub fn from_listener(listener: TcpListener, service: LongPollingService) -> Self {
+        Self { listener, service }
+    }
+
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.listener.local_addr()
+    }
+
+    /// The service, for pushing events while the server runs.
+    pub fn service(&self) -> LongPollingService {
+        self.service.clone()
+    }
+
+    pub async fn serve(self) -> io::Result<()> {
+        loop {
+            let (stream, _) = self.listener.accept().await?;
+            let service = self.service.clone();
+            tokio::spawn(async move {
+                let handler = hyper::service::service_fn(move |request: Request<Incoming>| {
+                    let service = service.clone();
+                    async move { Ok::<_, Infallible>(service.handle(request).await) }
+                });
+                let _ = hyper::server::conn::http1::Builder::new()
+                    .serve_connection(TokioIo::new(stream), handler)
+                    .await;
+            });
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+
+    fn get(path: &str) -> Request<Full<Bytes>> {
+        Request::get(path).body(Full::default()).unwrap()
+    }
 
     #[tokio::test]
-    async fn test_long_poll_event_push() {
-        let dispatcher = Dispatcher::new();
-        let server = LongPollingServer::new(dispatcher);
+    async fn a_pushed_event_reaches_every_waiter_and_clears_the_key() {
+        let service = LongPollingService::new(Dispatcher::new());
+        let waiting = (0..2)
+            .map(|_| {
+                let service = service.clone();
+                tokio::spawn(async move { service.handle(get("/poll/k")).await })
+            })
+            .collect::<Vec<_>>();
+        while lock(&service.waiters).get("k").map_or(0, Vec::len) < 2 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(service.push_event("k", "event"), 2);
+        for response in waiting {
+            let body = response.await.unwrap().into_body().collect().await.unwrap();
+            assert_eq!(body.to_bytes(), "event");
+        }
+        assert_eq!(service.poll_key_count(), 0);
+    }
 
-        // Subscribe in background
-        let pending = server.pending.clone();
-        let poll_id = "test-poll".to_string();
+    #[tokio::test]
+    async fn waiters_leave_on_timeout_and_the_table_is_bounded() {
+        let service = LongPollingService::new(Dispatcher::new())
+            .with_poll_timeout(Duration::from_millis(20))
+            .with_limits(1, 1);
+        let first = {
+            let service = service.clone();
+            tokio::spawn(async move { service.handle(get("/poll/a")).await })
+        };
+        while service.poll_key_count() == 0 {
+            tokio::task::yield_now().await;
+        }
+        let refused = [
+            service.handle(get("/poll/b")).await.status(),
+            service.handle(get("/poll/a")).await.status(),
+        ];
+        assert_eq!(refused, [StatusCode::SERVICE_UNAVAILABLE; 2]);
+        assert_eq!(first.await.unwrap().status(), StatusCode::NO_CONTENT);
+        assert_eq!(service.poll_key_count(), 0);
+    }
 
-        let waiter_task = tokio::spawn(async move {
-            let (tx, rx) = oneshot::channel::<String>();
-            {
-                let mut p = pending.lock();
-                p.entry(poll_id.clone()).or_default().push(tx);
-            }
-            rx.await
-        });
-
-        // Give it a moment to register
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Push event
-        server.push_event("test-poll", "hello world".to_string());
-
-        // Wait for result
-        let result = tokio::time::timeout(Duration::from_secs(2), waiter_task)
-            .await
-            .unwrap()
-            .unwrap()
+    #[tokio::test]
+    async fn there_is_no_http_route_to_push_events() {
+        let service = LongPollingService::new(Dispatcher::new());
+        let notify = Request::post("/notify/k")
+            .body(Full::<Bytes>::default())
             .unwrap();
-
-        assert_eq!(result, "hello world");
+        assert_eq!(service.handle(notify).await.status(), StatusCode::NOT_FOUND);
     }
 }
