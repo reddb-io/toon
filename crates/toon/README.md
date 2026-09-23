@@ -144,8 +144,13 @@ assert_eq!((indentation.kind(), indentation.column()), (ErrorKind::Indentation, 
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Numbers keep their integer digits verbatim, so a `u64` or larger survives a
-round trip (the TypeScript package rounds past `Number.MAX_SAFE_INTEGER`).
+Numbers read from TOON keep their integer digits verbatim in `Value`, and
+`toon -d` writes them to JSON unchanged, so an integer of any size survives
+TOON → `Value` → TOON and TOON → JSON. Paths that go through `serde_json` are
+exact only within `i64`/`u64`: `Value::from_json_str`, `from_json_value`, the
+`toon -e` JSON input, and `to_json_value` read a larger integer as the nearest
+`f64` (the TypeScript package rounds past `Number.MAX_SAFE_INTEGER` on every
+path).
 Non-integral numbers are written with shortest round-trip digits in the
 reference encoder's `Number#toString` layout: plain inside `[1e-6, 1e21)`,
 exponent form outside it (`5e-324`, `1e+21`), so both engines emit the same

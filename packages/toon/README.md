@@ -209,7 +209,7 @@ try {
 input-limit Line 1: array length exceeds maxArrayLength (10000)
 ```
 
-- Numbers follow the host. `decode` reads numbers as JavaScript numbers, so an integer beyond `Number.MAX_SAFE_INTEGER` rounds to the nearest double; `encode` writes a `bigint` outside that range as a quoted string, folds `-0` to `0`, turns `NaN` and `±Infinity` into `null`, and uses exponent form below `1e-6` and from `1e21` up, exactly like `Number#toString`. The Rust crate keeps integer digits verbatim instead, so a `u64` or larger survives there.
+- Numbers follow the host. `decode` reads numbers as JavaScript numbers, so an integer beyond `Number.MAX_SAFE_INTEGER` rounds to the nearest double; `encode` writes a `bigint` outside that range as a quoted string, folds `-0` to `0`, turns `NaN` and `±Infinity` into `null`, and uses exponent form below `1e-6` and from `1e21` up, exactly like `Number#toString`. The Rust crate keeps TOON integer digits verbatim instead, so its `toon -d` preserves an integer of any size; its JSON input stays exact only within `i64`/`u64`.
 
 ```js
 import { decode, encode } from '@reddb-io/toon'

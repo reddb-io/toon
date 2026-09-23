@@ -157,6 +157,25 @@ fn strict_decoding_rejects_ill_formed_bytes() {
     );
 }
 
+/// The Rust front end keeps integer tokens beyond i64/u64 exact when it writes
+/// JSON, where the TypeScript front end, like any f64 host, rounds them. Kept
+/// out of the shared golden corpus because the two ports differ by design.
+#[test]
+fn decode_writes_integers_beyond_u64_exactly() {
+    let workspace = TempWorkspace::empty("big-integers");
+    let run = run_toon_in(
+        &["-d".to_owned()],
+        "a: 18446744073709551616\nb: -1000000000000000000000000000001\nc: 1.5\nd: 5e-324\n",
+        workspace.path(),
+    );
+
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(run.stdout).expect("stdout is utf-8"),
+        "{\n  \"a\": 18446744073709551616,\n  \"b\": -1000000000000000000000000000001,\n  \"c\": 1.5,\n  \"d\": 5e-324\n}\n"
+    );
+}
+
 /// A decode that fails partway through must leave an existing `--output`
 /// untouched and no temporary file behind: the document is renamed into place
 /// only once it is complete.
