@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon-rpc-acp",
-  "version": "0.30.3",
+  "version": "0.30.4",
   "private": true,
   "description": "Client for this repository's own legacy, terminal ACP-style REST contract. Not IBM/BeeAI ACP, not Zed's Agent Client Protocol, not interoperable with either.",
   "type": "module",

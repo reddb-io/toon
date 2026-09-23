@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon-rpc",
-  "version": "0.30.3",
+  "version": "0.30.4",
   "private": true,
   "description": "Experimental TOON-RPC client and server under protocol recovery.",
   "type": "module",
