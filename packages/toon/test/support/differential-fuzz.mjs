@@ -29,6 +29,17 @@ const EDGE_STRINGS = [
   'nul\0unit\u001f',
   'e\u0301',
   '中🙂',
+  // Only U+0020 is trimmed (§12) and a leading U+FEFF is a byte-order mark:
+  // these are content the codec must carry through unchanged.
+  '\uFEFF',
+  '\uFEFF8',
+  '\uFEFF#x',
+  '\u00A0',
+  ' \u00A0x\u00A0',
+  '\u2028',
+  '\u3000y',
+  '\tlead',
+  'trail\t',
 ]
 const EDGE_KEYS = ['', ...EDGE_STRINGS.slice(4), ' spaced key ', 'a.b', 'a,b|c\td:e']
 
@@ -115,6 +126,8 @@ function matchesLedger(divergence, entry) {
 }
 
 function findDivergence(value, implementations, ledgerEntries = []) {
+  // The JSON-model value both engines must reproduce (§2).
+  const expected = JSON.parse(JSON.stringify(value))
   for (const delimiter of DELIMITERS) {
     let localWire
     let upstreamWire
@@ -124,8 +137,22 @@ function findDivergence(value, implementations, ledgerEntries = []) {
     } catch (error) {
       return { direction: 'encode-threw', delimiter, detail: error.message }
     }
+
+    // An oracle independent of upstream: agreeing with the reference is not
+    // enough when both engines share a bug, so the local wire must round-trip.
+    const roundTrip = outcome(implementations.local.decode, localWire)
+    if (!roundTrip.accepted || !isDeepStrictEqual(roundTrip.value, expected)) {
+      return { direction: 'roundtrip', delimiter, localWire, decoded: roundTrip }
+    }
+
     if (localWire !== upstreamWire) {
-      return { direction: 'encode-bytes', delimiter, localWire, upstreamWire }
+      // Differing bytes only count against us while the reference round-trips;
+      // where upstream loses data (e.g. toon-format/toon#339) the local wire wins.
+      const upstreamRoundTrip = outcome(implementations.upstream.decode, upstreamWire)
+      if (upstreamRoundTrip.accepted && isDeepStrictEqual(upstreamRoundTrip.value, expected)) {
+        return { direction: 'encode-bytes', delimiter, localWire, upstreamWire }
+      }
+      continue
     }
 
     for (const candidate of mutations(localWire)) {
