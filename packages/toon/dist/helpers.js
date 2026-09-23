@@ -32,3 +32,38 @@ export function projectFields(rows, fields) {
         return projected;
     });
 }
+/**
+ * Renders an MCP `tools/list` result as a compact TOON manifest for a prompt.
+ *
+ * Each tool keeps its name and description, and its input schema flattens to
+ * one tabular `params` row per property (`name,type,required,description`),
+ * which is where most of the JSON-Schema punctuation goes. The manifest is a
+ * prompt-facing summary, not a schema round-trip: nested object schemas are
+ * reduced to their type, and the host still validates calls against the full
+ * `inputSchema`.
+ */
+export function encodeToolManifest(tools, options = {}) {
+    return encode({ tools: tools.map(toolEntry) }, options);
+}
+function toolEntry(tool) {
+    const schema = tool.inputSchema ?? {};
+    const required = new Set(schema.required ?? []);
+    const params = Object.entries(schema.properties ?? {}).map(([name, property]) => ({
+        name,
+        type: schemaType(property),
+        required: required.has(name),
+        description: property?.description ?? '',
+    }));
+    return { name: tool.name, description: tool.description ?? '', params };
+}
+/** `string`, `array<integer>`, `string|null`, or `enum(a|b)`; `any` when unstated. */
+function schemaType(property) {
+    if (!property || typeof property !== 'object')
+        return 'any';
+    if (Array.isArray(property.enum))
+        return `enum(${property.enum.map(String).join('|')})`;
+    const type = Array.isArray(property.type) ? property.type.join('|') : property.type;
+    if (type === 'array')
+        return `array<${schemaType(property.items)}>`;
+    return type ?? 'any';
+}

@@ -37,7 +37,7 @@ export type {
   ResolvedDecodeOptions,
   ResolvedEncodeOptions,
 } from './types.js'
-export { appendSummaryField, projectFields } from './helpers.js'
+export { appendSummaryField, encodeToolManifest, projectFields } from './helpers.js'
 
 export const decode = decodeValue
 export { encode }
