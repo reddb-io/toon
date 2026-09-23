@@ -3,7 +3,7 @@
 //! Run with: cargo run --bin calculator_server
 
 use reddb_io_toon_rpc::{Dispatcher, Params};
-use reddb_io_toon_rpc_http::HttpService;
+use reddb_io_toon_rpc_http::HttpServer;
 use std::net::SocketAddr;
 
 fn extract_numbers(params: &Params) -> Result<Vec<f64>, reddb_io_toon_rpc::RpcError> {
@@ -71,7 +71,10 @@ fn build_dispatcher() -> Dispatcher {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let dispatcher = build_dispatcher();
     let addr: SocketAddr = "127.0.0.1:8080".parse()?;
-    let service = HttpService::new(dispatcher);
-    println!("Calculator HTTP server listening on http://{}", addr);
-    service.serve().await
+    let server = HttpServer::bind(addr, dispatcher).await?;
+    println!(
+        "Calculator HTTP server listening on http://{}",
+        server.local_addr()?
+    );
+    Ok(server.serve().await?)
 }
