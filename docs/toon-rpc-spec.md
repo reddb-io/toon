@@ -277,6 +277,13 @@ carries exactly one document; a multi-line document's lines are the event's
 arrives only on the event stream. Closing the event stream terminates the
 duplex transport.
 
+The servers in this repository bind the two legs with a `session` query
+parameter that the client chooses and sends on both the GET and every POST.
+A GET without a session is refused (400), a second GET for an open session is
+refused (409), and a POST for a session with no open stream is refused (404).
+The session ID is the only thing that ties a POST to a stream, so a client
+MUST choose an unguessable one; the Rust `SseTransport` generates 128 bits.
+
 When a direct request/response exchange completes without a valid response for
 its initiating call, the exchange is exhausted and that call terminates with a
 protocol error. The rule in section 5.1 that unmatched calls remain pending
