@@ -1,59 +1,62 @@
-//! Experimental stdio transport for the quarantined MCP prototype.
-//!
-//! Its current blank-line-delimited TOON framing is not MCP-conformant.
+//! The MCP stdio transport: newline-delimited JSON-RPC messages, one per
+//! line with no embedded newlines. Anything else the server prints must go to
+//! stderr.
 
-use crate::dispatcher::dispatch_mcp;
-use crate::McpService;
-use std::io::{self, BufRead, Write};
-use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
-/// Run an MCP server over stdio until EOF.
-///
-/// This entry point is retained for recovery tests only.
-/// Logs go to stderr; the wire protocol lives on stdin/stdout only.
-pub fn serve_stdio<S: McpService>(service: S) -> io::Result<()> {
-    let dispatcher = dispatch_mcp(Arc::new(service));
-    let stdin = io::stdin();
-    let mut stdout = io::stdout();
+use crate::{McpServer, McpService};
 
-    eprintln!("[toon-rpc-mcp] stdio server ready");
+/// Serve one MCP session on this process's stdin and stdout until stdin ends.
+pub async fn serve_stdio<S: McpService>(server: &McpServer<S>) -> std::io::Result<()> {
+    serve_lines(
+        server,
+        tokio::io::stdin(),
+        tokio::io::stdout(),
+        16 * 1024 * 1024,
+    )
+    .await
+}
 
-    let mut buffer = String::new();
-    for line in stdin.lock().lines() {
-        let line = line?;
-
-        // Empty line marks the end of a TOON message
-        if line.is_empty() {
-            if !buffer.is_empty() {
-                let response = match dispatcher.dispatch(buffer.trim().as_bytes()) {
-                    Ok(bytes) => {
-                        let mut s = String::from_utf8(bytes).unwrap_or_default();
-                        s.push_str("\n\n");
-                        s
-                    }
-                    Err(e) => {
-                        let err = serde_json::json!({
-                            "jsonrpc": "2.0",
-                            "error": {
-                                "code": -32603,
-                                "message": e.to_string()
-                            },
-                            "id": null
-                        });
-                        let mut s = err.to_string();
-                        s.push_str("\n\n");
-                        s
-                    }
-                };
-                stdout.write_all(response.as_bytes())?;
-                stdout.flush()?;
-                buffer.clear();
-            }
-        } else {
-            buffer.push_str(&line);
-            buffer.push('\n');
+/// Serve one MCP session over any line stream. A line longer than
+/// `max_line_bytes` ends the session with a JSON-RPC error.
+pub async fn serve_lines<S, R, W>(
+    server: &McpServer<S>,
+    input: R,
+    mut output: W,
+    max_line_bytes: usize,
+) -> std::io::Result<()>
+where
+    S: McpService,
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
+    let mut input = BufReader::new(input);
+    let mut line = Vec::new();
+    loop {
+        line.clear();
+        let read = (&mut input)
+            .take(max_line_bytes as u64 + 1)
+            .read_until(b'\n', &mut line)
+            .await?;
+        if read == 0 {
+            break;
+        }
+        if line.len() > max_line_bytes && line.last() != Some(&b'\n') {
+            let refusal = r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Message exceeds the size limit"}}"#;
+            output.write_all(refusal.as_bytes()).await?;
+            output.write_all(b"\n").await?;
+            break;
+        }
+        let text = String::from_utf8_lossy(&line);
+        let text = text.trim_end_matches(['\n', '\r']);
+        if text.trim().is_empty() {
+            continue;
+        }
+        if let Some(answer) = server.handle_line(text) {
+            output.write_all(answer.as_bytes()).await?;
+            output.write_all(b"\n").await?;
+            output.flush().await?;
         }
     }
-
-    Ok(())
+    output.shutdown().await
 }
