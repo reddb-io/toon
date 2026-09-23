@@ -13,6 +13,15 @@ now; this file is how it got there.
 
 ### Changed
 
+- **Rust decoding is 12–25× faster.** `decode` and the `Value` parsers ran the
+  grammar on a worker thread that handed every event across a rendezvous
+  channel, about 3.5 µs per key or value (tabular input decoded at about
+  1 MiB/s). `decode` now joins its big-stack worker once per call, and the
+  streaming `decode_iter` / `decode_event_reader` (and `toon -d`) move up to
+  256 events per handoff while still yielding before EOF and never reading
+  ahead of demand. See
+  [the decoder comparison](benchmarks/results/2026-09-23-rust-decoder-comparison.md).
+
 - **Breaking (Rust):** `DecodeStreamOptions` (alias `DecodeOptions`) gains the
   public fields `max_input_bytes`, `max_array_length` and `max_keys`, so a
   struct literal without `..Default::default()` no longer compiles. A limit
