@@ -45,6 +45,28 @@ variance.
 The 0.30.0 `decode` drove the same per-event channel as the streaming API, so
 its column is also the streaming baseline.
 
+### Byte scanning
+
+A profile of the fixed decoder (pprof, in-process sampling) showed about half
+of a tabular decode spent decoding UTF-8 one `char` at a time while looking for
+delimiters, quotes and colons. Those are all ASCII, and an ASCII byte never
+occurs inside a multi-byte UTF-8 sequence. The cell splitters, `find_unquoted`
+and the header-depth check now walk bytes, cells are borrowed slices, and
+quoted strings copy whole runs between escapes. Same bench, same run as
+toon-format:
+
+| Input | decode, before | decode, byte scanning | toon-format |
+| --- | ---: | ---: | ---: |
+| tabular, 1k rows | 20.8 | 29.5 | 21.7 |
+| tabular, 10k rows | 25.9 | 37.8 | 22.3 |
+| nested objects | 22.5 | 28.0 | 33.7 |
+| mixed list form | 21.8 | 28.1 | 29.9 |
+| long text | 97.5 | 212.8 | 178.4 |
+
+`reddb-io-toon` now leads toon-format on tabular data and long text, and trails
+it by 6–17% on nested objects and mixed lists. The remaining cost is
+structural: an owned event and `String` per key and value.
+
 ## Encode
 
 | Input | reddb-io-toon | toon-format |

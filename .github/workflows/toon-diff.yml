@@ -1,0 +1,56 @@
+name: Cross-implementation diff
+
+# Weekly toon-diff run (docs/upstream-monitoring.md): the upstream TypeScript
+# reference, @reddb-io/toon and the Rust toon CLI round-trip toon-diff's corpus
+# and mutated cases through every ordered engine pair. Report-only: it never
+# gates a release, and a failure is a finding to triage.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 9 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: toon-diff
+  cancel-in-progress: false
+
+env:
+  TOON_DIFF_REVISION: 7a42c58fe7b528feb00b1c0aef673cca9f1e1045
+  UPSTREAM_TOON_VERSION: 4.1.1
+
+jobs:
+  matrix:
+    name: Round-trip every engine pair
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.7.0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build the Rust toon CLI
+        run: cargo build --release --locked --bin toon
+      - name: Fetch toon-diff at the pinned revision
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/antrixy/toon-diff.git "$RUNNER_TEMP/toon-diff"
+          git -C "$RUNNER_TEMP/toon-diff" checkout --quiet "$TOON_DIFF_REVISION"
+          cp scripts/toon-diff/reddb-matrix.ts "$RUNNER_TEMP/toon-diff/"
+          cd "$RUNNER_TEMP/toon-diff"
+          npm install --no-save --ignore-scripts "@toon-format/toon@${UPSTREAM_TOON_VERSION}"
+      - name: Run the matrix
+        env:
+          REDDB_ROOT: ${{ github.workspace }}
+          REDDB_TOON_BIN: ${{ github.workspace }}/target/release/toon
+        run: |
+          set -o pipefail
+          cd "$RUNNER_TEMP/toon-diff"
+          for seed in 1 7; do
+            node --experimental-strip-types reddb-matrix.ts --per 200 --seed "$seed" | tee -a "$GITHUB_STEP_SUMMARY"
+          done

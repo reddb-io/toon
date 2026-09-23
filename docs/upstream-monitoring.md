@@ -59,8 +59,13 @@ remaining JSON-input limit is documented in the crate README. When an engine
 ingests through JSON, the expectation is the `f64` reading, so the TypeScript
 engines' documented `Number` domain is not reported.
 
-To repeat the run, clone toon-diff, install `@toon-format/toon@4.1.1`, and
-drive `probe/corpus.ts`, `gen/generate.ts` and `oracle/ingest.ts` with
-adapters that call `packages/toon/dist/index.js` and the `toon` binary
-(`-e`/`-d`). Raise the child-process output buffer: a 500×500 grid prints more
-than Node's default 1 MiB.
+The run is now a weekly workflow, `.github/workflows/toon-diff.yml` (Mondays,
+and on demand). It builds the Rust `toon` CLI, checks out toon-diff at a
+pinned revision, and copies in the driver from
+[`scripts/toon-diff/reddb-matrix.ts`](../scripts/toon-diff/reddb-matrix.ts).
+It then runs two generator seeds against the upstream TypeScript reference
+pinned in the workflow. The driver exits non-zero on any finding other than
+the documented numeric domain, and writes its report to the workflow summary.
+Like the drift check, it reports only and never gates a release. To run it
+locally, do the same from a toon-diff checkout, with `REDDB_ROOT` pointing at
+this repository and `REDDB_TOON_BIN` at a built `toon`.
