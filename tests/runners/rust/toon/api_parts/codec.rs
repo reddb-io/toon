@@ -1013,3 +1013,44 @@ fn deep_documents_error_instead_of_overflowing_small_stacks() {
     assert_eq!(outcome.1, Some(reddb_io_toon::ErrorKind::DepthLimit));
     assert!(!outcome.2);
 }
+
+/// JSON text keeps integers of any size: a document with one beyond `u64`
+/// takes the lossless reader, with serde_json's duplicate-key semantics (last
+/// value, first position) and error messages.
+#[test]
+fn json_text_keeps_integers_beyond_u64() {
+    let value = Value::from_json_str(
+        r#"{"a": 1000000000000000000000000000001, "b": [-99999999999999999999999, 1.5], "a": 2, "c": 18446744073709551616}"#,
+    )
+    .expect("valid JSON");
+    assert_eq!(
+        reddb_io_toon::encode(&value).expect("encode"),
+        "a: 2\nb[2]: -99999999999999999999999,1.5\nc: 18446744073709551616"
+    );
+    let big = Value::from_json_str("[100000000000000000000000000000]").expect("valid JSON");
+    assert_eq!(reddb_io_toon::encode(&big).expect("encode"), "[1]: 100000000000000000000000000000");
+
+    for (input, message) in [
+        ("[1e309, 100000000000000000000]", "number out of range"),
+        ("{\"a\":100000000000000000000", "EOF while parsing an object"),
+        ("[.5, 100000000000000000000]", "expected value"),
+    ] {
+        let error = Value::from_json_str(input).expect_err(input).to_string();
+        assert!(error.contains(message), "{input}: {error}");
+    }
+}
+
+/// Decimals keep their precision too: a token with more digits than an f64
+/// holds is canonicalized in exact decimal arithmetic, while one with shortest
+/// round-trip digits prints exactly as JavaScript prints it.
+#[test]
+fn decimals_keep_their_precision_and_their_javascript_layout() {
+    let value = Value::from_json_str(
+        r#"{"a": 9007199254740993.0, "b": 0.1000000000000000055511151231257827, "c": 1000000000000000000000000000001.00, "d": 0.30000000000000004, "e": 1.5e-7, "f": 1e21}"#,
+    )
+    .expect("valid JSON");
+    assert_eq!(
+        reddb_io_toon::encode(&value).expect("encode"),
+        "a: 9007199254740993\nb: 0.1000000000000000055511151231257827\nc: 1.000000000000000000000000000001e+30\nd: 0.30000000000000004\ne: 1.5e-7\nf: 1e+21"
+    );
+}

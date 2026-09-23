@@ -7,9 +7,10 @@
 //   REDDB_ROOT=<repo> REDDB_TOON_BIN=<toon binary> \
 //     node --experimental-strip-types reddb-matrix.ts [--per 200] [--seed 1]
 //
-// Exit 0 when every ordered engine pair round-trips every case; the one
-// tolerated class is the documented numeric domain (JSON integers beyond
-// i64/u64 read as f64). Exit 1 on any other finding.
+// Exit 0 when every ordered engine pair round-trips every case, with numbers
+// compared exactly between the Rust engines (which keep integers of any size)
+// and by their f64 reading whenever a JavaScript engine is involved. Exit 1 on
+// any finding.
 import { spawnSync } from "node:child_process";
 import { encode as upEncode, decode as upDecode } from "@toon-format/toon";
 import { loadCorpus } from "./probe/corpus.ts";
@@ -62,7 +63,6 @@ corpus.byBucket.seeds.forEach((seed, si) => {
   }
 });
 
-const NUMERIC_DOMAIN = "value changed (numbers beyond i64/u64 read as f64)";
 const findings = new Map<string, { count: number; example: string }>();
 let checks = 0;
 for (const c of cases) {
@@ -83,7 +83,7 @@ for (const c of cases) {
       try {
         const back = ingest(Y.decode(wire));
         if (!equal(back, expected)) {
-          record(`${X.name} -> ${Y.name}: ${equal(back, viaF64) ? NUMERIC_DOMAIN : "value changed"}`, c, wire);
+          record(`${X.name} -> ${Y.name}: value changed`, c, wire);
         }
       } catch (e) {
         record(`${X.name} -> ${Y.name}: decode threw: ${(e as Error).message.split("\n")[0]}`, c, wire);
@@ -98,11 +98,10 @@ function record(kind: string, c: { label: string; text: string }, wire: string) 
   else findings.set(kind, { count: 1, example: `${c.label}\n    json: ${c.text.slice(0, 240)}\n    wire: ${JSON.stringify(wire.slice(0, 240))}` });
 }
 
-const unexpected = [...findings].filter(([kind]) => !kind.endsWith(NUMERIC_DOMAIN));
 console.log(`## toon-diff matrix\n`);
 console.log(`cases=${cases.length} engines=${engines.map((e) => e.name).join(",")} pairChecks=${checks}`);
-console.log(`findings: ${findings.size} classes, ${unexpected.length} unexpected\n`);
+console.log(`findings: ${findings.size} classes\n`);
 for (const [kind, { count, example }] of [...findings].sort((a, b) => b[1].count - a[1].count)) {
-  console.log(`- [${count}] ${kind}${kind.endsWith(NUMERIC_DOMAIN) ? " (tolerated: documented numeric domain)" : ""}\n  ${example}`);
+  console.log(`- [${count}] ${kind}\n  ${example}`);
 }
-process.exit(unexpected.length === 0 ? 0 : 1);
+process.exit(findings.size === 0 ? 0 : 1);

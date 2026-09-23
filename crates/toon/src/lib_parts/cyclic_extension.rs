@@ -110,7 +110,9 @@ fn canonical_number(value: &str) -> String {
     if !number.is_finite() {
         return value.to_owned();
     }
-    js_number_text(number)
+    // Exact decimal layout: a lexeme with more precision than an f64 keeps it,
+    // and one with shortest round-trip digits prints exactly as JavaScript does.
+    exact_decimal_text(value).unwrap_or_else(|| js_number_text(number))
 }
 
 /// ECMAScript `Number::toString` for a finite, non-zero `f64`.
@@ -120,12 +122,40 @@ fn js_number_text(number: f64) -> String {
     let (mantissa, exponent) = scientific
         .split_once('e')
         .expect("LowerExp output carries an exponent");
-    let exponent: i32 = exponent.parse().expect("LowerExp exponent is an integer");
+    let exponent: i64 = exponent.parse().expect("LowerExp exponent is an integer");
     let digits: String = mantissa.chars().filter(|&c| c != '.').collect();
-    let k = digits.len() as i32;
     // The value is 0.d1d2…dk × 10^n.
-    let n = exponent + 1;
+    decimal_layout(&digits, exponent + 1, number < 0.0)
+}
 
+/// The same layout computed on the token's own digits, without an f64: exact
+/// for any precision. `None` when the exponent does not fit an `i64`.
+fn exact_decimal_text(token: &str) -> Option<String> {
+    let (negative, body) = match token.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, token),
+    };
+    let (mantissa, exponent) = match body.find(['e', 'E']) {
+        Some(at) => (&body[..at], body[at + 1..].parse::<i64>().ok()?),
+        None => (body, 0),
+    };
+    let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    let all = format!("{whole}{fraction}");
+    let significant = all.trim_start_matches('0');
+    let leading = (all.len() - significant.len()) as i64;
+    let digits = significant.trim_end_matches('0');
+    if digits.is_empty() {
+        return Some("0".to_owned());
+    }
+    // The value is 0.d1d2…dk × 10^n.
+    let n = (whole.len() as i64).checked_add(exponent)?.checked_sub(leading)?;
+    Some(decimal_layout(digits, n, negative))
+}
+
+/// ECMAScript's Number-to-string layout for 0.d1d2…dk × 10^n: plain inside
+/// [1e-6, 1e21), exponent form with an explicit sign outside it.
+fn decimal_layout(digits: &str, n: i64, negative: bool) -> String {
+    let k = digits.len() as i64;
     let body = if k <= n && n <= 21 {
         format!("{digits}{}", "0".repeat((n - k) as usize))
     } else if 0 < n && n <= 21 {
@@ -140,11 +170,12 @@ fn js_number_text(number: f64) -> String {
         } else {
             format!(".{rest}")
         };
+        let exponent = n - 1;
         let sign = if exponent < 0 { '-' } else { '+' };
         format!("{first}{fraction}e{sign}{}", exponent.unsigned_abs())
     };
 
-    if number < 0.0 {
+    if negative {
         format!("-{body}")
     } else {
         body

@@ -613,7 +613,13 @@ impl Value {
         decode_with_options(input, options)
     }
 
+    /// Reads JSON text into the TOON model. Integers of any size keep their
+    /// digits: a document holding one beyond `i64`/`u64` takes a lossless
+    /// reader, and everything else goes straight through serde_json.
     pub fn from_json_str(input: &str) -> Result<Self, serde_json::Error> {
+        if has_long_digit_run(input) {
+            return lossless_json_value(input);
+        }
         serde_json::from_str(input).map(Self::from_json_value)
     }
 
