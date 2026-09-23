@@ -37,6 +37,10 @@
     "./stdio": {
       "types": "./dist/stdio.d.ts",
       "import": "./dist/stdio.js"
+    },
+    "./serve": {
+      "types": "./dist/serve.d.ts",
+      "import": "./dist/serve.js"
     }
   },
   "types": "./dist/index.d.ts",
