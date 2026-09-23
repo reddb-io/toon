@@ -63,7 +63,7 @@ v4.1.1 checkpoint (`vendor/toon-spec` at `62f16b3`, `vendor/toon` at `a9e6d97`)
 Rust crate `reddb-io-toon` and the JS package `@reddb-io/toon`) target the full
 official v4 fixture corpus at that checkpoint. Explicit expected-failure
 ledgers make current coverage reproducible without turning the program target
-into a blanket parity claim. v4.1
+into a blanket parity claim. v4.0
 absorbed two mechanisms this repository once defined as extensions — nested
 tabular headers (nested field groups, RFC spec#46) and keyed-map collapse (keyed
 tabular form, RFC spec#57) — so those are now part of the baseline rather than
@@ -91,7 +91,7 @@ The userland features have explicit, per-feature boundaries:
   syntax errors for a spec-only v4.1 decoder, so a document using them is
   rejected rather than misread. (Nested tabular headers and keyed-map collapse
   are no longer fail-closed extensions: their forms were absorbed into the
-  official spec at v4.1 and a conformant v4.1 decoder reads them natively.)
+  official spec at v4.0 and a conformant v4.1 decoder reads them natively.)
   Cyclic discriminated arrays deliberately use ordinary TOON syntax; a strict
   v4.1 decoder reads the literal grouped object and does not reconstruct the
   source array.
@@ -122,7 +122,7 @@ tabular headers carry the same declaration after the keyed marker, for example
 
 ## Extension 1 — Nested tabular headers
 
-> **Design history — absorbed by the official spec at v4.1.** This mechanism was adopted into the official TOON specification at v4.1 (as *nested field groups*, upstream RFC [toon-format/spec#46](https://github.com/toon-format/spec/issues/46)). The official v4.1 syntax and semantics now govern; the description below is retained as design history of how the reddb flavor first shipped it, and the [proposal](proposals/nested-tabular-headers.md) records the motivation, frozen grammar, and measured numbers. Canonical encoders select the official form automatically.
+> **Design history — absorbed by the official spec at v4.0.** This mechanism was adopted into the official TOON specification at v4.0 (as *nested field groups*, upstream RFC [toon-format/spec#46](https://github.com/toon-format/spec/issues/46)). The official v4.1 syntax and semantics now govern; the description below is retained as design history of how the reddb flavor first shipped it, and the [proposal](proposals/nested-tabular-headers.md) records the motivation, frozen grammar, and measured numbers. Canonical encoders select the official form automatically.
 
 The tabular form (`key[N]{fields}:`) requires every column to be a primitive.
 This extension lets a column itself be a uniform nested object, declared
@@ -172,12 +172,12 @@ Rules:
   paths) MUST be reported as parse errors with the header's line number.
 - An encoder with the option enabled emits this form only when every record in the
   array has the same shape recursively (same key sets at every level, all leaves
-  primitive). Any mismatch falls back to the standard expanded list form — never a
+  primitive). Any mismatch falls back to the standard list form — never a
   hard error.
 
 ## Extension 2 — Keyed-map collapse
 
-> **Design history — absorbed by the official spec at v4.1.** This mechanism was adopted into the official TOON specification at v4.1 (as the *keyed tabular form*, upstream RFC [toon-format/spec#57](https://github.com/toon-format/spec/issues/57)). The official v4.1 syntax and semantics now govern; the description below is retained as design history, and the [proposal](proposals/keyed-map-collapse.md) documents the earlier no-count trade-off. Canonical encoders now select the official counted form automatically.
+> **Design history — absorbed by the official spec at v4.0.** This mechanism was adopted into the official TOON specification at v4.0 (as the *keyed tabular form*, upstream RFC [toon-format/spec#57](https://github.com/toon-format/spec/issues/57)). The official v4.1 syntax and semantics now govern; the description below is retained as design history, and the [proposal](proposals/keyed-map-collapse.md) documents the earlier no-count trade-off. Canonical encoders now select the official counted form automatically.
 
 *Origin: upstream RFC [toon-format/spec#57](https://github.com/toon-format/spec/issues/57).*
 
@@ -232,7 +232,7 @@ config:
 Rules:
 
 - The header is `key{fields}:` — object-typed because there is **no `[N]`
-  segment**. Before v4.1 absorbed this form, a strict spec-only decoder rejected
+  segment**. Before v4.0 absorbed this form, a strict spec-only decoder rejected
   it (fail-closed) instead of reading a different shape; a conformant v4.1
   decoder now reads it natively.
 - Each row is `mapKey: cells`, one line per entry, indented one level. Map keys in
@@ -269,7 +269,7 @@ because a non-collapsed map is just standard TOON v4.1.
 
 > **Proposal history:** [Primitive-array columns](proposals/primitive-array-columns.md) — **stage 4 (graduated)**, landed via [#100](https://github.com/reddb-io/toon/pull/100) / [#101](https://github.com/reddb-io/toon/pull/101). The proposal carries the frozen grammar, the per-cell list-length caveat, and the measured token/byte wins.
 
-Uniform object arrays sometimes contain fields whose values are arrays of
+Arrays of uniform objects sometimes contain fields whose values are arrays of
 primitive scalars. TOON v4.1 cannot keep that containing array tabular, because
 the array-valued field is not itself primitive. This extension lets an otherwise
 tabular object array declare such a field as a primitive-list cell:
@@ -288,7 +288,7 @@ This decodes to:
 
 Grammar:
 
-- In an array field header, `field[;]` declares `field` as a primitive-list cell.
+- In a tabular header's field list, `field[;]` declares `field` as a primitive-list cell.
 - The bracket content is the in-cell sub-delimiter. The encoder currently emits
   `;`, which is valid with every active row delimiter (`comma`, `tab`, or `pipe`).
 - Row cells still use the array header's active row delimiter. The list
@@ -327,7 +327,7 @@ malformed quoted subcell is still rejected by the quote scanner.
 
 > **Proposal history:** [Child tables + matrix](proposals/child-tables-and-matrix.md) — **stage 4 (graduated)**, landed via [#102](https://github.com/reddb-io/toon/pull/102) / [#103](https://github.com/reddb-io/toon/pull/103). The proposal covers the recursive child-table grammar and documents the fixed-width matrix form as *not recommended* for a token win.
 
-Uniform object arrays sometimes contain fields whose values are themselves
+Arrays of uniform objects sometimes contain fields whose values are themselves
 arrays of uniform objects. TOON v4.1 must expand the parent rows because the
 child array is not primitive. This extension keeps the parent table and emits
 the child rows immediately below the parent row. The parent cell stores the

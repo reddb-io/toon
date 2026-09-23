@@ -12,7 +12,7 @@ TOON v4.1 is strongest when an array of objects can be written as one table.
 Discriminated object arrays and nested heterogeneous arrays often miss that
 path: rows share a prefix of common fields, then diverge by `type`, `kind`,
 `action`, or a variant-specific object key. Current TOON therefore falls back
-to expanded list form and repeats common keys on every row. In the current
+to list form and repeats common keys on every row. In the current
 benchmarks this is visible in `benchmarks/datasets/tagged-records` and
 `benchmarks/datasets/nested-heterogeneous`.
 
