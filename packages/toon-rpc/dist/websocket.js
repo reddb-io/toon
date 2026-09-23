@@ -12,12 +12,14 @@
  * global is absent (Node below 22, or to inject a test double).
  */
 import { DocumentQueue, abortError, asTransportError, raceSignal } from './internal.js';
+import { resolveLimits } from './limits.js';
 const WS_OPEN = 1;
 export class WebSocketTransport {
     kind = 'duplex';
     url;
     implementation;
-    documents = new DocumentQueue();
+    documents;
+    maxMessageBytes;
     socket;
     openPromise;
     closePromise;
@@ -28,6 +30,9 @@ export class WebSocketTransport {
     failure;
     constructor(options) {
         this.url = String(options.url);
+        const limits = resolveLimits(options.limits);
+        this.documents = new DocumentQueue(limits.maxQueuedDocuments);
+        this.maxMessageBytes = limits.maxFrameBytes;
         const implementation = options.webSocket ?? globalThis.WebSocket;
         if (!implementation) {
             throw new Error('No WebSocket implementation available; pass options.webSocket');
@@ -107,6 +112,16 @@ export class WebSocketTransport {
             });
             socket.addEventListener('message', (event) => {
                 const document = normalizeFramePayload(event.data);
+                if (document instanceof Uint8Array && document.length > this.maxMessageBytes) {
+                    this.failWith(new Error('TOON-RPC WebSocket message exceeds the size limit'));
+                    try {
+                        socket.close(1009, 'message too big');
+                    }
+                    catch {
+                        // The failure is already recorded; closing is best-effort.
+                    }
+                    return;
+                }
                 if (document instanceof Uint8Array) {
                     this.documents.push(document);
                     return;

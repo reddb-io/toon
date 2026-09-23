@@ -16,6 +16,8 @@
  * framing error, and a decoder MUST fail the stream rather than resynchronize.
  */
 
+import { DEFAULT_LIMITS } from './limits.js';
+
 /** Longest accepted length header: 15 digits keeps the value a safe integer. */
 const MAX_LENGTH_DIGITS = 15;
 
@@ -45,9 +47,19 @@ export function encodeFrame(document: Uint8Array): Uint8Array {
  * documents out. A framing violation throws and poisons the decoder —
  * the stream has no recoverable resynchronization point.
  */
+export interface FrameDecoderOptions {
+  /** Largest accepted payload; defaults to `DEFAULT_LIMITS.maxFrameBytes`. */
+  maxFrameBytes?: number;
+}
+
 export class FrameDecoder {
   private buffer: Uint8Array = new Uint8Array(0);
   private failure: FramingError | undefined;
+  private readonly maxFrameBytes: number;
+
+  constructor(options: FrameDecoderOptions = {}) {
+    this.maxFrameBytes = options.maxFrameBytes ?? DEFAULT_LIMITS.maxFrameBytes;
+  }
 
   /** Append a chunk and return every document completed by it, in order. */
   push(chunk: Uint8Array): Uint8Array[] {
@@ -98,6 +110,9 @@ export class FrameDecoder {
     }
     if (headerEnd > 1 && this.buffer[0] === DIGIT_0) {
       throw this.fail('frame length has a leading zero');
+    }
+    if (length > this.maxFrameBytes) {
+      throw this.fail('frame payload exceeds the size limit');
     }
 
     const frameEnd = headerEnd + 1 + length;

@@ -60,6 +60,7 @@ fn collecting() -> (ClientOptions, Arc<Mutex<Vec<ClientDiagnostic>>>) {
         on_diagnostic: Some(Arc::new(move |diagnostic: &ClientDiagnostic| {
             sink.lock().unwrap().push(diagnostic.clone())
         })),
+        ..ClientOptions::default()
     };
     (options, diagnostics)
 }

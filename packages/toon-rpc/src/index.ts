@@ -17,21 +17,31 @@ import type {
   ResponseError,
 } from './protocol.js';
 import { RpcError } from './rpc-error.js';
+import { DEFAULT_LIMITS } from './limits.js';
 
 export * from './protocol.js';
 export * from './client.js';
 export * from './rpc-error.js';
 export * from './transport.js';
 export * from './framing.js';
+export * from './limits.js';
 
 export interface MethodHandler {
   (params: Params | undefined, id: Id | undefined): Promise<CoreValue>;
 }
 
+export interface ServerOptions {
+  /** Most entries a batch may hold; defaults to `DEFAULT_LIMITS.maxBatchLength`. */
+  maxBatchLength?: number;
+}
+
 export class Server {
   private methods = new Map<string, MethodHandler>();
+  private readonly maxBatchLength: number;
 
-  constructor() {}
+  constructor(options: ServerOptions = {}) {
+    this.maxBatchLength = options.maxBatchLength ?? DEFAULT_LIMITS.maxBatchLength;
+  }
 
   register(method: string, handler: MethodHandler): void {
     this.methods.set(method, handler);
@@ -64,6 +74,9 @@ export class Server {
     const entries = isBatch ? (value as unknown[]) : [value];
     if (entries.length === 0) {
       return encodeResponse(invalidRequest('empty batch'));
+    }
+    if (entries.length > this.maxBatchLength) {
+      return encodeResponse(invalidRequest('batch too large'));
     }
 
     const responses: Response[] = [];

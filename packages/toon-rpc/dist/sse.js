@@ -12,6 +12,7 @@
  */
 import { TOON_RPC_CONTENT_TYPE } from './http.js';
 import { DocumentQueue, abortError, asTransportError, raceSignal } from './internal.js';
+import { resolveLimits } from './limits.js';
 export class SseTransportError extends Error {
     status;
     constructor(status, statusText) {
@@ -26,7 +27,8 @@ export class SseTransport {
     postUrl;
     headers;
     fetchImpl;
-    documents = new DocumentQueue();
+    documents;
+    maxEventBytes;
     lifetime = new AbortController();
     openPromise;
     pumpPromise;
@@ -37,6 +39,9 @@ export class SseTransport {
         this.postUrl = String(options.postUrl ?? options.url);
         this.headers = { ...options.headers };
         this.fetchImpl = options.fetch ?? fetch;
+        const limits = resolveLimits(options.limits);
+        this.documents = new DocumentQueue(limits.maxQueuedDocuments);
+        this.maxEventBytes = limits.maxFrameBytes;
     }
     open(options) {
         this.openPromise ??= raceSignal(this.connect(), options?.signal);
@@ -88,7 +93,7 @@ export class SseTransport {
         const reader = body.getReader();
         const parser = new SseEventParser((data) => {
             this.documents.push(new TextEncoder().encode(data));
-        });
+        }, this.maxEventBytes);
         try {
             for (;;) {
                 const { done, value } = await reader.read();
@@ -115,19 +120,27 @@ export function createSseTransport(options) {
 /** Minimal SSE parser: only complete events with data dispatch a document. */
 class SseEventParser {
     onEvent;
+    maxEventBytes;
     decoder = new TextDecoder('utf-8');
     buffer = '';
     dataLines = [];
     hasData = false;
-    constructor(onEvent) {
+    pendingLength = 0;
+    constructor(onEvent, maxEventBytes) {
         this.onEvent = onEvent;
+        this.maxEventBytes = maxEventBytes;
     }
     push(chunk) {
         this.buffer += this.decoder.decode(chunk, { stream: true });
         for (;;) {
             const lineEnd = this.buffer.indexOf('\n');
-            if (lineEnd === -1)
+            if (lineEnd === -1) {
+                // Characters, not bytes: a UTF-16 length never exceeds the UTF-8 one.
+                if (this.pendingLength + this.buffer.length > this.maxEventBytes) {
+                    throw new Error('TOON-RPC SSE event exceeds the size limit');
+                }
                 return;
+            }
             let line = this.buffer.slice(0, lineEnd);
             this.buffer = this.buffer.slice(lineEnd + 1);
             if (line.endsWith('\r'))
@@ -141,6 +154,7 @@ class SseEventParser {
                 this.onEvent(this.dataLines.join('\n'));
             this.dataLines = [];
             this.hasData = false;
+            this.pendingLength = 0;
             return;
         }
         if (line.startsWith(':'))
@@ -154,6 +168,10 @@ class SseEventParser {
             value = value.slice(1);
         this.dataLines.push(value);
         this.hasData = true;
+        this.pendingLength += value.length + 1;
+        if (this.pendingLength > this.maxEventBytes) {
+            throw new Error('TOON-RPC SSE event exceeds the size limit');
+        }
     }
 }
 //# sourceMappingURL=sse.js.map

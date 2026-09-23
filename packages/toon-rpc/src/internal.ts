@@ -1,4 +1,5 @@
 import type { TransportOperationOptions } from './transport.js';
+import { DEFAULT_LIMITS } from './limits.js';
 
 /**
  * Single-consumer document queue backing every duplex transport's receive
@@ -14,12 +15,19 @@ export class DocumentQueue {
   private failure: Error | undefined;
   private consumed = false;
 
+  constructor(private readonly capacity: number = DEFAULT_LIMITS.maxQueuedDocuments) {}
+
+  /** Queue a document. Past capacity the stream fails instead of growing. */
   push(document: Uint8Array): void {
     if (this.ended) return;
     if (this.waiter) {
       const waiter = this.waiter;
       this.waiter = undefined;
       waiter.resolve({ value: document, done: false });
+      return;
+    }
+    if (this.items.length >= this.capacity) {
+      this.fail(new Error('TOON-RPC receive queue overflow'));
       return;
     }
     this.items.push(document);

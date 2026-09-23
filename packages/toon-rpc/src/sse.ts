@@ -14,6 +14,8 @@
 import type { DuplexTransport, TransportOperationOptions } from './transport.js';
 import { TOON_RPC_CONTENT_TYPE } from './http.js';
 import { DocumentQueue, abortError, asTransportError, raceSignal } from './internal.js';
+import { resolveLimits } from './limits.js';
+import type { Limits } from './limits.js';
 
 export interface SseTransportOptions {
   /** The event-stream URL documents are received from. */
@@ -23,6 +25,8 @@ export interface SseTransportOptions {
   headers?: Record<string, string>;
   /** Injectable fetch implementation; defaults to the global fetch. */
   fetch?: typeof fetch;
+  /** Event size and receive queue caps; defaults to `DEFAULT_LIMITS`. */
+  limits?: Partial<Pick<Limits, 'maxFrameBytes' | 'maxQueuedDocuments'>>;
 }
 
 export class SseTransportError extends Error {
@@ -41,7 +45,8 @@ export class SseTransport implements DuplexTransport {
   private readonly postUrl: string;
   private readonly headers: Record<string, string>;
   private readonly fetchImpl: typeof fetch;
-  private readonly documents = new DocumentQueue();
+  private readonly documents: DocumentQueue;
+  private readonly maxEventBytes: number;
   private readonly lifetime = new AbortController();
   private openPromise: Promise<void> | undefined;
   private pumpPromise: Promise<void> | undefined;
@@ -53,6 +58,9 @@ export class SseTransport implements DuplexTransport {
     this.postUrl = String(options.postUrl ?? options.url);
     this.headers = { ...options.headers };
     this.fetchImpl = options.fetch ?? fetch;
+    const limits = resolveLimits(options.limits);
+    this.documents = new DocumentQueue(limits.maxQueuedDocuments);
+    this.maxEventBytes = limits.maxFrameBytes;
   }
 
   open(options?: TransportOperationOptions): Promise<void> {
@@ -106,7 +114,7 @@ export class SseTransport implements DuplexTransport {
     const reader = body.getReader();
     const parser = new SseEventParser((data) => {
       this.documents.push(new TextEncoder().encode(data));
-    });
+    }, this.maxEventBytes);
     try {
       for (;;) {
         const { done, value } = await reader.read();
@@ -136,13 +144,24 @@ class SseEventParser {
   private dataLines: string[] = [];
   private hasData = false;
 
-  constructor(private readonly onEvent: (data: string) => void) {}
+  private pendingLength = 0;
+
+  constructor(
+    private readonly onEvent: (data: string) => void,
+    private readonly maxEventBytes: number
+  ) {}
 
   push(chunk: Uint8Array): void {
     this.buffer += this.decoder.decode(chunk, { stream: true });
     for (;;) {
       const lineEnd = this.buffer.indexOf('\n');
-      if (lineEnd === -1) return;
+      if (lineEnd === -1) {
+        // Characters, not bytes: a UTF-16 length never exceeds the UTF-8 one.
+        if (this.pendingLength + this.buffer.length > this.maxEventBytes) {
+          throw new Error('TOON-RPC SSE event exceeds the size limit');
+        }
+        return;
+      }
       let line = this.buffer.slice(0, lineEnd);
       this.buffer = this.buffer.slice(lineEnd + 1);
       if (line.endsWith('\r')) line = line.slice(0, -1);
@@ -155,6 +174,7 @@ class SseEventParser {
       if (this.hasData) this.onEvent(this.dataLines.join('\n'));
       this.dataLines = [];
       this.hasData = false;
+      this.pendingLength = 0;
       return;
     }
     if (line.startsWith(':')) return;
@@ -165,5 +185,9 @@ class SseEventParser {
     if (value.startsWith(' ')) value = value.slice(1);
     this.dataLines.push(value);
     this.hasData = true;
+    this.pendingLength += value.length + 1;
+    if (this.pendingLength > this.maxEventBytes) {
+      throw new Error('TOON-RPC SSE event exceeds the size limit');
+    }
   }
 }

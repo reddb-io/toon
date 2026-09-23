@@ -1279,6 +1279,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "reddb-io-toon-rpc",
+ "reddb-io-toon-rpc-http",
  "serde_json",
  "tokio",
 ]

@@ -5,11 +5,14 @@ import type { TransportOperationOptions } from './transport.js';
  * them, and end/fail settle the stream deterministically.
  */
 export declare class DocumentQueue {
+    private readonly capacity;
     private readonly items;
     private waiter;
     private ended;
     private failure;
     private consumed;
+    constructor(capacity?: number);
+    /** Queue a document. Past capacity the stream fails instead of growing. */
     push(document: Uint8Array): void;
     /** End the stream cleanly; queued documents are still delivered first. */
     end(): void;

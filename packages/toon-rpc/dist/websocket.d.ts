@@ -12,6 +12,7 @@
  * global is absent (Node below 22, or to inject a test double).
  */
 import type { DuplexTransport, TransportOperationOptions } from './transport.js';
+import type { Limits } from './limits.js';
 interface WebSocketLike {
     readonly readyState: number;
     binaryType: string;
@@ -29,12 +30,15 @@ export interface WebSocketTransportOptions {
     url: string | URL;
     /** WebSocket implementation; defaults to the global WebSocket. */
     webSocket?: WebSocketConstructor;
+    /** Message size and receive queue caps; defaults to `DEFAULT_LIMITS`. */
+    limits?: Partial<Pick<Limits, 'maxFrameBytes' | 'maxQueuedDocuments'>>;
 }
 export declare class WebSocketTransport implements DuplexTransport {
     readonly kind: "duplex";
     private readonly url;
     private readonly implementation;
     private readonly documents;
+    private readonly maxMessageBytes;
     private socket;
     private openPromise;
     private closePromise;

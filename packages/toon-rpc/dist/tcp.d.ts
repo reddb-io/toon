@@ -9,11 +9,14 @@
  */
 import * as net from 'node:net';
 import type { DuplexTransport, TransportOperationOptions } from './transport.js';
+import type { Limits } from './limits.js';
 export interface TcpTransportOptions {
     host?: string;
     port?: number;
     /** Injectable socket factory; defaults to net.createConnection(port, host). */
     connect?: () => net.Socket;
+    /** Frame size and receive queue caps; defaults to `DEFAULT_LIMITS`. */
+    limits?: Partial<Pick<Limits, 'maxFrameBytes' | 'maxQueuedDocuments'>>;
 }
 export declare class TcpTransport implements DuplexTransport {
     readonly kind: "duplex";
