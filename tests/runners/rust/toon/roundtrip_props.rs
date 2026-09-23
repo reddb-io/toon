@@ -67,8 +67,10 @@ fn number_eq(left: &serde_json::Number, right: &serde_json::Number) -> bool {
 /// Characters that push the encoder onto every branch of its quoting decision:
 /// the delimiter, the quote itself, escapes, structural punctuation,
 /// whitespace that is significant at a line edge, C0 controls, and multi-byte
-/// codepoints (including one above the BMP).
-const SPICY: &str = "\"'\\,:[]{}# \t\n\r\u{0}\u{1f}\u{7f}áé中🙂";
+/// codepoints (including one above the BMP), plus the byte-order mark and the
+/// Unicode whitespace that §12 token trimming must leave alone.
+const SPICY: &str =
+    "\"'\\,:[]{}# \t\n\r\u{0}\u{1f}\u{7f}áé中🙂\u{feff}\u{a0}\u{2028}\u{3000}";
 
 fn key_strategy() -> impl Strategy<Value = String> {
     prop_oneof![
@@ -175,4 +177,56 @@ proptest! {
             .expect("re-encode");
         prop_assert_eq!(re_encoded, wire);
     }
+
+    #[test]
+    fn root_strings_round_trip(text in root_string_strategy()) {
+        let json = serde_json::Value::String(text);
+        let wire = Value::from_json_value(json.clone())
+            .try_to_canonical_toon()
+            .expect("canonical encode");
+        let decoded = Value::parse_toon(&wire).expect("decode of self-produced wire").to_json_value();
+        prop_assert_eq!(decoded, json, "wire {:?}", wire);
+    }
+
+    /// Arbitrary text and damaged self-produced wires may be rejected, but the
+    /// decoder must answer with a value or an error, never a panic.
+    #[test]
+    fn decoding_never_panics(
+        text in any::<String>(),
+        json in document_strategy(),
+        cut in any::<prop::sample::Index>(),
+        noise in prop::sample::select(SPICY.chars().collect::<Vec<_>>()),
+    ) {
+        let _ = Value::parse_toon(&text);
+        let wire = Value::from_json_value(json)
+            .try_to_canonical_toon()
+            .expect("canonical encode");
+        let boundaries: Vec<usize> = wire
+            .char_indices()
+            .map(|(index, _)| index)
+            .chain(std::iter::once(wire.len()))
+            .collect();
+        let at = boundaries[cut.index(boundaries.len())];
+        let _ = Value::parse_toon(&wire[..at]);
+        let mut damaged = wire.clone();
+        damaged.insert(at, noise);
+        let _ = Value::parse_toon(&damaged);
+    }
+}
+
+/// Root strings, where a leading U+FEFF would read as a byte-order mark and a
+/// whitespace-only line would read as blank.
+fn root_string_strategy() -> impl Strategy<Value = String> {
+    prop_oneof![
+        string_strategy(),
+        prop::collection::vec(
+            prop::sample::select(SPICY.chars().collect::<Vec<_>>()),
+            0..6
+        )
+        .prop_map(|chars| chars.into_iter().collect()),
+        Just("\u{feff}".to_owned()),
+        Just("\u{feff}8".to_owned()),
+        Just("\u{a0}".to_owned()),
+        Just("\u{3000}".to_owned()),
+    ]
 }
