@@ -17,13 +17,17 @@
  *    boundary in both directions, so an unmodified JSON-RPC stack (e.g. an ACP
  *    connection) rides either dialect. A batch passes through as an array with
  *    each element normalized.
- * 3. **Writes answer in kind.** The peer's dialect is latched only when a
- *    frame actually DECODED in it — never on the framing sniff alone. Until
- *    that proof, writes use `preferred`, whose default `"jsonrpc"` is the only
- *    opener that is safe against a stock JSON-RPC peer. Setting
- *    `preferred: "toonrpc"` opens the conversation in TOON and is only sound
- *    against peers known to read TOON-RPC (a closed deployment); a negotiated
- *    downgrade proof for open systems is tracked by the 0.31 recovery.
+ * 3. **Writes answer in kind.** A response goes out in the dialect its
+ *    request arrived in, so a peer that interleaves both dialects gets each
+ *    answer in the one it asked with. Everything else this side writes (its
+ *    own requests and notifications) uses the peer's latched dialect, which
+ *    moves only when a frame actually DECODED in it — never on the framing
+ *    sniff alone. Until that proof, writes use `preferred`, whose default
+ *    `"jsonrpc"` is the only opener safe against a stock JSON-RPC peer.
+ *    `preferred: "toonrpc"` opens in TOON and is only sound against peers
+ *    known to read TOON-RPC (a closed deployment); against any other peer the
+ *    first frame it answers with, even a JSON-RPC Parse error, is the proof
+ *    that moves the latch to JSON.
  *
  * **Behavioral parity with `ndJsonStream` is the contract**: a malformed frame
  * is reported through `onDiagnostic` and skipped, never a torn-down
@@ -34,6 +38,7 @@
 import { encode, decode } from '@reddb-io/toon';
 import type { JsonValue } from '@reddb-io/toon';
 import { TOONRPC_VERSION } from './index.js';
+import { DEFAULT_LIMITS } from './limits.js';
 
 const JSONRPC_VERSION = '2.0';
 type Protocol = 'jsonrpc' | 'toonrpc';
@@ -75,6 +80,31 @@ export function dualDialectStream(
 ): DualDialectStream {
   let peerDialect: Protocol | undefined;
   const preferred: Protocol = options?.preferred ?? 'jsonrpc';
+  // The dialect each unanswered inbound request arrived in, by ID. Bounded:
+  // past the cap the oldest entry falls back to the latched dialect.
+  const requestDialects = new Map<string, Protocol>();
+  const rememberRequests = (decoded: unknown, dialect: Protocol) => {
+    for (const entry of Array.isArray(decoded) ? decoded : [decoded]) {
+      const key = requestKey(entry);
+      if (key === undefined) continue;
+      requestDialects.delete(key);
+      requestDialects.set(key, dialect);
+      if (requestDialects.size > DEFAULT_LIMITS.maxPendingCalls) {
+        requestDialects.delete(requestDialects.keys().next().value!);
+      }
+    }
+  };
+  const answerDialect = (message: unknown): Protocol | undefined => {
+    let dialect: Protocol | undefined;
+    for (const entry of Array.isArray(message) ? message : [message]) {
+      const key = responseKey(entry);
+      const recorded = key === undefined ? undefined : requestDialects.get(key);
+      if (recorded === undefined) continue;
+      requestDialects.delete(key!);
+      dialect ??= recorded;
+    }
+    return dialect;
+  };
   const report =
     options?.onDiagnostic ??
     ((diagnostic: DualDialectDiagnostic) => {
@@ -93,7 +123,7 @@ export function dualDialectStream(
 
   const writable = new WritableStream<Record<string, unknown>>({
     async write(message) {
-      const dialect = peerDialect ?? preferred;
+      const dialect = answerDialect(message) ?? peerDialect ?? preferred;
       await writer.write(textEncoder.encode(encodeFrame(message, dialect)));
     },
     async close() {
@@ -136,6 +166,7 @@ export function dualDialectStream(
       if (peerDialect !== undefined) report({ reason: 'dialect-change', dialect });
       peerDialect = dialect;
     }
+    rememberRequests(decoded, dialect);
     controller.enqueue(normalizeInbound(decoded));
   };
 
@@ -253,6 +284,23 @@ function tryEncodeToon(value: Record<string, JsonValue>): string | null {
  */
 function decodeFrameStrict(frame: string, dialect: Protocol): unknown {
   return dialect === 'jsonrpc' ? (JSON.parse(frame) as unknown) : (decode(frame) as unknown);
+}
+
+/** The key of an inbound request's ID, or undefined for anything else. */
+function requestKey(entry: unknown): string | undefined {
+  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return undefined;
+  const record = entry as Record<string, unknown>;
+  if (!Object.hasOwn(record, 'method') || !Object.hasOwn(record, 'id')) return undefined;
+  return JSON.stringify(record.id);
+}
+
+/** The key of an outgoing response's ID, or undefined for anything else. */
+function responseKey(entry: unknown): string | undefined {
+  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return undefined;
+  const record = entry as Record<string, unknown>;
+  if (Object.hasOwn(record, 'method') || !Object.hasOwn(record, 'id')) return undefined;
+  if (!Object.hasOwn(record, 'result') && !Object.hasOwn(record, 'error')) return undefined;
+  return JSON.stringify(record.id);
 }
 
 /**

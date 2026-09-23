@@ -17,13 +17,17 @@
  *    boundary in both directions, so an unmodified JSON-RPC stack (e.g. an ACP
  *    connection) rides either dialect. A batch passes through as an array with
  *    each element normalized.
- * 3. **Writes answer in kind.** The peer's dialect is latched only when a
- *    frame actually DECODED in it — never on the framing sniff alone. Until
- *    that proof, writes use `preferred`, whose default `"jsonrpc"` is the only
- *    opener that is safe against a stock JSON-RPC peer. Setting
- *    `preferred: "toonrpc"` opens the conversation in TOON and is only sound
- *    against peers known to read TOON-RPC (a closed deployment); a negotiated
- *    downgrade proof for open systems is tracked by the 0.31 recovery.
+ * 3. **Writes answer in kind.** A response goes out in the dialect its
+ *    request arrived in, so a peer that interleaves both dialects gets each
+ *    answer in the one it asked with. Everything else this side writes (its
+ *    own requests and notifications) uses the peer's latched dialect, which
+ *    moves only when a frame actually DECODED in it — never on the framing
+ *    sniff alone. Until that proof, writes use `preferred`, whose default
+ *    `"jsonrpc"` is the only opener safe against a stock JSON-RPC peer.
+ *    `preferred: "toonrpc"` opens in TOON and is only sound against peers
+ *    known to read TOON-RPC (a closed deployment); against any other peer the
+ *    first frame it answers with, even a JSON-RPC Parse error, is the proof
+ *    that moves the latch to JSON.
  *
  * **Behavioral parity with `ndJsonStream` is the contract**: a malformed frame
  * is reported through `onDiagnostic` and skipped, never a torn-down

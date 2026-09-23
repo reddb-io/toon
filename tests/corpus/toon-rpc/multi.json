@@ -1,0 +1,265 @@
+{
+  "schemaVersion": "toon-rpc-multi-v1",
+  "description": "Dialect detection and JSON-RPC 2.0 / TOON-RPC 1.0 dispatch shared by @reddb-io/multi-rpc and the Rust MultiRpc. Handlers: echo returns its first positional param (null otherwise); fail raises application error 1 \"failed\". A response matcher compares exactly, except that an error message is only compared when the matcher gives one. A null response means no response document.",
+  "cases": [
+    {
+      "name": "json-request",
+      "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"echo\",\"params\":[\"hi\"],\"id\":1}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "result": "hi",
+          "id": 1
+        }
+      }
+    },
+    {
+      "name": "toon-request",
+      "raw": "toonrpc: \"1.0\"\nmethod: echo\nparams[1]: hi\nid: 1",
+      "expect": {
+        "protocol": "toonrpc",
+        "response": {
+          "toonrpc": "1.0",
+          "result": "hi",
+          "id": 1
+        }
+      }
+    },
+    {
+      "name": "toon-media-type-with-parameters",
+      "contentType": "application/toon; charset=utf-8",
+      "raw": "toonrpc: \"1.0\"\nmethod: echo\nparams[1]: hi\nid: 2",
+      "expect": {
+        "protocol": "toonrpc",
+        "response": {
+          "toonrpc": "1.0",
+          "result": "hi",
+          "id": 2
+        }
+      }
+    },
+    {
+      "name": "json-media-type-wins-over-a-toon-body",
+      "contentType": "Application/JSON",
+      "raw": "toonrpc: \"1.0\"\nmethod: echo\nid: 3",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": -32700
+          },
+          "id": null
+        }
+      }
+    },
+    {
+      "name": "json-media-type-without-jsonrpc-member",
+      "contentType": "application/json",
+      "raw": "{\"method\":\"echo\",\"id\":1}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": -32600
+          },
+          "id": null
+        }
+      }
+    },
+    {
+      "name": "json-empty-batch",
+      "contentType": "application/json",
+      "raw": "[]",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": -32600
+          },
+          "id": null
+        }
+      }
+    },
+    {
+      "name": "malformed-json-object-stays-json",
+      "raw": "{\"jsonrpc\":\"2.0\",",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": -32700
+          },
+          "id": null
+        }
+      }
+    },
+    {
+      "name": "json-batch-with-a-notification",
+      "raw": "[{\"jsonrpc\":\"2.0\",\"method\":\"echo\",\"params\":[1],\"id\":1},{\"jsonrpc\":\"2.0\",\"method\":\"echo\",\"params\":[2]}]",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": [
+          {
+            "jsonrpc": "2.0",
+            "result": 1,
+            "id": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "json-batch-with-an-invalid-entry",
+      "raw": "[{\"jsonrpc\":\"2.0\",\"method\":\"echo\",\"params\":[1],\"id\":1},{\"method\":\"echo\",\"id\":2}]",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": [
+          {
+            "jsonrpc": "2.0",
+            "result": 1,
+            "id": 1
+          },
+          {
+            "jsonrpc": "2.0",
+            "error": {
+              "code": -32600
+            },
+            "id": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "json-notification-has-no-response",
+      "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"echo\",\"params\":[1]}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": null
+      }
+    },
+    {
+      "name": "json-null-params-are-invalid",
+      "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"echo\",\"params\":null,\"id\":1}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": -32600
+          },
+          "id": null
+        }
+      }
+    },
+    {
+      "name": "json-scalar-params-are-invalid",
+      "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"echo\",\"params\":5,\"id\":1}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": -32600
+          },
+          "id": null
+        }
+      }
+    },
+    {
+      "name": "json-wrong-version-is-invalid",
+      "raw": "{\"jsonrpc\":\"1.0\",\"method\":\"echo\",\"params\":[1],\"id\":7}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": -32600
+          },
+          "id": null
+        }
+      }
+    },
+    {
+      "name": "json-fractional-id-is-invalid",
+      "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"echo\",\"params\":[1],\"id\":1.5}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": -32600
+          },
+          "id": null
+        }
+      }
+    },
+    {
+      "name": "json-null-id-is-answered",
+      "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"echo\",\"params\":[1],\"id\":null}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "result": 1,
+          "id": null
+        }
+      }
+    },
+    {
+      "name": "json-unknown-method",
+      "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"nope\",\"id\":3}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": -32601
+          },
+          "id": 3
+        }
+      }
+    },
+    {
+      "name": "json-handler-error",
+      "raw": "{\"jsonrpc\":\"2.0\",\"method\":\"fail\",\"id\":4}",
+      "expect": {
+        "protocol": "jsonrpc",
+        "response": {
+          "jsonrpc": "2.0",
+          "error": {
+            "code": 1,
+            "message": "failed"
+          },
+          "id": 4
+        }
+      }
+    },
+    {
+      "name": "toon-handler-error",
+      "raw": "toonrpc: \"1.0\"\nmethod: fail\nid: 4",
+      "expect": {
+        "protocol": "toonrpc",
+        "response": {
+          "toonrpc": "1.0",
+          "error": {
+            "code": 1,
+            "message": "failed"
+          },
+          "id": 4
+        }
+      }
+    },
+    {
+      "name": "toon-notification-has-no-response",
+      "raw": "toonrpc: \"1.0\"\nmethod: echo",
+      "expect": {
+        "protocol": "toonrpc",
+        "response": null
+      }
+    }
+  ]
+}
