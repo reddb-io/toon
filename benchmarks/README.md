@@ -30,7 +30,11 @@ the upstream structural-validation track. Offline fixtures independently prove
 generation syntax and semantics, retries, raw-artifact retention, report-schema
 validation, and equal task/output-token budgets for JSON and TOON.
 
-Optional model observations require an OpenAI API key:
+Policy: this repository does not run model-accuracy evaluations as part of its
+work or its gates; model accuracy is left to the upstream TOON benchmarks, and
+the local harness exists for offline verification and for anyone who wants to
+reproduce an observation on their own account. Optional model observations
+require an OpenAI API key:
 
 ```bash
 pnpm benchmark:accuracy

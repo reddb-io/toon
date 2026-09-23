@@ -269,6 +269,16 @@ because a non-collapsed map is just standard TOON v4.1.
 
 > **Proposal history:** [Primitive-array columns](proposals/primitive-array-columns.md) — **stage 4 (graduated)**, landed via [#100](https://github.com/reddb-io/toon/pull/100) / [#101](https://github.com/reddb-io/toon/pull/101). The proposal carries the frozen grammar, the per-cell list-length caveat, and the measured token/byte wins.
 
+> **Accuracy caveat.** This extension is measured for tokens and bytes only. It
+> keeps more values in tabular rows, away from their field names, and tabular
+> layouts are where models lose accuracy on filtering questions (a 34-model
+> community evaluation: 66.9% for TOON tables against 78.7% for JSON, with the
+> gap concentrated in small models; see
+> [LLM prompting](llm-prompting.md#where-tabular-toon-costs-accuracy)). RedDB
+> leaves model-accuracy evaluation to the upstream benchmarks, so treat this form
+> as a token optimization for strong models and machine consumers, not as a
+> default for filtering-heavy prompts.
+
 Arrays of uniform objects sometimes contain fields whose values are arrays of
 primitive scalars. TOON v4.1 cannot keep that containing array tabular, because
 the array-valued field is not itself primitive. This extension lets an otherwise
@@ -326,6 +336,16 @@ malformed quoted subcell is still rejected by the quote scanner.
 ## Extension 4 — Object-array columns
 
 > **Proposal history:** [Child tables + matrix](proposals/child-tables-and-matrix.md) — **stage 4 (graduated)**, landed via [#102](https://github.com/reddb-io/toon/pull/102) / [#103](https://github.com/reddb-io/toon/pull/103). The proposal covers the recursive child-table grammar and documents the fixed-width matrix form as *not recommended* for a token win.
+
+> **Accuracy caveat.** This extension is measured for tokens and bytes only. It
+> keeps more values in tabular rows, away from their field names, and tabular
+> layouts are where models lose accuracy on filtering questions (a 34-model
+> community evaluation: 66.9% for TOON tables against 78.7% for JSON, with the
+> gap concentrated in small models; see
+> [LLM prompting](llm-prompting.md#where-tabular-toon-costs-accuracy)). RedDB
+> leaves model-accuracy evaluation to the upstream benchmarks, so treat this form
+> as a token optimization for strong models and machine consumers, not as a
+> default for filtering-heavy prompts.
 
 Arrays of uniform objects sometimes contain fields whose values are themselves
 arrays of uniform objects. TOON v4.1 must expand the parent rows because the
