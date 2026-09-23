@@ -30,15 +30,14 @@ pub fn decode_with_options(
             options.max_input_bytes,
         ));
     }
-    // decode_events runs the grammar on the decoder's big-stack worker and
-    // joins it once, instead of handing each event across threads.
-    let (events, error) = decode_events(input, options);
-    let mut value = build_value_from_event_results(
-        events
-            .into_iter()
-            .map(Ok)
-            .chain(error.map(Err)),
-    )?;
+    // The grammar runs on the decoder's big-stack worker and emits straight
+    // into the value builder: no event sequence is collected in between.
+    let mut value = on_decoder_stack(|| {
+        let ctx = StreamCtx::new(options);
+        let mut builder = EventValueBuilder::with_dedupe(!options.strict);
+        decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut builder)?;
+        Ok::<_, ParseError>(builder.finish())
+    })?;
     if options.cyclic_discriminated_arrays {
         if let Value::Object(document) = value {
             value = Value::Object(expand_cyclic_discriminated_arrays(document)?);
