@@ -4,6 +4,21 @@
   "mediaHint": "application/toonl",
   "tests": [
     {
+      "name": "decode/unicode-whitespace-in-cells-is-content",
+      "kind": "decode",
+      "input": "[]{a,b}:\n\u00a0x\u00a0, y\u3000\n\u2028,\tz\n[=2]\n",
+      "segments": [
+        {
+          "delimiter": ",",
+          "fields": ["a", "b"],
+          "rows": [
+            ["\u00a0x\u00a0", "y\u3000"],
+            ["\u2028", "\tz"]
+          ]
+        }
+      ]
+    },
+    {
       "name": "decode/comma-segment-with-trailer",
       "kind": "decode",
       "input": "[]{ts,level,msg}:\n\"2026-07-14T03:00:00Z\",info,boot\n\"2026-07-14T03:00:02Z\",error,\"disk full\"\n[=2]\n",
