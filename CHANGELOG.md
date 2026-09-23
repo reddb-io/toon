@@ -51,6 +51,14 @@ now; this file is how it got there.
   each connection answer the document in hand, ends open SSE streams and
   aborts what is left after the grace period.
 
+- **toon-rpc TypeScript servers.** `@reddb-io/toon-rpc/serve` adds Node
+  servers for every transport, with no new dependencies: `serveTcp` and
+  `serveStdio` (§8.1 framing), `createHttpHandler` and `createSseHandler`
+  (`node:http` listeners; SSE per §8.2) and `attachWebSocket` (any `ws`-shaped
+  socket). They answer each connection's documents in order under the shared
+  limits and close gracefully. The TypeScript side could only be a client
+  before, so a Rust client had nothing to talk to.
+
 - **Rust `decode` builds its `Value` directly and jumps with `memchr`.** The
   value is assembled while the grammar emits, without an intermediate event
   vector, and strict mode skips the duplicate-key search it never needs
