@@ -32,16 +32,7 @@ export async function encodeToToon(
 ): Promise<void> {
   const { io } = config
   const jsonContent = await readInput(config.input, io)
-
-  let data: unknown
-  try {
-    data = JSON.parse(jsonContent)
-  } catch (error) {
-    throw new CliError(
-      `Failed to parse JSON: ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error },
-    )
-  }
+  const data = parseJson(jsonContent)
 
   const encodeOptions = { delimiter: config.delimiter, indentSize: config.indentSize }
 
@@ -81,6 +72,50 @@ export async function decodeToJson(config: ConversionConfig & { strict: boolean 
   })
 
   reportWritten('Decoded', config)
+}
+
+/**
+ * Validates the input without producing a result: stdout stays empty and the
+ * verdict goes to stderr, so `toon --check` gates a pipeline on its exit code.
+ * TOON is decoded in full; JSON is parsed and encoded, proving it is TOON-able.
+ */
+export async function checkInput(config: {
+  input: InputSource
+  mode: 'encode' | 'decode'
+  delimiter: ',' | '|' | '\t'
+  indentSize: number
+  strict: boolean
+  io: CliIo
+}): Promise<void> {
+  const { io } = config
+  const label = formatInputLabel(config.input, io)
+
+  if (config.mode === 'decode') {
+    const lineSource = readLinesFromSource(config.input, config.strict, io)
+    const events = decodeStream(lineSource, { indentSize: config.indentSize, strict: config.strict })
+    for await (const _event of events) {
+      // Draining the stream is the validation; nothing is kept.
+    }
+    io.stderr(`✔ Valid TOON \`${label}\`\n`)
+    return
+  }
+
+  const data = parseJson(await readInput(config.input, io))
+  for (const _line of encodeLines(data, { delimiter: config.delimiter, indentSize: config.indentSize })) {
+    // Encoding proves the value fits TOON; the lines are discarded.
+  }
+  io.stderr(`✔ Valid JSON \`${label}\`\n`)
+}
+
+function parseJson(jsonContent: string): unknown {
+  try {
+    return JSON.parse(jsonContent)
+  } catch (error) {
+    throw new CliError(
+      `Failed to parse JSON: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    )
+  }
 }
 
 function reportWritten(verb: string, config: ConversionConfig): void {

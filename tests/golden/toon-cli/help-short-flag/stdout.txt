@@ -15,6 +15,7 @@ OPTIONS
       --indent <number>  Indentation size (default: 2)
       --strict           Strict decode validation (disable with --no-strict)
       --stats            Show token statistics
+      --check            Validate the input without writing any output
       --verbose          Print the cause chain and stack trace on failure
   -h, --help             Show this help message
   -v, --version          Show the version

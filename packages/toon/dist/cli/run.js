@@ -7,7 +7,7 @@ import * as path from 'node:path';
 import { DELIMITERS } from '../constants.js';
 import { VERSION } from '../version.js';
 import { HELP_TEXT, parseCliArgs } from './args.js';
-import { decodeToJson, encodeToToon } from './conversion.js';
+import { checkInput, decodeToJson, encodeToToon } from './conversion.js';
 import { CliError, formatReport } from './errors.js';
 /** Runs one CLI invocation and returns the process exit code. */
 export async function runCli(argv, io) {
@@ -32,7 +32,13 @@ export async function runCli(argv, io) {
             throw new CliError(`Invalid indent value: ${args.indent}`);
         }
         const delimiter = resolveDelimiter(args.delimiter);
-        if (detectMode(input, args.encode, args.decode) === 'encode') {
+        const mode = detectMode(input, args.encode, args.decode);
+        if (args.check) {
+            if (output)
+                throw new CliError('--check writes no output; drop --output');
+            await checkInput({ input, mode, delimiter, indentSize, strict: args.strict, io });
+        }
+        else if (mode === 'encode') {
             await encodeToToon({
                 input,
                 output,
