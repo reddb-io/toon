@@ -5,7 +5,7 @@ detected per message and responses use the same wire format as the caller.
 
 > **Recovery status:** this package is an experimental prototype with known
 > protocol detection and validation gaps. Publication is paused under
-> [the 0.30 recovery](https://github.com/reddb-io/toon/issues/389). Do not use
+> [the 0.31 recovery](https://github.com/reddb-io/toon/issues/389). Do not use
 > the previously published 0.29 line in production.
 
 ## Installation

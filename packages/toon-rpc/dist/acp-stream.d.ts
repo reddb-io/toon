@@ -23,7 +23,7 @@
  *    opener that is safe against a stock JSON-RPC peer. Setting
  *    `preferred: "toonrpc"` opens the conversation in TOON and is only sound
  *    against peers known to read TOON-RPC (a closed deployment); a negotiated
- *    downgrade proof for open systems is tracked by the 0.30 recovery.
+ *    downgrade proof for open systems is tracked by the 0.31 recovery.
  *
  * **Behavioral parity with `ndJsonStream` is the contract**: a malformed frame
  * is reported through `onDiagnostic` and skipped, never a torn-down
