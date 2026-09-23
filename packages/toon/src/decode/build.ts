@@ -11,6 +11,7 @@ import { expandCyclicDiscriminatedArrays } from '../cyclic.js'
 import type { DecodeOptions, JsonValue } from '../types.js'
 import { applyReviver } from './reviver.js'
 import { ToonDecodeError } from '../errors.js'
+import { setKey } from '../lexical.js'
 
 const UNSET = Symbol('unset')
 
@@ -26,14 +27,9 @@ export function buildValueFromEvents(events: Iterable<ToonEvent>): JsonValue {
     } else if (Array.isArray(parent)) {
       parent.push(value)
     } else {
-      // duplicate keys are last-write-wins (§14.3); defineProperty keeps
-      // prototype keys like __proto__ ordinary own keys (§15)
-      Object.defineProperty(parent, pendingKey as string, {
-        value,
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      })
+      // duplicate keys are last-write-wins (§14.3); setKey keeps prototype
+      // keys like __proto__ ordinary own keys (§15)
+      setKey(parent, pendingKey as string, value)
     }
   }
 

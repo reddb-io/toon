@@ -45,7 +45,9 @@ export declare function quoteString(value: any): string;
 /** Escapes a string for use inside a quoted TOON token. */
 export declare function escapeString(value: any): string;
 /**
- * Defines an own enumerable property even when the key is `__proto__`, which a
+ * Sets an own enumerable property, even when the key is `__proto__`, which a
  * plain assignment would silently route to the prototype instead of the object.
+ * Every other key takes a plain assignment: `defineProperty` on each key cost
+ * about three times as much on large documents.
  */
 export declare function setKey(object: any, key: any, value: any): void;

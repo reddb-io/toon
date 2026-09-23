@@ -332,14 +332,20 @@ export function escapeString(value) {
 }
 
 /**
- * Defines an own enumerable property even when the key is `__proto__`, which a
+ * Sets an own enumerable property, even when the key is `__proto__`, which a
  * plain assignment would silently route to the prototype instead of the object.
+ * Every other key takes a plain assignment: `defineProperty` on each key cost
+ * about three times as much on large documents.
  */
 export function setKey(object, key, value) {
-  Object.defineProperty(object, key, {
-    value,
-    writable: true,
-    enumerable: true,
-    configurable: true,
-  })
+  if (key === '__proto__') {
+    Object.defineProperty(object, key, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    })
+  } else {
+    object[key] = value
+  }
 }
