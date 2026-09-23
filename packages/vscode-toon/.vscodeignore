@@ -1,3 +1,4 @@
 test/
 .vscodeignore
 node_modules/
+scripts/

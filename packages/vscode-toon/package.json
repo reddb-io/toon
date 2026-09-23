@@ -1,7 +1,7 @@
 {
   "name": "reddb-toon",
   "displayName": "RedDB Toon",
-  "description": "Syntax highlighting for official TOON v4.1, TOONL streams, and the three reddb-io userland wire extensions.",
+  "description": "Syntax highlighting, strict-decode diagnostics, formatting and JSON↔TOON conversion for official TOON v4.1, TOONL streams, and the reddb-io userland wire extensions.",
   "version": "0.29.9",
   "private": true,
   "publisher": "reddb-io",
@@ -10,18 +10,30 @@
     "vscode": "^1.75.0",
     "node": ">=18"
   },
+  "main": "./extension.cjs",
+  "activationEvents": [
+    "onLanguage:toon",
+    "onLanguage:toonl",
+    "onLanguage:json"
+  ],
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Formatters",
+    "Linters"
   ],
   "keywords": [
     "toon",
     "toonl",
     "syntax",
     "highlighting",
-    "grammar"
+    "grammar",
+    "formatter",
+    "diagnostics",
+    "json"
   ],
   "scripts": {
-    "test": "node --test test/grammar.test.mjs"
+    "build": "node scripts/vendor-codec.mjs",
+    "test": "node --test test/grammar.test.mjs test/core.test.mjs"
   },
   "contributes": {
     "languages": [
@@ -76,7 +88,39 @@
           "meta.embedded.block.toonl": "toonl"
         }
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "reddbToon.convertJsonToToon",
+        "title": "Convert JSON to TOON",
+        "category": "RedDB Toon"
+      },
+      {
+        "command": "reddbToon.convertToonToJson",
+        "title": "Convert TOON to JSON",
+        "category": "RedDB Toon"
+      }
+    ],
+    "configuration": {
+      "title": "RedDB Toon",
+      "properties": {
+        "reddbToon.validate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Strict-decode .toon and .toonl files and report the first error as a diagnostic."
+        },
+        "reddbToon.delimiter": {
+          "type": "string",
+          "enum": [
+            "comma",
+            "tab",
+            "pipe"
+          ],
+          "default": "comma",
+          "description": "Delimiter used when formatting TOON and converting JSON to TOON."
+        }
+      }
+    }
   },
   "homepage": "https://github.com/reddb-io/tq",
   "repository": {

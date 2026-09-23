@@ -268,7 +268,10 @@ jobs:
         working-directory: packages/vscode-toon
         run: |
           set -euo pipefail
+          # vsce does not follow workspace links: vendor the committed codec build.
+          node scripts/vendor-codec.mjs
           pnpm dlx @vscode/vsce package -o reddb-toon.vsix
+          unzip -l reddb-toon.vsix | grep -F 'extension/dist/codec/index.js'
           # Smoke: the packaged manifest must carry the synced base version.
           EXPECTED="$(sed -n 's|^  "version": "\([^"]*\)".*|\1|p' package.json)"
           unzip -p reddb-toon.vsix extension/package.json | grep -F "\"version\": \"${EXPECTED}\""
