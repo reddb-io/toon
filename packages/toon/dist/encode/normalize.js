@@ -1,6 +1,13 @@
 import { toonError } from '../errors.js';
+import { setKey } from '../lexical.js';
 import { isRawString } from './raw-string.js';
 const SURROGATE_PATTERN = /[\uD800-\uDFFF]/;
+/**
+ * Containers shallower than this skip cycle tracking: a cycle repeats, so it
+ * always reaches this depth and is caught there, while ordinary documents never
+ * pay for the WeakSet.
+ */
+const CYCLE_TRACKING_DEPTH = 32;
 /** Converts host values to the JSON data model before replacement and encoding. */
 export function normalizeValue(value, maxDepth = 0) {
     return normalizeNested(value, { maxDepth, active: new WeakSet() }, 0);
@@ -47,29 +54,34 @@ function normalizeContainer(value, context, depth) {
     if (context.maxDepth !== 0 && depth > context.maxDepth + 1) {
         throw toonError(0, `maximum nesting depth exceeded (maxDepth ${context.maxDepth})`);
     }
+    if (depth < CYCLE_TRACKING_DEPTH)
+        return normalizeChildren(value, context, depth);
     if (context.active.has(value))
         throw new TypeError('Cannot encode a circular structure');
     context.active.add(value);
     try {
-        const child = (nested) => normalizeNested(nested, context, depth + 1);
-        // Array.from visits holes, so a sparse slot normalizes to null like undefined.
-        if (Array.isArray(value) || value instanceof Set)
-            return Array.from(value, child);
-        const result = {};
-        if (value instanceof Map) {
-            for (const [key, nested] of value)
-                setOwn(result, String(key), child(nested));
-            return result;
-        }
-        for (const key of Object.keys(value)) {
-            assertNoLoneSurrogate(key, 'object key');
-            setOwn(result, key, child(value[key]));
-        }
-        return result;
+        return normalizeChildren(value, context, depth);
     }
     finally {
         context.active.delete(value);
     }
+}
+function normalizeChildren(value, context, depth) {
+    const child = (nested) => normalizeNested(nested, context, depth + 1);
+    // Array.from visits holes, so a sparse slot normalizes to null like undefined.
+    if (Array.isArray(value) || value instanceof Set)
+        return Array.from(value, child);
+    const result = {};
+    if (value instanceof Map) {
+        for (const [key, nested] of value)
+            setKey(result, String(key), child(nested));
+        return result;
+    }
+    for (const key of Object.keys(value)) {
+        assertNoLoneSurrogate(key, 'object key');
+        setKey(result, key, child(value[key]));
+    }
+    return result;
 }
 function assertNoLoneSurrogate(value, context) {
     if (!SURROGATE_PATTERN.test(value))
@@ -96,10 +108,5 @@ export function isPrimitive(value) {
     return value === null || isRawString(value) || ['string', 'number', 'boolean'].includes(typeof value);
 }
 export function setOwn(target, key, value) {
-    Object.defineProperty(target, key, {
-        value,
-        writable: true,
-        enumerable: true,
-        configurable: true,
-    });
+    setKey(target, key, value);
 }

@@ -7,6 +7,7 @@ import { decodeFromLines as decodeEventsFromLines } from './stream.js';
 import { expandCyclicDiscriminatedArrays } from '../cyclic.js';
 import { applyReviver } from './reviver.js';
 import { ToonDecodeError } from '../errors.js';
+import { setKey } from '../lexical.js';
 const UNSET = Symbol('unset');
 export function buildValueFromEvents(events) {
     const stack = [];
@@ -21,14 +22,9 @@ export function buildValueFromEvents(events) {
             parent.push(value);
         }
         else {
-            // duplicate keys are last-write-wins (§14.3); defineProperty keeps
-            // prototype keys like __proto__ ordinary own keys (§15)
-            Object.defineProperty(parent, pendingKey, {
-                value,
-                enumerable: true,
-                writable: true,
-                configurable: true,
-            });
+            // duplicate keys are last-write-wins (§14.3); setKey keeps prototype
+            // keys like __proto__ ordinary own keys (§15)
+            setKey(parent, pendingKey, value);
         }
     };
     for (const event of events) {
