@@ -10,6 +10,10 @@ export interface ClientDiagnostic {
 }
 export interface ClientOptions {
     onDiagnostic?: (diagnostic: ClientDiagnostic) => void;
+    /** Most calls kept pending at once; defaults to `DEFAULT_LIMITS.maxPendingCalls`. */
+    maxPendingCalls?: number;
+    /** Timeout for a call that sets none of its own. */
+    requestTimeoutMs?: number;
 }
 export interface CallOptions {
     id?: Id;
@@ -28,6 +32,9 @@ export declare class ClientAbortError extends Error {
 }
 export declare class ClientTimeoutError extends Error {
     constructor(timeoutMs: number);
+}
+export declare class ClientLimitError extends Error {
+    constructor(message: string);
 }
 export declare class ClientProtocolError extends Error {
     constructor(message: string);

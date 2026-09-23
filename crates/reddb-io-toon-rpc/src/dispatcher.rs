@@ -10,13 +10,21 @@ type Handler = dyn Fn(Params, Id) -> Result<Value, RpcError> + Send + Sync;
 #[derive(Clone)]
 pub struct Dispatcher {
     methods: Arc<HashMap<String, Arc<Handler>>>,
+    max_batch_length: usize,
 }
 
 impl Dispatcher {
     pub fn new() -> Self {
         Self {
             methods: Arc::new(HashMap::new()),
+            max_batch_length: crate::limits::DEFAULT_MAX_BATCH_LENGTH,
         }
+    }
+
+    /// Refuse a batch longer than this with a single Invalid Request.
+    pub fn with_max_batch_length(mut self, max_batch_length: usize) -> Self {
+        self.max_batch_length = max_batch_length;
+        self
     }
 
     pub fn register<F>(&mut self, method: impl Into<String>, handler: F)
@@ -75,6 +83,9 @@ impl Dispatcher {
             Message::Batch(calls) if calls.is_empty() => {
                 (vec![protocol_error(ErrorCode::InvalidRequest)], false)
             }
+            Message::Batch(calls) if calls.len() > self.max_batch_length => {
+                (vec![batch_too_large()], false)
+            }
             Message::Batch(calls) => {
                 let mut responses = vec![];
                 for call in calls {
@@ -93,6 +104,9 @@ impl Dispatcher {
                 (responses, true)
             }
             Message::SingleResponse(_) => (vec![protocol_error(ErrorCode::InvalidRequest)], false),
+            Message::BatchResponse(responses) if responses.len() > self.max_batch_length => {
+                (vec![batch_too_large()], false)
+            }
             Message::BatchResponse(responses) => (
                 responses
                     .into_iter()
@@ -134,6 +148,14 @@ impl Dispatcher {
 
 fn protocol_error(code: ErrorCode) -> Response {
     Response::error(Error::new(code), Id::Null)
+}
+
+fn batch_too_large() -> Response {
+    let error = Error::with_message(
+        ErrorCode::InvalidRequest,
+        "Invalid Request: batch too large",
+    );
+    Response::error(error, Id::Null)
 }
 
 fn error_from_handler(error: RpcError) -> Error {

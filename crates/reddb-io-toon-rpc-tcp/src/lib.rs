@@ -8,7 +8,11 @@
 use std::io;
 use std::net::SocketAddr;
 
-use reddb_io_toon_rpc::{serve_framed, Dispatcher, FramedTransport, RpcError};
+use std::future::Future;
+
+use reddb_io_toon_rpc::{
+    serve_framed_with, serve_until, Dispatcher, FramedTransport, Limits, RpcError,
+};
 use tokio::net::{tcp, TcpListener, TcpStream, ToSocketAddrs};
 
 /// A client transport over one TCP connection.
@@ -27,6 +31,7 @@ pub async fn connect_tcp(addr: impl ToSocketAddrs) -> Result<TcpTransport, RpcEr
 pub struct TcpServer {
     listener: TcpListener,
     dispatcher: Dispatcher,
+    limits: Limits,
 }
 
 impl TcpServer {
@@ -41,24 +46,47 @@ impl TcpServer {
         Self {
             listener,
             dispatcher,
+            limits: Limits::default(),
         }
+    }
+
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.limits = limits;
+        self
     }
 
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.listener.local_addr()
     }
 
-    /// Accept connections until accepting fails, serving each on its own task.
+    /// Serve until accepting fails.
     pub async fn serve(self) -> io::Result<()> {
-        loop {
-            let (stream, _) = self.listener.accept().await?;
-            let dispatcher = self.dispatcher.clone();
-            tokio::spawn(async move {
-                let (reader, writer) = stream.into_split();
-                // A failed connection only ends itself.
-                let _ = serve_framed(reader, writer, &dispatcher).await;
-            });
-        }
+        self.serve_with_shutdown(std::future::pending()).await
+    }
+
+    /// Serve until `signal` resolves, then let open connections answer the
+    /// document in hand and close, within the shutdown grace period.
+    pub async fn serve_with_shutdown(self, signal: impl Future<Output = ()>) -> io::Result<()> {
+        let limits = self.limits;
+        let dispatcher = self
+            .dispatcher
+            .with_max_batch_length(limits.max_batch_length);
+        let listener = self.listener;
+        serve_until(
+            limits.max_connections,
+            limits.shutdown_grace,
+            || async { listener.accept().await.map(|(stream, _)| stream) },
+            |stream: TcpStream, shutdown| {
+                let (dispatcher, limits) = (dispatcher.clone(), limits.clone());
+                async move {
+                    let (reader, writer) = stream.into_split();
+                    // A failed connection only ends itself.
+                    let _ = serve_framed_with(reader, writer, &dispatcher, &limits, shutdown).await;
+                }
+            },
+            signal,
+        )
+        .await
     }
 }
 
@@ -67,10 +95,13 @@ pub use unix::{connect_unix, UnixServer, UnixTransport};
 
 #[cfg(unix)]
 mod unix {
+    use std::future::Future;
     use std::io;
     use std::path::{Path, PathBuf};
 
-    use reddb_io_toon_rpc::{serve_framed, Dispatcher, FramedTransport, RpcError};
+    use reddb_io_toon_rpc::{
+        serve_framed_with, serve_until, Dispatcher, FramedTransport, Limits, RpcError,
+    };
     use tokio::net::{unix, UnixListener, UnixStream};
 
     /// A client transport over one Unix socket connection.
@@ -90,6 +121,7 @@ mod unix {
         listener: UnixListener,
         path: PathBuf,
         dispatcher: Dispatcher,
+        limits: Limits,
     }
 
     impl UnixServer {
@@ -104,23 +136,46 @@ mod unix {
                 listener,
                 path,
                 dispatcher,
+                limits: Limits::default(),
             })
+        }
+
+        pub fn with_limits(mut self, limits: Limits) -> Self {
+            self.limits = limits;
+            self
         }
 
         pub fn path(&self) -> &Path {
             &self.path
         }
 
-        /// Accept connections until accepting fails, serving each on its own task.
+        /// Serve until accepting fails.
         pub async fn serve(self) -> io::Result<()> {
-            loop {
-                let (stream, _) = self.listener.accept().await?;
-                let dispatcher = self.dispatcher.clone();
-                tokio::spawn(async move {
-                    let (reader, writer) = stream.into_split();
-                    let _ = serve_framed(reader, writer, &dispatcher).await;
-                });
-            }
+            self.serve_with_shutdown(std::future::pending()).await
+        }
+
+        /// Serve until `signal` resolves; see `TcpServer::serve_with_shutdown`.
+        pub async fn serve_with_shutdown(self, signal: impl Future<Output = ()>) -> io::Result<()> {
+            let limits = self.limits;
+            let dispatcher = self
+                .dispatcher
+                .with_max_batch_length(limits.max_batch_length);
+            let listener = self.listener;
+            serve_until(
+                limits.max_connections,
+                limits.shutdown_grace,
+                || async { listener.accept().await.map(|(stream, _)| stream) },
+                |stream: UnixStream, shutdown| {
+                    let (dispatcher, limits) = (dispatcher.clone(), limits.clone());
+                    async move {
+                        let (reader, writer) = stream.into_split();
+                        let _ =
+                            serve_framed_with(reader, writer, &dispatcher, &limits, shutdown).await;
+                    }
+                },
+                signal,
+            )
+            .await
         }
     }
 }
@@ -227,6 +282,54 @@ mod tests {
         assert_eq!(result, json!("over unix"));
         client.close().await.unwrap();
         let _ = std::fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn limits_close_idle_and_oversized_connections() {
+        let limits = Limits {
+            max_frame_bytes: 16,
+            idle_timeout: Some(std::time::Duration::from_millis(50)),
+            ..Limits::default()
+        };
+        let server = TcpServer::bind("127.0.0.1:0", dispatcher())
+            .await
+            .unwrap()
+            .with_limits(limits);
+        let addr = server.local_addr().unwrap();
+        tokio::spawn(server.serve());
+
+        for input in [&b""[..], b"999\n"] {
+            let mut stream = TcpStream::connect(addr).await.unwrap();
+            stream.write_all(input).await.unwrap();
+            let mut rest = Vec::new();
+            let read = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                stream.read_to_end(&mut rest),
+            )
+            .await;
+            assert!(matches!(read, Ok(Ok(0))), "connection was not closed");
+        }
+    }
+
+    #[tokio::test]
+    async fn shutdown_answers_the_call_in_hand_then_closes() {
+        let (trigger, signal) = tokio::sync::oneshot::channel::<()>();
+        let server = TcpServer::bind("127.0.0.1:0", dispatcher()).await.unwrap();
+        let addr = server.local_addr().unwrap();
+        let serving = tokio::spawn(server.serve_with_shutdown(async {
+            let _ = signal.await;
+        }));
+        let client = Client::duplex(connect_tcp(addr).await.unwrap(), ClientOptions::default());
+        let result = client
+            .call("echo", Params::ByPosition(vec![json!("before")]))
+            .await
+            .unwrap();
+        assert_eq!(result, json!("before"));
+        trigger.send(()).unwrap();
+        serving.await.unwrap().unwrap();
+        // The connection is closed, so the next call cannot be answered.
+        assert!(client.call("echo", Params::Absent).await.is_err());
+        assert!(TcpStream::connect(addr).await.is_err());
     }
 
     async fn futures_join<F: std::future::Future + Send + 'static>(

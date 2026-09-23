@@ -10,11 +10,12 @@
 import * as net from 'node:net';
 import { FrameDecoder, encodeFrame } from './framing.js';
 import { DocumentQueue, abortError, asTransportError, raceSignal } from './internal.js';
+import { resolveLimits } from './limits.js';
 export class TcpTransport {
     kind = 'duplex';
     options;
-    documents = new DocumentQueue();
-    decoder = new FrameDecoder();
+    documents;
+    decoder;
     socket;
     openPromise;
     closePromise;
@@ -24,6 +25,9 @@ export class TcpTransport {
             throw new TypeError('TcpTransport needs host and port, or a connect factory');
         }
         this.options = options;
+        const limits = resolveLimits(options.limits);
+        this.documents = new DocumentQueue(limits.maxQueuedDocuments);
+        this.decoder = new FrameDecoder({ maxFrameBytes: limits.maxFrameBytes });
     }
     open(options) {
         this.openPromise ??= raceSignal(this.connect(), options?.signal);

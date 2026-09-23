@@ -1,14 +1,20 @@
+import { DEFAULT_LIMITS } from './limits.js';
 /**
  * Single-consumer document queue backing every duplex transport's receive
  * iterator: producers push complete documents, exactly one consumer drains
  * them, and end/fail settle the stream deterministically.
  */
 export class DocumentQueue {
+    capacity;
     items = [];
     waiter;
     ended = false;
     failure;
     consumed = false;
+    constructor(capacity = DEFAULT_LIMITS.maxQueuedDocuments) {
+        this.capacity = capacity;
+    }
+    /** Queue a document. Past capacity the stream fails instead of growing. */
     push(document) {
         if (this.ended)
             return;
@@ -16,6 +22,10 @@ export class DocumentQueue {
             const waiter = this.waiter;
             this.waiter = undefined;
             waiter.resolve({ value: document, done: false });
+            return;
+        }
+        if (this.items.length >= this.capacity) {
+            this.fail(new Error('TOON-RPC receive queue overflow'));
             return;
         }
         this.items.push(document);

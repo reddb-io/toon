@@ -7,6 +7,7 @@
  * and produces no response document.
  */
 import { abortError } from './internal.js';
+import { resolveLimits } from './limits.js';
 export const TOON_RPC_CONTENT_TYPE = 'application/toon';
 export class HttpTransportError extends Error {
     status;
@@ -21,12 +22,14 @@ export class HttpTransport {
     url;
     headers;
     fetchImpl;
+    maxBodyBytes;
     lifetime = new AbortController();
     closed = false;
     constructor(options) {
         this.url = String(options.url);
         this.headers = { ...options.headers };
         this.fetchImpl = options.fetch ?? fetch;
+        this.maxBodyBytes = resolveLimits(options.limits).maxBodyBytes;
     }
     async request(document, options) {
         if (this.closed)
@@ -50,7 +53,15 @@ export class HttpTransport {
         }
         if (response.status === 204)
             return undefined;
+        const declared = Number(response.headers?.get?.('content-length') ?? Number.NaN);
+        if (declared > this.maxBodyBytes) {
+            await response.body?.cancel().catch(() => undefined);
+            throw new Error('TOON-RPC HTTP response exceeds the size limit');
+        }
         const body = new Uint8Array(await response.arrayBuffer());
+        if (body.length > this.maxBodyBytes) {
+            throw new Error('TOON-RPC HTTP response exceeds the size limit');
+        }
         return body.length === 0 ? undefined : body;
     }
     async close() {

@@ -4,12 +4,18 @@ export * from './client.js';
 export * from './rpc-error.js';
 export * from './transport.js';
 export * from './framing.js';
+export * from './limits.js';
 export interface MethodHandler {
     (params: Params | undefined, id: Id | undefined): Promise<CoreValue>;
 }
+export interface ServerOptions {
+    /** Most entries a batch may hold; defaults to `DEFAULT_LIMITS.maxBatchLength`. */
+    maxBatchLength?: number;
+}
 export declare class Server {
     private methods;
-    constructor();
+    private readonly maxBatchLength;
+    constructor(options?: ServerOptions);
     register(method: string, handler: MethodHandler): void;
     handle(raw: Uint8Array): Promise<Uint8Array>;
     handleText(text: string): Promise<Uint8Array>;

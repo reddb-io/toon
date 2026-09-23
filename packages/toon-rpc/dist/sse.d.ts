@@ -11,6 +11,7 @@
  * cannot send headers, and cannot abort deterministically.
  */
 import type { DuplexTransport, TransportOperationOptions } from './transport.js';
+import type { Limits } from './limits.js';
 export interface SseTransportOptions {
     /** The event-stream URL documents are received from. */
     url: string | URL;
@@ -19,6 +20,8 @@ export interface SseTransportOptions {
     headers?: Record<string, string>;
     /** Injectable fetch implementation; defaults to the global fetch. */
     fetch?: typeof fetch;
+    /** Event size and receive queue caps; defaults to `DEFAULT_LIMITS`. */
+    limits?: Partial<Pick<Limits, 'maxFrameBytes' | 'maxQueuedDocuments'>>;
 }
 export declare class SseTransportError extends Error {
     readonly status: number;
@@ -31,6 +34,7 @@ export declare class SseTransport implements DuplexTransport {
     private readonly headers;
     private readonly fetchImpl;
     private readonly documents;
+    private readonly maxEventBytes;
     private readonly lifetime;
     private openPromise;
     private pumpPromise;

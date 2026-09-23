@@ -591,6 +591,7 @@ async fn client_case(case: &Case, raw: &[u8]) {
         },
         ClientOptions {
             on_diagnostic: Some(on_diagnostic),
+            ..ClientOptions::default()
         },
     );
 

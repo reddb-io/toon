@@ -9,18 +9,22 @@
  */
 import { FrameDecoder, encodeFrame } from './framing.js';
 import { DocumentQueue, abortError, asTransportError } from './internal.js';
+import { resolveLimits } from './limits.js';
 export class StdioTransport {
     kind = 'duplex';
     input;
     output;
-    documents = new DocumentQueue();
-    decoder = new FrameDecoder();
+    documents;
+    decoder;
     started = false;
     closed = false;
     failure;
     constructor(options = {}) {
         this.input = options.input ?? process.stdin;
         this.output = options.output ?? process.stdout;
+        const limits = resolveLimits(options.limits);
+        this.documents = new DocumentQueue(limits.maxQueuedDocuments);
+        this.decoder = new FrameDecoder({ maxFrameBytes: limits.maxFrameBytes });
     }
     async open() {
         if (this.started)

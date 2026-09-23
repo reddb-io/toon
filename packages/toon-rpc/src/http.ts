@@ -9,6 +9,8 @@
 
 import type { RequestResponseTransport, TransportOperationOptions } from './transport.js';
 import { abortError } from './internal.js';
+import { resolveLimits } from './limits.js';
+import type { Limits } from './limits.js';
 
 export const TOON_RPC_CONTENT_TYPE = 'application/toon';
 
@@ -17,6 +19,8 @@ export interface HttpTransportOptions {
   headers?: Record<string, string>;
   /** Injectable fetch implementation; defaults to the global fetch. */
   fetch?: typeof fetch;
+  /** Response body cap; defaults to `DEFAULT_LIMITS.maxBodyBytes`. */
+  limits?: Partial<Pick<Limits, 'maxBodyBytes'>>;
 }
 
 export class HttpTransportError extends Error {
@@ -34,6 +38,7 @@ export class HttpTransport implements RequestResponseTransport {
   private readonly url: string;
   private readonly headers: Record<string, string>;
   private readonly fetchImpl: typeof fetch;
+  private readonly maxBodyBytes: number;
   private readonly lifetime = new AbortController();
   private closed = false;
 
@@ -41,6 +46,7 @@ export class HttpTransport implements RequestResponseTransport {
     this.url = String(options.url);
     this.headers = { ...options.headers };
     this.fetchImpl = options.fetch ?? fetch;
+    this.maxBodyBytes = resolveLimits(options.limits).maxBodyBytes;
   }
 
   async request(
@@ -68,7 +74,15 @@ export class HttpTransport implements RequestResponseTransport {
     }
     if (response.status === 204) return undefined;
 
+    const declared = Number(response.headers?.get?.('content-length') ?? Number.NaN);
+    if (declared > this.maxBodyBytes) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error('TOON-RPC HTTP response exceeds the size limit');
+    }
     const body = new Uint8Array(await response.arrayBuffer());
+    if (body.length > this.maxBodyBytes) {
+      throw new Error('TOON-RPC HTTP response exceeds the size limit');
+    }
     return body.length === 0 ? undefined : body;
   }
 

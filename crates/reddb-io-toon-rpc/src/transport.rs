@@ -7,6 +7,7 @@
 //! optional response document to each request (HTTP).
 
 use std::collections::VecDeque;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -15,7 +16,9 @@ use tokio::sync::Mutex;
 use crate::dispatcher::Dispatcher;
 use crate::error::{Error, ErrorCode, RpcError};
 use crate::framing::{encode_frame, FrameDecoder};
+use crate::limits::Limits;
 use crate::protocol::{Message, Response};
+use crate::server::Shutdown;
 use crate::types::Id;
 
 /// A transport that yields exactly one complete RPC document per item.
@@ -152,26 +155,63 @@ where
     }
 }
 
-/// Serve one framed byte stream: every request document is dispatched in
-/// order and every non-empty response goes back as a frame. Returns when the
-/// peer ends the stream; a framing error ends it without resynchronizing.
+/// Serve one framed byte stream with the default limits and no shutdown.
 pub async fn serve_framed<R, W>(
     reader: R,
-    mut writer: W,
+    writer: W,
     dispatcher: &Dispatcher,
 ) -> Result<(), RpcError>
 where
     R: AsyncRead + Unpin,
     W: AsyncWrite + Unpin,
 {
-    let mut reader = FrameReader::new(reader);
-    while let Some(document) = reader.next_document().await? {
+    let limits = Limits::default();
+    serve_framed_with(reader, writer, dispatcher, &limits, Shutdown::never()).await
+}
+
+/// Serve one framed byte stream: every request document is dispatched in
+/// order and every non-empty response goes back as a frame. Returns when the
+/// peer ends the stream or shutdown is requested (after answering the
+/// document in hand). A framing error, an oversized frame or an idle
+/// connection ends it without resynchronizing.
+pub async fn serve_framed_with<R, W>(
+    reader: R,
+    mut writer: W,
+    dispatcher: &Dispatcher,
+    limits: &Limits,
+    mut shutdown: Shutdown,
+) -> Result<(), RpcError>
+where
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
+    let decoder = FrameDecoder::with_max_frame_bytes(limits.max_frame_bytes);
+    let mut reader = FrameReader::with_decoder(reader, decoder);
+    loop {
+        let next = tokio::select! {
+            _ = shutdown.requested() => break,
+            next = with_idle_timeout(limits.idle_timeout, reader.next_document()) => next?,
+        };
+        let Some(document) = next else { break };
         let response = dispatch_document(dispatcher, &document);
         if !response.is_empty() {
             write_frame(&mut writer, &response).await?;
         }
     }
     writer.shutdown().await.map_err(transport_error)
+}
+
+/// Fail with a transport error when `operation` takes longer than `timeout`.
+pub async fn with_idle_timeout<T>(
+    timeout: Option<Duration>,
+    operation: impl std::future::Future<Output = Result<T, RpcError>>,
+) -> Result<T, RpcError> {
+    match timeout {
+        Some(timeout) => tokio::time::timeout(timeout, operation)
+            .await
+            .map_err(|_| RpcError::TransportError("connection idle timeout".into()))?,
+        None => operation.await,
+    }
 }
 
 /// Dispatch one document. A failure to encode the response becomes a TOON

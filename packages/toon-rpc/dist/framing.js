@@ -15,6 +15,7 @@
  * the length, a missing terminator, a length too large to represent — is a
  * framing error, and a decoder MUST fail the stream rather than resynchronize.
  */
+import { DEFAULT_LIMITS } from './limits.js';
 /** Longest accepted length header: 15 digits keeps the value a safe integer. */
 const MAX_LENGTH_DIGITS = 15;
 const LF = 0x0a;
@@ -35,14 +36,13 @@ export function encodeFrame(document) {
     frame[frame.length - 1] = LF;
     return frame;
 }
-/**
- * Incremental decoder: push arbitrary chunk splits in, pull complete
- * documents out. A framing violation throws and poisons the decoder —
- * the stream has no recoverable resynchronization point.
- */
 export class FrameDecoder {
     buffer = new Uint8Array(0);
     failure;
+    maxFrameBytes;
+    constructor(options = {}) {
+        this.maxFrameBytes = options.maxFrameBytes ?? DEFAULT_LIMITS.maxFrameBytes;
+    }
     /** Append a chunk and return every document completed by it, in order. */
     push(chunk) {
         if (this.failure)
@@ -91,6 +91,9 @@ export class FrameDecoder {
         }
         if (headerEnd > 1 && this.buffer[0] === DIGIT_0) {
             throw this.fail('frame length has a leading zero');
+        }
+        if (length > this.maxFrameBytes) {
+            throw this.fail('frame payload exceeds the size limit');
         }
         const frameEnd = headerEnd + 1 + length;
         if (this.buffer.length <= frameEnd)
