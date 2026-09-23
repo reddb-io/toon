@@ -15,7 +15,7 @@
 
 import type { ToonEvent } from '../events.js'
 import { ToonDecodeError, ToonError, toonError } from '../errors.js'
-import { findUnquoted, parseKey, parseScalar } from '../lexical.js'
+import { findUnquoted, parseKey, parseScalar, trimSpaces } from '../lexical.js'
 import { DEFAULT_MAX_DEPTH } from '../constants.js'
 import {
   emitExtensionRows,
@@ -74,7 +74,9 @@ class LineClassifier {
     if (raw.endsWith('\r')) raw = raw.slice(0, -1)
     // Trailing spaces are not part of the line's content (§12).
     raw = raw.replace(/ +$/, '')
-    if (raw.trim() === '') {
+    // Blank means empty once trailing spaces are gone: only U+0020 is trimmed
+    // (§12), so a line holding NBSP, U+3000 or a tab still carries content.
+    if (raw === '') {
       this.blankPending = true
       return undefined
     }
@@ -360,15 +362,6 @@ function assertNoDuplicateFields(fields: FieldNode[], line: number, ctx: Ctx): v
 }
 
 // #endregion
-
-/** Token trimming is exactly U+0020 (§12). */
-function trimSpaces(text: string): string {
-  let start = 0
-  let end = text.length
-  while (start < end && text[start] === ' ') start++
-  while (end > start && text[end - 1] === ' ') end--
-  return text.slice(start, end)
-}
 
 /**
  * Splits on the active delimiter, quote-aware, preserving empty tokens and

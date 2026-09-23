@@ -11,6 +11,8 @@ export declare const DOCUMENT_DELIMITER = ",";
 export declare function splitLines(input: any): any;
 /** Decodes a scalar token (spec §4): quoted string, literal, number, or bare string. */
 export declare function parseScalar(value: any, line: any): any;
+/** Token trimming is exactly U+0020 (§12); NBSP, HTAB and other whitespace are content. */
+export declare function trimSpaces(text: any): any;
 /** Returns `[key, quoted]`. An empty key is only legal when it was quoted. */
 export declare function parseKey(value: any, line: any): any[];
 export declare function parseQuotedString(value: any, line: any): string;

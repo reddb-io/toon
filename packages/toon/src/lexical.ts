@@ -46,9 +46,18 @@ export function parseScalar(value, line) {
   return value
 }
 
+/** Token trimming is exactly U+0020 (§12); NBSP, HTAB and other whitespace are content. */
+export function trimSpaces(text) {
+  let start = 0
+  let end = text.length
+  while (start < end && text[start] === ' ') start++
+  while (end > start && text[end - 1] === ' ') end--
+  return text.slice(start, end)
+}
+
 /** Returns `[key, quoted]`. An empty key is only legal when it was quoted. */
 export function parseKey(value, line) {
-  const trimmed = value.trim()
+  const trimmed = trimSpaces(value)
   if (trimmed.startsWith('"')) {
     return [parseQuotedString(trimmed, line), true]
   }
@@ -84,8 +93,8 @@ export function parseQuotedString(value, line) {
     }
 
     if (match[0] === '"') {
-      // The closing quote must end the token; only trailing whitespace may follow.
-      if (value.slice(match.index + 1).trim() === '') {
+      // The closing quote must end the token; only trailing spaces may follow (§12).
+      if (trimSpaces(value.slice(match.index + 1)) === '') {
         return output + value.slice(index, match.index)
       }
       throw invalidQuotedString(line)
@@ -176,7 +185,7 @@ export function splitDelimited(value, delimiter, line) {
     const quote = value.indexOf('"', index)
     const delim = value.indexOf(delimiter, index)
     if (delim !== -1 && (quote === -1 || delim < quote)) {
-      values.push(value.slice(start, delim).trim())
+      values.push(trimSpaces(value.slice(start, delim)))
       start = delim + 1
       index = delim + 1
     } else if (quote !== -1) {
@@ -186,7 +195,7 @@ export function splitDelimited(value, delimiter, line) {
     }
   }
 
-  values.push(value.slice(start).trim())
+  values.push(trimSpaces(value.slice(start)))
   return values
 }
 

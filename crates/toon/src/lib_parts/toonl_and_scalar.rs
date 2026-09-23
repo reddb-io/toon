@@ -405,7 +405,7 @@ fn parse_scalar(value: &str, line: usize) -> Result<Value, ParseError> {
 }
 
 fn parse_key(value: &str, line: usize) -> Result<(String, bool), ParseError> {
-    let value = value.trim();
+    let value = trim_u0020(value);
     if value.starts_with('"') {
         return parse_quoted_string(value, line).map(|key| (key, true));
     }
@@ -429,7 +429,8 @@ fn parse_quoted_string(value: &str, line: usize) -> Result<String, ParseError> {
     while let Some(character) = characters.next() {
         match character {
             '"' => {
-                if characters.as_str().trim().is_empty() {
+                // Only trailing U+0020 may follow the closing quote (§12).
+                if trim_u0020(characters.as_str()).is_empty() {
                     return Ok(output);
                 }
                 return Err(invalid_quoted_string(line));
@@ -500,7 +501,7 @@ fn split_delimited(value: &str, delimiter: char, line: usize) -> Result<Vec<Stri
             '\\' if in_string => escaped = true,
             '"' => in_string = !in_string,
             character if character == delimiter && !in_string => {
-                values.push(value[start..index].trim().to_owned());
+                values.push(trim_u0020(&value[start..index]).to_owned());
                 start = index + character.len_utf8();
             }
             _ => {}
@@ -511,7 +512,7 @@ fn split_delimited(value: &str, delimiter: char, line: usize) -> Result<Vec<Stri
         return Err(invalid_quoted_string(line));
     }
 
-    values.push(value[start..].trim().to_owned());
+    values.push(trim_u0020(&value[start..]).to_owned());
     Ok(values)
 }
 
