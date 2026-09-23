@@ -1,9 +1,21 @@
+import { toonError } from '../errors.js'
 import { isRawString } from './raw-string.js'
 
 const SURROGATE_PATTERN = /[\uD800-\uDFFF]/
 
+interface NormalizeContext {
+  /** 0 disables the guard. */
+  maxDepth: number
+  /** Containers on the current path; shared (acyclic) references stay legal. */
+  active: WeakSet<object>
+}
+
 /** Converts host values to the JSON data model before replacement and encoding. */
-export function normalizeValue(value: unknown): any {
+export function normalizeValue(value: unknown, maxDepth = 0): any {
+  return normalizeNested(value, { maxDepth, active: new WeakSet() }, 0)
+}
+
+function normalizeNested(value: unknown, context: NormalizeContext, depth: number): any {
   if (value === null) return null
   if (isRawString(value)) return value
 
@@ -14,7 +26,7 @@ export function normalizeValue(value: unknown): any {
     typeof (value as any).toJSON === 'function'
   ) {
     const next = (value as any).toJSON()
-    if (next !== value) return normalizeValue(next)
+    if (next !== value) return normalizeNested(next, context, depth)
   }
 
   if (typeof value === 'string') {
@@ -32,22 +44,37 @@ export function normalizeValue(value: unknown): any {
       : value.toString()
   }
   if (value instanceof Date) return value.toISOString()
-  if (Array.isArray(value)) return value.map(normalizeValue)
-  if (value instanceof Set) return Array.from(value, normalizeValue)
-  if (value instanceof Map) {
-    const result = {}
-    for (const [key, nested] of value) setOwn(result, String(key), normalizeValue(nested))
-    return result
-  }
-  if (isPlainObject(value)) {
-    const result = {}
-    for (const key of Object.keys(value)) {
-      assertNoLoneSurrogate(key, 'object key')
-      setOwn(result, key, normalizeValue(value[key]))
-    }
-    return result
+  if (Array.isArray(value) || value instanceof Set || value instanceof Map || isPlainObject(value)) {
+    return normalizeContainer(value, context, depth)
   }
   return null
+}
+
+function normalizeContainer(value: object, context: NormalizeContext, depth: number): any {
+  // The serializer enforces maxDepth exactly; this guard only stops a runaway
+  // recursion one level past it, before the host stack overflows.
+  if (context.maxDepth !== 0 && depth > context.maxDepth + 1) {
+    throw toonError(0, `maximum nesting depth exceeded (maxDepth ${context.maxDepth})`)
+  }
+  if (context.active.has(value)) throw new TypeError('Cannot encode a circular structure')
+  context.active.add(value)
+  try {
+    const child = (nested: unknown) => normalizeNested(nested, context, depth + 1)
+    // Array.from visits holes, so a sparse slot normalizes to null like undefined.
+    if (Array.isArray(value) || value instanceof Set) return Array.from(value, child)
+    const result = {}
+    if (value instanceof Map) {
+      for (const [key, nested] of value) setOwn(result, String(key), child(nested))
+      return result
+    }
+    for (const key of Object.keys(value)) {
+      assertNoLoneSurrogate(key, 'object key')
+      setOwn(result, key, child(value[key]))
+    }
+    return result
+  } finally {
+    context.active.delete(value)
+  }
 }
 
 function assertNoLoneSurrogate(value: string, context: string): void {

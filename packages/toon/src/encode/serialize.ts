@@ -2,6 +2,7 @@ import { canonicalKey, needsQuotes, primitiveText, quoteString } from '../lexica
 import { toonError } from '../errors.js'
 import { DEFAULT_MAX_DEPTH } from '../constants.js'
 import { isPlainObject, isPrimitive, normalizeValue } from './normalize.js'
+import { isRawString } from './raw-string.js'
 import { applyReplacer, type EncodeReplacer } from './replacer.js'
 import { keyedFields, tabularFields, type FieldNode } from './shape.js'
 import { cyclicDiscriminatedArrayWire } from '../cyclic.js'
@@ -40,7 +41,7 @@ export function encodeLines(input: unknown, options: EncodeOptions = {}): Iterab
   const maxDepth = rawMaxDepth === Number.POSITIVE_INFINITY
     ? 0
     : Math.max(0, Math.floor(rawMaxDepth))
-  const normalized = normalizeValue(input)
+  const normalized = normalizeValue(input, maxDepth)
   const value = options.replacer
     ? applyReplacer(normalized, options.replacer)
     : normalized
@@ -59,12 +60,26 @@ export function encodeLines(input: unknown, options: EncodeOptions = {}): Iterab
 }
 
 function encodeValue(value: any, options: ResolvedOptions): string[] {
-  if (isPrimitive(value)) return [primitiveText(value, options.delimiter)]
+  if (isPrimitive(value)) return [rootPrimitiveText(value, options.delimiter)]
   if (Array.isArray(value)) return encodeArray(undefined, value, 0, options)
   const fields = keyedFields(value, options)
   return fields === undefined
     ? encodeObject(value, 0, options)
     : encodeKeyed(undefined, value, fields, 0, options)
+}
+
+const BYTE_ORDER_MARK = '\uFEFF'
+
+/**
+ * A U+FEFF that starts the document is a byte-order mark the decoder removes
+ * (§12), so a root string beginning with one is quoted to keep its content.
+ */
+function rootPrimitiveText(value: any, delimiter: ResolvedOptions['delimiter']): string {
+  if (typeof value === 'string' && value.startsWith(BYTE_ORDER_MARK)) return quoteString(value)
+  if (isRawString(value) && value.value.startsWith(BYTE_ORDER_MARK)) {
+    throw new TypeError(`Raw root string must not start with U+FEFF: ${JSON.stringify(value.value)}`)
+  }
+  return primitiveText(value, delimiter)
 }
 
 function encodeObject(value: Record<string, any>, depth: number, options: ResolvedOptions): string[] {

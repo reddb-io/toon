@@ -1,7 +1,11 @@
+import { toonError } from '../errors.js';
 import { isRawString } from './raw-string.js';
 const SURROGATE_PATTERN = /[\uD800-\uDFFF]/;
 /** Converts host values to the JSON data model before replacement and encoding. */
-export function normalizeValue(value) {
+export function normalizeValue(value, maxDepth = 0) {
+    return normalizeNested(value, { maxDepth, active: new WeakSet() }, 0);
+}
+function normalizeNested(value, context, depth) {
     if (value === null)
         return null;
     if (isRawString(value))
@@ -12,7 +16,7 @@ export function normalizeValue(value) {
         typeof value.toJSON === 'function') {
         const next = value.toJSON();
         if (next !== value)
-            return normalizeValue(next);
+            return normalizeNested(next, context, depth);
     }
     if (typeof value === 'string') {
         assertNoLoneSurrogate(value, 'string value');
@@ -32,25 +36,40 @@ export function normalizeValue(value) {
     }
     if (value instanceof Date)
         return value.toISOString();
-    if (Array.isArray(value))
-        return value.map(normalizeValue);
-    if (value instanceof Set)
-        return Array.from(value, normalizeValue);
-    if (value instanceof Map) {
-        const result = {};
-        for (const [key, nested] of value)
-            setOwn(result, String(key), normalizeValue(nested));
-        return result;
+    if (Array.isArray(value) || value instanceof Set || value instanceof Map || isPlainObject(value)) {
+        return normalizeContainer(value, context, depth);
     }
-    if (isPlainObject(value)) {
+    return null;
+}
+function normalizeContainer(value, context, depth) {
+    // The serializer enforces maxDepth exactly; this guard only stops a runaway
+    // recursion one level past it, before the host stack overflows.
+    if (context.maxDepth !== 0 && depth > context.maxDepth + 1) {
+        throw toonError(0, `maximum nesting depth exceeded (maxDepth ${context.maxDepth})`);
+    }
+    if (context.active.has(value))
+        throw new TypeError('Cannot encode a circular structure');
+    context.active.add(value);
+    try {
+        const child = (nested) => normalizeNested(nested, context, depth + 1);
+        // Array.from visits holes, so a sparse slot normalizes to null like undefined.
+        if (Array.isArray(value) || value instanceof Set)
+            return Array.from(value, child);
         const result = {};
+        if (value instanceof Map) {
+            for (const [key, nested] of value)
+                setOwn(result, String(key), child(nested));
+            return result;
+        }
         for (const key of Object.keys(value)) {
             assertNoLoneSurrogate(key, 'object key');
-            setOwn(result, key, normalizeValue(value[key]));
+            setOwn(result, key, child(value[key]));
         }
         return result;
     }
-    return null;
+    finally {
+        context.active.delete(value);
+    }
 }
 function assertNoLoneSurrogate(value, context) {
     if (!SURROGATE_PATTERN.test(value))
