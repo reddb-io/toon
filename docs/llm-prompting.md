@@ -19,6 +19,39 @@ one header plus comma-separated rows, which is where most of the saving over
 JSON comes from. Deeply nested, irregular data saves little; send it as JSON
 if the model struggles.
 
+## Where tabular TOON costs accuracy
+
+Token savings are not free on every question. A community evaluation across
+34 models and 3,026 tests
+([toon-format/toon discussion #285](https://github.com/toon-format/toon/discussions/285))
+found:
+
+| Question type | JSON | TOON | CSV |
+| --- | ---: | ---: | ---: |
+| Field retrieval | 98.0% | 95.6% | 94.9% |
+| Structural | 99.3% | 98.5% | 98.5% |
+| Aggregation | 47.6% | 47.1% | 33.8% |
+| Filtering | 78.7% | 66.9% | 64.7% |
+
+- **Lookups and structure are at parity.** Reading a field or counting rows
+  from a TOON table is as reliable as from JSON, at roughly 30% fewer tokens.
+- **Filtering is where tables lose**, and CSV loses the same way. Selecting
+  rows by a condition makes the model map each cell back to its column in the
+  header; a JSON object repeats the key next to every value.
+- **Model size decides the gap.** Top-tier models showed none, mid-tier models
+  a few points, and small models 10–15 points, mostly on filtering. The cheap
+  models where token savings matter most are the ones that lose accuracy.
+- **TOON beats CSV** on aggregation and matches it elsewhere while keeping the
+  full JSON data model.
+
+In practice, send TOON tables when the model looks values up, counts, or
+summarizes. For filtering-heavy prompts on small models, send JSON or official
+list form (`- key: value` items keep the key beside each value), or add the
+one-line primer above. RedDB does not run model-accuracy evaluations itself;
+the numbers here are upstream's, and the reddb-io column extensions
+(primitive-array and object-array columns) move values further from their
+header, so they are unmeasured on this axis.
+
 ## Ask for output with a header template
 
 When you want TOON back, give the exact header and let the model fill in the

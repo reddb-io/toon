@@ -5,16 +5,35 @@ local draft for maintainer review. Posting it to `toon-format/spec` requires a
 fresh human approval; after posting, record the comment URL and response in the
 final section.
 
-## Source check — 2026-08-07
+## Source check — 2026-09-23
 
 | Source | Freshly checked state | Relevance |
 | --- | --- | --- |
-| [toon-format/spec#48](https://github.com/toon-format/spec/issues/48) | **OPEN**, last updated 2026-07-15 | The actual RFC is “v4.0: Mixed columnar arrays, objectArrayLayout, ignoreNullOrEmpty, excludeEmptyArrays.” It asks that the lossy options be unbundled and that accuracy be benchmarked alongside tokens. |
-| [toon-format/spec draft PR #47](https://github.com/toon-format/spec/pull/47) | **OPEN DRAFT**, unmerged, last updated 2026-07-15; head revision [`b5ce4c6`](https://github.com/toon-format/spec/commit/b5ce4c6619665fb23e38f5ae123bb34277d78172) | Proposes primitive header cells followed by indented complex-field spill lines. The draft still bundles the two lossy options and binary guidance. |
+| [toon-format/spec#48](https://github.com/toon-format/spec/issues/48) | **OPEN**, unchanged since 2026-07-15 (rechecked 2026-09-23) | The actual RFC is “v4.0: Mixed columnar arrays, objectArrayLayout, ignoreNullOrEmpty, excludeEmptyArrays.” It asks that the lossy options be unbundled and that accuracy be benchmarked alongside tokens. |
+| [toon-format/spec draft PR #47](https://github.com/toon-format/spec/pull/47) | **OPEN DRAFT**, conflicting, unchanged since 2026-07-15; head revision [`b5ce4c6`](https://github.com/toon-format/spec/commit/b5ce4c6619665fb23e38f5ae123bb34277d78172) | Proposes primitive header cells followed by indented complex-field spill lines. The draft still bundles the two lossy options and binary guidance. |
 | [toon-format/spec#49](https://github.com/toon-format/spec/issues/49) | **CLOSED / COMPLETED** on 2026-07-22 | This was the v4 tabular-generalization roadmap. Its closing comment says #48 remains open for reassessment; it is not a primitive-array-column RFC. |
 | [TOON v4.1.1](https://github.com/toon-format/spec/releases/tag/v4.1.1) | **RELEASED** 2026-08-05 at [`62f16b3`](https://github.com/toon-format/spec/commit/62f16b369408180f1faf1cba7da1b46d1f336f12) | Latest released v4.1 patch and the spec revision pinned by this repository. |
 | [v4.1.1 §9.3](https://github.com/toon-format/spec/blob/62f16b369408180f1faf1cba7da1b46d1f336f12/SPEC.md#L489-L530) / [§9.4](https://github.com/toon-format/spec/blob/62f16b369408180f1faf1cba7da1b46d1f336f12/SPEC.md#L531-L549) | **RELEASED syntax** | Nested field groups flatten uniform non-empty object columns into primitive cells. An array-valued or otherwise ineligible column makes the whole array use list form. |
 | [v4.1.1 §9.5](https://github.com/toon-format/spec/blob/62f16b369408180f1faf1cba7da1b46d1f336f12/SPEC.md#L551-L575) | **RELEASED syntax** | Keyed tabular form handles objects whose values share a uniform shape; it does not settle mixed object arrays. |
+
+## Evidence gap and local decision — 2026-09-23
+
+The maintainer's standing ask on #48 is explicit: unbundle
+`ignoreNullOrEmpty` and `excludeEmptyArrays` into separate proposals that
+default to `false`, and **benchmark model accuracy, not just tokens**, because
+the 34-model evaluation in
+[toon-format/toon discussion #285](https://github.com/toon-format/toon/discussions/285)
+measured accuracy falling as the distance between a header and its values
+grows. That evaluation's category split supports the concern: TOON tables sit
+at parity with JSON on field retrieval (95.6% vs 98.0%) but trail it on
+filtering (66.9% vs 78.7%).
+
+The token and fixture evidence below is therefore necessary but not
+sufficient. The maintainers of this repository decided not to run model
+accuracy evaluations here and to leave that axis to upstream's benchmarks, so
+this draft stays unposted and the two local column extensions carry an
+accuracy caveat in [`toon-reddb-spec.md`](toon-reddb-spec.md) and
+[LLM prompting](llm-prompting.md#where-tabular-toon-costs-accuracy).
 
 The old local mapping of #48 to delimiter choice and #49 to primitive-array
 columns was incorrect and has been removed. Delimiter selection is already an

@@ -14,6 +14,18 @@ array tabular, because the array-valued field is not itself primitive, so the
 whole table falls back to the list form and loses its amortization.
 Tagged records (a row plus a small list of labels) are a very common shape.
 
+## Accuracy caveat
+
+Only token and byte savings were measured. The form keeps more values in
+tabular rows, away from their field names, and a 34-model community evaluation
+([toon-format/toon discussion #285](https://github.com/toon-format/toon/discussions/285))
+found tabular layouts lose accuracy on filtering questions, mostly in small
+models. The upstream maintainer asks for model-accuracy evidence before
+accepting any columnar layout
+([spec#48](https://github.com/toon-format/spec/issues/48)); RedDB deliberately
+leaves that evaluation to upstream, so this stays an opt-in token optimization.
+See [LLM prompting](../llm-prompting.md#where-tabular-toon-costs-accuracy).
+
 ## Design / grammar
 
 An otherwise-tabular object array may declare such a field as a **primitive-list
