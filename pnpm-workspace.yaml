@@ -2,3 +2,13 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: true
+# Supply-chain guards, as in toon-format/toon: refuse package versions younger
+# than a day, and refuse a version published with weaker trust evidence than
+# an earlier release of the same package.
+minimumReleaseAge: 1440
+trustPolicy: no-downgrade
+# Exact-version exceptions only. undici-types 6.20.0 (via @types/node) was
+# published without the provenance its neighbours carry; it is a types-only
+# package already in the lockfile, so it is excepted rather than the policy.
+trustPolicyExclude:
+  - undici-types@6.20.0
