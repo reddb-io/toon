@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "auditedAt": "2026-08-07",
+  "auditedAt": "2026-09-23",
   "repositories": {
     "toon-format/spec": {
       "branch": "main",
@@ -10,7 +10,7 @@
         "prerelease": false
       },
       "head": {
-        "revision": "62f16b369408180f1faf1cba7da1b46d1f336f12"
+        "revision": "d6db4b04303bdea132351ce45aed612311c850b2"
       },
       "evidence": {
         "revision": "62f16b369408180f1faf1cba7da1b46d1f336f12",
@@ -29,7 +29,7 @@
         "prerelease": false
       },
       "head": {
-        "revision": "f06ddca16c8a4ccd091f33d7216c543e10a9c681"
+        "revision": "f151a5d830d001bc244395b891183cba37e0d935"
       },
       "evidence": {
         "revision": "a9e6d97eca931379824f3b6a1ba8fbfbda7d3c53",
@@ -87,14 +87,52 @@
       "number": 330,
       "kind": "pull_request",
       "title": "feat(benchmarks): add reproducible generation benchmark",
-      "lastAuditedRevision": "df0870d579d666f4625a004c04517c0c7cc45651",
+      "lastAuditedRevision": "4b7f9c9e8cadb6152c00e43c21ddf5738125197a",
       "lastAuditedState": {
         "status": "open",
         "draft": false,
-        "conflict": true
+        "conflict": false
       },
-      "disposition": "Compare methodology after merge; no implementation import",
+      "disposition": "Methodology adopted locally in 0.30.0 (JSON-mode baseline, run provenance); re-compare after merge, no implementation import",
       "localImpact": "Check whether local token and runtime benchmark reports need methodology updates"
+    },
+    "toon-format/toon#339": {
+      "repository": "toon-format/toon",
+      "number": 339,
+      "kind": "issue",
+      "title": "Root string starting with U+FEFF is emitted unquoted and loses its first character on decode",
+      "lastAuditedRevision": "2026-09-15T06:57:37Z",
+      "lastAuditedState": {
+        "status": "open"
+      },
+      "disposition": "Fixed locally in 0.30.0 by quoting a BOM-led root string in both encoders",
+      "localImpact": "Compare the upstream fix (root-only quoting vs a §7.2 rule) with the local root-only behaviour and the json-limits corpus cases"
+    },
+    "toon-format/toon#335": {
+      "repository": "toon-format/toon",
+      "number": 335,
+      "kind": "pull_request",
+      "title": "fix(encode): normalize sparse array holes to null",
+      "lastAuditedRevision": "c89f0781f703bc5b41e34b437e97d8ef0ce4d144",
+      "lastAuditedState": {
+        "status": "open",
+        "draft": false,
+        "conflict": false
+      },
+      "disposition": "Fixed locally in 0.30.0 with the same null mapping; no import",
+      "localImpact": "Confirm the merged upstream mapping still matches the TypeScript normalization and its property tests"
+    },
+    "toon-format/spec#58": {
+      "repository": "toon-format/spec",
+      "number": 58,
+      "kind": "issue",
+      "title": "v4.0 port coordination",
+      "lastAuditedRevision": "2026-07-26T13:09:12Z",
+      "lastAuditedState": {
+        "status": "open"
+      },
+      "disposition": "Ecosystem status only; watch for port-facing clarifications of v4.x",
+      "localImpact": "Re-check conformance fixtures and docs if the coordination issue records spec clarifications"
     }
   }
 }

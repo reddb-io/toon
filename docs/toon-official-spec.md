@@ -43,7 +43,7 @@ The opt-in wire extensions are defined in
 
 ## Official frontier status
 
-Status was **audited on 2026-08-07** against
+Status was **audited on 2026-09-23** against
 [the machine-readable checkpoint](../.github/upstream-watch.json). “Official”
 means released specification text, not merely an open issue, a branch commit,
 or a local implementation.
@@ -51,8 +51,9 @@ or a local implementation.
 | State | Item | Local disposition |
 | --- | --- | --- |
 | **Released** | TOON v4.1.1 spec at `62f16b3` and reference package at `a9e6d97` | Canonical baseline and conformance evidence pin. |
-| **Merged**, unreleased | `toon-format/toon` default-branch HEAD `f06ddca` is ahead of the released implementation pin | Monitor only; a merged branch commit does not redefine v4.1.1. |
+| **Merged**, unreleased | `toon-format/toon` default-branch HEAD `f151a5d` (CLI and tooling changes) and `toon-format/spec` HEAD `d6db4b0` (one glossary wording change) are ahead of the released pins | Monitor only; a merged branch commit does not redefine v4.1.1. |
 | **Draft** and **conflicting** | [spec PR #47](https://github.com/toon-format/spec/pull/47), mixed columnar arrays | Do not describe its spill-line syntax as released. |
+| Open bug, fixed locally | [toon issue #339](https://github.com/toon-format/toon/issues/339), BOM-led root string, and [toon PR #335](https://github.com/toon-format/toon/pull/335), sparse array holes | Both fixed in 0.30.0 in the local engines; re-compare when upstream merges. |
 | Open RFC | [spec issue #48](https://github.com/toon-format/spec/issues/48), mixed columnar arrays and omission controls | Evidence discussion only; no released mapping to a local extension. |
 | Experimental implementation | [toon PR #294](https://github.com/toon-format/toon/pull/294), decoder reviver | TypeScript-only opt-in pinned to the audited PR head; not normative. |
 | **Rejected** local direction | [broad discriminated/heterogeneous arrays](proposals/discriminated-heterogeneous-arrays.md) | Design history; do not implement as proposed. |
