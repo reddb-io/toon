@@ -11,6 +11,39 @@ now; this file is how it got there.
 
 ## [Unreleased]
 
+### Migration: the RPC family from 0.29 to 0.31
+
+The 0.29 RPC packages and crates were a prototype; 0.31 is the first line
+published against the normative spec (`docs/toon-rpc-spec.md`). The wire and
+most APIs changed:
+
+- **Byte streams.** TCP, Unix sockets and stdio carry §8.1 length-prefixed
+  frames instead of blank-line-separated documents, so a 0.29 peer cannot talk
+  to a 0.31 peer over them.
+- **Rust clients.** `Client::new(transport)` over `ClientTransport` becomes
+  `Client::duplex(transport, ClientOptions::default())` or
+  `Client::request_response(...)`. Calls take `&self` and can run
+  concurrently, and they fail with `ClientError`. The transports are
+  `connect_tcp`, `connect_unix`, `reddb_io_toon_rpc_stdio::spawn`,
+  `HttpTransport`, `WsClient` and `SseTransport`.
+- **Rust servers.** `TcpServer::new(addr, d).serve()`,
+  `HttpService::serve()` (always `0.0.0.0:8080`) and `WsServer::new` become
+  `TcpServer::bind`, `HttpServer::bind` and `WsServer::bind`, each followed by
+  `serve()` or `serve_with_shutdown(signal)` and configured with
+  `with_limits`. The SSE registry is replaced by `SseServer` and
+  `SseTransport`, and long polling is no longer published.
+- **HTTP** answers a notification with `204 No Content`.
+- **JSON-RPC through `MultiRpc`.** An Invalid Request carries `id: null`, and
+  `params: null` is invalid.
+- **MCP** is the published Model Context Protocol (2025-06-18, JSON over
+  stdio). The 0.29 variant (`server/discover`, version `2026-07-28`, TOON on the
+  wire) is gone, and hosts that speak MCP can now use the server.
+- **Codegen.** The `.toonrpc` IDL lists params as an object, so regenerate.
+  The derive macro is removed. The CLI keeps `generate` and `call <url>`;
+  `dev` is gone.
+- **TypeScript** servers live in `@reddb-io/toon-rpc/serve`, and every client
+  and transport takes `limits` (spec §8.3).
+
 ### Changed
 
 - **Breaking (toon-rpc, Rust):** the Rust client correlates calls by ID.
@@ -265,11 +298,17 @@ now; this file is how it got there.
 
 ### Added
 
+- **The RPC family is published again.** `@reddb-io/toon-rpc`,
+  `@reddb-io/multi-rpc`, `@reddb-io/toon-rpc-mcp` and `@reddb-io/toon-rpc-acp`
+  on npm, and the `reddb-io-toon-rpc` core, stdio, TCP, HTTP, WebSocket, SSE,
+  MCP, ACP, codegen and CLI crates on crates.io. They had been quarantined since
+  0.29, and each is now held to the RPC gates and verified from a clean
+  install after publishing. The examples and long polling stay unpublished.
 - **toon-rpc release gates.** A new `RPC gates` CI job runs every
   TypeScript ↔ Rust transport cell in both directions (HTTP, WebSocket, TCP,
   SSE, stdio: `pnpm test:rpc-interop`), installs every RPC package from its
-  packed tarball and imports each export, and reports line coverage per
-  component against the floors in
+  packed tarball and imports each export, packages every RPC crate that
+  publishes, and reports line coverage per component against the floors in
   `scripts/rpc-coverage-floors.json`. A stable release waits for it through
   the exact-commit CI gate.
 - **The VS Code extension publishes to the Marketplace and Open VSX.** A new

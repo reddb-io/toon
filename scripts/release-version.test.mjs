@@ -353,11 +353,21 @@ test('stable releases document v4.1 and close only after public clean-room verif
   assert.match(automatic, /closure_spec=203/)
 })
 
-test('RPC packages and crates stay quarantined from stable publication', () => {
+test('RPC packages and crates graduate behind their gates', () => {
   const release = text(root, '.github/workflows/release.yml')
-  assert.match(release, /publish_npm_pkg "@reddb-io\/toon"/)
-  assert.match(release, /publish_one reddb-io-toon\n/)
-  assert.match(release, /publish_one reddb-io-tq\n/)
+  const ci = text(root, '.github/workflows/ci.yml')
+
+  // The RPC gates run in CI, so the exact-commit CI gate holds every release to them.
+  const gates = ci.match(/\n  rpc-gates:\n([\s\S]*?)(?:\n  [a-z-]+:\n|$)/)?.[1]
+  assert.ok(gates, 'ci.yml must run the RPC gates')
+  for (const step of [
+    'pnpm test:rpc-interop',
+    'node scripts/rpc-package-smoke.mjs',
+    'bash scripts/rpc-cargo-package.sh',
+    'node scripts/rpc-coverage.mjs',
+  ]) {
+    assert.ok(gates.includes(step), `RPC gates must run ${step}`)
+  }
 
   const npmPackages = [
     ['packages/toon-rpc/package.json', '@reddb-io/toon-rpc'],
@@ -365,24 +375,52 @@ test('RPC packages and crates stay quarantined from stable publication', () => {
     ['packages/toon-rpc-mcp/package.json', '@reddb-io/toon-rpc-mcp'],
     ['packages/toon-rpc-acp/package.json', '@reddb-io/toon-rpc-acp'],
   ]
-
+  let previous = release.indexOf('publish_npm_pkg "@reddb-io/toon"\n')
+  assert.ok(previous > 0, 'the codec publishes first')
   for (const [path, name] of npmPackages) {
     const manifest = JSON.parse(text(root, path))
-    assert.equal(manifest.private, true, `${name} must remain private during recovery`)
-    assert.doesNotMatch(release, new RegExp(`publish_npm_pkg "${name}"`))
-    assert.doesNotMatch(release, new RegExp(`"${name}@\\$\\{VERSION\\}"`))
+    assert.equal(manifest.private, undefined, `${name} must be publishable`)
+    const at = release.indexOf(`publish_npm_pkg "${name}"`)
+    assert.ok(at > previous, `${name} publishes after the packages before it`)
+    previous = at
+    assert.match(release, new RegExp(`"${name}@\\$\\{VERSION\\}"`), `${name} is verified from npm`)
   }
 
-  const cargoManifests = readdirSync(join(root, 'crates'), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith('reddb-io-toon-rpc'))
-    .map((entry) => `crates/${entry.name}/Cargo.toml`)
-  for (const path of cargoManifests) {
-    const manifest = text(root, path)
-    const name = manifest.match(/^name = "([^"]+)"$/m)?.[1]
-    assert.ok(name, `${path} must declare a package name`)
-    assert.match(manifest, /^publish = false$/m, `${name} must remain unpublished during recovery`)
-    assert.doesNotMatch(release, new RegExp(`publish_one ${name}`))
-    assert.doesNotMatch(release, new RegExp(`${name} = "=%s"`))
+  // Dependency order: every crate after the crates it depends on.
+  const publishedCrates = [
+    'reddb-io-toon-rpc',
+    'reddb-io-toon-rpc-stdio',
+    'reddb-io-toon-rpc-tcp',
+    'reddb-io-toon-rpc-http',
+    'reddb-io-toon-rpc-ws',
+    'reddb-io-toon-rpc-sse',
+    'reddb-io-toon-rpc-mcp',
+    'reddb-io-toon-rpc-acp',
+    'reddb-io-toon-rpc-codegen',
+    'reddb-io-toon-rpc-cli',
+  ]
+  const packaged = text(root, 'scripts/rpc-cargo-package.sh')
+  previous = release.indexOf('publish_one reddb-io-tq\n')
+  for (const name of publishedCrates) {
+    const manifest = text(root, `crates/${name}/Cargo.toml`)
+    assert.doesNotMatch(manifest, /^publish = false$/m, `${name} must be publishable`)
+    const at = release.indexOf(`publish_one ${name}\n`)
+    assert.ok(at > previous, `${name} publishes after the crates before it`)
+    previous = at
+    assert.ok(packaged.includes(`  ${name}\n`), `${name} is packaged by the RPC gates`)
+    for (const [, dependency] of manifest.matchAll(/^(reddb-io-toon-rpc[a-z-]*) = \{ path/gm)) {
+      assert.ok(
+        release.indexOf(`publish_one ${dependency}\n`) < at,
+        `${name} publishes after its dependency ${dependency}`
+      )
+    }
+  }
+  assert.match(release, /cargo install --version "\$\{VERSION\}" reddb-io-toon-rpc-cli/)
+
+  for (const name of ['reddb-io-toon-rpc-examples', 'reddb-io-toon-rpc-longpolling']) {
+    const manifest = text(root, `crates/${name}/Cargo.toml`)
+    assert.match(manifest, /^publish = false$/m, `${name} stays unpublished`)
+    assert.doesNotMatch(release, new RegExp(`publish_one ${name}\\b`))
   }
 
   const mcpManifest = JSON.parse(text(root, 'packages/toon-rpc-mcp/package.json'))

@@ -377,21 +377,27 @@ client and its public diagnostic mechanism.
 
 ## 11. Implementation Status
 
-The TypeScript client owns one receive pump for a framed duplex transport and
-supports a separate direct request/response contract. Pending calls are removed
-before settlement on success, RPC error, abort, timeout, send failure, transport
-failure/completion, or client close. Invalid, unknown-ID, and duplicate-ID
-responses are observable diagnostics, and valid batch siblings are isolated.
+The 0.31 line implements this contract in TypeScript (`@reddb-io/toon-rpc`,
+`@reddb-io/multi-rpc`) and Rust (`reddb-io-toon-rpc` and its transport crates):
 
-The TypeScript HTTP, WebSocket, TCP, stdio and SSE client transports are
-recovered (#405), with the TCP and stdio byte streams using the §8.1 framing
-profile, and the legacy ACP-style contract is pinned (#413).
+- Each client owns one receive pump for a duplex transport and a separate
+  request/response contract. A pending call is removed before it settles,
+  whatever settles it (response, RPC error, abort or dropped call, timeout,
+  send or transport failure, the stream ending, close), so it settles exactly
+  once. Invalid, unknown-ID and duplicate-ID responses are observable
+  diagnostics, and valid batch siblings are isolated.
+- HTTP, WebSocket, TCP and Unix sockets, stdio (§8.1) and SSE (§8.2) have a
+  client and a server in both languages; long polling is Rust-only,
+  experimental and unpublished, since §9 defers it.
+- Every client, server and transport enforces the limits of §8.3 and shuts
+  down gracefully.
+- The multi-dialect dispatcher answers each request in its own dialect.
 
-The TypeScript and Rust packages remain quarantined while Spec #389 is in
-progress. Still outstanding are the Rust production client, the Rust transports
-(whose TCP and stdio servers still split documents on blank lines instead of
-§8.1), TypeScript servers, resource limits and graceful shutdown, per-request
-dialect correlation, MCP against its pinned schema, and codegen. Shared semantic
-coverage therefore does not imply that every production component conforms.
-Publication resumes only after lifecycle, transport, package, and exact-commit
-release gates pass.
+Both engines run `contract.json` and `multi.json` with no expected failures.
+The `RPC gates` CI job, which every stable release waits for, runs each
+transport between a TypeScript and a Rust peer in both directions, installs
+every package from its packed tarball, packages every published crate, and
+holds each component to a coverage floor. The MCP adapters implement the
+Model Context Protocol 2025-06-18 as published (JSON-RPC over
+newline-delimited JSON), and the legacy ACP-style adapter follows its pinned
+contract (#413); neither is TOON-RPC wire.

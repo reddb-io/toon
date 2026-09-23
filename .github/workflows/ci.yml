@@ -106,6 +106,8 @@ jobs:
         run: RUST_PEER=target/debug/interop_peer pnpm test:rpc-interop
       - name: Install every RPC package from its packed tarball
         run: node scripts/rpc-package-smoke.mjs
+      - name: Package every published RPC crate
+        run: bash scripts/rpc-cargo-package.sh
       - name: Coverage per RPC component
         run: |
           set -o pipefail

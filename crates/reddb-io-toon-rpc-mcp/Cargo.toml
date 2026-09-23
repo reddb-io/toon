@@ -1,7 +1,6 @@
 [package]
 name = "reddb-io-toon-rpc-mcp"
 version.workspace = true
-publish = false
 description = "Model Context Protocol server pinned to the 2025-06-18 schema, with optional TOON text content"
 edition.workspace = true
 license.workspace = true
