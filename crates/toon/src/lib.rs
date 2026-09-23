@@ -13,6 +13,7 @@ include!("lib_parts/stream.rs");
 include!("lib_parts/stream_events.rs");
 include!("lib_parts/stream_extensions.rs");
 include!("lib_parts/stream_lines.rs");
+include!("lib_parts/scan.rs");
 include!("lib_parts/stream_value.rs");
 include!("lib_parts/truncation.rs");
 include!("lib_parts/cyclic_extension.rs");

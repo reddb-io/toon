@@ -1013,33 +1013,33 @@ fn hex_value(byte: u8) -> Option<u8> {
 }
 
 fn cyclic_invalid(line: usize) -> ParseError {
-    ParseError {
+    ParseError::from(ParseErrorData {
         line,
         message: "invalid cyclic array wire",
         limit: None,
         column: None,
         counts: None,
-    }
+    })
 }
 
 fn cyclic_len_error(line: usize) -> ParseError {
-    ParseError {
+    ParseError::from(ParseErrorData {
         line,
         message: "cyclic array length mismatch",
         limit: None,
         column: None,
         counts: None,
-    }
+    })
 }
 
 fn cyclic_group_len_error(line: usize) -> ParseError {
-    ParseError {
+    ParseError::from(ParseErrorData {
         line,
         message: "cyclic array group length mismatch",
         limit: None,
         column: None,
         counts: None,
-    }
+    })
 }
 
 // ---------------------------------------------------------------------------

@@ -73,13 +73,13 @@ pub fn decode_reader_with_options<R: BufRead>(
     };
     let mut reader = std::io::Read::take(reader, cap);
     let mut input = String::new();
-    std::io::Read::read_to_string(&mut reader, &mut input).map_err(|_| ParseError {
+    std::io::Read::read_to_string(&mut reader, &mut input).map_err(|_| ParseError::from(ParseErrorData {
         line: 1,
         message: "failed to read input",
         limit: None,
         column: None,
         counts: None,
-    })?;
+    }))?;
     decode_with_options(&input, options)
 }
 
@@ -117,7 +117,7 @@ pub fn encode(value: &Value) -> Result<String, EncodeError> {
 impl ParseError {
     /// The stable decoder reason without the source-position prefix.
     pub fn reason(&self) -> &'static str {
-        self.message
+        self.0.message
     }
 }
 
