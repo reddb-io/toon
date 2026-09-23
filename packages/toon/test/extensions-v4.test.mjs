@@ -233,3 +233,13 @@ test('object-array columns encode equal-length primitive rows as fixed matrix co
   assert.equal(encoded, 'rows[2]{id,m[2]}:\n  1,1,2\n  2,3,4')
   assert.deepEqual(decode(encoded, { objectArrayColumns: true }), value)
 })
+
+test('extension cells keep NBSP and other non-U+0020 whitespace as content (§12)', () => {
+  const value = {
+    rows: [{ id: 1, tags: [' a', 'b　'] }, { id: 2, tags: ['c', ' '] }],
+  }
+
+  for (const options of [{ primitiveArrayColumns: true }, { objectArrayColumns: true }]) {
+    assert.deepEqual(decode(encode(value, options), options), value)
+  }
+})
