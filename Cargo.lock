@@ -1128,7 +1128,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "criterion",
  "proptest",
@@ -1138,7 +1138,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1158,7 +1158,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-acp"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1179,7 +1179,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-cli"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1190,7 +1190,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-codegen"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1202,7 +1202,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-examples"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "async-trait",
  "reddb-io-toon-rpc",
@@ -1214,7 +1214,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-http"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "bytes",
  "http",
@@ -1229,7 +1229,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-longpolling"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "bytes",
  "http",
@@ -1245,7 +1245,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-mcp"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1265,7 +1265,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-sse"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "bytes",
  "http",
@@ -1281,7 +1281,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-stdio"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "bytes",
  "futures",
@@ -1292,7 +1292,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-tcp"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "async-trait",
  "reddb-io-toon-rpc",
@@ -1303,7 +1303,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-toon-rpc-ws"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "async-trait",
  "futures",
@@ -1319,7 +1319,7 @@ dependencies = [
 
 [[package]]
 name = "reddb-io-tq"
-version = "0.30.1"
+version = "0.30.2"
 dependencies = [
  "quick-xml",
  "reddb-io-toon",
