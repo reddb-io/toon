@@ -265,6 +265,13 @@ now; this file is how it got there.
 
 ### Added
 
+- **toon-rpc release gates.** A new `RPC gates` CI job runs every
+  TypeScript ↔ Rust transport cell in both directions (HTTP, WebSocket, TCP,
+  SSE, stdio: `pnpm test:rpc-interop`), installs every RPC package from its
+  packed tarball and imports each export, and reports line coverage per
+  component against the floors in
+  `scripts/rpc-coverage-floors.json`. A stable release waits for it through
+  the exact-commit CI gate.
 - **The VS Code extension publishes to the Marketplace and Open VSX.** A new
   `publish-vscode` release job sends the stable `.vsix` to both registries.
   Each registry is skipped with a warning while its token (`VSCE_PAT`,
