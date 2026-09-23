@@ -27,6 +27,10 @@ impl Dispatcher {
         self
     }
 
+    pub fn max_batch_length(&self) -> usize {
+        self.max_batch_length
+    }
+
     pub fn register<F>(&mut self, method: impl Into<String>, handler: F)
     where
         F: Fn(Params, Id) -> Result<Value, RpcError> + Send + Sync + 'static,

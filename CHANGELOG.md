@@ -59,6 +59,18 @@ now; this file is how it got there.
   limits and close gracefully. The TypeScript side could only be a client
   before, so a Rust client had nothing to talk to.
 
+- **Breaking (toon-rpc):** mixed dialects are handled per request. On a
+  connection where the peer interleaves JSON-RPC and TOON-RPC,
+  `dualDialectStream` answers each request in the dialect it arrived in (the
+  connection-wide latch only applies to this side's own messages). The Rust
+  `MultiRpc` now detects the dialect as the TypeScript one does (media type,
+  then a real JSON parse instead of an 80-byte sniff) and validates JSON-RPC
+  entries through the TOON-RPC core, so an Invalid Request carries `id: null`,
+  `params: null` is invalid instead of `[]`, and a fractional or boolean `id`
+  is refused instead of becoming `0`. In both, a malformed body opening with `{`
+  gets a JSON-RPC Parse error, and the JSON path honors the batch limit. A new
+  shared corpus, `tests/corpus/toon-rpc/multi.json`, holds both to it.
+
 - **Rust `decode` builds its `Value` directly and jumps with `memchr`.** The
   value is assembled while the grammar emits, without an intermediate event
   vector, and strict mode skips the duplicate-key search it never needs

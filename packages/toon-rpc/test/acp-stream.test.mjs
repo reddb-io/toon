@@ -135,3 +135,75 @@ test('string payloads with embedded newlines survive the TOON framing', async ()
   const [message] = await collect(reread.readable, 1);
   assert.equal(message.params.text, text);
 });
+
+test('interleaved dialects: each response goes out in its own request\'s dialect', async () => {
+  const pipe = bytePipe();
+  const out = sink();
+  const stream = dualDialectStream(out.writable, pipe.readable);
+
+  pipe.push('toonrpc: "1.0"\nmethod: a\nid: 1\n\n');
+  pipe.push('{"jsonrpc":"2.0","method":"b","id":"1"}\n');
+  await collect(stream.readable, 2);
+
+  // Answer in the opposite order: the latch now says JSON, but request 1
+  // arrived in TOON, and "1" (a string, not the number) arrived in JSON.
+  const writer = stream.writable.getWriter();
+  await writer.write({ jsonrpc: '2.0', result: 'for 1', id: 1 });
+  const afterFirst = out.text();
+  await writer.write({ jsonrpc: '2.0', result: 'for "1"', id: '1' });
+  // A request of our own follows the latch (JSON, the last dialect seen).
+  await writer.write({ jsonrpc: '2.0', method: 'mine', id: 5 });
+  writer.releaseLock();
+
+  assert.ok(afterFirst.startsWith('toonrpc:'), `TOON request answered in: ${afterFirst}`);
+  const rest = out.text().slice(afterFirst.length);
+  assert.equal(
+    rest,
+    '{"jsonrpc":"2.0","result":"for \\"1\\"","id":"1"}\n{"jsonrpc":"2.0","method":"mine","id":5}\n'
+  );
+});
+
+test('a batch response goes out in its batch request\'s dialect', async () => {
+  const pipe = bytePipe();
+  const out = sink();
+  const stream = dualDialectStream(out.writable, pipe.readable, { preferred: 'toonrpc' });
+
+  pipe.push('[{"jsonrpc":"2.0","method":"a","id":1},{"jsonrpc":"2.0","method":"b","id":2}]\n');
+  pipe.push('toonrpc: "1.0"\nmethod: c\nid: 3\n\n');
+  await collect(stream.readable, 2);
+
+  const writer = stream.writable.getWriter();
+  await writer.write([
+    { jsonrpc: '2.0', result: 1, id: 1 },
+    { jsonrpc: '2.0', result: 2, id: 2 },
+  ]);
+  writer.releaseLock();
+  assert.equal(
+    out.text(),
+    '[{"jsonrpc":"2.0","result":1,"id":1},{"jsonrpc":"2.0","result":2,"id":2}]\n'
+  );
+});
+
+test('preferred: "toonrpc" downgrades on the first JSON frame a stock peer sends', async () => {
+  const pipe = bytePipe();
+  const out = sink();
+  const diagnostics = [];
+  const stream = dualDialectStream(out.writable, pipe.readable, {
+    preferred: 'toonrpc',
+    onDiagnostic: (entry) => diagnostics.push(entry),
+  });
+
+  const writer = stream.writable.getWriter();
+  await writer.write({ jsonrpc: '2.0', method: 'hello', id: 1 });
+  const opener = out.text();
+  // A JSON-only peer cannot read the TOON opener and answers with a JSON
+  // Parse error: that decoded frame is the proof that moves the latch.
+  pipe.push('{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}\n');
+  await collect(stream.readable, 1);
+  await writer.write({ jsonrpc: '2.0', method: 'hello', id: 2 });
+  writer.releaseLock();
+
+  assert.ok(opener.startsWith('toonrpc:'));
+  assert.equal(out.text().slice(opener.length), '{"jsonrpc":"2.0","method":"hello","id":2}\n');
+  assert.deepEqual(diagnostics, []);
+});

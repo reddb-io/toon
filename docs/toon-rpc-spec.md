@@ -363,6 +363,12 @@ Batch responses are always compared without relying on order. Object member
 ordering is also ignored. Error wording is compared only when `message` is
 present in the expectation.
 
+`tests/corpus/toon-rpc/multi.json` is the companion corpus for the
+multi-dialect dispatcher: detection by media type and by body, and the
+JSON-RPC 2.0 path validated through the same core as TOON-RPC (an Invalid
+Request always carries `id: null`, and `params: null` is invalid). The
+TypeScript `@reddb-io/multi-rpc` and the Rust `MultiRpc` both run it.
+
 The corpus is the acceptance contract for the 0.31 recovery. Rust and
 TypeScript semantic runners execute every vector directly from these shared
 files; expected failure ledgers are not permitted for this corpus. Server cases

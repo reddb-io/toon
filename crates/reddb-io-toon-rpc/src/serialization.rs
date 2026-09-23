@@ -198,6 +198,14 @@ fn validate_outbound_error_code(code: ErrorCode) -> Result<(), String> {
     }
 }
 
+/// Decode one request entry that is already a JSON value.
+pub(crate) fn call_from_value(value: Value) -> Call {
+    match value {
+        Value::Object(object) => decode_call(object),
+        _ => Call::Invalid("request must be an object".into()),
+    }
+}
+
 fn decode_call(mut object: serde_json::Map<String, Value>) -> Call {
     let version_is_valid = matches!(
         object.remove("toonrpc"),

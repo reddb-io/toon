@@ -10,6 +10,7 @@ export * from './framing.js';
 export * from './limits.js';
 export class Server {
     methods = new Map();
+    /** Most entries a batch may hold; a longer batch is one Invalid Request. */
     maxBatchLength;
     constructor(options = {}) {
         this.maxBatchLength = options.maxBatchLength ?? DEFAULT_LIMITS.maxBatchLength;

@@ -37,7 +37,8 @@ export interface ServerOptions {
 
 export class Server {
   private methods = new Map<string, MethodHandler>();
-  private readonly maxBatchLength: number;
+  /** Most entries a batch may hold; a longer batch is one Invalid Request. */
+  readonly maxBatchLength: number;
 
   constructor(options: ServerOptions = {}) {
     this.maxBatchLength = options.maxBatchLength ?? DEFAULT_LIMITS.maxBatchLength;
