@@ -7,7 +7,7 @@ kinds of outcome, both measured against the **TOON v4.1** baseline
 ([ADR 0005](../../.red/adr/0005-rebase-on-spec-v4-1-with-event-based-decoders.md)):
 
 - **Absorbed into the official spec.** Some proposals were adopted upstream and
-  are now part of the official TOON specification at v4.1 (nested tabular
+  are part of the official TOON specification since v4.0 (nested tabular
   headers via spec#46, keyed-map collapse via spec#57). The official syntax and
   semantics govern; the proposal here is retained as design history only, with
   no independent normative weight.
@@ -38,8 +38,8 @@ Mapped onto the TC39 process:
 
 | Proposal | Stage | Status | Spec section | Upstream RFC | Repo issues / PRs |
 | --- | :---: | --- | --- | --- | --- |
-| [Nested tabular headers](nested-tabular-headers.md) | 4 | Absorbed into official spec v4.1 | [official spec](../toon-official-spec.md) | [spec#46](https://github.com/toon-format/spec/issues/46) | — |
-| [Keyed-map collapse](keyed-map-collapse.md) | 4 | Absorbed into official spec v4.1 | [official spec](../toon-official-spec.md) | [spec#57](https://github.com/toon-format/spec/issues/57) | — |
+| [Nested tabular headers](nested-tabular-headers.md) | 4 | Absorbed into official spec v4.0 | [official spec](../toon-official-spec.md) | [spec#46](https://github.com/toon-format/spec/issues/46) | — |
+| [Keyed-map collapse](keyed-map-collapse.md) | 4 | Absorbed into official spec v4.0 | [official spec](../toon-official-spec.md) | [spec#57](https://github.com/toon-format/spec/issues/57) | — |
 | [Delimiter choice](delimiter-choice.md) | 4 | Official v4.1 mechanism; local defaults/guidance | [Delimiter choice](../toon-reddb-spec.md#delimiter-choice) | — | — |
 | [Depth guard](depth-guard.md) | 4 | Graduated | [Depth guard](../toon-reddb-spec.md#depth-guard) | — | — |
 | [detectTruncation](detect-truncation.md) | 4 | Graduated | [detectTruncation](../toon-reddb-spec.md#detecttruncation--structured-completeness-reports) | — | — |

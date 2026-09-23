@@ -8,10 +8,10 @@
 
 ## Motivation
 
-Uniform object arrays often carry a field whose value is an array of **primitive
+Arrays of uniform objects often carry a field whose value is an array of **primitive
 scalars** — `tags: ["hazmat", "oversize"]`. TOON v4.1 cannot keep the containing
 array tabular, because the array-valued field is not itself primitive, so the
-whole table falls back to the expanded list form and loses its amortization.
+whole table falls back to the list form and loses its amortization.
 Tagged records (a row plus a small list of labels) are a very common shape.
 
 ## Design / grammar
@@ -33,7 +33,7 @@ decodes to:
 
 Frozen grammar (recorded at grammar freeze on [#99](https://github.com/reddb-io/toon/issues/99), 2026-07-15):
 
-- In an array field header, `field[;]` declares `field` as a primitive-list cell.
+- In a tabular header's field list, `field[;]` declares `field` as a primitive-list cell.
   The bracket content is the in-cell sub-delimiter; the encoder emits `;`, valid
   with every active row delimiter (comma, tab, pipe).
 - Row cells still use the array header's **active row delimiter**. The list

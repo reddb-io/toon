@@ -8,7 +8,7 @@
 
 ## Motivation
 
-Uniform object arrays often carry a field that is itself an **array of uniform
+Arrays of uniform objects often carry a field that is itself an **array of uniform
 objects** — `orders[].items[]`, and `items[].components[]` below that. TOON v4.1
 must expand the parent rows because the child array is not primitive, which
 destroys the parent table's amortization for deeply structured, repetitive data

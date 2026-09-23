@@ -5,8 +5,12 @@ A command-line query tool for TOON documents — the `jq`/`yq` equivalent for th
 ## Language
 
 **TOON**:
-The public Token-Oriented Object Notation spec (toon-format.dev); `tq` targets strict adherence to it, not an internal dialect. Baseline: spec v4.1.
+The public Token-Oriented Object Notation spec ([toonformat.dev](https://toonformat.dev)); `tq` targets strict adherence to it, not an internal dialect. Baseline: spec v4.1.
 _Avoid_: "reddb TOON", internal supersets
+
+**Format terms** (tabular form, list form, keyed tabular form, nested field group, field list, header span, arrays of uniform objects):
+Defined by the upstream glossary — SPEC §1 of the pinned `vendor/toon-spec` and `CONTEXT.md` in toon-format/toon — and used here with the same meaning. This file does not redefine them.
+_Avoid_: "expanded list form", "uniform object arrays", "keyed form", "brace group", "array span"
 
 **Proposal**:
 A design-history document under `docs/proposals/`. Once the mechanism it describes is absorbed by the official spec, the proposal is documentation only — it carries no normative weight and defines no alternative syntax.

@@ -1,9 +1,9 @@
 # Proposal — Nested tabular headers
 
-> **Design history — absorbed by the official spec.** The mechanism described here was adopted into the official TOON specification at **v4.1** (upstream RFC [spec#46](https://github.com/toon-format/spec/issues/46)). The official syntax and semantics now govern; this document is retained as design history and carries no independent normative weight. See [ADR 0005](../../.red/adr/0005-rebase-on-spec-v4-1-with-event-based-decoders.md) and the [migration notes](../migration-v4.md).
+> **Design history — absorbed by the official spec.** The mechanism described here was adopted into the official TOON specification at **v4.0** (upstream RFC [spec#46](https://github.com/toon-format/spec/issues/46)). The official syntax and semantics now govern; this document is retained as design history and carries no independent normative weight. See [ADR 0005](../../.red/adr/0005-rebase-on-spec-v4-1-with-event-based-decoders.md) and the [migration notes](../migration-v4.md).
 
 **Stage:** 4 — graduated
-**Status:** absorbed into official TOON spec v4.1 (was Extension 1 in the reddb flavor); design history.
+**Status:** absorbed into official TOON spec v4.0 (was Extension 1 in the reddb flavor); design history.
 **Spec section:** [Extension 1 — Nested tabular headers](../toon-reddb-spec.md#extension-1--nested-tabular-headers)
 **Upstream RFC:** [toon-format/spec#46](https://github.com/toon-format/spec/issues/46)
 **Repo issues / PRs:** —
@@ -14,7 +14,7 @@ The pre-v4 tabular form `key[N]{fields}:` was the format's biggest token win —
 the field header is written once and amortized over `N` rows. That baseline required
 every column to be a **primitive**. The moment one column is itself a small
 uniform object (`customer: {name, country}`), the whole array falls back to the
-expanded list form, and the amortization is lost: every nested key repeats on
+list form, and the amortization is lost: every nested key repeats on
 every row. Real payloads (orders with an embedded customer, events with an
 embedded actor) hit this constantly.
 
@@ -65,7 +65,7 @@ Rules:
   header, so it never silently reads a different shape.
 - **Encode opt-in:** the form is emitted only when every record has the same
   recursive shape (same key sets at every level, all leaves primitive). Any
-  mismatch falls back to the standard expanded list form — never a hard error.
+  mismatch falls back to the standard list form — never a hard error.
 
 ## How to test it
 
@@ -87,7 +87,7 @@ fail-closed cases, run identically by the JS package and the Rust crate; the
 
 The win grows with row count (the nested header is amortized once) and with the
 number of nested leaves per row. On uniform nested payloads it recovers exactly
-the amortization that the expanded list form throws away; on non-uniform data it
+the amortization that the list form throws away; on non-uniform data it
 is a no-op because the encoder falls back. Measure against your own corpus with
 `pnpm benchmark:tokens` (tokenized with `o200k_base`), as the spec
 notes for all extension figures.

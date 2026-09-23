@@ -229,7 +229,7 @@ huge: 1e+21
 ### Encode Extensions
 
 With no encode options, output remains canonical TOON v4.1. Nested field groups
-and keyed tabular maps are not extensions: v4.1 absorbed them and the canonical
+and keyed tabular maps are not extensions: v4.0 absorbed them and the canonical
 encoder uses them automatically. Primitive-array and object-array extension
 wires are recognized by default and emitted only when requested. Cyclic
 discriminated arrays require an explicit option for both reconstruction and
