@@ -934,3 +934,48 @@ fn decode_errors_report_a_kind_and_an_indentation_column() {
     assert_eq!(decode("a: 1\na: 2").expect_err("dup").kind(), ErrorKind::DuplicateKey);
     assert_eq!(decode("v: \"open").expect_err("quote").kind(), ErrorKind::Syntax);
 }
+
+/// The typed serde bridge honours serde attributes, reports each failure
+/// source distinctly, and applies decoder options such as input limits.
+#[test]
+fn serde_bridge_round_trips_typed_values() {
+    use reddb_io_toon::{from_str, from_str_with_options, to_string, SerdeError};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct Order {
+        #[serde(rename = "orderId")]
+        id: u64,
+        items: Vec<Item>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct Item {
+        sku: String,
+        qty: u32,
+    }
+
+    let order = Order {
+        id: 7,
+        items: vec![
+            Item { sku: "A1".into(), qty: 2 },
+            Item { sku: "B2".into(), qty: 1 },
+        ],
+        note: None,
+    };
+    let toon = to_string(&order).expect("encode");
+    assert_eq!(toon, "orderId: 7\nitems[2]{sku,qty}:\n  A1,2\n  B2,1");
+    assert_eq!(from_str::<Order>(&toon).expect("decode"), order);
+
+    assert!(matches!(from_str::<Order>("items[2]: 1"), Err(SerdeError::Decode(_))));
+    assert!(matches!(from_str::<Order>("orderId: seven"), Err(SerdeError::Data(_))));
+
+    let limited = DecodeOptions {
+        max_keys: 1,
+        ..DecodeOptions::default()
+    };
+    let error = from_str_with_options::<Order>(&toon, &limited).expect_err("limited");
+    assert_eq!(error.to_string(), "line 2: object exceeds maxKeys (1)");
+}
