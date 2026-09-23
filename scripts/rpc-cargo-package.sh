@@ -7,7 +7,11 @@
 # to cargo (for example --allow-dirty after a version sync).
 set -euo pipefail
 
-PUBLISHED_RPC_CRATES=(
+# The codec packages with them: at a release commit every crate already
+# carries the new version, which crates.io does not have yet, so the RPC
+# crates can only resolve it from the same overlay.
+PACKAGED_CRATES=(
+  reddb-io-toon
   reddb-io-toon-rpc
   reddb-io-toon-rpc-stdio
   reddb-io-toon-rpc-tcp
@@ -21,7 +25,7 @@ PUBLISHED_RPC_CRATES=(
 )
 
 args=()
-for crate in "${PUBLISHED_RPC_CRATES[@]}"; do
+for crate in "${PACKAGED_CRATES[@]}"; do
   args+=(-p "$crate")
 done
 cargo package "${args[@]}" "$@"
