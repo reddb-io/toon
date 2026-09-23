@@ -6,6 +6,7 @@
  */
 
 import assert from 'node:assert/strict'
+import { readdirSync } from 'node:fs'
 import test, { after } from 'node:test'
 
 import { ToonDecodeError, encode } from '../dist/index.js'
@@ -124,6 +125,17 @@ test('`--output` writes decoded JSON to a path', async () => {
   assert.deepEqual(JSON.parse(readOutput(cwd, 'output.json')), SAMPLE)
   assert.equal(run.stderr, '✔ Decoded `input.toon` → `output.json`\n')
   assert.equal(run.exitCode, 0)
+})
+
+test('a failed decode keeps the previous `--output` and leaves no temporary file', async () => {
+  const deep = Array.from({ length: 1200 }, (_, depth) => `${'  '.repeat(depth)}a:`).join('\n')
+  const cwd = createDirectory({ 'input.toon': deep, 'out.json': 'previous\n' })
+
+  const run = await runCliInProcess(['input.toon', '-o', 'out.json'], { cwd })
+
+  assert.equal(run.exitCode, 1)
+  assert.equal(readOutput(cwd, 'out.json'), 'previous\n')
+  assert.deepEqual(readdirSync(cwd).sort(), ['input.toon', 'out.json'])
 })
 
 test('`--decode` reads TOON from stdin', async () => {

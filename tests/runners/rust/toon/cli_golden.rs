@@ -157,6 +157,39 @@ fn strict_decoding_rejects_ill_formed_bytes() {
     );
 }
 
+/// A decode that fails partway through must leave an existing `--output`
+/// untouched and no temporary file behind: the document is renamed into place
+/// only once it is complete.
+#[test]
+fn failed_decode_keeps_the_previous_output() {
+    let workspace = TempWorkspace::empty("atomic-output");
+    let mut deep = String::new();
+    for depth in 0..1200 {
+        deep.push_str(&"  ".repeat(depth));
+        deep.push_str("a:\n");
+    }
+    fs::write(workspace.path().join("input.toon"), deep).expect("write fixture");
+    fs::write(workspace.path().join("out.json"), "previous\n").expect("write previous output");
+
+    let run = run_toon_in(
+        &["input.toon".to_owned(), "-o".to_owned(), "out.json".to_owned()],
+        "",
+        workspace.path(),
+    );
+
+    assert_eq!(run.status.code(), Some(1));
+    assert_eq!(
+        fs::read_to_string(workspace.path().join("out.json")).expect("output survives"),
+        "previous\n"
+    );
+    let mut names: Vec<String> = fs::read_dir(workspace.path())
+        .expect("list workspace")
+        .map(|entry| entry.expect("entry").file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["input.toon", "out.json"]);
+}
+
 /// A document longer than the reporting window still fails cleanly: the header
 /// stays, and only the quoted source line drops away.
 #[test]

@@ -20,7 +20,13 @@ export type InputSource = {
 export declare function readInput(source: InputSource, io: CliIo): Promise<string>;
 /** Streams an input as lines. Strict decoding refuses to substitute U+FFFD. */
 export declare function readLinesFromSource(source: InputSource, strict: boolean, io: CliIo): AsyncIterable<string>;
-/** Writes the pieces to a file or to stdout, always ending with a newline. */
+/**
+ * Writes the pieces to a file or to stdout, always ending with a newline.
+ *
+ * A file is written beside its target and renamed into place only once the
+ * whole document is out, so a conversion that fails partway through leaves an
+ * existing output untouched and no truncated file behind.
+ */
 export declare function writeStream(pieces: AsyncIterable<string> | Iterable<string>, options: {
     outputPath?: string;
     separator: string;
