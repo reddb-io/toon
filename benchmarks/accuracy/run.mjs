@@ -10,6 +10,12 @@ import {
   validateAccuracyReport,
 } from './generation.mjs'
 import {
+  buildResponsesRequest,
+  plannedRequests,
+  resolveProvider,
+  runMetadata,
+} from './provider.mjs'
+import {
   createBenchmarkSuite,
   encodeBenchmarkDocuments,
 } from './suite.mjs'
@@ -19,8 +25,15 @@ const RESULTS_DIR = join(REPO_ROOT, 'benchmarks', 'results')
 const REPORT_PATH = join(RESULTS_DIR, 'retrieval-accuracy.md')
 const SCHEMA_REPORT_PATH = join(RESULTS_DIR, 'accuracy-report.json')
 const RAW_DIR = join(RESULTS_DIR, 'accuracy-raw')
-const provider = process.env.BENCHMARK_ACCURACY_PROVIDER ?? 'openai'
-const model = process.env.BENCHMARK_ACCURACY_MODEL ?? 'gpt-4.1-mini'
+const METADATA_PATH = join(RESULTS_DIR, 'accuracy-run-metadata.json')
+const SOURCES = [
+  'benchmarks/accuracy/run.mjs',
+  'benchmarks/accuracy/suite.mjs',
+  'benchmarks/accuracy/generation.mjs',
+  'benchmarks/accuracy/provider.mjs',
+  'packages/toon/dist/index.js',
+]
+const { provider, model, baseUrl, dryRun } = resolveProvider(process.env)
 const limit = parseLimit(process.env.BENCHMARK_ACCURACY_LIMIT)
 const observedAt = new Date().toISOString()
 
@@ -28,28 +41,52 @@ if (provider !== 'openai') {
   console.error(`Unsupported BENCHMARK_ACCURACY_PROVIDER: ${provider}`)
   process.exit(2)
 }
-if (!process.env.OPENAI_API_KEY) {
-  console.error('benchmark:accuracy needs OPENAI_API_KEY for provider=openai.')
-  console.error('Export OPENAI_API_KEY, then rerun pnpm benchmark:accuracy.')
-  process.exit(2)
-}
 
 const suite = createBenchmarkSuite()
 const encoders = [
   { id: 'json-compact', format: 'json', encode: JSON.stringify, decode: JSON.parse },
+  // Structured-output baseline (toon-format/toon#19): the provider's JSON mode
+  // constrains generation, so it answers "is TOON worth it next to JSON mode?".
+  {
+    id: 'json-object-mode',
+    format: 'json',
+    encode: JSON.stringify,
+    decode: JSON.parse,
+    jsonObjectMode: true,
+    generationOnly: true,
+  },
   { id: 'toon-typescript', format: 'toon', encode, decode },
   { id: 'toon-rust', format: 'toon', encode: encodeWithRust, decode },
 ]
-const documents = encodeBenchmarkDocuments(suite, encoders)
 const selectedQuestions = limit === undefined ? suite.questions : suite.questions.slice(0, limit)
 const selectedGenerationTasks = limit === undefined
   ? suite.generationTasks
   : suite.generationTasks.slice(0, limit)
+
+if (dryRun) {
+  const plan = plannedRequests({
+    encoders,
+    questions: selectedQuestions.length,
+    generationTasks: selectedGenerationTasks.length,
+  })
+  console.log(`dry run: provider=${provider} model=${model} endpoint=${new URL(baseUrl).host}`)
+  console.log(`dry run: encoders=${encoders.map((encoder) => encoder.id).join(',')}`)
+  console.log(`dry run: at most ${plan.total} requests (${plan.retrieval} retrieval, ${plan.generation} generation)`)
+  process.exit(0)
+}
+if (!process.env.OPENAI_API_KEY) {
+  console.error('benchmark:accuracy needs OPENAI_API_KEY for provider=openai.')
+  console.error('Export OPENAI_API_KEY, then rerun pnpm benchmark:accuracy.')
+  console.error('Set OPENAI_BASE_URL for an OpenAI-compatible gateway, or BENCHMARK_ACCURACY_DRY_RUN=1 to plan only.')
+  process.exit(2)
+}
+
+const documents = encodeBenchmarkDocuments(suite, encoders.filter((encoder) => !encoder.generationOnly))
 const results = []
 const observations = []
 
 for (const encoder of encoders) {
-  for (const question of selectedQuestions) {
+  for (const question of encoder.generationOnly ? [] : selectedQuestions) {
     const document = findDocument(documents, encoder.id, question.datasetId)
     const response = await askRetrieval(encoder.id, document.text, question)
     const ok = validateAnswer(response.text, question)
@@ -88,9 +125,18 @@ const schemaReport = {
 validateAccuracyReport(schemaReport)
 writeFileSync(SCHEMA_REPORT_PATH, `${JSON.stringify(schemaReport, null, 2)}\n`)
 writeFileSync(REPORT_PATH, renderReport(suite, encoders, documents, results, observations))
+writeFileSync(METADATA_PATH, `${JSON.stringify(runMetadata({
+  repoRoot: REPO_ROOT,
+  gitRevision: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: REPO_ROOT, encoding: 'utf8' }).stdout.trim(),
+  observedAt,
+  settings: { provider, model, baseUrl, limit },
+  suite,
+  sources: SOURCES,
+}), null, 2)}\n`)
 console.log(`accuracy ${results.filter((result) => result.ok).length}/${results.length} provider=${provider} model=${model}`)
 console.log(`wrote ${REPORT_PATH}`)
 console.log(`wrote ${SCHEMA_REPORT_PATH}`)
+console.log(`wrote ${METADATA_PATH}`)
 
 function parseLimit(value) {
   if (value === undefined || value === '') return undefined
@@ -148,7 +194,7 @@ async function runGenerationTask(encoder, task) {
       `Return only valid ${encoder.format.toUpperCase()}, with no Markdown fence or explanation.`,
       `Task: ${task.prompt}`,
       index === 0 ? '' : 'The previous response failed deterministic validation. Correct it.',
-    ].filter(Boolean).join('\n'), task.promptBudget)
+    ].filter(Boolean).join('\n'), task.promptBudget, encoder.jsonObjectMode === true)
     const rawArtifactRef = join(
       'accuracy-raw',
       `${safeName(observedAt)}-${safeName(model)}-${encoder.id}-${task.id}-attempt-${index + 1}.txt`,
@@ -196,16 +242,9 @@ async function runGenerationTask(encoder, task) {
   }
 }
 
-async function askOpenAI(prompt, maxOutputTokens) {
-  const request = {
-    model,
-    input: [{
-      role: 'user',
-      content: [{ type: 'input_text', text: prompt }],
-    }],
-    ...(maxOutputTokens === undefined ? {} : { max_output_tokens: maxOutputTokens }),
-  }
-  const response = await fetch('https://api.openai.com/v1/responses', {
+async function askOpenAI(prompt, maxOutputTokens, jsonObjectMode = false) {
+  const request = buildResponsesRequest({ model, prompt, maxOutputTokens, jsonObjectMode })
+  const response = await fetch(`${baseUrl}/responses`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -279,6 +318,7 @@ function normalizeText(value) {
 }
 
 function renderReport(suite, encoders, documents, results, observations) {
+  const retrievalEncoders = encoders.filter((encoder) => !encoder.generationOnly)
   const lines = [
     '# Retrieval Accuracy Benchmark',
     '',
@@ -287,14 +327,14 @@ function renderReport(suite, encoders, documents, results, observations) {
     `Suite: version ${suite.version}, seed ${suite.seed}`,
     `Provider: \`${provider}\``,
     `Model: \`${model}\``,
-    `Questions per encoder: ${results.length / encoders.length}`,
+    `Questions per encoder: ${results.length / retrievalEncoders.length}`,
     '',
     '## Accuracy by encoder',
     '',
     '| Encoder | Encoded bytes | Correct/total | Accuracy |',
     '| --- | ---: | ---: | ---: |',
   ]
-  for (const encoder of encoders) {
+  for (const encoder of retrievalEncoders) {
     const encoderResults = results.filter((result) => result.encoderId === encoder.id)
     const correct = encoderResults.filter((result) => result.ok).length
     const bytes = documents
@@ -306,7 +346,7 @@ function renderReport(suite, encoders, documents, results, observations) {
   lines.push('', '## Accuracy by question style', '')
   lines.push('| Encoder | Style | Correct/total | Accuracy |')
   lines.push('| --- | --- | ---: | ---: |')
-  for (const encoder of encoders) {
+  for (const encoder of retrievalEncoders) {
     for (const style of ['structured-question', 'structural-corruption']) {
       const subset = results.filter((result) =>
         result.encoderId === encoder.id && result.style === style)

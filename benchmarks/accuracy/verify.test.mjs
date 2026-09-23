@@ -168,3 +168,52 @@ test('post-encode corruption preserves TOON declarations and changes rows', () =
     assert.doesNotThrow(() => JSON.parse(find('json-compact', datasetId).text))
   }
 })
+
+test('provider plumbing honours an OpenAI-compatible gateway and JSON mode', async () => {
+  const { buildResponsesRequest, plannedRequests, resolveProvider } = await import('./provider.mjs')
+
+  assert.equal(resolveProvider({}).baseUrl, 'https://api.openai.com/v1')
+  assert.equal(resolveProvider({ OPENAI_BASE_URL: 'https://gateway.example/v1/' }).baseUrl, 'https://gateway.example/v1')
+  assert.equal(resolveProvider({ BENCHMARK_ACCURACY_DRY_RUN: '1' }).dryRun, true)
+
+  const plain = buildResponsesRequest({ model: 'm', prompt: 'p', maxOutputTokens: 10 })
+  assert.equal(plain.text, undefined)
+  assert.equal(plain.max_output_tokens, 10)
+  const structured = buildResponsesRequest({ model: 'm', prompt: 'p', jsonObjectMode: true })
+  assert.deepEqual(structured.text, { format: { type: 'json_object' } })
+
+  assert.deepEqual(
+    plannedRequests({ encoders: [{}, { generationOnly: true }], questions: 4, generationTasks: 2 }),
+    { retrieval: 4, generation: 12, total: 16 },
+  )
+})
+
+test('run metadata pins the revision, runtime and source hashes without credentials', async () => {
+  const { runMetadata } = await import('./provider.mjs')
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+  const metadata = runMetadata({
+    repoRoot,
+    gitRevision: 'a'.repeat(40),
+    observedAt: '2026-09-23T00:00:00.000Z',
+    settings: { provider: 'openai', model: 'm', baseUrl: 'https://gateway.example/v1', limit: 2 },
+    suite: createBenchmarkSuite(),
+    sources: ['benchmarks/accuracy/provider.mjs'],
+  })
+
+  assert.equal(metadata.endpointHost, 'gateway.example')
+  assert.equal(metadata.node, process.version)
+  assert.match(metadata.sourceHashes['benchmarks/accuracy/provider.mjs'], /^[0-9a-f]{64}$/)
+  assert.doesNotMatch(JSON.stringify(metadata), /api[_-]?key|Bearer/i)
+})
+
+test('a dry run plans the requests without a key, the network or cargo', async () => {
+  const { spawnSync } = await import('node:child_process')
+  const run = spawnSync(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), 'run.mjs')], {
+    env: { PATH: process.env.PATH, BENCHMARK_ACCURACY_DRY_RUN: '1', BENCHMARK_ACCURACY_LIMIT: '2' },
+    encoding: 'utf8',
+  })
+
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(run.stdout, /encoders=json-compact,json-object-mode,toon-typescript,toon-rust/)
+  assert.match(run.stdout, /at most \d+ requests/)
+})

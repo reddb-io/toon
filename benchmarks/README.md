@@ -38,18 +38,27 @@ pnpm benchmark:accuracy
 
 They are written to `benchmarks/results/retrieval-accuracy.md` and
 `benchmarks/results/accuracy-report.json`, with raw structured-generation
-responses under `benchmarks/results/accuracy-raw/`. These observations are
-reporting artifacts, not CI or merge-gate evidence.
+responses under `benchmarks/results/accuracy-raw/` and the run's provenance in
+`benchmarks/results/accuracy-run-metadata.json`: git revision, Node version,
+provider, model, endpoint host, settings, and a SHA-256 of every source that
+shaped the prompts and the scoring. These observations are reporting
+artifacts, not CI or merge-gate evidence.
 
 The accuracy run compares compact JSON with both shipped TOON encoders: the
-TypeScript package and the Rust crate through `tq`. Its Markdown report includes
+TypeScript package and the Rust crate through `tq`. Structured generation also
+runs a `json-object-mode` baseline, which asks the provider's JSON mode for
+the same tasks, so TOON is measured against constrained JSON output and not
+only free-form JSON (the question in toon-format/toon#19). Its Markdown report includes
 per-encoder retrieval accuracy, separate scores for structured questions and
 structural corruption, structured-generation observations, and a byte-for-byte
 TypeScript/Rust output comparison. Retrieval answers and structured outputs are
 validated deterministically; no LLM judge is used. Set
 `BENCHMARK_ACCURACY_MODEL` to select a model or `BENCHMARK_ACCURACY_LIMIT` to
-make a smaller reporting run. Without `OPENAI_API_KEY`, the reporting command
-exits with setup instructions; the verification command remains fully offline.
+make a smaller reporting run. `OPENAI_BASE_URL` points the run at any
+OpenAI-compatible gateway, and `BENCHMARK_ACCURACY_DRY_RUN=1` prints the
+encoders and the upper bound of model requests without a key, the network, or
+a Rust build. Without `OPENAI_API_KEY`, the reporting command exits with setup
+instructions; the verification command remains fully offline.
 
 ## Token efficiency
 
