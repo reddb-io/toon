@@ -118,7 +118,7 @@ fn registry() -> BTreeSet<Signature> {
         .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()));
     for entry in entries {
         let path = entry.expect("read builtins directory entry").path();
-        if path.extension().is_none_or(|extension| extension != "rs") {
+        if !path.extension().is_some_and(|extension| extension == "rs") {
             continue;
         }
 
@@ -254,9 +254,9 @@ fn the_ledger_names_every_diverging_corpus_case() {
         .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()));
     for entry in entries {
         let path = entry.expect("read parity corpus entry").path();
-        if path
+        if !path
             .extension()
-            .is_none_or(|extension| extension != "cases")
+            .is_some_and(|extension| extension == "cases")
         {
             continue;
         }
