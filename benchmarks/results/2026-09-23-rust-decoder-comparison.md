@@ -67,6 +67,35 @@ toon-format:
 it by 6–17% on nested objects and mixed lists. The remaining cost is
 structural: an owned event and `String` per key and value.
 
+### Direct value building and `memchr`
+
+Two more changes, each measured with interleaved A/B runs of separate
+binaries because the machine's thermal noise is about ±20%:
+
+- **`decode` builds the `Value` while the grammar emits.** It used to collect
+  every event into a `Vec` first (about 20% of the profile went to writing
+  events), and it searched each object linearly for a duplicate key, which
+  costs O(n²) on wide objects. Strict decoding already rejects duplicate keys,
+  so the search now runs only in non-strict mode. Decode: +12–22%.
+- **`memchr` jumps to the next structural byte.** The cell splitter, the
+  unquoted scanner and the quoted-string parser skip to the next delimiter,
+  quote or backslash with `memchr2`. Long text gains 26% and tabular data
+  5–11%. Nested objects and mixed lists lose 1–1.5%, within noise, because
+  their cells are too short for the jump to pay off.
+
+Same bench, one run with the other decoders:
+
+| Input | reddb-io-toon | toon-format | simd-toon (owned) |
+| --- | ---: | ---: | ---: |
+| tabular, 1k rows | 37.0 | 22.9 | 107.9 |
+| tabular, 10k rows | 50.8 | 23.2 | 111.6 |
+| nested objects | 30.8 | 35.7 | 164.5 |
+| mixed list form | 30.8 | 30.5 | 155.3 |
+| long text | 279.2 | 170.9 | 1221.2 |
+
+`reddb-io-toon` now leads toon-format on tabular data (1.6–2.2×) and long text
+(1.6×), matches it on mixed lists, and trails it by 14% on nested objects.
+
 ## Encode
 
 | Input | reddb-io-toon | toon-format |
@@ -94,9 +123,9 @@ structural: an owned event and `String` per key and value.
   waits until the consumer asks for more. A slow stream still yields events
   before EOF, and the parser never reads ahead of demand (the existing
   gated-reader test pins both), while buffered input decodes in full batches.
-- **simd-toon stays 4–10× ahead** after the fix. Its SIMD structural scan and
-  borrowed values are the remaining gap. A `memchr`-based line and delimiter
-  scanner is the incremental step toward it; a full SIMD port is not justified
-  while simd-toon covers ~88% of the fixtures and only AVX2.
+- **simd-toon stays 2–5× ahead** with direct value building and `memchr`.
+  Its SIMD structural scan and borrowed values are the remaining gap. A full
+  SIMD port is not justified while simd-toon covers ~88% of the fixtures and
+  only AVX2.
 - **Encode is within about 1.6× of toon-format** everywhere and ahead on long
   text; nothing urgent.
