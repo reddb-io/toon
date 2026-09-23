@@ -238,8 +238,9 @@ function matchBrace(text: string, line: number): number {
 }
 
 function parseHeaderFieldList(text: string, activeDelimiter: string, line: number): FieldNode[] {
+  // A comma inside a quoted field name (`"a,b"`) is content, not a separator.
   if (
-    activeDelimiter !== ',' && text.includes(',') &&
+    activeDelimiter !== ',' && findUnquoted(text, ',', line) !== -1 &&
     (text.includes('[') || text.includes('{'))
   ) {
     return parseFieldList(text, ',', activeDelimiter, line)

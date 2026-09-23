@@ -199,7 +199,8 @@ function matchBrace(text, line) {
     throw toonError(line, 'malformed tabular header fields');
 }
 function parseHeaderFieldList(text, activeDelimiter, line) {
-    if (activeDelimiter !== ',' && text.includes(',') &&
+    // A comma inside a quoted field name (`"a,b"`) is content, not a separator.
+    if (activeDelimiter !== ',' && findUnquoted(text, ',', line) !== -1 &&
         (text.includes('[') || text.includes('{'))) {
         return parseFieldList(text, ',', activeDelimiter, line);
     }

@@ -184,8 +184,9 @@ fn parse_stream_header(content: &str, line: usize) -> Result<Option<StreamHeader
     if rest.starts_with('{') {
         let end_brace = match_stream_brace(rest, line)?;
         let field_text = &rest[1..end_brace];
+        // A comma inside a quoted field name (`"a,b"`) is content, not a separator.
         let field_delimiter = if delimiter != ','
-            && field_text.contains(',')
+            && find_unquoted(field_text, ',', line)?.is_some()
             && (field_text.contains('[') || field_text.contains('{'))
         {
             ','
