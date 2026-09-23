@@ -20,7 +20,7 @@ export type { FieldNode } from './decode/stream.js';
 export { buildValueFromEvents, decodeFromLines } from './decode/build.js';
 export type { ToonEvent, ToonEventType } from './events.js';
 export type { DecodeOptions, DecodeReviver, DecodeStreamOptions, Delimiter, DelimiterKey, EncodeOptions, EncodeReplacer, JsonArray, JsonObject, JsonPrimitive, JsonStreamEvent, JsonValue, ResolvedDecodeOptions, ResolvedEncodeOptions, } from './types.js';
-export { appendSummaryField, projectFields } from './helpers.js';
+export { appendSummaryField, encodeToolManifest, projectFields } from './helpers.js';
 export declare const decode: typeof decodeValue;
 export { encode };
 export { JsonlToToonl, ToonlDecodeStream, ToonlEncodeStream, ToonlToJsonl, ToonlEncoder, ToonlReader, closeTransform, closeTransformInterleaved, decodeLines, encodeToonlLines, encodeRecords, jsonToToon, parseRecords, parseStream, recordTransform, toonToJson, } from './toonl.js';

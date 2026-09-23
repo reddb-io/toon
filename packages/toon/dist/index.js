@@ -14,7 +14,7 @@ export { rawString } from './encode/raw-string.js';
 export { escapeString } from './lexical.js';
 export { decodeStream, decodeStreamSync } from './decode/stream.js';
 export { buildValueFromEvents, decodeFromLines } from './decode/build.js';
-export { appendSummaryField, projectFields } from './helpers.js';
+export { appendSummaryField, encodeToolManifest, projectFields } from './helpers.js';
 export const decode = decodeValue;
 export { encode };
 export { JsonlToToonl, ToonlDecodeStream, ToonlEncodeStream, ToonlToJsonl, ToonlEncoder, ToonlReader, closeTransform, closeTransformInterleaved, decodeLines, encodeToonlLines, encodeRecords, jsonToToon, parseRecords, parseStream, recordTransform, toonToJson, } from './toonl.js';

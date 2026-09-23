@@ -5,6 +5,7 @@ import {
   appendSummaryField,
   decode,
   encode,
+  encodeToolManifest,
   projectFields,
 } from '../dist/index.js'
 
@@ -51,4 +52,50 @@ test('projectFields leaves absent fields absent instead of null-filling', () => 
 test('encode/decode expose the authoritative v4.1 semantics', () => {
   assert.equal(encode({ value: 1 }), 'value: 1')
   assert.deepEqual(decode('# comment\nvalue: 1'), { value: 1 })
+})
+
+test('encodeToolManifest flattens MCP tool schemas into tabular params rows', () => {
+  const tools = [
+    {
+      name: 'search_docs',
+      description: 'Full-text search over the knowledge base',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search text' },
+          limit: { type: 'integer', description: 'Max results' },
+          tags: { type: 'array', items: { type: 'string' } },
+          mode: { enum: ['fast', 'deep'] },
+          cursor: { type: ['string', 'null'] },
+        },
+        required: ['query'],
+      },
+    },
+    { name: 'ping' },
+  ]
+
+  const manifest = encodeToolManifest(tools)
+
+  assert.equal(manifest, [
+    'tools[2]:',
+    '  - name: search_docs',
+    '    description: Full-text search over the knowledge base',
+    '    params[5]{name,type,required,description}:',
+    '      query,string,true,Search text',
+    '      limit,integer,false,Max results',
+    '      tags,array<string>,false,""',
+    '      mode,enum(fast|deep),false,""',
+    '      cursor,string|null,false,""',
+    '  - name: ping',
+    '    description: ""',
+    '    params: []',
+  ].join('\n'))
+  assert.deepEqual(decode(manifest).tools[0].params[0], {
+    name: 'query',
+    type: 'string',
+    required: true,
+    description: 'Search text',
+  })
+  // The prompt-facing manifest undercuts even minified JSON of the tool list.
+  assert.ok(manifest.length < JSON.stringify(tools).length)
 })
