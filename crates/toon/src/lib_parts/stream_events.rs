@@ -191,16 +191,7 @@ where
     R: BufRead + Send + 'static,
 {
     let (sender, receiver) = sync_channel(0);
-    let ctx = StreamCtx {
-        indent_size: options.indent,
-        strict: options.strict,
-        object_array_columns: options.object_array_columns,
-        max_depth: options.max_depth,
-        max_input_bytes: options.max_input_bytes,
-        max_array_length: options.max_array_length,
-        max_keys: options.max_keys,
-        truncation_span: Cell::new(None),
-    };
+    let ctx = StreamCtx::new(options);
     let worker = std::thread::Builder::new()
         .stack_size(EVENT_DECODER_STACK_SIZE)
         .spawn(move || {
@@ -243,16 +234,7 @@ pub fn decode_events(
 }
 
 fn collect_events(input: &str, options: &DecodeStreamOptions) -> (Vec<ToonEvent>, Option<ParseError>) {
-    let ctx = StreamCtx {
-        indent_size: options.indent,
-        strict: options.strict,
-        object_array_columns: options.object_array_columns,
-        max_depth: options.max_depth,
-        max_input_bytes: options.max_input_bytes,
-        max_array_length: options.max_array_length,
-        max_keys: options.max_keys,
-        truncation_span: Cell::new(None),
-    };
+    let ctx = StreamCtx::new(options);
     let mut events = Vec::new();
     let error = decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut events).err();
     (events, error)
@@ -271,13 +253,7 @@ fn scan_for_truncation(
 ) -> (Option<ParseError>, Option<ArraySpanState>) {
     let ctx = StreamCtx {
         indent_size: options.indent.max(1),
-        strict: options.strict,
-        object_array_columns: options.object_array_columns,
-        max_depth: options.max_depth,
-        max_input_bytes: options.max_input_bytes,
-        max_array_length: options.max_array_length,
-        max_keys: options.max_keys,
-        truncation_span: Cell::new(None),
+        ..StreamCtx::new(options)
     };
     let mut events = Vec::new();
     let error = decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut events).err();

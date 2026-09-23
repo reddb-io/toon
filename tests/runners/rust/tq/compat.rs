@@ -301,7 +301,7 @@ fn registry() -> Vec<(String, usize)> {
         .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()));
     for entry in entries {
         let path = entry.expect("read builtins directory entry").path();
-        if path.extension().is_none_or(|extension| extension != "rs") {
+        if !path.extension().is_some_and(|extension| extension == "rs") {
             continue;
         }
 
