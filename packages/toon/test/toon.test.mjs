@@ -121,7 +121,7 @@ test('nested tabular headers validate leaf arity and shape', () => {
     () => parse('orders[1]{id,customer{name,country}}:\n  1,Ada\n'),
     (error) => error.line === 2 && /array row length mismatch/.test(error.message),
   )
-  assert.throws(() => parse('orders[1]{id,customer{}}:\n  1\n'), /invalid array header/)
+  assert.throws(() => parse('orders[1]{id,customer{}}:\n  1\n'), /empty field entry in header/)
   assert.throws(
     () => parse('orders[1]{customer{name},customer{name}}:\n  Ada,Bob\n'),
     /duplicate field name in header/,

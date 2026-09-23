@@ -43,7 +43,7 @@
       "name": "malformed quoted primitive list cell",
       "input": "items[1|]{id,tags[;]}:\n  item_001|\"hazmat;oversize\n",
       "line": 2,
-      "reason": "invalid quoted string"
+      "reason": "unterminated string: missing closing quote"
     },
     {
       "name": "primitive list row width mismatch",

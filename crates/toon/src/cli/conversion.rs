@@ -142,7 +142,7 @@ fn describe_decode_failure(error: &ParseError, recorder: &Recorder) -> CliError 
         );
     }
     let line = error.line();
-    CliError::decode(line, error.message(), recorder.line(line).as_deref())
+    CliError::decode(line, &error.detail(), recorder.line(line).as_deref())
 }
 
 fn report_written(verb: &str, config: &Conversion, io: &mut dyn CliIo) {

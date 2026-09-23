@@ -25,6 +25,11 @@ function invalidQuotedString(line) {
   return toonError(line, 'invalid quoted string')
 }
 
+/** A quoted token with no closing quote, worded like the upstream reference. */
+export function unterminatedString(line) {
+  return toonError(line, 'unterminated string: missing closing quote')
+}
+
 /** Decodes a scalar token (spec §4): quoted string, literal, number, or bare string. */
 export function parseScalar(value, line) {
   if (value === '') {
@@ -143,7 +148,7 @@ export function parseQuotedString(value, line) {
     }
   }
 
-  throw invalidQuotedString(line)
+  throw unterminatedString(line)
 }
 
 /**
@@ -159,13 +164,13 @@ function skipQuotedRun(value, index, line) {
     const backslash = value.indexOf('\\', index)
     if (backslash !== -1 && (quote === -1 || backslash < quote)) {
       if (backslash === value.length - 1) {
-        throw invalidQuotedString(line)
+        throw unterminatedString(line)
       }
       index = backslash + 2
       continue
     }
     if (quote === -1) {
-      throw invalidQuotedString(line)
+      throw unterminatedString(line)
     }
     return quote + 1
   }

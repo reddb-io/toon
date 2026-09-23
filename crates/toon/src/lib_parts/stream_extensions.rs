@@ -146,7 +146,6 @@ struct StreamStructuredState {
     next_index: usize,
     flat_width: usize,
     child_table_fields: Option<Vec<bool>>,
-    extension_rows: bool,
 }
 
 struct StreamValidationResult {
@@ -167,17 +166,6 @@ fn has_fixed_stream_fields(fields: &[StreamFieldNode]) -> bool {
                 .children
                 .as_deref()
                 .is_some_and(has_fixed_stream_fields)
-    })
-}
-
-fn has_typed_stream_fields(fields: &[StreamFieldNode]) -> bool {
-    fields.iter().any(|field| {
-        field.list_delimiter.is_some()
-            || field.fixed_len.is_some()
-            || field
-                .children
-                .as_deref()
-                .is_some_and(has_typed_stream_fields)
     })
 }
 
@@ -399,15 +387,8 @@ fn structured_stream_length_error(
     stream_error(line, "array length mismatch")
 }
 
-fn structured_stream_row_error(line: usize, extension_rows: bool) -> ParseError {
-    stream_error(
-        line,
-        if extension_rows {
-            "array row length mismatch"
-        } else {
-            "array count mismatch"
-        },
-    )
+fn structured_stream_row_error(line: usize) -> ParseError {
+    stream_error(line, "array row length mismatch")
 }
 
 fn emit_complex_tabular_rows<R: BufRead, S: EventSink>(
@@ -469,10 +450,6 @@ fn emit_stream_structured_rows<S: EventSink>(
     } else {
         Some(vec![false; fields.len()])
     };
-    let extension_rows = has_typed_stream_fields(fields)
-        || child_table_fields
-            .as_ref()
-            .is_some_and(|fields| fields.iter().any(|field| *field));
     let mut end_line = fallback_line;
     let mut rows = 0;
     while rows < len {
@@ -491,7 +468,6 @@ fn emit_stream_structured_rows<S: EventSink>(
             next_index: *index + 1,
             flat_width: stream_leaf_width(fields),
             child_table_fields: child_table_fields.clone(),
-            extension_rows,
         };
         end_line = emit_stream_structured_row(
             fields,
@@ -506,10 +482,7 @@ fn emit_stream_structured_rows<S: EventSink>(
             root,
         )?;
         if state.cell_index != cells.len() {
-            return Err(structured_stream_row_error(
-                line.number,
-                state.extension_rows,
-            ));
+            return Err(structured_stream_row_error(line.number));
         }
         *index = state.next_index;
         rows += 1;
@@ -601,7 +574,7 @@ fn emit_stream_structured_field<S: EventSink>(
 ) -> Result<usize, ParseError> {
     if let Some(fixed_len) = field.fixed_len {
         if state.cell_index + fixed_len > cells.len() {
-            return Err(structured_stream_row_error(line, state.extension_rows));
+            return Err(structured_stream_row_error(line));
         }
         out.emit(ToonEvent::StartArray {
             length: fixed_len,
@@ -637,7 +610,7 @@ fn emit_stream_structured_field<S: EventSink>(
         });
         if child_table {
             let count =
-                count.ok_or_else(|| structured_stream_row_error(line, state.extension_rows))?;
+                count.ok_or_else(|| structured_stream_row_error(line))?;
             state.cell_index += 1;
             out.emit(ToonEvent::StartArray {
                 length: count,
@@ -690,7 +663,7 @@ fn emit_stream_structured_field<S: EventSink>(
 
     let cell = cells
         .get(state.cell_index)
-        .ok_or_else(|| structured_stream_row_error(line, state.extension_rows))?;
+        .ok_or_else(|| structured_stream_row_error(line))?;
     state.cell_index += 1;
     if let Some(list_delimiter) = field.list_delimiter {
         let values = split_delimited(cell, list_delimiter, line)?;

@@ -454,17 +454,17 @@ fn a_carriage_return_line_ending_is_stripped() {
 fn rejects_the_strict_mode_error_checklist() {
     let cases = [
         // Counts and widths (§14.1).
-        ("tags[2]: a,b,c", "array count mismatch"),
-        ("tags[3]: a,b", "array count mismatch"),
-        ("items[2]:\n  - a", "array count mismatch"),
-        ("items[1]:\n  - a\n  - b", "array count mismatch"),
-        ("items[1]{id}:\n  1\n  2", "array count mismatch"),
-        ("items[2]{id}:\n  1", "array count mismatch"),
-        ("items[2]{id,name}:\n  1,Ada\n  2", "array count mismatch"),
+        ("tags[2]: a,b,c", "expected 2 inline-form values, but got 3"),
+        ("tags[3]: a,b", "expected 3 inline-form values, but got 2"),
+        ("items[2]:\n  - a", "expected 2 list items, but got 1"),
+        ("items[1]:\n  - a\n  - b", "expected 1 list items, but got 2"),
+        ("items[1]{id}:\n  1\n  2", "expected 1 tabular rows, but got 2"),
+        ("items[2]{id}:\n  1", "expected 2 tabular rows, but got 1"),
+        ("items[2]{id,name}:\n  1,Ada\n  2", "expected 2 row cells, but got 1"),
         // Headers (§6, §14.2).
-        ("items[03]: a,b,c", "malformed array header length"),
-        ("items[-1]: a", "malformed array header length"),
-        ("items[bar]: a", "malformed array header length"),
+        ("items[03]: a,b,c", "invalid array length"),
+        ("items[-1]: a", "invalid array length"),
+        ("items[bar]: a", "invalid array length"),
         ("items[1][bar]: a", "expected colon after array header"),
         ("items[2]extra: a,b", "expected colon after array header"),
         ("items[2] : a,b", "expected colon after array header"),
@@ -474,10 +474,10 @@ fn rejects_the_strict_mode_error_checklist() {
             "unexpected content after fields-bearing header colon",
         ),
         // Structure (§14.2).
-        ("hello\nworld", "expected key-value line"),
-        ("a:\n  user", "expected key-value line"),
+        ("hello\nworld", "missing colon after key"),
+        ("a:\n  user", "missing colon after key"),
         ("[2]: 1,2\nstray: 1", "expected end of document"),
-        ("items[1]:\n  a", "array count mismatch"),
+        ("items[1]:\n  a", "expected 1 list items, but got 0"),
         ("  a: 1", "invalid indentation"),
         ("a: 1\n\tb: 2", "tab used as indentation"),
         ("a:\n    b: 1", "over-indented line"),
@@ -494,11 +494,11 @@ fn rejects_the_strict_mode_error_checklist() {
         ("v: \"a\\x\"", "invalid quoted string"),
         ("v: \"a\\u00b\"", "invalid quoted string"),
         ("v: \"a\\uD800b\"", "invalid quoted string"),
-        ("v: \"a\\", "invalid quoted string"),
-        ("\"unterminated", "invalid quoted string"),
+        ("v: \"a\\", "unterminated string: missing closing quote"),
+        ("\"unterminated", "unterminated string: missing closing quote"),
         ("v: \"a\" trailing", "invalid quoted string"),
-        ("v: mid\"quote", "invalid quoted string"),
-        ("v: \"a\nb\"", "invalid quoted string"),
+        ("v: mid\"quote", "unterminated string: missing closing quote"),
+        ("v: \"a\nb\"", "unterminated string: missing closing quote"),
         ("\"a\"b: 1", "invalid quoted string"),
     ];
 
@@ -527,8 +527,16 @@ fn reports_the_line_the_error_occurred_on() {
     let failure = Value::parse_toon("a: 1\nb: 2\nc[2]: x\n").expect_err("length mismatch");
 
     assert_eq!(failure.line(), 3);
+    // message() is the fixed category; Display spells out the counts.
     assert_eq!(failure.message(), "array count mismatch");
-    assert_eq!(failure.to_string(), "line 3: array count mismatch");
+    assert_eq!(
+        failure.to_string(),
+        "line 3: expected 2 inline-form values, but got 1"
+    );
+    assert_eq!(
+        failure.detail(),
+        "expected 2 inline-form values, but got 1"
+    );
 }
 
 #[test]
@@ -978,4 +986,30 @@ fn serde_bridge_round_trips_typed_values() {
     };
     let error = from_str_with_options::<Order>(&toon, &limited).expect_err("limited");
     assert_eq!(error.to_string(), "line 2: object exceeds maxKeys (1)");
+}
+
+/// A document nested past `max_depth` is a typed error from every entry point,
+/// even on a thread with the 2 MiB default stack: the grammar runs on the
+/// decoder's own stack, so hostile input cannot abort the process.
+#[test]
+fn deep_documents_error_instead_of_overflowing_small_stacks() {
+    let mut deep = String::new();
+    for depth in 0..1_200 {
+        deep.push_str(&"  ".repeat(depth));
+        deep.push_str("a:\n");
+    }
+    let outcome = std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || {
+            let decoded = reddb_io_toon::decode(&deep).expect_err("too deep");
+            let (_, streamed) = reddb_io_toon::decode_events(&deep, &DecodeOptions::default());
+            let report = reddb_io_toon::detect_truncation(&deep);
+            (decoded.kind(), streamed.map(|error| error.kind()), report.complete)
+        })
+        .expect("spawn")
+        .join()
+        .expect("no stack overflow");
+    assert_eq!(outcome.0, reddb_io_toon::ErrorKind::DepthLimit);
+    assert_eq!(outcome.1, Some(reddb_io_toon::ErrorKind::DepthLimit));
+    assert!(!outcome.2);
 }

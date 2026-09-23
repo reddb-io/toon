@@ -100,7 +100,7 @@
       "line": 1,
       "declared": null,
       "actual": null,
-      "message": "line 1: invalid quoted string"
+      "message": "line 1: unterminated string: missing closing quote"
     }
   },
   {

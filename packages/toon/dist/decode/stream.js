@@ -13,7 +13,7 @@
  * keyed tabular objects (§9.5) and objects as list items (§10).
  */
 import { ToonDecodeError, ToonError, toonError } from '../errors.js';
-import { findUnquoted, parseKey, parseScalar, trimSpaces } from '../lexical.js';
+import { findUnquoted, parseKey, parseScalar, trimSpaces, unterminatedString } from '../lexical.js';
 import { DEFAULT_MAX_DEPTH } from '../constants.js';
 import { emitExtensionRows, } from './extension_events.js';
 /** A full-line comment: only U+0020 spaces before `#` (§5.1). */
@@ -155,7 +155,7 @@ function parseHeader(content, line) {
         segment = segment.slice(0, -1);
     }
     if (!LENGTH_RE.test(segment)) {
-        throw toonError(line, 'malformed array header length');
+        throw toonError(line, 'invalid array length');
     }
     const length = Number(segment);
     let rest = content.slice(close + 1);
@@ -293,8 +293,12 @@ function parseFieldEntry(chunk, delimiter, activeDelimiter, line) {
     const end = matchBrace(trimmed.slice(brace), line) + brace;
     if (end !== trimmed.length - 1)
         throw toonError(line, 'malformed tabular header fields');
-    if (end === brace + 1)
-        throw toonError(line, 'invalid array header');
+    if (end === brace + 1) {
+        // Same rule as the Rust decoder: an empty group is an empty field entry,
+        // except in the comma field lists of child tables, where the header itself
+        // is malformed.
+        throw toonError(line, delimiter === activeDelimiter ? 'empty field entry in header' : 'invalid array header');
+    }
     const children = parseFieldList(trimmed.slice(brace + 1, end), delimiter, activeDelimiter, line);
     return { name, children };
 }
@@ -305,7 +309,7 @@ function closingQuoteIndex(text, line) {
         else if (text[i] === '"')
             return i;
     }
-    throw toonError(line, 'invalid quoted string');
+    throw unterminatedString(line);
 }
 function countLeaves(fields) {
     let count = 0;
@@ -568,7 +572,7 @@ function* emitEntry(reader, line, content, depth, ctx, seen) {
     }
     const colon = findUnquoted(content, ':', line.number);
     if (colon === -1)
-        throw toonError(line.number, 'expected key-value line');
+        throw toonError(line.number, 'missing colon after key');
     const key = decodeKey(trimSpaces(content.slice(0, colon)), line.number);
     const rest = trimSpaces(content.slice(colon + 1));
     recordKey(seen, key, line.number, ctx);

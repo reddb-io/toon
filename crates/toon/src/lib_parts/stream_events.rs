@@ -3,7 +3,10 @@
 // batches of events across a zero-capacity channel. Splitting it from the grammar in
 // `stream.rs` keeps both parts inside the shared file-length budget.
 
-const EVENT_DECODER_STACK_SIZE: usize = 8 * 1024 * 1024;
+/// Stack for the recursive grammar. The default `max_depth` of 1000 needs a few
+/// MiB in a debug build; 16 MiB leaves room for larger limits and error types,
+/// and is reserved address space that only deep documents actually touch.
+const EVENT_DECODER_STACK_SIZE: usize = 16 * 1024 * 1024;
 
 /// Events per channel message. One thread handoff per event cost about 3.5 µs
 /// per key or value; a batch amortizes it while memory stays bounded.
@@ -166,6 +169,20 @@ impl Drop for EventDecoder {
     }
 }
 
+/// Runs `work` on a scoped worker with the decoder's stack, so the recursive
+/// grammar has room for deep documents whichever thread the caller is on (a
+/// spawned thread defaults to 2 MiB, where 1000 levels overflow).
+fn on_decoder_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(EVENT_DECODER_STACK_SIZE)
+            .spawn_scoped(scope, work)
+            .expect("failed to spawn TOON decoder")
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    })
+}
+
 /// Decode events directly from a buffered reader with one classified line of
 /// lookahead. The reader is moved to a worker so each iterator step can suspend
 /// the recursive grammar exactly at an event boundary.
@@ -213,4 +230,56 @@ where
 
 pub fn decode_event_stream(input: &str, options: &DecodeStreamOptions) -> EventDecoder {
     decode_event_reader(Cursor::new(input.as_bytes().to_vec()), options)
+}
+
+/// Decodes the document into the full event sequence, stopping at the first
+/// error. The events emitted before the error are returned alongside it, so
+/// iterator consumers observe the same prefix the TS generator yields.
+pub fn decode_events(
+    input: &str,
+    options: &DecodeStreamOptions,
+) -> (Vec<ToonEvent>, Option<ParseError>) {
+    on_decoder_stack(|| collect_events(input, options))
+}
+
+fn collect_events(input: &str, options: &DecodeStreamOptions) -> (Vec<ToonEvent>, Option<ParseError>) {
+    let ctx = StreamCtx {
+        indent_size: options.indent,
+        strict: options.strict,
+        object_array_columns: options.object_array_columns,
+        max_depth: options.max_depth,
+        max_input_bytes: options.max_input_bytes,
+        max_array_length: options.max_array_length,
+        max_keys: options.max_keys,
+        truncation_span: Cell::new(None),
+    };
+    let mut events = Vec::new();
+    let error = decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut events).err();
+    (events, error)
+}
+
+fn decode_events_for_truncation(
+    input: &str,
+    options: &DecodeStreamOptions,
+) -> (Option<ParseError>, Option<ArraySpanState>) {
+    on_decoder_stack(|| scan_for_truncation(input, options))
+}
+
+fn scan_for_truncation(
+    input: &str,
+    options: &DecodeStreamOptions,
+) -> (Option<ParseError>, Option<ArraySpanState>) {
+    let ctx = StreamCtx {
+        indent_size: options.indent.max(1),
+        strict: options.strict,
+        object_array_columns: options.object_array_columns,
+        max_depth: options.max_depth,
+        max_input_bytes: options.max_input_bytes,
+        max_array_length: options.max_array_length,
+        max_keys: options.max_keys,
+        truncation_span: Cell::new(None),
+    };
+    let mut events = Vec::new();
+    let error = decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut events).err();
+    (error, ctx.truncation_span.get())
 }
