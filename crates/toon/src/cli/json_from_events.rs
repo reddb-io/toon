@@ -4,7 +4,7 @@
 //!
 //! The TypeScript twin is `packages/toon/src/cli/json-from-events.ts`.
 
-use crate::ToonEvent;
+use crate::{ToonEvent, Value};
 
 use super::errors::CliError;
 use super::io::{CliIo, OutputSink};
@@ -85,8 +85,16 @@ impl JsonWriter {
                     }
                 }
                 self.value_prefix(sink, io)?;
-                let rendered = serde_json::to_string(&value.to_json_value())
-                    .map_err(|error| CliError::with_cause("Failed to write JSON", error))?;
+                let rendered = match value {
+                    // An integer token is already JSON number text; writing its
+                    // digits keeps values beyond i64/u64 exact, which a
+                    // serde_json round trip would read as f64.
+                    Value::Number(token) if !token.contains(['.', 'e', 'E']) => {
+                        crate::canonical_number(token)
+                    }
+                    _ => serde_json::to_string(&value.to_json_value())
+                        .map_err(|error| CliError::with_cause("Failed to write JSON", error))?,
+                };
                 sink.write(&rendered, io)?;
                 self.value_complete();
             }

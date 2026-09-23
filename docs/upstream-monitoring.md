@@ -39,3 +39,28 @@ After reviewing a report and rerunning the evidence named in it, a maintainer
 may deliberately update `.github/upstream-watch.json`. Updating that file is
 the only way to advance the audit checkpoint; the checker never repins either
 submodule automatically.
+
+## Cross-implementation differential run
+
+On 2026-09-23 the two shipped engines were run through
+[toon-diff](https://github.com/antrixy/toon-diff) (MIT; toon-format/toon
+discussion #323), a differential tester that checks `decode_Y(encode_X(value))`
+for every ordered pair of implementations against a lossless oracle, which
+compares numbers by their exact source lexeme. The run used toon-diff's corpus
+and mutation generator (13 seeds × 200 mutations on three generator seeds,
+2,614 cases each) with a local driver outside this repository and three
+engines: the upstream TypeScript reference at v4.1.1, `@reddb-io/toon`, and the
+Rust `toon` CLI.
+
+About 70,000 pair checks found **no structural disagreement** between the
+three engines. The one class of finding was numeric: the Rust CLI's JSON
+output rounded integers beyond `i64`/`u64` through `f64`. That is fixed, and the
+remaining JSON-input limit is documented in the crate README. When an engine
+ingests through JSON, the expectation is the `f64` reading, so the TypeScript
+engines' documented `Number` domain is not reported.
+
+To repeat the run, clone toon-diff, install `@toon-format/toon@4.1.1`, and
+drive `probe/corpus.ts`, `gen/generate.ts` and `oracle/ingest.ts` with
+adapters that call `packages/toon/dist/index.js` and the `toon` binary
+(`-e`/`-d`). Raise the child-process output buffer: a 500×500 grid prints more
+than Node's default 1 MiB.

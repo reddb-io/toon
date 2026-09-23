@@ -98,6 +98,13 @@ now; this file is how it got there.
 
 ### Fixed
 
+- **The Rust `toon -d` writes integers of any size exactly.** Integer tokens
+  beyond `i64`/`u64` went through `serde_json` and came out as the nearest
+  `f64` (`18446744073709551616` became `1.8446744073709552e+19`); they are now
+  written digit for digit. JSON *input* is still read through `serde_json` and
+  is exact only within `i64`/`u64`, which the crate README now states instead
+  of claiming that larger integers survive. Found by running the toon-diff
+  differential tester (toon-format/toon discussion #323) against both engines.
 - **Root strings that start with U+FEFF are quoted** (toon-format/toon#339).
   The decoder strips a document-leading U+FEFF as a byte-order mark, so an
   unquoted `\uFEFF8` decoded as the number `8` and a lone `\uFEFF` as `{}`.
