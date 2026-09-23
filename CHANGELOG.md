@@ -25,6 +25,14 @@ now; this file is how it got there.
   of blank-line delimiters, which broke on multi-line documents, and the
   servers bind an address the caller chooses.
 
+- **Breaking (toon-rpc, Rust):** HTTP and WebSocket follow §8. `HttpServer`
+  and `WsServer` bind an address the caller chooses (HTTP was fixed to
+  `0.0.0.0:8080`). HTTP answers a notification with `204 No Content`, sends
+  every error as TOON, and refuses a body over the limit with `413`; the new
+  `HttpTransport` is a request/response client. WebSocket no longer sends an
+  empty message for a notification, caps message and frame sizes, and answers
+  in the kind of message the request used.
+
 - **Rust `decode` builds its `Value` directly and jumps with `memchr`.** The
   value is assembled while the grammar emits, without an intermediate event
   vector, and strict mode skips the duplicate-key search it never needs
