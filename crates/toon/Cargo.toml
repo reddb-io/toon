@@ -50,12 +50,19 @@ name = "codec"
 path = "benches/codec.rs"
 harness = false
 
+[features]
+default = ["serde"]
+# Typed `to_string` / `from_str` over any serde `Serialize` / `DeserializeOwned`.
+serde = ["dep:serde"]
+
 [dependencies]
+serde = { version = "1", optional = true }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 
 [dev-dependencies]
 criterion = { version = "0.5.1", default-features = false, features = ["cargo_bench_support"] }
 proptest = "1.8.0"
+serde = { version = "1", features = ["derive"] }
 
 [[test]]
 name = "event_fixtures"

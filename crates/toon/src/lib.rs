@@ -19,4 +19,5 @@ include!("lib_parts/cyclic_extension.rs");
 include!("lib_parts/tabular_encoder.rs");
 include!("lib_parts/encode.rs");
 include!("lib_parts/api.rs");
+include!("lib_parts/serde_api.rs");
 include!("lib_parts/tests.rs");
