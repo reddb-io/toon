@@ -65,7 +65,7 @@ pinned revision, and copies in the driver from
 [`scripts/toon-diff/reddb-matrix.ts`](../scripts/toon-diff/reddb-matrix.ts).
 It then runs two generator seeds against the upstream TypeScript reference
 pinned in the workflow. Numbers are compared exactly between the two Rust
-engines, which keep integers of any size, and by their `f64` reading whenever
+engines, which keep every digit, and by their `f64` reading whenever
 a JavaScript engine is involved. The driver exits non-zero on any finding and
 writes its report to the workflow summary.
 Like the drift check, it reports only and never gates a release. To run it

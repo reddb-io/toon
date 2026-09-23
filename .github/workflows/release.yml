@@ -625,6 +625,49 @@ jobs:
 
           publish_npm_pkg "@reddb-io/toon"
 
+  publish-vscode:
+    name: Publish the VS Code extension
+    # The .vsix already built for the GitHub Release goes to the Visual Studio
+    # Marketplace and to Open VSX, stable tags only. Each registry is skipped
+    # with a warning while its token is not configured, and a version already
+    # there is skipped (--skip-duplicate), so a rerun stays green. It is not a
+    # verify-public gate: the GitHub Release asset stays the canonical download.
+    needs: [plan, build-vsix, upstream-drift, verify-ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: |
+      needs.plan.outputs.should_skip != 'true' &&
+      needs.plan.outputs.release_channel == 'stable'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.7.0
+      - name: Verify the packaged .vsix
+        run: sha256sum -c reddb-toon.vsix.sha256
+      - name: Publish to the Visual Studio Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${VSCE_PAT}" ]]; then
+            echo "::warning::VSCE_PAT secret not set — skipping. Add an Azure DevOps token with Marketplace (Manage) scope for the reddb-io publisher as VSCE_PAT in repo secrets."
+            exit 0
+          fi
+          npx --yes @vscode/vsce publish --packagePath reddb-toon.vsix --skip-duplicate
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${OVSX_PAT}" ]]; then
+            echo "::warning::OVSX_PAT secret not set — skipping. Add an open-vsx.org access token for the reddb-io namespace as OVSX_PAT in repo secrets."
+            exit 0
+          fi
+          npx --yes ovsx publish --packagePath reddb-toon.vsix --skip-duplicate
+
   upstream-drift:
     name: Capture release-time upstream drift
     needs: [plan]

@@ -294,7 +294,7 @@ One-liner from a clone:
 (cd packages/vscode-toon && pnpm build && pnpm dlx @vscode/vsce package -o reddb-toon.vsix) && code --install-extension packages/vscode-toon/reddb-toon.vsix
 ```
 
-VSCodium and Cursor users: swap `code` for `codium` / `cursor`. Once the extension is listed on the Marketplace and Open VSX (planned), the in-editor one-liner becomes `Ctrl+P` → `ext install reddb-io.reddb-toon`.
+VSCodium and Cursor users: swap `code` for `codium` / `cursor`. Stable releases also publish this `.vsix` to the Visual Studio Marketplace and Open VSX as soon as the `reddb-io` publisher tokens are configured. From then on, the in-editor one-liner is `Ctrl+P` → `ext install reddb-io.reddb-toon`.
 
 Or run `pnpm --filter reddb-toon build`, open `packages/vscode-toon` in VS Code, and press `F5` to try the extension in an Extension Development Host against `examples/sample.toon` and `examples/sample.toonl`.
 
