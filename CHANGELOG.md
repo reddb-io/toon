@@ -71,6 +71,17 @@ now; this file is how it got there.
   gets a JSON-RPC Parse error, and the JSON path honors the batch limit. A new
   shared corpus, `tests/corpus/toon-rpc/multi.json`, holds both to it.
 
+- **Breaking (MCP):** `@reddb-io/toon-rpc-mcp` and `reddb-io-toon-rpc-mcp`
+  now implement the Model Context Protocol as published, pinned to the
+  2025-06-18 schema: JSON-RPC 2.0 over newline-delimited JSON on stdio, the
+  `initialize` lifecycle, `ping`, and the tools, resources and prompts features
+  for whichever of them a service provides. The invented protocol is gone
+  (`server/discover`, `resultType`, `ttlMs`, `cacheScope`, `items` envelopes,
+  the fictional version `2026-07-28`, TOON on the wire, and the Rust HTTP
+  endpoint). TOON remains available as an optional encoding of text content
+  (`toonContent` / `toon_content`, `CallToolResult.toon`). Both implementations
+  replay the shared transcript `tests/corpus/mcp/transcript.json`.
+
 - **Rust `decode` builds its `Value` directly and jumps with `memchr`.** The
   value is assembled while the grammar emits, without an intermediate event
   vector, and strict mode skips the duplicate-key search it never needs
