@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "issue": 302,
+  "description": "A comma inside a quoted nested field name must not switch a tab or pipe header to comma-separated fields",
+  "json": "[{\"comma,value\":{\"q\\\"k\":{\" \":0},\" \":true}}]"
+}

@@ -858,3 +858,23 @@ fn every_model_method_uses_the_canonical_codec() {
 // ---------------------------------------------------------------------------
 // Value, Array and Document accessors
 // ---------------------------------------------------------------------------
+
+/// A comma inside a quoted nested field name is content: it must not switch a
+/// tab or pipe header over to comma-separated fields. Found by the round-trip
+/// oracle in the differential fuzzer.
+#[test]
+fn quoted_commas_in_nested_field_names_keep_the_active_delimiter() {
+    let value = Value::from_json_value(json!([{"comma,value": {"q\"k": {" ": 0}, " ": true}}]));
+    for delimiter in [',', '\t', '|'] {
+        let options = EncodeOptions {
+            delimiter,
+            ..EncodeOptions::default()
+        };
+        let wire = reddb_io_toon::encode_with_options(&value, options).expect("encode");
+        assert_eq!(
+            reddb_io_toon::decode(&wire).expect("decode").to_json_value(),
+            value.to_json_value(),
+            "{delimiter:?} header {wire:?}"
+        );
+    }
+}
