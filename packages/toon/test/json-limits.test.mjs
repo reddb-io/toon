@@ -8,7 +8,7 @@ import { decode as parse, encode as serialize } from '../dist/index.js'
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const FIXTURE_PATH = join(REPO_ROOT, 'tests/corpus/json-limits.json')
-const EXPECTED_CASE_COUNT = 28
+const EXPECTED_CASE_COUNT = 47
 const REQUIRED_CATEGORIES = new Set([
   'numbers',
   'strings-unicode',
