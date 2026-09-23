@@ -1,7 +1,7 @@
 //! The `toon` CLI argument grammar, hand-rolled so the crate keeps its single
 //! `serde_json` dependency: positional `[input]`, `-o/--output`, `-e/--encode`,
 //! `-d/--decode`, `--delimiter`, `--indent`, `--strict`/`--no-strict`,
-//! `--stats`, `--verbose`, plus the built-in `--help`/`--version`.
+//! `--stats`, `--check`, `--verbose`, plus the built-in `--help`/`--version`.
 //!
 //! The TypeScript twin is `packages/toon/src/cli/args.ts`; the shared corpus
 //! under `tests/golden/toon-cli/` is the contract between the two ports.
@@ -20,6 +20,7 @@ pub struct ParsedArgs {
     pub indent: String,
     pub strict: bool,
     pub stats: bool,
+    pub check: bool,
     pub verbose: bool,
     pub help: bool,
     pub version: bool,
@@ -36,6 +37,7 @@ impl Default for ParsedArgs {
             indent: "2".to_owned(),
             strict: true,
             stats: false,
+            check: false,
             verbose: false,
             help: false,
             version: false,
@@ -92,6 +94,11 @@ const OPTIONS: &[OptionDef] = &[
         kind: Kind::Boolean,
     },
     OptionDef {
+        name: "check",
+        alias: None,
+        kind: Kind::Boolean,
+    },
+    OptionDef {
         name: "verbose",
         alias: None,
         kind: Kind::Boolean,
@@ -126,6 +133,7 @@ pub const HELP_TEXT: &str = concat!(
     "      --indent <number>  Indentation size (default: 2)\n",
     "      --strict           Strict decode validation (disable with --no-strict)\n",
     "      --stats            Show token statistics\n",
+    "      --check            Validate the input without writing any output\n",
     "      --verbose          Print the cause chain and stack trace on failure\n",
     "  -h, --help             Show this help message\n",
     "  -v, --version          Show the version\n",
@@ -269,6 +277,7 @@ fn assign_boolean(parsed: &mut ParsedArgs, name: &str, value: bool) {
         "decode" => parsed.decode = value,
         "strict" => parsed.strict = value,
         "stats" => parsed.stats = value,
+        "check" => parsed.check = value,
         "verbose" => parsed.verbose = value,
         "help" => parsed.help = value,
         "version" => parsed.version = value,

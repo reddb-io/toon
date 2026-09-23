@@ -22,7 +22,7 @@ pub use errors::CliError;
 pub use io::{CliIo, InputSource, ProcessIo};
 pub use token_stats::{estimate_token_count, format_statistics};
 
-use conversion::{decode_to_json, encode_to_toon, Conversion};
+use conversion::{check_input, decode_to_json, encode_to_toon, Conversion};
 
 /// The version the `--version` flag reports.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -79,7 +79,14 @@ fn run(argv: &[String], io: &mut dyn CliIo, verbose: &mut bool) -> Result<(), Cl
         indent_size,
     };
 
-    match detect_mode(&config.input, args.encode, args.decode) {
+    let mode = detect_mode(&config.input, args.encode, args.decode);
+    if args.check {
+        if config.output.is_some() {
+            return Err(CliError::new("--check writes no output; drop --output"));
+        }
+        return check_input(&config, mode == Mode::Decode, delimiter, args.strict, io);
+    }
+    match mode {
         Mode::Encode => encode_to_toon(&config, delimiter, args.stats, io),
         Mode::Decode => decode_to_json(&config, args.strict, io),
     }

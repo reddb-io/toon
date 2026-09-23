@@ -17,3 +17,16 @@ export declare function encodeToToon(config: ConversionConfig & {
 export declare function decodeToJson(config: ConversionConfig & {
     strict: boolean;
 }): Promise<void>;
+/**
+ * Validates the input without producing a result: stdout stays empty and the
+ * verdict goes to stderr, so `toon --check` gates a pipeline on its exit code.
+ * TOON is decoded in full; JSON is parsed and encoded, proving it is TOON-able.
+ */
+export declare function checkInput(config: {
+    input: InputSource;
+    mode: 'encode' | 'decode';
+    delimiter: ',' | '|' | '\t';
+    indentSize: number;
+    strict: boolean;
+    io: CliIo;
+}): Promise<void>;

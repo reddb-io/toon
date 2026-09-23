@@ -2,7 +2,7 @@
  * The `toon` CLI argument grammar, hand-rolled so the package stays
  * dependency-free: positional `[input]`, `-o/--output`, `-e/--encode`,
  * `-d/--decode`, `--delimiter`, `--indent`, `--strict`/`--no-strict`,
- * `--stats`, `--verbose`, plus the built-in `--help`/`--version`.
+ * `--stats`, `--check`, `--verbose`, plus the built-in `--help`/`--version`.
  */
 
 import { CliError } from './errors.js'
@@ -16,6 +16,7 @@ export interface ParsedArgs {
   indent: string
   strict: boolean
   stats: boolean
+  check: boolean
   verbose: boolean
   help: boolean
   version: boolean
@@ -35,6 +36,7 @@ const OPTIONS: readonly OptionDef[] = [
   { name: 'indent', kind: 'value' },
   { name: 'strict', kind: 'boolean' },
   { name: 'stats', kind: 'boolean' },
+  { name: 'check', kind: 'boolean' },
   { name: 'verbose', kind: 'boolean' },
   { name: 'help', alias: 'h', kind: 'boolean' },
   { name: 'version', alias: 'v', kind: 'boolean' },
@@ -62,6 +64,7 @@ OPTIONS
       --indent <number>  Indentation size (default: 2)
       --strict           Strict decode validation (disable with --no-strict)
       --stats            Show token statistics
+      --check            Validate the input without writing any output
       --verbose          Print the cause chain and stack trace on failure
   -h, --help             Show this help message
   -v, --version          Show the version
@@ -75,6 +78,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedArgs {
     indent: '2',
     strict: true,
     stats: false,
+    check: false,
     verbose: false,
     help: false,
     version: false,

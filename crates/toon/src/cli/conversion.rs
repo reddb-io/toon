@@ -87,6 +87,51 @@ pub fn decode_to_json(
     Ok(())
 }
 
+/// Validates the input without producing a result: stdout stays empty and the
+/// verdict goes to stderr, so `toon --check` gates a pipeline on its exit
+/// code. TOON is decoded in full; JSON is parsed and encoded, proving it is
+/// TOON-able.
+pub fn check_input(
+    config: &Conversion,
+    decode: bool,
+    delimiter: char,
+    strict: bool,
+    io: &mut dyn CliIo,
+) -> Result<(), CliError> {
+    let label = format_input_label(&config.input, io.cwd());
+    if decode {
+        let (reader, recorder) = open_line_reader(&config.input, strict, io)?;
+        let events = decode_event_reader(
+            reader,
+            &DecodeStreamOptions {
+                indent: config.indent_size,
+                strict,
+                ..DecodeStreamOptions::default()
+            },
+        );
+        for event in events {
+            event.map_err(|error| describe_decode_failure(&error, &recorder))?;
+        }
+        io.stderr(&format!("✔ Valid TOON `{label}`\n"));
+        return Ok(());
+    }
+
+    let json = read_input(&config.input, io)?;
+    let value = Value::from_json_str(&json)
+        .map_err(|error| CliError::with_cause(format!("Failed to parse JSON: {error}"), error))?;
+    encode_with_options(
+        &value,
+        EncodeOptions {
+            delimiter,
+            indent_size: config.indent_size,
+            ..EncodeOptions::default()
+        },
+    )
+    .map_err(|error| CliError::with_cause(format!("Failed to encode TOON: {error}"), error))?;
+    io.stderr(&format!("✔ Valid JSON `{label}`\n"));
+    Ok(())
+}
+
 /// Turns a positioned decoder failure into the message the user sees. Bytes
 /// the strict reader refused never reached the decoder as text, so that
 /// failure is reported as what it is rather than as a syntax error.

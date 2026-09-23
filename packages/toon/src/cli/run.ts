@@ -9,7 +9,7 @@ import * as path from 'node:path'
 import { DELIMITERS, type Delimiter } from '../constants.js'
 import { VERSION } from '../version.js'
 import { HELP_TEXT, parseCliArgs } from './args.js'
-import { decodeToJson, encodeToToon } from './conversion.js'
+import { checkInput, decodeToJson, encodeToToon } from './conversion.js'
 import { CliError, formatReport } from './errors.js'
 import type { CliIo, InputSource } from './io.js'
 
@@ -41,8 +41,12 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
     }
 
     const delimiter = resolveDelimiter(args.delimiter)
+    const mode = detectMode(input, args.encode, args.decode)
 
-    if (detectMode(input, args.encode, args.decode) === 'encode') {
+    if (args.check) {
+      if (output) throw new CliError('--check writes no output; drop --output')
+      await checkInput({ input, mode, delimiter, indentSize, strict: args.strict, io })
+    } else if (mode === 'encode') {
       await encodeToToon({
         input,
         output,
