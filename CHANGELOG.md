@@ -13,6 +13,18 @@ now; this file is how it got there.
 
 ### Changed
 
+- **Breaking (toon-rpc, Rust):** the Rust client correlates calls by ID.
+  `Client::duplex` runs one receive task over a `DuplexTransport`, and
+  `Client::request_response` settles each call from its own response. Calls
+  take a timeout, a dropped call future cancels its call, and `close` or the
+  stream ending rejects every pending call exactly once. Invalid, unknown-ID
+  and duplicate-ID responses reach an `on_diagnostic` callback. The shared
+  corpus now runs its client cases on this client. `ClientTransport` and the
+  unused `Transport` trait are gone. TCP, Unix-socket and stdio transports use
+  the §8.1 length-prefixed framing (`FramedTransport`, `serve_framed`) instead
+  of blank-line delimiters, which broke on multi-line documents, and the
+  servers bind an address the caller chooses.
+
 - **Rust `decode` builds its `Value` directly and jumps with `memchr`.** The
   value is assembled while the grammar emits, without an intermediate event
   vector, and strict mode skips the duplicate-key search it never needs

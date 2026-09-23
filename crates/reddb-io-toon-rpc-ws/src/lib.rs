@@ -1,4 +1,4 @@
-use reddb_io_toon_rpc::{ClientTransport, Dispatcher, RpcError};
+use reddb_io_toon_rpc::{Dispatcher, DuplexTransport, RpcError};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
@@ -87,63 +87,68 @@ where
     }
 }
 
-/// WebSocket client transport
+type WsStream =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+/// WebSocket client transport: one RPC document per message.
 pub struct WsClient {
-    stream: tokio::sync::Mutex<
-        Option<
-            tokio_tungstenite::WebSocketStream<
-                tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-            >,
-        >,
-    >,
+    sink: tokio::sync::Mutex<futures::stream::SplitSink<WsStream, WsMessage>>,
+    stream: tokio::sync::Mutex<futures::stream::SplitStream<WsStream>>,
 }
 
 impl WsClient {
     pub async fn connect(url: &str) -> Result<Self, RpcError> {
+        use futures::StreamExt;
         let (ws, _) = tokio_tungstenite::connect_async(url)
             .await
             .map_err(|e| RpcError::TransportError(e.to_string()))?;
+        let (sink, stream) = ws.split();
         Ok(Self {
-            stream: tokio::sync::Mutex::new(Some(ws)),
+            sink: tokio::sync::Mutex::new(sink),
+            stream: tokio::sync::Mutex::new(stream),
         })
     }
 }
 
 #[async_trait::async_trait]
-impl ClientTransport for WsClient {
+impl DuplexTransport for WsClient {
     async fn send(&self, data: Vec<u8>) -> Result<(), RpcError> {
         use futures::SinkExt;
-        let mut guard = self.stream.lock().await;
-        let ws = guard
-            .as_mut()
-            .ok_or_else(|| RpcError::TransportError("not connected".to_string()))?;
-
-        let msg = match String::from_utf8(data.clone()) {
+        let msg = match String::from_utf8(data) {
             Ok(s) => WsMessage::Text(s),
-            Err(_) => WsMessage::Binary(data),
+            Err(error) => WsMessage::Binary(error.into_bytes()),
         };
-        ws.send(msg)
+        self.sink
+            .lock()
             .await
-            .map_err(|e| RpcError::TransportError(e.to_string()))?;
-        Ok(())
+            .send(msg)
+            .await
+            .map_err(|e| RpcError::TransportError(e.to_string()))
     }
 
-    async fn recv(&self) -> Result<Vec<u8>, RpcError> {
+    async fn recv(&self) -> Result<Option<Vec<u8>>, RpcError> {
         use futures::StreamExt;
-        let mut guard = self.stream.lock().await;
-        let ws = guard
-            .as_mut()
-            .ok_or_else(|| RpcError::TransportError("not connected".to_string()))?;
-
-        while let Some(msg) = ws.next().await {
+        let mut stream = self.stream.lock().await;
+        while let Some(msg) = stream.next().await {
             match msg {
-                Ok(WsMessage::Text(s)) => return Ok(s.into_bytes()),
-                Ok(WsMessage::Binary(b)) => return Ok(b.to_vec()),
+                Ok(WsMessage::Text(s)) => return Ok(Some(s.into_bytes())),
+                Ok(WsMessage::Binary(b)) => return Ok(Some(b)),
+                Ok(WsMessage::Close(_)) => return Ok(None),
                 Ok(_) => continue,
                 Err(e) => return Err(RpcError::TransportError(e.to_string())),
             }
         }
-        Err(RpcError::TransportError("connection closed".to_string()))
+        Ok(None)
+    }
+
+    async fn close(&self) -> Result<(), RpcError> {
+        use futures::SinkExt;
+        self.sink
+            .lock()
+            .await
+            .close()
+            .await
+            .map_err(|e| RpcError::TransportError(e.to_string()))
     }
 }
 
@@ -169,25 +174,15 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         let url = format!("ws://{}", addr);
-        let client = WsClient::connect(&url).await.unwrap();
-
-        let request = reddb_io_toon_rpc::protocol::Message::Single(
-            reddb_io_toon_rpc::protocol::Call::Request(reddb_io_toon_rpc::protocol::Request::new(
-                "echo".to_string(),
-                reddb_io_toon_rpc::types::Params::ByPosition(vec![]),
-                reddb_io_toon_rpc::types::Id::Number(1),
-            )),
+        let client = reddb_io_toon_rpc::Client::duplex(
+            WsClient::connect(&url).await.unwrap(),
+            reddb_io_toon_rpc::ClientOptions::default(),
         );
-        let bytes = reddb_io_toon_rpc::to_wire(&request).unwrap();
-        client.send(bytes).await.unwrap();
-        let response = client.recv().await.unwrap();
-
-        let response_msg = reddb_io_toon_rpc::from_wire(&response).unwrap();
-        match response_msg {
-            reddb_io_toon_rpc::protocol::Message::SingleResponse(resp) => {
-                assert!(resp.result.is_some());
-            }
-            _ => panic!("Expected SingleResponse"),
-        }
+        let result = client
+            .call("echo", reddb_io_toon_rpc::Params::ByPosition(vec![]))
+            .await
+            .unwrap();
+        assert_eq!(result, serde_json::json!("hello back"));
+        client.close().await.unwrap();
     }
 }

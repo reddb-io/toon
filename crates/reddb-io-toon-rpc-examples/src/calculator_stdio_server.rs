@@ -1,12 +1,9 @@
 //! Calculator server using stdio transport
 //!
-//! Reads TOON-RPC requests from stdin, writes responses to stdout
-//! Messages are delimited by empty lines (\n\n)
-//!
-//! Run with: cargo run --bin calculator_stdio_server
+//! Reads TOON-RPC request frames (spec §8.1) from stdin and writes response
+//! frames to stdout. `calculator_stdio_client` spawns it.
 
 use reddb_io_toon_rpc::{Dispatcher, Params};
-use std::io::{self, BufRead, Write};
 
 fn extract_numbers(params: &Params) -> Result<Vec<f64>, reddb_io_toon_rpc::RpcError> {
     match params {
@@ -30,7 +27,8 @@ fn extract_numbers(params: &Params) -> Result<Vec<f64>, reddb_io_toon_rpc::RpcEr
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut dispatcher = Dispatcher::new();
 
     dispatcher.register("add", |params, _id| {
@@ -56,44 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
-    let stdin = io::stdin();
-    let mut stdout = io::stdout();
-
     eprintln!("Calculator stdio server ready");
-
-    let mut buffer = String::new();
-    for line in stdin.lock().lines() {
-        let line = line?;
-
-        // Empty line marks end of a TOON message
-        if line.is_empty() {
-            if !buffer.is_empty() {
-                let response = match dispatcher.dispatch(buffer.trim().as_bytes()) {
-                    Ok(bytes) => {
-                        let mut s = String::from_utf8(bytes).unwrap_or_default();
-                        s.push_str("\n\n");
-                        s
-                    }
-                    Err(e) => {
-                        let err = serde_json::json!({
-                            "toonrpc": "1.0",
-                            "error": {"code": -32603, "message": e.to_string()},
-                            "id": null
-                        });
-                        let mut s = err.to_string();
-                        s.push_str("\n\n");
-                        s
-                    }
-                };
-                stdout.write_all(response.as_bytes())?;
-                stdout.flush()?;
-                buffer.clear();
-            }
-        } else {
-            buffer.push_str(&line);
-            buffer.push('\n');
-        }
-    }
-
+    reddb_io_toon_rpc_stdio::serve_stdio(&dispatcher).await?;
     Ok(())
 }

@@ -1208,6 +1208,7 @@ dependencies = [
  "async-trait",
  "reddb-io-toon-rpc",
  "reddb-io-toon-rpc-http",
+ "reddb-io-toon-rpc-stdio",
  "reddb-io-toon-rpc-tcp",
  "serde_json",
  "tokio",
@@ -1284,22 +1285,17 @@ dependencies = [
 name = "reddb-io-toon-rpc-stdio"
 version = "0.30.4"
 dependencies = [
- "bytes",
- "futures",
  "reddb-io-toon-rpc",
  "tokio",
- "tokio-test",
 ]
 
 [[package]]
 name = "reddb-io-toon-rpc-tcp"
 version = "0.30.4"
 dependencies = [
- "async-trait",
  "reddb-io-toon-rpc",
  "serde_json",
  "tokio",
- "tokio-test",
 ]
 
 [[package]]
