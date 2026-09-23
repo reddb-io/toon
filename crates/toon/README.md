@@ -144,13 +144,15 @@ assert_eq!((indentation.kind(), indentation.column()), (ErrorKind::Indentation, 
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Numbers read from TOON keep their integer digits verbatim in `Value`, and
-`toon -d` writes them to JSON unchanged, so an integer of any size survives
-TOON → `Value` → TOON and TOON → JSON. Paths that go through `serde_json` are
-exact only within `i64`/`u64`: `Value::from_json_str`, `from_json_value`, the
-`toon -e` JSON input, and `to_json_value` read a larger integer as the nearest
-`f64` (the TypeScript package rounds past `Number.MAX_SAFE_INTEGER` on every
-path).
+Numbers keep every digit. Integers are stored verbatim, and a decimal with
+more precision than an `f64` is canonicalized in exact decimal arithmetic.
+That holds on every path that sees the text: TOON → `Value` → TOON, `toon -d`
+(TOON → JSON), and `Value::from_json_str` / `toon -e` (JSON → TOON). A JSON
+document holding a number with 16 or more mantissa digits goes through a
+lossless reader instead of `serde_json`'s f64. Only the paths that pass through
+a `serde_json::Value`, namely `from_json_value` and `to_json_value`, are
+limited to what an `f64`, `i64` or `u64` holds. The TypeScript package rounds
+to a JavaScript number on every path.
 Non-integral numbers are written with shortest round-trip digits in the
 reference encoder's `Number#toString` layout: plain inside `[1e-6, 1e21)`,
 exponent form outside it (`5e-324`, `1e+21`), so both engines emit the same

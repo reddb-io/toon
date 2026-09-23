@@ -697,6 +697,21 @@
           "roundTripJson": "18446744073709551615"
         }
       }
+    },
+    {
+      "name": "numbers/beyond-u64-exact-in-rust",
+      "category": "numbers",
+      "rawJson": "{\"id\":1000000000000000000000000000001,\"small\":7}",
+      "expected": {
+        "js": {
+          "toon": "id: 1e+30\nsmall: 7",
+          "roundTripJson": "{\"id\":1e+30,\"small\":7}"
+        },
+        "rust": {
+          "toon": "id: 1000000000000000000000000000001\nsmall: 7",
+          "roundTripJson": "{\"id\":1000000000000000000000000000001,\"small\":7}"
+        }
+      }
     }
   ]
 }

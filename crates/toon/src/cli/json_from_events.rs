@@ -86,10 +86,10 @@ impl JsonWriter {
                 }
                 self.value_prefix(sink, io)?;
                 let rendered = match value {
-                    // An integer token is already JSON number text; writing its
-                    // digits keeps values beyond i64/u64 exact, which a
-                    // serde_json round trip would read as f64.
-                    Value::Number(token) if !token.contains(['.', 'e', 'E']) => {
+                    // A finite number token's canonical form is JSON number text;
+                    // writing it keeps every digit, which a serde_json round
+                    // trip would squeeze through an f64.
+                    Value::Number(token) if token.parse::<f64>().is_ok_and(f64::is_finite) => {
                         crate::canonical_number(token)
                     }
                     _ => serde_json::to_string(&value.to_json_value())

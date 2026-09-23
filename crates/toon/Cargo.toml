@@ -53,12 +53,14 @@ harness = false
 [features]
 default = ["serde"]
 # Typed `to_string` / `from_str` over any serde `Serialize` / `DeserializeOwned`.
-serde = ["dep:serde"]
+serde = []
 
 [dependencies]
 memchr = "2"
-serde = { version = "1", optional = true }
-serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+# Always present through serde_json; the `serde` feature only gates the typed API.
+serde = "1"
+# `raw_value` is additive: it lets from_json_str keep integers beyond u64 exact.
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip", "raw_value"] }
 
 [dev-dependencies]
 criterion = { version = "0.5.1", default-features = false, features = ["cargo_bench_support"] }

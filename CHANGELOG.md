@@ -120,6 +120,14 @@ now; this file is how it got there.
 
 ### Fixed
 
+- **Rust numbers keep every digit.** `Value::from_json_str` and `toon -e` read
+  a document holding a number with 16 or more mantissa digits through a
+  lossless reader, instead of rounding it through an `f64`. Decimals with more
+  precision than an `f64` are canonicalized in exact decimal arithmetic, still
+  in JavaScript's layout (a token with shortest round-trip digits prints
+  exactly as before), and `toon -d` writes every finite number from its
+  canonical text. The weekly toon-diff now compares the Rust engines exactly,
+  with no tolerated numeric class.
 - **TypeScript and Rust report every decode error identically**, in the
   upstream reference's words where its tests pin them. Rust now spells out
   counts (`expected 3 tabular rows, but got 2`) through `ParseError::detail()`

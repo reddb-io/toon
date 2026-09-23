@@ -7,6 +7,7 @@
 pub mod cli;
 
 include!("lib_parts/core.rs");
+include!("lib_parts/json_lossless.rs");
 include!("lib_parts/toonl_and_cyclic_decode.rs");
 include!("lib_parts/toonl_and_scalar.rs");
 include!("lib_parts/stream.rs");

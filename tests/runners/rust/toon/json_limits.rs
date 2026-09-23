@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 const JSON_LIMITS_FIXTURE: &str = "../../tests/corpus/json-limits.json";
-const EXPECTED_CASE_COUNT: usize = 47;
+const EXPECTED_CASE_COUNT: usize = 48;
 const REQUIRED_CATEGORIES: [&str; 6] = [
     "numbers",
     "strings-unicode",
