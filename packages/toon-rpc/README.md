@@ -3,10 +3,10 @@
 TOON-RPC 1.0 client and server. TOON-RPC borrows JSON-RPC's envelope model but
 is a separate wire protocol encoded as UTF-8 TOON.
 
-> **Recovery status:** this package is an experimental prototype with known
-> protocol, client, and transport correctness gaps. Publication is paused under
-> [the 0.31 recovery](https://github.com/reddb-io/toon/issues/389). Do not use
-> the previously published 0.29 line in production.
+> **0.31:** this line replaces the 0.29 prototype, which had protocol, client
+> and transport correctness gaps; see the CHANGELOG's migration notes. It
+> interoperates with the Rust crates over every transport, which CI checks in
+> both directions.
 
 ## Installation
 
@@ -102,8 +102,8 @@ validate own data properties and return stable local containers.
 Snapshots reject cycles, materialize acyclic aliases as independent
 wire-equivalent copies, and use a fixed defensive expansion budget to bound
 large DAGs and hostile expanding Proxies. Avoiding redundant work for repeated
-aliases is a future resource-slice optimization; configurable protocol limits
-remain deferred to the limits work in slice 11.
+aliases is a possible optimization; the configurable protocol limits are in
+`limits.ts` (spec §8.3).
 The budget bounds processing after an `ownKeys` result is returned; JavaScript
 cannot interrupt a blocking `ownKeys` Proxy trap itself.
 

@@ -1,8 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-http"
 version.workspace = true
-publish = false
-description = "TOON-RPC HTTP transport"
+description = "TOON-RPC over HTTP: server and request/response client"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

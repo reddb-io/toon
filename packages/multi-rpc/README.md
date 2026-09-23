@@ -3,10 +3,10 @@
 One RPC method registry for JSON-RPC 2.0 and TOON-RPC 1.0. Requests are
 detected per message and responses use the same wire format as the caller.
 
-> **Recovery status:** this package is an experimental prototype with known
-> protocol detection and validation gaps. Publication is paused under
-> [the 0.31 recovery](https://github.com/reddb-io/toon/issues/389). Do not use
-> the previously published 0.29 line in production.
+> **0.31:** this line replaces the 0.29 prototype, whose detection and
+> validation had gaps. JSON-RPC entries now go through the same validation as
+> TOON-RPC, and a shared corpus holds this package and the Rust `MultiRpc` to
+> the same answers.
 
 ## Installation
 

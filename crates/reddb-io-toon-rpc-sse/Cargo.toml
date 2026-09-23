@@ -1,8 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-sse"
 version.workspace = true
-publish = false
-description = "TOON-RPC Server-Sent Events (SSE) transport"
+description = "TOON-RPC over Server-Sent Events (the §8.2 duplex profile): server and client"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

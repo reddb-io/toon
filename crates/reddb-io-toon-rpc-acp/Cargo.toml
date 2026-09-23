@@ -1,7 +1,6 @@
 [package]
 name = "reddb-io-toon-rpc-acp"
 version.workspace = true
-publish = false
 description = "Server for this repository's own legacy, terminal ACP-style REST contract (not IBM/BeeAI ACP, not Zed's Agent Client Protocol)"
 edition.workspace = true
 license.workspace = true
