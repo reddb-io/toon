@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon-rpc",
-  "version": "0.30.4",
+  "version": "0.31.0",
   "description": "TOON-RPC 1.0 client, servers and transports (HTTP, WebSocket, TCP, stdio, SSE) with shared resource limits.",
   "type": "module",
   "main": "dist/index.js",

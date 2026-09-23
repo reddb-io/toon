@@ -10,7 +10,7 @@ rust-version.workspace = true
 [dependencies]
 serde_json = "1"
 thiserror = "2"
-reddb-io-toon = { path = "../toon", version = "0.30.4" }
+reddb-io-toon = { path = "../toon", version = "0.31.0" }
 
 [[bin]]
 name = "reddb-io-toon-rpc-gen"

@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon-rpc-mcp",
-  "version": "0.30.4",
+  "version": "0.31.0",
   "description": "Model Context Protocol server pinned to the 2025-06-18 schema, with optional TOON text content.",
   "type": "module",
   "main": "dist/index.js",

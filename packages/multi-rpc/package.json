@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/multi-rpc",
-  "version": "0.30.4",
+  "version": "0.31.0",
   "description": "One method registry answering JSON-RPC 2.0 and TOON-RPC 1.0, each in its own dialect.",
   "type": "module",
   "main": "dist/index.js",
