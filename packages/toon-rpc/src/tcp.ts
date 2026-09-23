@@ -12,19 +12,23 @@ import * as net from 'node:net';
 import type { DuplexTransport, TransportOperationOptions } from './transport.js';
 import { FrameDecoder, encodeFrame } from './framing.js';
 import { DocumentQueue, abortError, asTransportError, raceSignal } from './internal.js';
+import { resolveLimits } from './limits.js';
+import type { Limits } from './limits.js';
 
 export interface TcpTransportOptions {
   host?: string;
   port?: number;
   /** Injectable socket factory; defaults to net.createConnection(port, host). */
   connect?: () => net.Socket;
+  /** Frame size and receive queue caps; defaults to `DEFAULT_LIMITS`. */
+  limits?: Partial<Pick<Limits, 'maxFrameBytes' | 'maxQueuedDocuments'>>;
 }
 
 export class TcpTransport implements DuplexTransport {
   readonly kind = 'duplex' as const;
   private readonly options: TcpTransportOptions;
-  private readonly documents = new DocumentQueue();
-  private readonly decoder = new FrameDecoder();
+  private readonly documents: DocumentQueue;
+  private readonly decoder: FrameDecoder;
   private socket: net.Socket | undefined;
   private openPromise: Promise<void> | undefined;
   private closePromise: Promise<void> | undefined;
@@ -35,6 +39,9 @@ export class TcpTransport implements DuplexTransport {
       throw new TypeError('TcpTransport needs host and port, or a connect factory');
     }
     this.options = options;
+    const limits = resolveLimits(options.limits);
+    this.documents = new DocumentQueue(limits.maxQueuedDocuments);
+    this.decoder = new FrameDecoder({ maxFrameBytes: limits.maxFrameBytes });
   }
 
   open(options?: TransportOperationOptions): Promise<void> {

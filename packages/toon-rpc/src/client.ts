@@ -9,6 +9,7 @@ import {
 import type { CoreValue, Id, Params, Response } from './protocol.js';
 import type { ClientTransport, TransportOperationOptions } from './transport.js';
 import { RpcError } from './rpc-error.js';
+import { DEFAULT_LIMITS } from './limits.js';
 
 export type ClientStatus = 'idle' | 'opening' | 'open' | 'closed' | 'failed';
 export type ClientDiagnosticReason =
@@ -26,6 +27,10 @@ export interface ClientDiagnostic {
 
 export interface ClientOptions {
   onDiagnostic?: (diagnostic: ClientDiagnostic) => void;
+  /** Most calls kept pending at once; defaults to `DEFAULT_LIMITS.maxPendingCalls`. */
+  maxPendingCalls?: number;
+  /** Timeout for a call that sets none of its own. */
+  requestTimeoutMs?: number;
 }
 
 export interface CallOptions {
@@ -57,6 +62,13 @@ export class ClientTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(`TOON-RPC call timed out after ${timeoutMs}ms`);
     this.name = 'ClientTimeoutError';
+  }
+}
+
+export class ClientLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClientLimitError';
   }
 }
 
@@ -122,7 +134,11 @@ export class Client {
     try {
       signal = options.signal;
       if (signal?.aborted) return Promise.reject(new ClientAbortError());
-      timeoutMs = validateTimeout(options.timeoutMs);
+      timeoutMs = validateTimeout(options.timeoutMs ?? this.options.requestTimeoutMs);
+      const maxPending = this.options.maxPendingCalls ?? DEFAULT_LIMITS.maxPendingCalls;
+      if (this.pending.size >= maxPending) {
+        throw new ClientLimitError(`TOON-RPC limit reached: ${maxPending} calls are already pending`);
+      }
       id = hasOwn(options, 'id') ? options.id! : this.allocateId();
       if (!isId(id)) throw new TypeError('TOON-RPC call ID must be a string, safe integer, or null');
       if (this.pending.has(id)) throw new Error(`TOON-RPC call ID is already pending: ${String(id)}`);

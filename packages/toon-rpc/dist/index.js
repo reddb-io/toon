@@ -1,14 +1,19 @@
 import { decode, encode } from '@reddb-io/toon';
 import { TOONRPC_VERSION, isUnicodeScalarString, snapshotCoreValue, snapshotErrorObject, snapshotRequestObject, snapshotResponse, } from './protocol.js';
 import { RpcError } from './rpc-error.js';
+import { DEFAULT_LIMITS } from './limits.js';
 export * from './protocol.js';
 export * from './client.js';
 export * from './rpc-error.js';
 export * from './transport.js';
 export * from './framing.js';
+export * from './limits.js';
 export class Server {
     methods = new Map();
-    constructor() { }
+    maxBatchLength;
+    constructor(options = {}) {
+        this.maxBatchLength = options.maxBatchLength ?? DEFAULT_LIMITS.maxBatchLength;
+    }
     register(method, handler) {
         this.methods.set(method, handler);
     }
@@ -38,6 +43,9 @@ export class Server {
         const entries = isBatch ? value : [value];
         if (entries.length === 0) {
             return encodeResponse(invalidRequest('empty batch'));
+        }
+        if (entries.length > this.maxBatchLength) {
+            return encodeResponse(invalidRequest('batch too large'));
         }
         const responses = [];
         for (const entry of entries) {

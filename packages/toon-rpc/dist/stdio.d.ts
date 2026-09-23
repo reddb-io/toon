@@ -9,9 +9,12 @@
  */
 import type { Readable, Writable } from 'node:stream';
 import type { DuplexTransport, TransportOperationOptions } from './transport.js';
+import type { Limits } from './limits.js';
 export interface StdioTransportOptions {
     input?: Readable;
     output?: Writable;
+    /** Frame size and receive queue caps; defaults to `DEFAULT_LIMITS`. */
+    limits?: Partial<Pick<Limits, 'maxFrameBytes' | 'maxQueuedDocuments'>>;
 }
 export declare class StdioTransport implements DuplexTransport {
     readonly kind: "duplex";

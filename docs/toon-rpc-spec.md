@@ -284,6 +284,27 @@ refused (409), and a POST for a session with no open stream is refused (404).
 The session ID is the only thing that ties a POST to a stream, so a client
 MUST choose an unguessable one; the Rust `SseTransport` generates 128 bits.
 
+### 8.3 Resource Limits
+
+Every client, server and transport in this repository is bounded, with the
+same defaults in TypeScript (`limits.ts`) and Rust (`limits.rs`):
+
+| Limit | Default | Past the limit |
+| --- | --- | --- |
+| frame, WebSocket message or SSE event | 16 MiB | the stream or connection fails |
+| HTTP body | 16 MiB | `413` (server), transport error (client) |
+| batch entries | 1024 | one Invalid Request, `id: null` |
+| pending calls per client | 1024 | the next call is refused |
+| connections per server | 1024 | the server stops accepting until one closes |
+| received documents queued per transport | 1024 | the transport fails |
+| idle connection | 300 s | the connection is closed |
+| shutdown grace | 10 s | remaining connections are aborted |
+
+A client call has no default timeout; `requestTimeout` sets one. A server
+shutting down stops accepting, lets each connection answer the document in
+hand, ends open SSE streams, and closes. Exceeding a limit is always visible
+as one of the outcomes above, never as a silently dropped document.
+
 When a direct request/response exchange completes without a valid response for
 its initiating call, the exchange is exhausted and that call terminates with a
 protocol error. The rule in section 5.1 that unmatched calls remain pending

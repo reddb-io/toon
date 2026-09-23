@@ -12,18 +12,22 @@ import type { Readable, Writable } from 'node:stream';
 import type { DuplexTransport, TransportOperationOptions } from './transport.js';
 import { FrameDecoder, encodeFrame } from './framing.js';
 import { DocumentQueue, abortError, asTransportError } from './internal.js';
+import { resolveLimits } from './limits.js';
+import type { Limits } from './limits.js';
 
 export interface StdioTransportOptions {
   input?: Readable;
   output?: Writable;
+  /** Frame size and receive queue caps; defaults to `DEFAULT_LIMITS`. */
+  limits?: Partial<Pick<Limits, 'maxFrameBytes' | 'maxQueuedDocuments'>>;
 }
 
 export class StdioTransport implements DuplexTransport {
   readonly kind = 'duplex' as const;
   private readonly input: Readable;
   private readonly output: Writable;
-  private readonly documents = new DocumentQueue();
-  private readonly decoder = new FrameDecoder();
+  private readonly documents: DocumentQueue;
+  private readonly decoder: FrameDecoder;
   private started = false;
   private closed = false;
   private failure: Error | undefined;
@@ -31,6 +35,9 @@ export class StdioTransport implements DuplexTransport {
   constructor(options: StdioTransportOptions = {}) {
     this.input = options.input ?? process.stdin;
     this.output = options.output ?? process.stdout;
+    const limits = resolveLimits(options.limits);
+    this.documents = new DocumentQueue(limits.maxQueuedDocuments);
+    this.decoder = new FrameDecoder({ maxFrameBytes: limits.maxFrameBytes });
   }
 
   async open(): Promise<void> {

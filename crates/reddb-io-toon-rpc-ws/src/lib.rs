@@ -5,14 +5,17 @@
 //! that produces no response (a notification) sends nothing back. Message and
 //! frame sizes are capped explicitly.
 
+use std::future::Future;
 use std::io;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
 use reddb_io_toon_rpc::{
-    dispatch_document, Dispatcher, DuplexTransport, RpcError, DEFAULT_MAX_FRAME_BYTES,
+    dispatch_document, serve_until, with_idle_timeout, Dispatcher, DuplexTransport, Limits,
+    RpcError, Shutdown, DEFAULT_MAX_FRAME_BYTES,
 };
-use tokio::net::{TcpListener, ToSocketAddrs};
+use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
@@ -31,7 +34,7 @@ fn config(max_message_bytes: usize) -> WebSocketConfig {
 pub struct WsServer {
     listener: TcpListener,
     dispatcher: Dispatcher,
-    max_message_bytes: usize,
+    limits: Limits,
 }
 
 impl WsServer {
@@ -46,12 +49,13 @@ impl WsServer {
         Self {
             listener,
             dispatcher,
-            max_message_bytes: DEFAULT_MAX_MESSAGE_BYTES,
+            limits: Limits::default(),
         }
     }
 
-    pub fn with_max_message_bytes(mut self, max_message_bytes: usize) -> Self {
-        self.max_message_bytes = max_message_bytes;
+    /// `max_frame_bytes` caps each message and frame.
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.limits = limits;
         self
     }
 
@@ -59,40 +63,70 @@ impl WsServer {
         self.listener.local_addr()
     }
 
-    /// Accept connections until accepting fails, serving each on its own task.
+    /// Serve until accepting fails.
     pub async fn serve(self) -> io::Result<()> {
-        loop {
-            let (stream, _) = self.listener.accept().await?;
-            let dispatcher = self.dispatcher.clone();
-            let config = config(self.max_message_bytes);
-            tokio::spawn(async move {
-                if let Ok(ws) =
-                    tokio_tungstenite::accept_async_with_config(stream, Some(config)).await
-                {
-                    serve_connection(ws, &dispatcher).await;
+        self.serve_with_shutdown(std::future::pending()).await
+    }
+
+    /// Serve until `signal` resolves, then let open connections answer the
+    /// message in hand and close with a close frame, within the grace period.
+    pub async fn serve_with_shutdown(self, signal: impl Future<Output = ()>) -> io::Result<()> {
+        let limits = self.limits;
+        let dispatcher = self
+            .dispatcher
+            .with_max_batch_length(limits.max_batch_length);
+        let listener = self.listener;
+        serve_until(
+            limits.max_connections,
+            limits.shutdown_grace,
+            || async { listener.accept().await.map(|(stream, _)| stream) },
+            |stream: TcpStream, shutdown| {
+                let (dispatcher, limits) = (dispatcher.clone(), limits.clone());
+                async move {
+                    let config = Some(config(limits.max_frame_bytes));
+                    let handshake = tokio_tungstenite::accept_async_with_config(stream, config);
+                    if let Ok(Ok(ws)) = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake).await {
+                        serve_connection(ws, &dispatcher, &limits, shutdown).await;
+                    }
                 }
-            });
-        }
+            },
+            signal,
+        )
+        .await
     }
 }
 
-async fn serve_connection<S>(ws: tokio_tungstenite::WebSocketStream<S>, dispatcher: &Dispatcher)
-where
+/// How long a new connection may take to complete the WebSocket handshake.
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+
+async fn serve_connection<S>(
+    ws: tokio_tungstenite::WebSocketStream<S>,
+    dispatcher: &Dispatcher,
+    limits: &Limits,
+    mut shutdown: Shutdown,
+) where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
     let (mut write, mut read) = ws.split();
-    while let Some(message) = read.next().await {
+    loop {
+        let next = async { Ok::<_, RpcError>(read.next().await) };
+        let message = tokio::select! {
+            _ = shutdown.requested() => break,
+            message = with_idle_timeout(limits.idle_timeout, next) => message,
+        };
         let reply = match message {
-            Ok(WsMessage::Text(text)) => {
+            Ok(Some(Ok(WsMessage::Text(text)))) => {
                 let document = dispatch_document(dispatcher, text.as_bytes());
                 // A TOON document is UTF-8, so this never needs the fallback.
                 String::from_utf8(document)
                     .map(WsMessage::Text)
                     .unwrap_or_else(|error| WsMessage::Binary(error.into_bytes()))
             }
-            Ok(WsMessage::Binary(data)) => WsMessage::Binary(dispatch_document(dispatcher, &data)),
-            Ok(WsMessage::Close(_)) | Err(_) => break,
-            Ok(_) => continue,
+            Ok(Some(Ok(WsMessage::Binary(data)))) => {
+                WsMessage::Binary(dispatch_document(dispatcher, &data))
+            }
+            Ok(Some(Ok(WsMessage::Close(_)))) | Ok(Some(Err(_))) | Ok(None) | Err(_) => break,
+            Ok(Some(Ok(_))) => continue,
         };
         let empty = match &reply {
             WsMessage::Text(text) => text.is_empty(),
@@ -191,7 +225,10 @@ mod tests {
         let server = WsServer::bind("127.0.0.1:0", dispatcher)
             .await
             .unwrap()
-            .with_max_message_bytes(max_message_bytes);
+            .with_limits(Limits {
+                max_frame_bytes: max_message_bytes,
+                ..Limits::default()
+            });
         let url = format!("ws://{}", server.local_addr().unwrap());
         tokio::spawn(server.serve());
         url

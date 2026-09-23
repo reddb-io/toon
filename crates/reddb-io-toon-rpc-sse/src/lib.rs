@@ -10,6 +10,7 @@
 
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::future::Future;
 use std::hash::{BuildHasher, Hasher};
 use std::io;
 use std::net::SocketAddr;
@@ -22,10 +23,12 @@ use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Empty, Full, Limited, StreamBody};
 use hyper::body::{Body, Frame, Incoming};
 use hyper_util::client::legacy::{connect::HttpConnector, Client as HyperClient};
-use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::rt::TokioExecutor;
 use reddb_io_toon_rpc::{
-    dispatch_document, Dispatcher, DuplexTransport, RpcError, DEFAULT_MAX_FRAME_BYTES,
+    dispatch_document, serve_until, Dispatcher, DuplexTransport, Limits, RpcError,
+    DEFAULT_MAX_FRAME_BYTES,
 };
+use reddb_io_toon_rpc_http::serve_http_connection;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::mpsc;
 
@@ -85,6 +88,11 @@ impl SseService {
     /// Sessions with an open event stream.
     pub fn session_count(&self) -> usize {
         lock(&self.sessions).len()
+    }
+
+    /// End every open event stream (after the events already queued).
+    pub fn close_sessions(&self) {
+        lock(&self.sessions).clear();
     }
 
     pub async fn handle<B>(&self, request: Request<B>) -> Response<ResponseBody>
@@ -195,6 +203,7 @@ fn empty(status: StatusCode) -> Response<ResponseBody> {
 pub struct SseServer {
     listener: TcpListener,
     service: SseService,
+    limits: Limits,
 }
 
 impl SseServer {
@@ -204,28 +213,61 @@ impl SseServer {
     }
 
     pub fn from_listener(listener: TcpListener, service: SseService) -> Self {
-        Self { listener, service }
+        Self {
+            listener,
+            service,
+            limits: Limits::default(),
+        }
+    }
+
+    /// Also applies `max_body_bytes` and `max_batch_length` to the service.
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.service.max_body_bytes = limits.max_body_bytes;
+        self.service.dispatcher = self
+            .service
+            .dispatcher
+            .with_max_batch_length(limits.max_batch_length);
+        self.limits = limits;
+        self
     }
 
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.listener.local_addr()
     }
 
-    /// Accept connections until accepting fails, serving each on its own task.
+    /// Serve until accepting fails.
     pub async fn serve(self) -> io::Result<()> {
-        loop {
-            let (stream, _) = self.listener.accept().await?;
-            let service = self.service.clone();
-            tokio::spawn(async move {
+        self.serve_with_shutdown(std::future::pending()).await
+    }
+
+    /// Serve until `signal` resolves. Every open event stream then ends, and
+    /// connections finish the exchange in progress within the grace period.
+    pub async fn serve_with_shutdown(self, signal: impl Future<Output = ()>) -> io::Result<()> {
+        let Self {
+            listener,
+            service,
+            limits,
+        } = self;
+        let closing = service.clone();
+        let signal = async move {
+            signal.await;
+            closing.close_sessions();
+        };
+        serve_until(
+            limits.max_connections,
+            limits.shutdown_grace,
+            || async { listener.accept().await.map(|(stream, _)| stream) },
+            |stream, shutdown| {
+                let service = service.clone();
                 let handler = hyper::service::service_fn(move |request: Request<Incoming>| {
                     let service = service.clone();
                     async move { Ok::<_, Infallible>(service.handle(request).await) }
                 });
-                let _ = hyper::server::conn::http1::Builder::new()
-                    .serve_connection(TokioIo::new(stream), handler)
-                    .await;
-            });
-        }
+                serve_http_connection(stream, handler, limits.idle_timeout, shutdown)
+            },
+            signal,
+        )
+        .await
     }
 }
 

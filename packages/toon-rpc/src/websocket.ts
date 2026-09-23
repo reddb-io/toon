@@ -14,6 +14,8 @@
 
 import type { DuplexTransport, TransportOperationOptions } from './transport.js';
 import { DocumentQueue, abortError, asTransportError, raceSignal } from './internal.js';
+import { resolveLimits } from './limits.js';
+import type { Limits } from './limits.js';
 
 interface WebSocketLike {
   readonly readyState: number;
@@ -32,6 +34,8 @@ export interface WebSocketTransportOptions {
   url: string | URL;
   /** WebSocket implementation; defaults to the global WebSocket. */
   webSocket?: WebSocketConstructor;
+  /** Message size and receive queue caps; defaults to `DEFAULT_LIMITS`. */
+  limits?: Partial<Pick<Limits, 'maxFrameBytes' | 'maxQueuedDocuments'>>;
 }
 
 const WS_OPEN = 1;
@@ -40,7 +44,8 @@ export class WebSocketTransport implements DuplexTransport {
   readonly kind = 'duplex' as const;
   private readonly url: string;
   private readonly implementation: WebSocketConstructor;
-  private readonly documents = new DocumentQueue();
+  private readonly documents: DocumentQueue;
+  private readonly maxMessageBytes: number;
   private socket: WebSocketLike | undefined;
   private openPromise: Promise<void> | undefined;
   private closePromise: Promise<void> | undefined;
@@ -52,6 +57,9 @@ export class WebSocketTransport implements DuplexTransport {
 
   constructor(options: WebSocketTransportOptions) {
     this.url = String(options.url);
+    const limits = resolveLimits(options.limits);
+    this.documents = new DocumentQueue(limits.maxQueuedDocuments);
+    this.maxMessageBytes = limits.maxFrameBytes;
     const implementation =
       options.webSocket ?? (globalThis as { WebSocket?: WebSocketConstructor }).WebSocket;
     if (!implementation) {
@@ -140,6 +148,15 @@ export class WebSocketTransport implements DuplexTransport {
       });
       socket.addEventListener('message', (event: { data: unknown }) => {
         const document = normalizeFramePayload(event.data);
+        if (document instanceof Uint8Array && document.length > this.maxMessageBytes) {
+          this.failWith(new Error('TOON-RPC WebSocket message exceeds the size limit'));
+          try {
+            socket.close(1009, 'message too big');
+          } catch {
+            // The failure is already recorded; closing is best-effort.
+          }
+          return;
+        }
         if (document instanceof Uint8Array) {
           this.documents.push(document);
           return;

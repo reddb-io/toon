@@ -158,3 +158,24 @@ fn session_ids_differ_and_join_existing_queries() {
         Some("s".into())
     );
 }
+
+#[tokio::test]
+async fn shutdown_ends_open_event_streams() {
+    let (trigger, signal) = tokio::sync::oneshot::channel::<()>();
+    let server = SseServer::bind("127.0.0.1:0", Dispatcher::new())
+        .await
+        .unwrap();
+    let uri: Uri = format!("http://{}/rpc", server.local_addr().unwrap())
+        .parse()
+        .unwrap();
+    let serving = tokio::spawn(server.serve_with_shutdown(async {
+        let _ = signal.await;
+    }));
+    let transport = SseTransport::connect(uri).await.unwrap();
+    trigger.send(()).unwrap();
+    let ended = tokio::time::timeout(Duration::from_secs(5), transport.recv())
+        .await
+        .unwrap();
+    assert_eq!(ended.unwrap(), None);
+    serving.await.unwrap().unwrap();
+}

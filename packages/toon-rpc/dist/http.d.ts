@@ -7,12 +7,15 @@
  * and produces no response document.
  */
 import type { RequestResponseTransport, TransportOperationOptions } from './transport.js';
+import type { Limits } from './limits.js';
 export declare const TOON_RPC_CONTENT_TYPE = "application/toon";
 export interface HttpTransportOptions {
     url: string | URL;
     headers?: Record<string, string>;
     /** Injectable fetch implementation; defaults to the global fetch. */
     fetch?: typeof fetch;
+    /** Response body cap; defaults to `DEFAULT_LIMITS.maxBodyBytes`. */
+    limits?: Partial<Pick<Limits, 'maxBodyBytes'>>;
 }
 export declare class HttpTransportError extends Error {
     readonly status: number;
@@ -23,6 +26,7 @@ export declare class HttpTransport implements RequestResponseTransport {
     private readonly url;
     private readonly headers;
     private readonly fetchImpl;
+    private readonly maxBodyBytes;
     private readonly lifetime;
     private closed;
     constructor(options: HttpTransportOptions);

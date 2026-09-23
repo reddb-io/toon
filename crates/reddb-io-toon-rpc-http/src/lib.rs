@@ -7,19 +7,22 @@
 //! `packages/toon-rpc/src/http.ts`.
 
 use std::convert::Infallible;
+use std::future::Future;
 use std::io;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use bytes::Bytes;
 use http::{header, Method, Request, Response, StatusCode, Uri};
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::body::{Body, Incoming};
 use hyper_util::client::legacy::{connect::HttpConnector, Client as HyperClient};
-use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
 use reddb_io_toon_rpc::{
-    dispatch_document, Dispatcher, RequestResponseTransport, RpcError, DEFAULT_MAX_FRAME_BYTES,
+    dispatch_document, serve_until, Dispatcher, Limits, RequestResponseTransport, RpcError,
+    Shutdown, DEFAULT_MAX_FRAME_BYTES,
 };
-use tokio::net::{TcpListener, ToSocketAddrs};
+use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 
 pub const TOON_RPC_CONTENT_TYPE: &str = "application/toon";
 
@@ -86,10 +89,40 @@ fn empty(status: StatusCode) -> Response<Full<Bytes>> {
     plain(status).body(Full::default()).expect("valid response")
 }
 
+/// Serve one HTTP/1.1 connection until it ends or shutdown is requested; on
+/// shutdown the connection finishes the exchange in progress and closes.
+/// `idle_timeout` bounds how long a connection may wait for request headers.
+pub async fn serve_http_connection<S, B>(
+    stream: TcpStream,
+    service: S,
+    idle_timeout: Option<Duration>,
+    mut shutdown: Shutdown,
+) where
+    S: hyper::service::Service<Request<Incoming>, Response = Response<B>, Error = Infallible>,
+    S::Future: Send + 'static,
+    B: Body + Send + 'static,
+    B::Data: Send,
+    B::Error: std::error::Error + Send + Sync + 'static,
+{
+    let mut builder = hyper::server::conn::http1::Builder::new();
+    builder.timer(TokioTimer::new());
+    builder.header_read_timeout(idle_timeout);
+    let connection = builder.serve_connection(TokioIo::new(stream), service);
+    tokio::pin!(connection);
+    tokio::select! {
+        _ = connection.as_mut() => {}
+        _ = shutdown.requested() => {
+            connection.as_mut().graceful_shutdown();
+            let _ = connection.await;
+        }
+    }
+}
+
 /// An HTTP/1.1 server bound to an address the caller chose.
 pub struct HttpServer {
     listener: TcpListener,
     service: HttpService,
+    limits: Limits,
 }
 
 impl HttpServer {
@@ -99,29 +132,56 @@ impl HttpServer {
     }
 
     pub fn from_listener(listener: TcpListener, service: HttpService) -> Self {
-        Self { listener, service }
+        Self {
+            listener,
+            service,
+            limits: Limits::default(),
+        }
+    }
+
+    /// Also applies `max_body_bytes` and `max_batch_length` to the service.
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.service.max_body_bytes = limits.max_body_bytes;
+        self.service.dispatcher = self
+            .service
+            .dispatcher
+            .with_max_batch_length(limits.max_batch_length);
+        self.limits = limits;
+        self
     }
 
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.listener.local_addr()
     }
 
-    /// Accept connections until accepting fails, serving each on its own task.
+    /// Serve until accepting fails.
     pub async fn serve(self) -> io::Result<()> {
-        loop {
-            let (stream, _) = self.listener.accept().await?;
-            let service = self.service.clone();
-            tokio::spawn(async move {
+        self.serve_with_shutdown(std::future::pending()).await
+    }
+
+    /// Serve until `signal` resolves, then let open connections finish the
+    /// exchange in progress and close, within the shutdown grace period.
+    pub async fn serve_with_shutdown(self, signal: impl Future<Output = ()>) -> io::Result<()> {
+        let Self {
+            listener,
+            service,
+            limits,
+        } = self;
+        serve_until(
+            limits.max_connections,
+            limits.shutdown_grace,
+            || async { listener.accept().await.map(|(stream, _)| stream) },
+            |stream, shutdown| {
+                let service = service.clone();
                 let handler = hyper::service::service_fn(move |request: Request<Incoming>| {
                     let service = service.clone();
                     async move { Ok::<_, Infallible>(service.handle(request).await) }
                 });
-                // A failed connection only ends itself.
-                let _ = hyper::server::conn::http1::Builder::new()
-                    .serve_connection(TokioIo::new(stream), handler)
-                    .await;
-            });
-        }
+                serve_http_connection(stream, handler, limits.idle_timeout, shutdown)
+            },
+            signal,
+        )
+        .await
     }
 }
 
@@ -238,6 +298,30 @@ mod tests {
             matches!(missing, ClientError::Rpc(error) if error.code == ErrorCode::MethodNotFound)
         );
         client.notify("echo", Params::Absent).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn shutdown_stops_accepting_and_limits_apply_to_the_service() {
+        let (trigger, signal) = tokio::sync::oneshot::channel::<()>();
+        let server = HttpServer::bind("127.0.0.1:0", Dispatcher::new())
+            .await
+            .unwrap()
+            .with_limits(Limits {
+                max_body_bytes: 8,
+                ..Limits::default()
+            });
+        let uri: Uri = format!("http://{}/", server.local_addr().unwrap())
+            .parse()
+            .unwrap();
+        let serving = tokio::spawn(server.serve_with_shutdown(async {
+            let _ = signal.await;
+        }));
+        let (status, _, _) = post(&uri, Method::POST, "toonrpc: \"1.0\"\nmethod: m").await;
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+        trigger.send(()).unwrap();
+        serving.await.unwrap().unwrap();
+        let transport = HttpTransport::new(uri);
+        assert!(transport.request(b"x".to_vec()).await.is_err());
     }
 
     #[tokio::test]

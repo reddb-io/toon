@@ -18,6 +18,7 @@ use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
 use crate::error::{Error, RpcError};
+use crate::limits::Limits;
 use crate::protocol::{Call, Message, Notification, Request, Response};
 use crate::serialization::{decode_wire_value, response_from_toon};
 use crate::transport::{DuplexTransport, RequestResponseTransport};
@@ -77,13 +78,31 @@ pub enum ClientError {
     Protocol(String),
     #[error("invalid TOON-RPC call: {0}")]
     InvalidCall(String),
+    /// A client limit refused the call before it was sent.
+    #[error("TOON-RPC limit reached: {0}")]
+    Limit(String),
 }
 
 pub type DiagnosticHandler = Arc<dyn Fn(&ClientDiagnostic) + Send + Sync>;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ClientOptions {
     pub on_diagnostic: Option<DiagnosticHandler>,
+    /// Most calls kept pending at once; the next call is refused.
+    pub max_pending_calls: usize,
+    /// Timeout for a call that sets none of its own.
+    pub request_timeout: Option<Duration>,
+}
+
+impl Default for ClientOptions {
+    fn default() -> Self {
+        let limits = Limits::default();
+        Self {
+            on_diagnostic: None,
+            max_pending_calls: limits.max_pending_calls,
+            request_timeout: limits.request_timeout,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -193,6 +212,7 @@ impl Client {
             id: id.clone(),
         });
         let inner = self.inner.clone();
+        let timeout = options.timeout.or(self.inner.options.request_timeout);
         async move {
             let _guard = guard;
             let (id, document, settled) = registration?;
@@ -202,7 +222,7 @@ impl Client {
                     .await
                     .unwrap_or_else(|_| Err(ClientError::Closed(CLOSED.into())))
             };
-            match options.timeout {
+            match timeout {
                 Some(timeout) => tokio::time::timeout(timeout, exchange)
                     .await
                     .unwrap_or(Err(ClientError::Timeout(timeout))),
@@ -286,6 +306,12 @@ impl Inner {
         let mut state = lock(&self.state);
         if state.status != ClientStatus::Open {
             return Err(terminal_error(&state));
+        }
+        if state.pending.len() >= self.options.max_pending_calls {
+            return Err(ClientError::Limit(format!(
+                "{} calls are already pending",
+                self.options.max_pending_calls
+            )));
         }
         let id = match id {
             Some(id) => {

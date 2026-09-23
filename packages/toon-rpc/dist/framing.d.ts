@@ -25,9 +25,15 @@ export declare function encodeFrame(document: Uint8Array): Uint8Array;
  * documents out. A framing violation throws and poisons the decoder —
  * the stream has no recoverable resynchronization point.
  */
+export interface FrameDecoderOptions {
+    /** Largest accepted payload; defaults to `DEFAULT_LIMITS.maxFrameBytes`. */
+    maxFrameBytes?: number;
+}
 export declare class FrameDecoder {
     private buffer;
     private failure;
+    private readonly maxFrameBytes;
+    constructor(options?: FrameDecoderOptions);
     /** Append a chunk and return every document completed by it, in order. */
     push(chunk: Uint8Array): Uint8Array[];
     /** True when a partially received frame is still buffered. */

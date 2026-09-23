@@ -42,6 +42,15 @@ now; this file is how it got there.
   defers it): its unauthenticated `/notify` route is removed, events are pushed
   in-process only, and the waiter table is bounded and cleaned up.
 
+- **toon-rpc limits and graceful shutdown.** TypeScript and Rust share one set
+  of limits (`Limits`, spec §8.3): frame, message and event size, HTTP body,
+  batch length, pending calls, connections, receive queue, idle time and
+  shutdown grace. Going past one is a defined error, a refused request or
+  call, or a closed connection, never a dropped document. Every Rust server
+  gains `with_limits` and `serve_with_shutdown`, which stops accepting, lets
+  each connection answer the document in hand, ends open SSE streams and
+  aborts what is left after the grace period.
+
 - **Rust `decode` builds its `Value` directly and jumps with `memchr`.** The
   value is assembled while the grammar emits, without an intermediate event
   vector, and strict mode skips the duplicate-key search it never needs

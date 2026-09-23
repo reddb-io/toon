@@ -1,6 +1,7 @@
 import { decode, encode } from '@reddb-io/toon';
 import { TOONRPC_VERSION, isId, snapshotRequestObject, snapshotResponse, } from './protocol.js';
 import { RpcError } from './rpc-error.js';
+import { DEFAULT_LIMITS } from './limits.js';
 export class ClientClosedError extends Error {
     constructor(message = 'TOON-RPC client is closed') {
         super(message);
@@ -17,6 +18,12 @@ export class ClientTimeoutError extends Error {
     constructor(timeoutMs) {
         super(`TOON-RPC call timed out after ${timeoutMs}ms`);
         this.name = 'ClientTimeoutError';
+    }
+}
+export class ClientLimitError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'ClientLimitError';
     }
 }
 export class ClientProtocolError extends Error {
@@ -64,7 +71,11 @@ export class Client {
             signal = options.signal;
             if (signal?.aborted)
                 return Promise.reject(new ClientAbortError());
-            timeoutMs = validateTimeout(options.timeoutMs);
+            timeoutMs = validateTimeout(options.timeoutMs ?? this.options.requestTimeoutMs);
+            const maxPending = this.options.maxPendingCalls ?? DEFAULT_LIMITS.maxPendingCalls;
+            if (this.pending.size >= maxPending) {
+                throw new ClientLimitError(`TOON-RPC limit reached: ${maxPending} calls are already pending`);
+            }
             id = hasOwn(options, 'id') ? options.id : this.allocateId();
             if (!isId(id))
                 throw new TypeError('TOON-RPC call ID must be a string, safe integer, or null');
