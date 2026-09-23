@@ -146,7 +146,7 @@ Details: [`packages/toon`](packages/toon), [TOON spec companion](docs/toon-offic
 
 TOON-RPC is a draft transport-independent protocol with JSON-RPC semantics and
 TOON serialization. The entire RPC family is currently quarantined under the
-[0.30 recovery](https://github.com/reddb-io/toon/issues/389): no listed surface
+[0.31 recovery](https://github.com/reddb-io/toon/issues/389): no listed surface
 is production-ready, and automatic npm/crates.io publication is paused until
 the protocol, interoperability, lifecycle, and package gates pass.
 

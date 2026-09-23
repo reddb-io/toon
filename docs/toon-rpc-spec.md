@@ -10,7 +10,7 @@ request, notification, response, error, and batch model from JSON-RPC 2.0, but
 it is a separate wire protocol. A TOON-RPC peer MUST NOT advertise a TOON-RPC
 document as JSON-RPC, MCP, or ACP traffic.
 
-The package recovery target is 0.30.0. Package versions are not wire versions;
+The package recovery target is 0.31.0 (0.30.0 shipped the codec hardening release). Package versions are not wire versions;
 every message defined here carries `toonrpc: "1.0"`.
 
 ## 1. Normative Language
@@ -335,7 +335,7 @@ Batch responses are always compared without relying on order. Object member
 ordering is also ignored. Error wording is compared only when `message` is
 present in the expectation.
 
-The corpus is the acceptance contract for the 0.30 recovery. Rust and
+The corpus is the acceptance contract for the 0.31 recovery. Rust and
 TypeScript semantic runners execute every vector directly from these shared
 files; expected failure ledgers are not permitted for this corpus. Server cases
 exercise the production dispatcher/server. TypeScript client cases exercise the

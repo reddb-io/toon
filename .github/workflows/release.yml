@@ -545,7 +545,7 @@ jobs:
           }
 
           # The RPC crates remain versioned in lockstep but are quarantined from
-          # publication until the 0.30 protocol recovery gates graduate them.
+          # publication until the 0.31 protocol recovery gates graduate them.
           publish_one reddb-io-toon
           publish_one reddb-io-tq
 
@@ -605,7 +605,7 @@ jobs:
           # tee instead of capture: output streams live, and stays on disk for
           # the idempotent-case grep below.
           # The RPC packages remain versioned in lockstep but are private during
-          # the 0.30 protocol recovery, so only the codec is published.
+          # the 0.31 protocol recovery, so only the codec is published.
           publish_npm_pkg() {
             local pkg="$1"
             echo "==> publish ${pkg}@${VERSION}"
