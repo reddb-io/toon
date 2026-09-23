@@ -19,11 +19,11 @@ documentation or source directory, depending on the component's maturity.
 
 | Area | What is here |
 | --- | --- |
-| **Formats and specifications** | The pinned [official TOON v4.1.1 baseline](docs/toon-official-spec.md), [RedDB opt-in extensions](docs/toon-reddb-spec.md), and the [TOONL streaming specification](docs/toonl-reddb-spec.md). |
+| **Formats and specifications** | The pinned [official TOON v4.1.1 baseline](docs/toon-official-spec.md), [RedDB opt-in extensions](docs/toon-reddb-spec.md), the [TOONL streaming specification](docs/toonl-reddb-spec.md), a one-page [cheatsheet](docs/cheatsheet.md), and a guide to [prompting LLMs with TOON](docs/llm-prompting.md). |
 | **Codec libraries and streaming** | The [`@reddb-io/toon`](packages/toon) package and [`reddb-io-toon`](crates/toon) crate: codecs, event streams, truncation reports, TOONL readers/writers, and JSON bridges. See [What ships](#what-ships). |
 | **RPC family** | The quarantined draft [TOON-RPC protocol](docs/toon-rpc-spec.md), experimental libraries and transports, JSON-RPC/TOON-RPC negotiation, MCP/legacy ACP adapters, prototype code generation and CLI tooling, and examples. Kept together under [RPC family](#rpc-family). |
 | **Command-line tools** | The drop-in `toon` converter and the [`tq`](crates/tq) query/conversion CLI for TOON, TOONL, JSON, YAML, and XML, with its [language reference](docs/tq-language.md) and [jq parity record](docs/tq-jq-parity.md). |
-| **Editor integration** | The [RedDB Toon VS Code extension](packages/vscode-toon) for `.toon`, `.toonl`, and fenced Markdown blocks. |
+| **Editor integration** | The [RedDB Toon VS Code extension](packages/vscode-toon): highlighting for `.toon`, `.toonl`, and fenced Markdown blocks, plus strict-decode diagnostics, formatting, and JSON↔TOON conversion. |
 | **Benchmarks and evidence** | Reproducible [accuracy, token-efficiency, and runtime benchmarks](benchmarks/), shared [conformance, parity, golden, and adversarial test corpora](tests/), and pinned [specification](vendor/toon-spec) and [reference implementation](vendor/toon) checkpoints. |
 | **Examples** | [RPC clients and servers](crates/reddb-io-toon-rpc-examples), [codec examples](crates/toon/examples), and [editor grammar samples](packages/vscode-toon/examples). |
 | **Design and migration records** | The [v4.1 migration guide](docs/migration-v4.md), [design-history proposals](docs/proposals/), [upstream monitoring](docs/upstream-monitoring.md), and [feedback ledger](docs/upstream-feedback.md). |
@@ -54,13 +54,15 @@ and layers a set of opt-in extensions on top of it.
 - [RedDB TOON extensions](docs/toon-reddb-spec.md): userland features layered on v4.1, with each decode/encode opt-in and fallback rule stated explicitly.
 - [TOONL RedDB spec](docs/toonl-reddb-spec.md): append-only stream grammar and reader/writer behavior.
 - [v4.1 migration notes](docs/migration-v4.md): TypeScript and Rust cutovers from the retired pre-v4 baseline, with observable before/after behavior.
-- [Design-history proposals](docs/proposals/): the design history behind each extension — including the mechanisms the official spec absorbed at v4.1.
+- [Design-history proposals](docs/proposals/): the design history behind each extension — including the mechanisms the official spec absorbed at v4.0.
+- [Cheatsheet](docs/cheatsheet.md): the official syntax, the extensions, TOONL and the decoder guards on one page.
+- [Prompting LLMs with TOON](docs/llm-prompting.md): header templates for generation, strict decoding with limits, truncation-aware retries, and delimiter choice.
 
 ---
 
 ## Command-line tools
 
-- **`toon`** is the drop-in converter. Its TypeScript and Rust front ends are compatible with the pinned upstream v4.1.1 package and CLI contract.
+- **`toon`** is the drop-in converter. Its TypeScript and Rust front ends are compatible with the pinned upstream v4.1.1 package and CLI contract, and add `--check` to validate input without writing output.
 - **`tq`** is the advanced jq-style query and transformation tool. It reads TOON, JSON, YAML, XML, and TOONL and can emit TOON, JSON, XML, or TOONL.
 
 ## Verified compatibility
@@ -276,7 +278,7 @@ Details: [`crates/tq`](crates/tq), [release assets](https://github.com/reddb-io/
 
 ### RedDB Toon — VS Code extension
 
-Declarative syntax highlighting for `.toon` and `.toonl` files, plus `toon`/`toonl` fenced code blocks in Markdown. The TextMate grammars cover TOON v4.1 with the RedDB wire extensions, and TOONL v0.1/v0.2 including trailers, continuation headers, named schemas, and tagged rows. Escape mistakes and the reserved TOONL `- ` prefix show up as errors while you type.
+Syntax highlighting for `.toon` and `.toonl` files, plus `toon`/`toonl` fenced code blocks in Markdown. The TextMate grammars cover TOON v4.1 with the RedDB wire extensions, and TOONL v0.1/v0.2 including trailers, continuation headers, named schemas, and tagged rows. On top of the grammars, the extension strict-decodes documents as you type and underlines the first error, formats `.toon` canonically, converts between JSON and TOON, and shows a size and token estimate in the status bar.
 
 Use it when reading or writing TOON documents, TOONL streams, or the spec documents in [`docs/`](docs/) inside VS Code.
 
@@ -289,12 +291,12 @@ curl -fsSL https://github.com/reddb-io/toon/releases/latest/download/reddb-toon.
 One-liner from a clone:
 
 ```bash
-(cd packages/vscode-toon && pnpm dlx @vscode/vsce package -o reddb-toon.vsix) && code --install-extension packages/vscode-toon/reddb-toon.vsix
+(cd packages/vscode-toon && pnpm build && pnpm dlx @vscode/vsce package -o reddb-toon.vsix) && code --install-extension packages/vscode-toon/reddb-toon.vsix
 ```
 
 VSCodium and Cursor users: swap `code` for `codium` / `cursor`. Once the extension is listed on the Marketplace and Open VSX (planned), the in-editor one-liner becomes `Ctrl+P` → `ext install reddb-io.reddb-toon`.
 
-Or open `packages/vscode-toon` in VS Code and press `F5` to try the grammars in an Extension Development Host against `examples/sample.toon` and `examples/sample.toonl`.
+Or run `pnpm --filter reddb-toon build`, open `packages/vscode-toon` in VS Code, and press `F5` to try the extension in an Extension Development Host against `examples/sample.toon` and `examples/sample.toonl`.
 
 Details: [`packages/vscode-toon`](packages/vscode-toon), [TOON spec companion](docs/toon-official-spec.md), [RedDB TOON extensions](docs/toon-reddb-spec.md), and [TOONL streaming format](docs/toonl-reddb-spec.md).
 

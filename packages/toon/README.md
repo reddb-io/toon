@@ -29,7 +29,10 @@ entries may only be removed.
 
 The binary boundary is intentional: use `toon` for the upstream converter
 contract (`-o` names an output file, while `-e` and `-d` select conversion
-direction). Use [`tq`](../../crates/tq/README.md) for the jq-compatible query contract,
+direction). Beyond that contract, `toon --check` validates its input without
+writing anything to stdout, so a pipeline can gate on the exit code, and
+`-o` writes to a temporary sibling that is renamed into place only on success,
+so a failed conversion never truncates an existing output. Use [`tq`](../../crates/tq/README.md) for the jq-compatible query contract,
 where `-o` selects an output format and `-e` controls jq-style exit status.
 
 ```bash
@@ -189,6 +192,38 @@ a:
 ```
 ```console
 round-trip true
+```
+
+- `maxInputBytes`, `maxArrayLength` and `maxKeys` bound untrusted input, such as model output: total UTF-8 bytes, the length an array header declares, and the keys of one object or tabular field list. Like `maxDepth`, `0` or `Infinity` means unlimited, which is the default.
+
+```js
+import { decode } from '@reddb-io/toon'
+
+try {
+  decode('items[4294967296]: 1', { maxArrayLength: 10000 })
+} catch (error) {
+  console.log(error.kind, error.message)
+}
+```
+```console
+input-limit Line 1: array length exceeds maxArrayLength (10000)
+```
+
+- Numbers follow the host. `decode` reads numbers as JavaScript numbers, so an integer beyond `Number.MAX_SAFE_INTEGER` rounds to the nearest double; `encode` writes a `bigint` outside that range as a quoted string, folds `-0` to `0`, turns `NaN` and `±Infinity` into `null`, and uses exponent form below `1e-6` and from `1e21` up, exactly like `Number#toString`. The Rust crate keeps integer digits verbatim instead, so a `u64` or larger survives there.
+
+```js
+import { decode, encode } from '@reddb-io/toon'
+
+console.log(decode('id: 9007199254740993').id)
+process.stdout.write(`${encode({ big: 12345678901234567890n, tiny: 5e-324, huge: 1e21 })}\n`)
+```
+```console
+9007199254740992
+```
+```console
+big: "12345678901234567890"
+tiny: 5e-324
+huge: 1e+21
 ```
 
 ### Encode Extensions
@@ -582,7 +617,27 @@ const thin = projectFields([{ id: 1, state: 'ok', debug: true }], ['id', 'state'
 
 - `appendSummaryField(value, summary)` returns one conforming TOON document with a trailing `summary:` field.
 - `projectFields(rows, fields)` keeps allowlisted fields in allowlist order, drops other fields, and leaves absent fields absent.
-- `ToonError` is thrown by TOON decode failures and carries the 1-based source `line`.
+- `encodeToolManifest(tools, options?)` renders an MCP `tools/list` result as a compact prompt-facing manifest: each tool keeps its name and description, and its input schema flattens to tabular `params` rows. It is a summary, not a schema round-trip; the host still validates calls against the full `inputSchema`.
+
+```js
+import { encodeToolManifest } from '@reddb-io/toon'
+
+process.stdout.write(`${encodeToolManifest([{
+  name: 'get_doc',
+  description: 'Fetch one document',
+  inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Document id' } }, required: ['id'] },
+}])}\n`)
+```
+```console
+tools[1]:
+  - name: get_doc
+    description: Fetch one document
+    params[1]{name,type,required,description}:
+      id,string,true,Document id
+```
+
+- `ToonDecodeError` is what `decode` throws. It carries the 1-based source `line`, the offending `source` text, the bare `reason`, a stable `kind` shared with the Rust `ErrorKind` (`syntax`, `indentation`, `length-mismatch`, `duplicate-key`, `depth-limit`, `input-limit`), and a 1-based `column` for indentation errors. Branch on `kind` rather than on message wording.
+- `ToonError` is the positioned error the streaming and event APIs raise; it carries the same `line`, `reason`, `kind` and `column`.
 - `ToonlError` is thrown by TOONL decode or encode failures; `line` is `0` when there is no line context.
 - `ToonlCursorInvalidationError` extends `ToonlError` for failed cursor resumes and carries `condition` plus `details`.
 

@@ -13,6 +13,19 @@ now; this file is how it got there.
 
 ### Changed
 
+- **Breaking (Rust):** `DecodeStreamOptions` (alias `DecodeOptions`) gains the
+  public fields `max_input_bytes`, `max_array_length` and `max_keys`, so a
+  struct literal without `..Default::default()` no longer compiles. A limit
+  error's `Display` reads `input exceeds maxInputBytes (N)`, matching the
+  TypeScript message.
+- **Rust numbers use the reference `Number#toString` layout.** Non-integral
+  numbers are written with shortest round-trip digits, plain inside
+  `[1e-6, 1e21)` and in exponent form outside it, so `5e-324` is no longer a
+  330-character decimal and `1e21` is `1e+21`. Both encoders now agree byte for
+  byte on every shared corpus case. Integer digits are still kept verbatim.
+- **A blank line inside an array reports the blank line**, in both engines, as
+  the upstream reference does; it used to report the next content line.
+
 - **Breaking (Rust):** the one codec now owns the unsuffixed API names.
   `EncodeV4Options` is `EncodeOptions`, `encode_v4` is `encode_with_options`,
   `encode_v4_with_replacer` is `encode_with_replacer`, `decode_value_v4` is
@@ -85,6 +98,24 @@ now; this file is how it got there.
 
 ### Fixed
 
+- **Root strings that start with U+FEFF are quoted** (toon-format/toon#339).
+  The decoder strips a document-leading U+FEFF as a byte-order mark, so an
+  unquoted `\uFEFF8` decoded as the number `8` and a lone `\uFEFF` as `{}`.
+  Raw root strings that start with U+FEFF are rejected.
+- **Token trimming removes U+0020 only** (spec §12) in both decoders. A root
+  string made of NBSP, U+2028 or U+3000 decoded as `{}`, and NBSP-edged TOONL
+  and extension cells lost their edges; a tab outside its delimiter role is now
+  key content, as in the upstream reference.
+- **Quoted commas no longer switch a tab or pipe header to comma fields.**
+  `[1\t]{"comma,value"{...}}` failed to decode in both engines. Found by the
+  new round-trip oracle in the differential fuzzer.
+- **TypeScript `encode` normalizes sparse array holes to `null`**
+  (toon-format/toon#335) instead of emitting empty cells or throwing, detects
+  circular input with a `TypeError`, and stops runaway nesting with the
+  `maxDepth` error instead of overflowing the stack.
+- **`toon -o` writes atomically** in both front ends: output goes to a
+  temporary sibling renamed into place on success, so a failed conversion no
+  longer truncates an existing file.
 - **TOONL v0.2 support** is now implemented across the Rust crate, JS package,
   and `tq` CLI: resumable readers, continuation headers, header-preserving
   trim, tagged-row multiplexing, and per-lane/interleaved close transforms are
@@ -92,6 +123,30 @@ now; this file is how it got there.
 
 ### Added
 
+- **Decode limits for untrusted input:** `maxInputBytes`, `maxArrayLength` and
+  `maxKeys` in TypeScript (`max_input_bytes`, `max_array_length`, `max_keys` in
+  Rust); `0` or `Infinity` means unlimited, the default.
+- **Error kinds and columns.** Decode errors carry a stable `kind`
+  (`syntax`, `indentation`, `length-mismatch`, `duplicate-key`, `depth-limit`,
+  `input-limit`; Rust `ErrorKind` adds `Io`) and a 1-based column for
+  indentation errors.
+- **Typed serde API for Rust:** `to_string`, `from_str` and their
+  `_with_options` variants behind the default `serde` feature, with
+  `SerdeError`.
+- **`toon --check`** validates input without writing output, in both front
+  ends.
+- **`encodeToolManifest(tools)`** renders an MCP `tools/list` result as a
+  compact TOON manifest for prompts.
+- **VS Code extension features:** strict-decode diagnostics, canonical
+  formatting, JSON↔TOON conversion commands and a size/token status item, on
+  the codec vendored into the `.vsix`.
+- **Accuracy benchmark:** a `json-object-mode` structured-output baseline,
+  `OPENAI_BASE_URL` for OpenAI-compatible gateways, a dry-run mode, and a
+  provenance file per run.
+- **Docs:** a [cheatsheet](docs/cheatsheet.md) and a guide to
+  [prompting LLMs with TOON](docs/llm-prompting.md).
+- **Round-trip oracle in the differential fuzzer** and property tests for root
+  strings, Unicode whitespace, sparse arrays, cycles and decoder panics.
 - **Drop-in `toon` converter binaries for TypeScript and Rust.** The
   `@reddb-io/toon` package and `reddb-io-toon` crate now publish dedicated
   `toon` bins that carry the pinned upstream v4.1.1 CLI contract, including
