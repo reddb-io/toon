@@ -436,6 +436,21 @@ fn parse_quoted_string(value: &str, line: usize) -> Result<String, ParseError> {
     let mut run = 1usize;
     let mut index = 1usize;
     while index < bytes.len() {
+        // Jump to the next quote or escape (SIMD memchr); a C0 control in the
+        // skipped span must still be rejected (§7.1), and HTAB is tolerated.
+        let Some(offset) = memchr::memchr2(b'"', b'\\', &bytes[index..]) else {
+            if bytes[index..].iter().any(|&byte| byte < 0x20 && byte != b'\t') {
+                return Err(invalid_quoted_string(line));
+            }
+            break;
+        };
+        if bytes[index..index + offset]
+            .iter()
+            .any(|&byte| byte < 0x20 && byte != b'\t')
+        {
+            return Err(invalid_quoted_string(line));
+        }
+        index += offset;
         let byte = bytes[index];
         match byte {
             b'"' => {

@@ -19,16 +19,23 @@ fn split_stream_cells_ascii(content: &str, delimiter: u8) -> Vec<&str> {
     let mut in_quotes = false;
     let mut index = 0usize;
     while index < bytes.len() {
+        // Jump to the next byte that can change state (SIMD memchr).
+        let next = if in_quotes {
+            memchr::memchr2(b'\\', b'"', &bytes[index..])
+        } else {
+            memchr::memchr2(delimiter, b'"', &bytes[index..])
+        };
+        let Some(offset) = next else { break };
+        index += offset;
         let byte = bytes[index];
         if in_quotes {
             match byte {
                 b'\\' => index += 1,
-                b'"' => in_quotes = false,
-                _ => {}
+                _ => in_quotes = false,
             }
         } else if byte == b'"' {
             in_quotes = true;
-        } else if byte == delimiter {
+        } else {
             cells.push(trim_u0020(&content[start..index]));
             start = index + 1;
         }
@@ -46,6 +53,14 @@ fn scan_unquoted_ascii(value: &str, needle: u8, mut on_needle: impl FnMut(usize)
     let mut in_string = false;
     let mut index = 0usize;
     while index < bytes.len() {
+        // Jump to the next byte that can change state (SIMD memchr).
+        let next = if in_string {
+            memchr::memchr2(b'\\', b'"', &bytes[index..])
+        } else {
+            memchr::memchr2(needle, b'"', &bytes[index..])
+        };
+        let Some(offset) = next else { break };
+        index += offset;
         match bytes[index] {
             b'\\' if in_string => {
                 if index + 1 == bytes.len() {

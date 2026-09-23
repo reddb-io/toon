@@ -56,6 +56,7 @@ default = ["serde"]
 serde = ["dep:serde"]
 
 [dependencies]
+memchr = "2"
 serde = { version = "1", optional = true }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 

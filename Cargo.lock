@@ -1131,6 +1131,7 @@ name = "reddb-io-toon"
 version = "0.30.3"
 dependencies = [
  "criterion",
+ "memchr",
  "proptest",
  "serde",
  "serde_json",
