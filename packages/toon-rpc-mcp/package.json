@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/toon-rpc-mcp",
-  "version": "0.30.2",
+  "version": "0.30.3",
   "private": true,
   "description": "Non-conformant MCP prototype quarantined during protocol recovery.",
   "type": "module",

@@ -9,7 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-reddb-io-toon = { path = "../toon", version = "0.30.2" }
+reddb-io-toon = { path = "../toon", version = "0.30.3" }
 tokio = { version = "1", features = ["full"] }
 thiserror = "2"
 bytes = "1"
