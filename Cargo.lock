@@ -1190,8 +1190,14 @@ version = "0.30.4"
 dependencies = [
  "anyhow",
  "clap",
+ "reddb-io-toon",
  "reddb-io-toon-rpc",
- "reddb-io-toon-rpc-stdio",
+ "reddb-io-toon-rpc-codegen",
+ "reddb-io-toon-rpc-examples",
+ "reddb-io-toon-rpc-http",
+ "reddb-io-toon-rpc-tcp",
+ "reddb-io-toon-rpc-ws",
+ "serde_json",
  "tokio",
 ]
 
@@ -1199,11 +1205,8 @@ dependencies = [
 name = "reddb-io-toon-rpc-codegen"
 version = "0.30.4"
 dependencies = [
- "proc-macro2",
- "quote",
  "reddb-io-toon",
  "serde_json",
- "syn 2.0.119",
  "thiserror 2.0.20",
 ]
 
@@ -1215,6 +1218,7 @@ dependencies = [
  "reddb-io-toon-rpc-http",
  "reddb-io-toon-rpc-stdio",
  "reddb-io-toon-rpc-tcp",
+ "serde",
  "serde_json",
  "tokio",
 ]

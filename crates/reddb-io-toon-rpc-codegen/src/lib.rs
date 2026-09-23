@@ -1,13 +1,19 @@
-use proc_macro::TokenStream;
+//! Code generation for TOON-RPC services: a `.toonrpc` IDL in, Rust and
+//! TypeScript out. The generated code compiles as is and serves or calls the
+//! service through `reddb-io-toon-rpc` and `@reddb-io/toon-rpc`.
 
-#[proc_macro_derive(ToonRpcService, attributes(toon_rpc))]
-pub fn derive_service(input: TokenStream) -> TokenStream {
-    let ast = syn::parse_macro_input!(input as syn::DeriveInput);
-    let name = &ast.ident;
-    quote::quote! {
-        impl reddb_io_toon_rpc::Service for #name {
-            const NAME: &'static str = stringify!(#name);
-        }
-    }
-    .into()
+mod idl;
+mod rust;
+mod typescript;
+
+pub use idl::{parse, Field, IdlError, Method, Service, Type, TypeDef};
+
+/// The Rust module for `service`: types, trait, `register_*` and a client.
+pub fn generate_rust(service: &Service) -> String {
+    rust::generate(service)
+}
+
+/// The TypeScript module for `service`: types, interface, `register*` and a client.
+pub fn generate_typescript(service: &Service) -> String {
+    typescript::generate(service)
 }

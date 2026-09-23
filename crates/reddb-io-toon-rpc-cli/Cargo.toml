@@ -13,8 +13,17 @@ name = "reddb-io-toon-rpc"
 path = "src/main.rs"
 
 [dependencies]
+reddb-io-toon = { path = "../toon", version = "0.30.4" }
 reddb-io-toon-rpc = { path = "../reddb-io-toon-rpc", version = "0.30.4" }
-reddb-io-toon-rpc-stdio = { path = "../reddb-io-toon-rpc-stdio", version = "0.30.4" }
+reddb-io-toon-rpc-codegen = { path = "../reddb-io-toon-rpc-codegen", version = "0.30.4" }
+reddb-io-toon-rpc-http = { path = "../reddb-io-toon-rpc-http", version = "0.30.4" }
+reddb-io-toon-rpc-tcp = { path = "../reddb-io-toon-rpc-tcp", version = "0.30.4" }
+reddb-io-toon-rpc-ws = { path = "../reddb-io-toon-rpc-ws", version = "0.30.4" }
 clap = { version = "4", features = ["derive"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde_json = "1"
 anyhow = "1"
+
+[dev-dependencies]
+reddb-io-toon-rpc-examples = { path = "../reddb-io-toon-rpc-examples" }
+tokio = { version = "1", features = ["full"] }
