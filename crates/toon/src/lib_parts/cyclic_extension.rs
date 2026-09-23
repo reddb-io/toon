@@ -80,7 +80,9 @@ fn consume_digits(bytes: &[u8], index: &mut usize) -> bool {
     *index > start
 }
 
-/// Canonical decimal form per §2: no exponent inside `[1e-6, 1e21)`, no trailing
+/// Canonical number form per §2, laid out like the reference encoder's
+/// `Number#toString`: shortest round-trip digits, no exponent inside
+/// `[1e-6, 1e21)`, exponent form (`5e-324`, `1e+21`) outside it, no trailing
 /// fractional zeros, `-0` normalized to `0`.
 fn canonical_number(value: &str) -> String {
     if !is_number_token(value) {
@@ -105,10 +107,48 @@ fn canonical_number(value: &str) -> String {
     if number == 0.0 {
         return "0".to_owned();
     }
-    if number.fract() == 0.0 && number.abs() < 1e21 {
-        return format!("{}", number as i128);
+    if !number.is_finite() {
+        return value.to_owned();
     }
-    format!("{number}")
+    js_number_text(number)
+}
+
+/// ECMAScript `Number::toString` for a finite, non-zero `f64`.
+fn js_number_text(number: f64) -> String {
+    // `{:e}` prints the shortest digits that round-trip, e.g. `1.2345e21`.
+    let scientific = format!("{:e}", number.abs());
+    let (mantissa, exponent) = scientific
+        .split_once('e')
+        .expect("LowerExp output carries an exponent");
+    let exponent: i32 = exponent.parse().expect("LowerExp exponent is an integer");
+    let digits: String = mantissa.chars().filter(|&c| c != '.').collect();
+    let k = digits.len() as i32;
+    // The value is 0.d1d2…dk × 10^n.
+    let n = exponent + 1;
+
+    let body = if k <= n && n <= 21 {
+        format!("{digits}{}", "0".repeat((n - k) as usize))
+    } else if 0 < n && n <= 21 {
+        let (whole, fraction) = digits.split_at(n as usize);
+        format!("{whole}.{fraction}")
+    } else if -6 < n && n <= 0 {
+        format!("0.{}{digits}", "0".repeat(n.unsigned_abs() as usize))
+    } else {
+        let (first, rest) = digits.split_at(1);
+        let fraction = if rest.is_empty() {
+            String::new()
+        } else {
+            format!(".{rest}")
+        };
+        let sign = if exponent < 0 { '-' } else { '+' };
+        format!("{first}{fraction}e{sign}{}", exponent.unsigned_abs())
+    };
+
+    if number < 0.0 {
+        format!("-{body}")
+    } else {
+        body
+    }
 }
 
 // ---------------------------------------------------------------------------
