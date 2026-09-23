@@ -128,7 +128,46 @@ pub struct Field {
 pub struct ParseError {
     line: usize,
     message: &'static str,
-    max_depth: Option<usize>,
+    /// The configured bound a limit error tripped (`maxDepth`, `maxInputBytes`, …).
+    limit: Option<usize>,
+    /// 1-based column, when the decoder knows where on the line it failed.
+    column: Option<usize>,
+}
+
+/// A stable, coarse classification of a [`ParseError`], shared with the
+/// TypeScript decoder's `kind` so callers can branch without parsing messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ErrorKind {
+    /// Malformed TOON that fits no narrower kind.
+    Syntax,
+    /// Indentation that is not a multiple of the indent size, a tab, or a jump.
+    Indentation,
+    /// A declared array length disagrees with the items that follow.
+    LengthMismatch,
+    /// A repeated object key or header field in strict mode.
+    DuplicateKey,
+    /// Nesting deeper than `max_depth`.
+    DepthLimit,
+    /// Input beyond `max_input_bytes`, `max_array_length` or `max_keys`.
+    InputLimit,
+    /// The input could not be read or its consumer went away.
+    Io,
+}
+
+impl ErrorKind {
+    /// The kebab-case name the TypeScript decoder reports as `kind`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Syntax => "syntax",
+            Self::Indentation => "indentation",
+            Self::LengthMismatch => "length-mismatch",
+            Self::DuplicateKey => "duplicate-key",
+            Self::DepthLimit => "depth-limit",
+            Self::InputLimit => "input-limit",
+            Self::Io => "io",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -310,7 +349,8 @@ impl Document {
             _ => Err(ParseError {
                 line: 1,
                 message: "expected `key: value`",
-                max_depth: None,
+                limit: None,
+                column: None,
             }),
         }
     }
@@ -451,13 +491,55 @@ impl ParseError {
     pub fn message(&self) -> &'static str {
         self.message
     }
+
+    /// 1-based column, when the decoder knows it.
+    pub fn column(&self) -> Option<usize> {
+        self.column
+    }
+
+    /// The configured bound a limit error tripped.
+    pub fn limit(&self) -> Option<usize> {
+        self.limit
+    }
+
+    /// The coarse kind of failure, stable across message wording changes.
+    pub fn kind(&self) -> ErrorKind {
+        match self.message {
+            "over-indented line" | "invalid indentation" | "tab used as indentation" => {
+                ErrorKind::Indentation
+            }
+            "array count mismatch"
+            | "array length mismatch"
+            | "cyclic array length mismatch"
+            | "cyclic array group length mismatch" => ErrorKind::LengthMismatch,
+            "duplicate object key" | "duplicate field name in header" => ErrorKind::DuplicateKey,
+            DEPTH_EXCEEDED => ErrorKind::DepthLimit,
+            INPUT_BYTES_EXCEEDED | ARRAY_LENGTH_EXCEEDED | KEYS_EXCEEDED => ErrorKind::InputLimit,
+            "failed to read input" | "event consumer disconnected" => ErrorKind::Io,
+            _ => ErrorKind::Syntax,
+        }
+    }
+
+    fn with_column(mut self, column: usize) -> Self {
+        self.column = Some(column);
+        self
+    }
 }
+
+const DEPTH_EXCEEDED: &str = "maximum nesting depth exceeded";
+const INPUT_BYTES_EXCEEDED: &str = "input exceeds maxInputBytes";
+const ARRAY_LENGTH_EXCEEDED: &str = "array length exceeds maxArrayLength";
+const KEYS_EXCEEDED: &str = "object exceeds maxKeys";
 
 impl fmt::Display for ParseError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "line {}: {}", self.line, self.message)?;
-        if let Some(max_depth) = self.max_depth {
-            write!(formatter, " (maxDepth {max_depth})")?;
+        match self.limit {
+            Some(limit) if self.message == DEPTH_EXCEEDED => {
+                write!(formatter, " (maxDepth {limit})")?;
+            }
+            Some(limit) => write!(formatter, " ({limit})")?,
+            None => {}
         }
         Ok(())
     }

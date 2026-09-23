@@ -391,7 +391,8 @@ fn parse_scalar(value: &str, line: usize) -> Result<Value, ParseError> {
         return Err(ParseError {
             line,
             message: "invalid quoted string",
-            max_depth: None,
+            limit: None,
+            column: None,
         });
     }
 
@@ -413,7 +414,8 @@ fn parse_key(value: &str, line: usize) -> Result<(String, bool), ParseError> {
         return Err(ParseError {
             line,
             message: "expected non-empty field name",
-            max_depth: None,
+            limit: None,
+            column: None,
         });
     }
     Ok((value.to_owned(), false))
@@ -476,7 +478,8 @@ fn invalid_quoted_string(line: usize) -> ParseError {
     ParseError {
         line,
         message: "invalid quoted string",
-        max_depth: None,
+        limit: None,
+        column: None,
     }
 }
 

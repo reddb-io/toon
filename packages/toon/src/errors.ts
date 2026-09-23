@@ -3,19 +3,46 @@
  * that caused it. `line: 0` means "no line context" (encoder-side failures).
  */
 
+/** A stable, coarse classification shared with the Rust decoder's `ErrorKind`. */
+export type ToonErrorKind =
+  | 'syntax'
+  | 'indentation'
+  | 'length-mismatch'
+  | 'duplicate-key'
+  | 'depth-limit'
+  | 'input-limit'
+
 export class ToonDecodeError extends SyntaxError {
   readonly line?: number
+  /** 1-based column, when the decoder knows where on the line it failed. */
+  readonly column?: number
   readonly source?: string
   readonly reason: string
+  readonly kind: ToonErrorKind
 
-  constructor(message: string, context: { line?: number, source?: string, cause?: unknown } = {}) {
+  constructor(
+    message: string,
+    context: { line?: number, column?: number, source?: string, cause?: unknown } = {},
+  ) {
     const prefix = context.line === undefined || context.line === 0 ? '' : `Line ${context.line}: `
     super(prefix + message, context.cause === undefined ? undefined : { cause: context.cause })
     this.name = 'ToonDecodeError'
     this.line = context.line
+    this.column = context.column
     this.source = context.source
     this.reason = message
+    this.kind = errorKind(message)
   }
+}
+
+/** Classifies a decoder reason; message wording may change, kinds do not. */
+export function errorKind(reason: string): ToonErrorKind {
+  if (/^(over-indented line|invalid indentation|tab used as indentation)$/.test(reason)) return 'indentation'
+  if (/length mismatch|count mismatch|^expected \d+ .*, but got \d+$/.test(reason)) return 'length-mismatch'
+  if (/^duplicate (object key|field name in header)$/.test(reason)) return 'duplicate-key'
+  if (reason.startsWith('maximum nesting depth exceeded')) return 'depth-limit'
+  if (/ exceeds max(InputBytes|ArrayLength|Keys) \(/.test(reason)) return 'input-limit'
+  return 'syntax'
 }
 
 /**
@@ -25,18 +52,26 @@ export class ToonDecodeError extends SyntaxError {
  */
 export class ToonError extends SyntaxError {
   readonly line: number
+  readonly column?: number
   readonly source?: string
   readonly reason: string
+  readonly kind: ToonErrorKind
 
-  constructor(line: number, message: string, context: { source?: string, cause?: unknown } = {}) {
+  constructor(
+    line: number,
+    message: string,
+    context: { column?: number, source?: string, cause?: unknown } = {},
+  ) {
     super(
       line === 0 ? message : `line ${line}: ${message}`,
       context.cause === undefined ? undefined : { cause: context.cause },
     )
     this.name = 'ToonError'
     this.line = line
+    this.column = context.column
     this.source = context.source
     this.reason = message
+    this.kind = errorKind(message)
   }
 }
 
@@ -65,7 +100,7 @@ export class ToonlCursorInvalidationError extends ToonlError {
 export function toonError(
   line: number,
   message: string,
-  context: { source?: string, cause?: unknown } = {},
+  context: { column?: number, source?: string, cause?: unknown } = {},
 ) {
   return new ToonError(line, message, context)
 }

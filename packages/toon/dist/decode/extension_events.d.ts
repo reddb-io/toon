@@ -11,6 +11,7 @@ export interface ExtensionLine {
     depth: number;
     content: string;
     blankBefore: boolean;
+    blankLine: number;
 }
 export interface ExtensionDecodeOptions {
     strict: boolean;

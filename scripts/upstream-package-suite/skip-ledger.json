@@ -19,11 +19,6 @@
       "test": "decode-errors.test.ts",
       "case": "attaches line context to errors raised during value parsing",
       "rationale": "Asserts the upstream parser's exact unterminated-string wording; our public error attaches the same line and source under the 'invalid quoted string' diagnostic."
-    },
-    {
-      "test": "decode-errors.test.ts",
-      "case": "reports blank lines inside an array with the line number of the blank",
-      "rationale": "Asserts the upstream scanner's internal blank-line cursor convention; our parser rejects the same malformed array while reporting the following material line."
     }
   ]
 }

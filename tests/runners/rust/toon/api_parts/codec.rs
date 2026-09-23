@@ -878,3 +878,59 @@ fn quoted_commas_in_nested_field_names_keep_the_active_delimiter() {
         );
     }
 }
+
+/// Limits for untrusted input: total bytes, a declared array length, and the
+/// keys of one object or tabular field list. `0` leaves each unlimited.
+#[test]
+fn decode_limits_bound_bytes_declared_lengths_and_keys() {
+    use reddb_io_toon::{decode_reader_with_options, decode_with_options, ErrorKind};
+
+    let limited = |max_input_bytes, max_array_length, max_keys| DecodeOptions {
+        max_input_bytes,
+        max_array_length,
+        max_keys,
+        ..DecodeOptions::default()
+    };
+
+    assert!(decode_with_options("a: 1\nb: 2", &limited(9, 0, 0)).is_ok());
+    let bytes = decode_with_options("a: 1\nb: 2", &limited(8, 0, 0)).expect_err("too long");
+    assert_eq!(bytes.kind(), ErrorKind::InputLimit);
+    assert_eq!(bytes.limit(), Some(8));
+    assert_eq!(bytes.to_string(), "line 1: input exceeds maxInputBytes (8)");
+    let reader = decode_reader_with_options(std::io::Cursor::new(b"a: 1\nb: 2"), &limited(8, 0, 0))
+        .expect_err("reader is capped too");
+    assert_eq!(reader.kind(), ErrorKind::InputLimit);
+
+    assert!(decode_with_options("a[3]: 1,2,3", &limited(0, 3, 0)).is_ok());
+    let length = decode_with_options("a[4294967296]: 1", &limited(0, 1000, 0)).expect_err("declared length");
+    assert_eq!(length.to_string(), "line 1: array length exceeds maxArrayLength (1000)");
+
+    assert!(decode_with_options("a: 1\nb:\n  c: 1\n  d: 2", &limited(0, 0, 2)).is_ok());
+    let keys = decode_with_options("a: 1\nb: 2\nc: 3", &limited(0, 0, 2)).expect_err("keys");
+    assert_eq!(keys.to_string(), "line 3: object exceeds maxKeys (2)");
+    let fields = decode_with_options("r[1]{a,b,c}:\n  1,2,3", &limited(0, 0, 2)).expect_err("fields");
+    assert_eq!(fields.kind(), ErrorKind::InputLimit);
+    assert_eq!(fields.line(), 1);
+}
+
+/// Errors carry a coarse kind shared with the TypeScript decoder and, for
+/// indentation, the column where the line went wrong.
+#[test]
+fn decode_errors_report_a_kind_and_an_indentation_column() {
+    use reddb_io_toon::{decode, ErrorKind};
+
+    let indentation = decode("a:\n   b: 1").expect_err("three spaces");
+    assert_eq!(indentation.kind(), ErrorKind::Indentation);
+    assert_eq!(indentation.kind().as_str(), "indentation");
+    assert_eq!(indentation.column(), Some(4));
+
+    let tab = decode("a:\n \tb: 1").expect_err("tab");
+    assert_eq!(tab.column(), Some(2));
+
+    let mismatch = decode("items[2]: one").expect_err("count");
+    assert_eq!(mismatch.kind(), ErrorKind::LengthMismatch);
+    assert_eq!(mismatch.column(), None);
+
+    assert_eq!(decode("a: 1\na: 2").expect_err("dup").kind(), ErrorKind::DuplicateKey);
+    assert_eq!(decode("v: \"open").expect_err("quote").kind(), ErrorKind::Syntax);
+}

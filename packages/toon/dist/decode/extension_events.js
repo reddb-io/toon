@@ -16,7 +16,7 @@ function* emitStructuredRows(length, fields, delimiter, lines, cursor, rowDepth,
         if (line.depth > rowDepth)
             throw toonError(line.number, 'invalid indentation');
         if (line.blankBefore && options.strict)
-            throw toonError(line.number, 'blank line inside array');
+            throw toonError(line.blankLine, 'blank line inside array');
         if (!isTabularRow(line.content, delimiter, line.number))
             break;
         const cells = splitDelimited(line.content, delimiter, line.number);

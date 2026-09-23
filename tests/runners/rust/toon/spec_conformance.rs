@@ -712,6 +712,7 @@ fn stream_decoder_options(options: Option<&Json>) -> DecodeStreamOptions {
             .get("maxDepth")
             .and_then(Json::as_u64)
             .map_or(defaults.max_depth, |depth| depth as usize),
+        ..defaults
     }
 }
 

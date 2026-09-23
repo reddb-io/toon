@@ -32,6 +32,12 @@ pub struct DecodeStreamOptions {
     pub object_array_columns: bool,
     /// Maximum nesting depth. `0` disables the guard for trusted input.
     pub max_depth: usize,
+    /// Rejects input longer than this many bytes. `0` means unlimited.
+    pub max_input_bytes: usize,
+    /// Rejects an array header declaring more items. `0` means unlimited.
+    pub max_array_length: usize,
+    /// Rejects an object, or a tabular field list, with more keys. `0` means unlimited.
+    pub max_keys: usize,
 }
 
 impl Default for DecodeStreamOptions {
@@ -42,6 +48,9 @@ impl Default for DecodeStreamOptions {
             cyclic_discriminated_arrays: false,
             object_array_columns: true,
             max_depth: DEFAULT_MAX_DEPTH,
+            max_input_bytes: 0,
+            max_array_length: 0,
+            max_keys: 0,
         }
     }
 }
@@ -51,6 +60,9 @@ struct StreamCtx {
     strict: bool,
     object_array_columns: bool,
     max_depth: usize,
+    max_input_bytes: usize,
+    max_array_length: usize,
+    max_keys: usize,
     truncation_span: Cell<Option<ArraySpanState>>,
 }
 
@@ -84,13 +96,25 @@ struct StreamLine {
     content: String,
     /// A blank line appeared between the previous content line and this one.
     blank_before: bool,
+    /// The first such blank line, which a blank-line error points at.
+    blank_line: usize,
 }
 
 fn stream_error(line: usize, message: &'static str) -> ParseError {
     ParseError {
         line,
         message,
-        max_depth: None,
+        limit: None,
+        column: None,
+    }
+}
+
+fn stream_limit_error(line: usize, message: &'static str, limit: usize) -> ParseError {
+    ParseError {
+        line,
+        message,
+        limit: Some(limit),
+        column: None,
     }
 }
 
@@ -98,7 +122,8 @@ fn stream_depth_error(line: usize, max_depth: usize) -> ParseError {
     ParseError {
         line,
         message: "maximum nesting depth exceeded",
-        max_depth: Some(max_depth),
+        limit: Some(max_depth),
+        column: None,
     }
 }
 
@@ -354,10 +379,13 @@ struct StreamReader<R> {
     lookahead: Option<StreamLine>,
     next_number: usize,
     last_number: Option<usize>,
-    blank_pending: bool,
+    /// Number of the first blank line since the last content line; 0 = none.
+    blank_pending: usize,
     at_eof: bool,
     /// Depth of open header spans — blank lines inside one are strict errors (§12).
     span_active: usize,
+    /// Bytes consumed so far, LFs included, for `max_input_bytes`.
+    bytes_read: usize,
 }
 
 impl<R: BufRead> StreamReader<R> {
@@ -367,9 +395,10 @@ impl<R: BufRead> StreamReader<R> {
             lookahead: None,
             next_number: 1,
             last_number: None,
-            blank_pending: false,
+            blank_pending: 0,
             at_eof: false,
             span_active: 0,
+            bytes_read: 0,
         }
     }
 
@@ -385,6 +414,14 @@ impl<R: BufRead> StreamReader<R> {
                 self.at_eof = true;
                 break;
             }
+            self.bytes_read += read;
+            if ctx.max_input_bytes != 0 && self.bytes_read > ctx.max_input_bytes {
+                return Err(stream_limit_error(
+                    number,
+                    INPUT_BYTES_EXCEEDED,
+                    ctx.max_input_bytes,
+                ));
+            }
             self.next_number += 1;
             if raw.ends_with('\n') {
                 raw.pop();
@@ -398,7 +435,9 @@ impl<R: BufRead> StreamReader<R> {
             // Blank means empty once trailing spaces are gone: only U+0020 is
             // trimmed (§12), so NBSP, U+3000 or a tab still carry content.
             if text.is_empty() {
-                self.blank_pending = true;
+                if self.blank_pending == 0 {
+                    self.blank_pending = number;
+                }
                 continue;
             }
             if is_comment_line(text) {
@@ -412,7 +451,8 @@ impl<R: BufRead> StreamReader<R> {
                     ' ' => spaces += 1,
                     '\t' => {
                         if ctx.strict {
-                            return Err(stream_error(number, "tab used as indentation"));
+                            return Err(stream_error(number, "tab used as indentation")
+                                .with_column(offset + 1));
                         }
                         tabs += 1;
                     }
@@ -426,7 +466,7 @@ impl<R: BufRead> StreamReader<R> {
             let mut depth = if spaces % ctx.indent_size == 0 {
                 spaces / ctx.indent_size
             } else if ctx.strict {
-                return Err(stream_error(number, "invalid indentation"));
+                return Err(stream_error(number, "invalid indentation").with_column(spaces + 1));
             } else {
                 spaces / ctx.indent_size
             };
@@ -439,9 +479,10 @@ impl<R: BufRead> StreamReader<R> {
                 number,
                 depth,
                 content: text[offset..].to_owned(),
-                blank_before: self.blank_pending,
+                blank_before: self.blank_pending != 0,
+                blank_line: self.blank_pending,
             });
-            self.blank_pending = false;
+            self.blank_pending = 0;
         }
         Ok(())
     }
@@ -459,7 +500,7 @@ impl<R: BufRead> StreamReader<R> {
             .expect("take is only called after successful lookahead");
         self.last_number = Some(line.number);
         if ctx.strict && self.span_active > 0 && line.blank_before {
-            return Err(stream_error(line.number, "blank line inside a header span"));
+            return Err(stream_error(line.blank_line, "blank line inside a header span"));
         }
         Ok(line)
     }
@@ -496,7 +537,33 @@ fn record_stream_key(
     if !seen.insert(key.to_owned()) && ctx.strict {
         return Err(stream_error(line, "duplicate object key"));
     }
+    if ctx.max_keys != 0 && seen.len() > ctx.max_keys {
+        return Err(stream_limit_error(line, KEYS_EXCEEDED, ctx.max_keys));
+    }
     Ok(())
+}
+
+/// Applies `max_array_length` and `max_keys` to a parsed header.
+fn check_header_limits(
+    header: Option<StreamHeader>,
+    line: usize,
+    ctx: &StreamCtx,
+) -> Result<Option<StreamHeader>, ParseError> {
+    if let Some(header) = &header {
+        if ctx.max_array_length != 0 && header.length > ctx.max_array_length {
+            return Err(stream_limit_error(
+                line,
+                ARRAY_LENGTH_EXCEEDED,
+                ctx.max_array_length,
+            ));
+        }
+        if let Some(fields) = &header.fields {
+            if ctx.max_keys != 0 && fields.len() > ctx.max_keys {
+                return Err(stream_limit_error(line, KEYS_EXCEEDED, ctx.max_keys));
+            }
+        }
+    }
+    Ok(header)
 }
 
 /// Decodes the document into the full event sequence, stopping at the first
@@ -511,6 +578,9 @@ pub fn decode_events(
         strict: options.strict,
         object_array_columns: options.object_array_columns,
         max_depth: options.max_depth,
+        max_input_bytes: options.max_input_bytes,
+        max_array_length: options.max_array_length,
+        max_keys: options.max_keys,
         truncation_span: Cell::new(None),
     };
     let mut events = Vec::new();
@@ -527,6 +597,9 @@ fn decode_events_for_truncation(
         strict: options.strict,
         object_array_columns: options.object_array_columns,
         max_depth: options.max_depth,
+        max_input_bytes: options.max_input_bytes,
+        max_array_length: options.max_array_length,
+        max_keys: options.max_keys,
         truncation_span: Cell::new(None),
     };
     let mut events = Vec::new();
@@ -550,7 +623,7 @@ fn decode_events_into<R: BufRead, S: EventSink>(
         Some(line) => line,
     };
     if first.depth != 0 {
-        return Err(stream_error(first.number, "invalid indentation"));
+        return Err(stream_error(first.number, "invalid indentation").with_column(first.depth * ctx.indent_size + 1));
     }
 
     // Root form discovery (§5).
@@ -566,7 +639,7 @@ fn decode_events_into<R: BufRead, S: EventSink>(
 
     let mut header_failed = false;
     let header = match parse_stream_header(&first.content, first.number) {
-        Ok(value) => value,
+        Ok(value) => check_header_limits(value, first.number, ctx)?,
         Err(error) => {
             if ctx.strict {
                 return Err(error);
@@ -640,7 +713,7 @@ fn emit_object_from_first<R: BufRead, S: EventSink>(
             Some(line) => line,
         };
         if line.depth > 0 {
-            return Err(stream_error(line.number, "over-indented line"));
+            return Err(stream_error(line.number, "over-indented line").with_column(line.depth * ctx.indent_size + 1));
         }
         reader.take(ctx)?;
         let content = line.content.clone();
@@ -670,7 +743,7 @@ fn emit_object<R: BufRead, S: EventSink>(
             break;
         }
         if line.depth > depth {
-            return Err(stream_error(line.number, "over-indented line"));
+            return Err(stream_error(line.number, "over-indented line").with_column(line.depth * ctx.indent_size + 1));
         }
         reader.take(ctx)?;
         let content = line.content.clone();
@@ -695,7 +768,7 @@ fn emit_entry<R: BufRead, S: EventSink>(
     out: &mut S,
 ) -> Result<(), ParseError> {
     let header = match parse_stream_header(content, line.number) {
-        Ok(value) => value,
+        Ok(value) => check_header_limits(value, line.number, ctx)?,
         Err(error) => {
             if ctx.strict {
                 return Err(error);
@@ -750,7 +823,7 @@ fn emit_entry<R: BufRead, S: EventSink>(
         if let Some(child) = child {
             if child.depth > depth {
                 if child.depth != depth + 1 {
-                    return Err(stream_error(child.number, "over-indented line"));
+                    return Err(stream_error(child.number, "over-indented line").with_column(child.depth * ctx.indent_size + 1));
                 }
                 return emit_object(reader, depth + 1, child.number, ctx, out);
             }
@@ -827,7 +900,7 @@ fn emit_array<R: BufRead, S: EventSink>(
             break;
         }
         if line.depth != header.depth + 1 {
-            return Err(stream_error(line.number, "over-indented line"));
+            return Err(stream_error(line.number, "over-indented line").with_column(line.depth * ctx.indent_size + 1));
         }
         if !line.content.starts_with("- ") && line.content != "-" {
             break;
@@ -875,7 +948,7 @@ fn emit_list_item<R: BufRead, S: EventSink>(
     }
 
     let header = match parse_stream_header(&trimmed, line.number) {
-        Ok(value) => value,
+        Ok(value) => check_header_limits(value, line.number, ctx)?,
         Err(error) => {
             if ctx.strict {
                 return Err(error);
@@ -965,7 +1038,7 @@ fn emit_tabular_rows<R: BufRead, S: EventSink>(
             break;
         }
         if line.depth != row_depth {
-            return Err(stream_error(line.number, "over-indented line"));
+            return Err(stream_error(line.number, "over-indented line").with_column(line.depth * ctx.indent_size + 1));
         }
         if !is_stream_row(&line.content, info.delimiter, line.number)? {
             break;
@@ -1067,7 +1140,7 @@ fn emit_keyed_object<R: BufRead, S: EventSink>(
             break;
         }
         if line.depth != entry_depth {
-            return Err(stream_error(line.number, "over-indented line"));
+            return Err(stream_error(line.number, "over-indented line").with_column(line.depth * ctx.indent_size + 1));
         }
         let colon = match find_unquoted(&line.content, ':', line.number)? {
             None => {

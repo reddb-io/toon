@@ -172,7 +172,11 @@ fn failed_decode_keeps_the_previous_output() {
     fs::write(workspace.path().join("out.json"), "previous\n").expect("write previous output");
 
     let run = run_toon_in(
-        &["input.toon".to_owned(), "-o".to_owned(), "out.json".to_owned()],
+        &[
+            "input.toon".to_owned(),
+            "-o".to_owned(),
+            "out.json".to_owned(),
+        ],
         "",
         workspace.path(),
     );
@@ -184,7 +188,13 @@ fn failed_decode_keeps_the_previous_output() {
     );
     let mut names: Vec<String> = fs::read_dir(workspace.path())
         .expect("list workspace")
-        .map(|entry| entry.expect("entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     names.sort();
     assert_eq!(names, ["input.toon", "out.json"]);

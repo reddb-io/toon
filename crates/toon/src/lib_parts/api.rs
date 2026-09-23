@@ -22,6 +22,14 @@ pub fn decode_with_options(
     input: &str,
     options: &DecodeOptions,
 ) -> Result<Value, DecodeError> {
+    // Reject an oversized document before splitting it into lines.
+    if options.max_input_bytes != 0 && input.len() > options.max_input_bytes {
+        return Err(stream_limit_error(
+            1,
+            INPUT_BYTES_EXCEEDED,
+            options.max_input_bytes,
+        ));
+    }
     let mut value = build_value_from_event_results(decode_event_stream(input, options))?;
     if options.cyclic_discriminated_arrays {
         if let Value::Object(document) = value {
@@ -47,14 +55,21 @@ pub fn decode_reader<R: BufRead>(reader: R) -> Result<Value, DecodeError> {
 
 /// Decodes a complete TOON v4.1 value from buffered input with explicit options.
 pub fn decode_reader_with_options<R: BufRead>(
-    mut reader: R,
+    reader: R,
     options: &DecodeOptions,
 ) -> Result<Value, DecodeError> {
+    // One byte past the limit is enough to know the input is too long.
+    let cap = match options.max_input_bytes {
+        0 => u64::MAX,
+        limit => limit as u64 + 1,
+    };
+    let mut reader = std::io::Read::take(reader, cap);
     let mut input = String::new();
     std::io::Read::read_to_string(&mut reader, &mut input).map_err(|_| ParseError {
         line: 1,
         message: "failed to read input",
-        max_depth: None,
+        limit: None,
+        column: None,
     })?;
     decode_with_options(&input, options)
 }

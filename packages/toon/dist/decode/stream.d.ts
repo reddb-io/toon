@@ -22,6 +22,12 @@ export interface DecodeStreamOptions {
     cyclicDiscriminatedArrays?: boolean;
     objectArrayColumns?: boolean;
     maxDepth?: number;
+    /** Rejects input longer than this many UTF-8 bytes; 0 or Infinity = unlimited. */
+    maxInputBytes?: number;
+    /** Rejects an array header declaring more items; 0 or Infinity = unlimited. */
+    maxArrayLength?: number;
+    /** Rejects an object, or a tabular field list, with more keys; 0 or Infinity = unlimited. */
+    maxKeys?: number;
 }
 export interface FieldNode extends ExtensionFieldNode {
     children?: FieldNode[];

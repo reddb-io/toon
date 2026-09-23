@@ -30,6 +30,12 @@ export interface DecodeStreamOptions {
   cyclicDiscriminatedArrays?: boolean
   objectArrayColumns?: boolean
   maxDepth?: number
+  /** Rejects input longer than this many UTF-8 bytes; 0 or Infinity = unlimited. */
+  maxInputBytes?: number
+  /** Rejects an array header declaring more items; 0 or Infinity = unlimited. */
+  maxArrayLength?: number
+  /** Rejects an object, or a tabular field list, with more keys; 0 or Infinity = unlimited. */
+  maxKeys?: number
 }
 
 interface Ctx {
@@ -37,6 +43,10 @@ interface Ctx {
   strict: boolean
   objectArrayColumns: boolean
   maxDepth: number
+  /** 0 = unlimited, like the other limits. */
+  maxInputBytes: number
+  maxArrayLength: number
+  maxKeys: number
 }
 
 interface Line {
@@ -45,6 +55,8 @@ interface Line {
   content: string
   /** A blank line appeared between the previous content line and this one. */
   blankBefore: boolean
+  /** The first such blank line, which a blank-line error points at. */
+  blankLine: number
 }
 
 /** A full-line comment: only U+0020 spaces before `#` (§5.1). */
@@ -57,8 +69,10 @@ function isCommentLine(raw: string): boolean {
 class LineClassifier {
   readonly sourceByLine = new Map<number, string>()
   private number = 0
-  private blankPending = false
+  /** Number of the first blank line since the last content line; 0 = none. */
+  private blankPending = 0
   private firstLine = true
+  private bytes = 0
 
   constructor(private readonly ctx: Ctx) {}
 
@@ -66,6 +80,13 @@ class LineClassifier {
     let raw = input
     this.number++
     this.sourceByLine.set(this.number, input)
+    if (this.ctx.maxInputBytes !== 0) {
+      // Lines arrive without their LF, which counts once between two lines.
+      this.bytes += utf8Length(input) + (this.number > 1 ? 1 : 0)
+      if (this.bytes > this.ctx.maxInputBytes) {
+        throw toonError(this.number, `input exceeds maxInputBytes (${this.ctx.maxInputBytes})`)
+      }
+    }
     if (this.firstLine) {
       // A single leading U+FEFF is a byte-order mark, not content (§12).
       if (raw.startsWith('﻿')) raw = raw.slice(1)
@@ -77,7 +98,7 @@ class LineClassifier {
     // Blank means empty once trailing spaces are gone: only U+0020 is trimmed
     // (§12), so a line holding NBSP, U+3000 or a tab still carries content.
     if (raw === '') {
-      this.blankPending = true
+      if (this.blankPending === 0) this.blankPending = this.number
       return undefined
     }
     if (isCommentLine(raw)) return undefined
@@ -86,7 +107,7 @@ class LineClassifier {
     let spaces = 0
     while (i < raw.length && (raw[i] === ' ' || raw[i] === '\t')) {
       if (raw[i] === '\t') {
-        if (this.ctx.strict) throw toonError(this.number, 'tab used as indentation')
+        if (this.ctx.strict) throw toonError(this.number, 'tab used as indentation', { column: i + 1 })
         tabs++
       } else {
         spaces++
@@ -97,7 +118,7 @@ class LineClassifier {
     if (spaces % this.ctx.indentSize === 0) {
       depth = spaces / this.ctx.indentSize
     } else if (this.ctx.strict) {
-      throw toonError(this.number, 'invalid indentation')
+      throw toonError(this.number, 'invalid indentation', { column: spaces + 1 })
     } else {
       depth = Math.floor(spaces / this.ctx.indentSize)
     }
@@ -108,9 +129,10 @@ class LineClassifier {
       number: this.number,
       depth,
       content: raw.slice(i),
-      blankBefore: this.blankPending,
+      blankBefore: this.blankPending !== 0,
+      blankLine: this.blankPending,
     }
-    this.blankPending = false
+    this.blankPending = 0
     return line
   }
 }
@@ -420,7 +442,7 @@ class Reader {
     if (line === undefined) throw new Error('decoder attempted to read past end of input')
     this.lines.shift()
     if (ctx.strict && this.spanActive > 0 && line.blankBefore) {
-      throw toonError(line.number, 'blank line inside a header span')
+      throw toonError(line.blankLine, 'blank line inside a header span')
     }
     this.previous = line
     return line
@@ -451,14 +473,43 @@ function decodeKey(token: string, line: number): string {
 }
 
 function decodeContext(options?: DecodeStreamOptions): Ctx {
-  const rawMaxDepth = options?.maxDepth ?? DEFAULT_MAX_DEPTH
   return {
     indentSize: options?.indentSize ?? options?.indent ?? 2,
     strict: options?.strict ?? true,
     objectArrayColumns: options?.objectArrayColumns ?? true,
-    maxDepth: rawMaxDepth === Number.POSITIVE_INFINITY
-      ? 0
-      : Math.max(0, Math.floor(rawMaxDepth)),
+    maxDepth: resolveLimit(options?.maxDepth ?? DEFAULT_MAX_DEPTH),
+    maxInputBytes: resolveLimit(options?.maxInputBytes ?? 0),
+    maxArrayLength: resolveLimit(options?.maxArrayLength ?? 0),
+    maxKeys: resolveLimit(options?.maxKeys ?? 0),
+  }
+}
+
+/** Infinity and 0 both mean unlimited; anything else is floored. */
+function resolveLimit(value: number): number {
+  return value === Number.POSITIVE_INFINITY ? 0 : Math.max(0, Math.floor(value))
+}
+
+/** UTF-8 byte length without a host encoder, so the codec stays dependency-free. */
+function utf8Length(text: string): number {
+  let bytes = 0
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    if (code < 0x80) bytes += 1
+    else if (code < 0x800) bytes += 2
+    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
+      bytes += 4
+      i++
+    } else bytes += 3
+  }
+  return bytes
+}
+
+function assertHeaderLimits(header: Header, line: number, ctx: Ctx): void {
+  if (ctx.maxArrayLength !== 0 && header.length > ctx.maxArrayLength) {
+    throw toonError(line, `array length exceeds maxArrayLength (${ctx.maxArrayLength})`)
+  }
+  if (ctx.maxKeys !== 0 && header.fields !== undefined && header.fields.length > ctx.maxKeys) {
+    throw toonError(line, `object exceeds maxKeys (${ctx.maxKeys})`)
   }
 }
 
@@ -471,7 +522,9 @@ function* parseEvents(ctx: Ctx): ParserGenerator {
     yield { type: 'endObject', line: 1 }
     return
   }
-  if (first.depth !== 0) throw toonError(first.number, 'invalid indentation')
+  if (first.depth !== 0) {
+    throw toonError(first.number, 'invalid indentation', { column: first.depth * ctx.indentSize + 1 })
+  }
   // Fill the sole lookahead slot before root events so lexical/indentation
   // failures on the next content line retain their fail-before-event ordering.
   yield* reader.peek(1)
@@ -493,7 +546,10 @@ function* parseEvents(ctx: Ctx): ParserGenerator {
     if (ctx.strict) throw error
     headerFailed = true
   }
-  if (header !== null && header !== undefined) assertHeaderDepth(header.fields, first.number, ctx)
+  if (header !== null && header !== undefined) {
+    assertHeaderDepth(header.fields, first.number, ctx)
+    assertHeaderLimits(header, first.number, ctx)
+  }
 
   if (header !== null && header !== undefined && !headerFailed && header.key === undefined) {
     yield* reader.take(ctx)
@@ -540,7 +596,7 @@ function* emitObject(reader: Reader, depth: number, startLine: number, ctx: Ctx)
   while (true) {
     const line = yield* reader.peek()
     if (line === undefined || line.depth < depth) break
-    if (line.depth > depth) throw toonError(line.number, 'over-indented line')
+    if (line.depth > depth) throw toonError(line.number, 'over-indented line', { column: line.depth * ctx.indentSize + 1 })
     yield* reader.take(ctx)
     yield* emitEntry(reader, line, line.content, depth, ctx, seen)
   }
@@ -566,6 +622,7 @@ function* emitEntry(
 
   if (header !== null && header !== undefined) {
     assertHeaderDepth(header.fields, line.number, ctx)
+    assertHeaderLimits(header, line.number, ctx)
     if (header.key === undefined) {
       if (ctx.strict) {
         throw toonError(line.number, 'keyless header is only valid at the root or as a list item')
@@ -593,7 +650,7 @@ function* emitEntry(
   if (rest === '') {
     const child = yield* reader.peek()
     if (child !== undefined && child.depth > depth) {
-      if (child.depth !== depth + 1) throw toonError(child.number, 'over-indented line')
+      if (child.depth !== depth + 1) throw toonError(child.number, 'over-indented line', { column: child.depth * ctx.indentSize + 1 })
       yield* emitObject(reader, depth + 1, child.number, ctx)
     } else {
       yield { type: 'startObject', line: line.number }
@@ -615,6 +672,9 @@ function recordKey(seen: Set<string>, key: string, line: number, ctx: Ctx): void
     if (ctx.strict) throw toonError(line, 'duplicate object key')
   }
   seen.add(key)
+  if (ctx.maxKeys !== 0 && seen.size > ctx.maxKeys) {
+    throw toonError(line, `object exceeds maxKeys (${ctx.maxKeys})`)
+  }
 }
 
 // #endregion
@@ -667,7 +727,7 @@ function* emitArray(reader: Reader, header: Line, info: Header, ctx: Ctx): Parse
   while (true) {
     const line = yield* reader.peek()
     if (line === undefined || line.depth <= header.depth) break
-    if (line.depth !== header.depth + 1) throw toonError(line.number, 'over-indented line')
+    if (line.depth !== header.depth + 1) throw toonError(line.number, 'over-indented line', { column: line.depth * ctx.indentSize + 1 })
     if (!line.content.startsWith('- ') && line.content !== '-') break
     yield* reader.take(ctx)
     if (items === 0) reader.spanActive++
@@ -721,6 +781,7 @@ function* emitListItem(reader: Reader, line: Line, ctx: Ctx): ParserGenerator {
     header = null
   }
 
+  if (header !== null && header !== undefined) assertHeaderLimits(header, line.number, ctx)
   if (header !== null && header !== undefined && header.key === undefined) {
     assertHeaderDepth(header.fields, line.number, ctx)
     // A keyless non-keyed, non-fields header on a hyphen line is the item
@@ -770,7 +831,7 @@ function* emitTabularRows(reader: Reader, header: Line, info: Header, ctx: Ctx):
   while (true) {
     const line = yield* reader.peek()
     if (line === undefined || line.depth <= header.depth) break
-    if (line.depth !== rowDepth) throw toonError(line.number, 'over-indented line')
+    if (line.depth !== rowDepth) throw toonError(line.number, 'over-indented line', { column: line.depth * ctx.indentSize + 1 })
     if (!isRowLine(line.content, info.delimiter, line.number)) break
     yield* reader.take(ctx)
     if (rows === 0) reader.spanActive++
@@ -830,7 +891,7 @@ function* emitKeyedObject(reader: Reader, header: Line, info: Header, ctx: Ctx):
   while (true) {
     const line = yield* reader.peek()
     if (line === undefined || line.depth <= header.depth) break
-    if (line.depth !== entryDepth) throw toonError(line.number, 'over-indented line')
+    if (line.depth !== entryDepth) throw toonError(line.number, 'over-indented line', { column: line.depth * ctx.indentSize + 1 })
     const colon = findUnquoted(line.content, ':', line.number)
     if (colon === -1) {
       if (ctx.strict) throw toonError(line.number, 'expected a keyed entry row')
@@ -946,6 +1007,7 @@ function withSource(error: unknown, classifier: LineClassifier): unknown {
   if (!(error instanceof ToonError) || error.source !== undefined) return error
   return new ToonDecodeError(error.reason, {
     line: error.line,
+    column: error.column,
     source: classifier.sourceByLine.get(error.line),
     cause: error,
   })
