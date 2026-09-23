@@ -350,8 +350,15 @@ before settlement on success, RPC error, abort, timeout, send failure, transport
 failure/completion, or client close. Invalid, unknown-ID, and duplicate-ID
 responses are observable diagnostics, and valid batch siblings are isolated.
 
-The existing TypeScript and Rust packages remain quarantined while Spec #389 is
-in progress. The concrete TypeScript transports and Rust production client are
-still deferred, so shared semantic coverage does not imply that every production
-component conforms. Publication resumes only after lifecycle, transport,
-package, and exact-commit release gates pass.
+The TypeScript HTTP, WebSocket, TCP, stdio and SSE client transports are
+recovered (#405), with the TCP and stdio byte streams using the §8.1 framing
+profile, and the legacy ACP-style contract is pinned (#413).
+
+The TypeScript and Rust packages remain quarantined while Spec #389 is in
+progress. Still outstanding are the Rust production client, the Rust transports
+(whose TCP and stdio servers still split documents on blank lines instead of
+§8.1), TypeScript servers, resource limits and graceful shutdown, per-request
+dialect correlation, MCP against its pinned schema, and codegen. Shared semantic
+coverage therefore does not imply that every production component conforms.
+Publication resumes only after lifecycle, transport, package, and exact-commit
+release gates pass.
