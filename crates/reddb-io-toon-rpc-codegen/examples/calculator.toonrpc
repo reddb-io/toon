@@ -10,7 +10,7 @@ types:
   Stats:
     count: u32
     mean: f64?
-methods[4]:
+methods[5]:
   - name: add
     params:
       a: f64
@@ -29,3 +29,7 @@ methods[4]:
     params:
       values: f64[]
     result: Stats
+  - name: echo
+    params:
+      text: string
+    result: string

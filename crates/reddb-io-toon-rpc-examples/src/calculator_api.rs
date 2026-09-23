@@ -24,6 +24,7 @@ pub trait Calculator: Send + Sync + 'static {
     fn divide(&self, a: f64, b: f64) -> RpcResult<f64>;
     fn norm(&self, v: Vec2) -> RpcResult<f64>;
     fn stats(&self, values: Vec<f64>) -> RpcResult<Stats>;
+    fn echo(&self, text: String) -> RpcResult<String>;
 }
 
 /// Register every Calculator method on `dispatcher`, answered by `service`.
@@ -74,6 +75,17 @@ pub fn register_calculator(dispatcher: &mut Dispatcher, service: Arc<dyn Calcula
         let result = service_for_stats.stats(args.values)?;
         serde_json::to_value(result).map_err(|error| RpcError::InternalError(error.to_string()))
     });
+    let service_for_echo = service.clone();
+    dispatcher.register("echo", move |params, _id| {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Args {
+            text: String,
+        }
+        let args: Args = calculator_params(params, &["text"])?;
+        let result = service_for_echo.echo(args.text)?;
+        serde_json::to_value(result).map_err(|error| RpcError::InternalError(error.to_string()))
+    });
 }
 
 /// A typed Calculator client over any `Client`.
@@ -114,6 +126,13 @@ impl CalculatorClient {
         let mut params = serde_json::Map::new();
         params.insert("values".into(), serde_json::to_value(values).map_err(|error| ClientError::InvalidCall(error.to_string()))?);
         let result = self.client.call("stats", Params::ByName(params)).await?;
+        serde_json::from_value(result).map_err(|error| ClientError::Protocol(error.to_string()))
+    }
+
+    pub async fn echo(&self, text: String) -> Result<String, ClientError> {
+        let mut params = serde_json::Map::new();
+        params.insert("text".into(), serde_json::to_value(text).map_err(|error| ClientError::InvalidCall(error.to_string()))?);
+        let result = self.client.call("echo", Params::ByName(params)).await?;
         serde_json::from_value(result).map_err(|error| ClientError::Protocol(error.to_string()))
     }
 }

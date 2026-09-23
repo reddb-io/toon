@@ -18,6 +18,7 @@ function calculatorServer() {
       return a / b;
     },
     norm: (v) => Math.hypot(v.x, v.y),
+    echo: (text) => text,
     stats: (values) => ({
       count: values.length,
       mean: values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0) / values.length,
@@ -35,6 +36,7 @@ test('the generated client calls the generated server', async () => {
 
   assert.equal(await calculator.add(2, 3), 5);
   assert.equal(await calculator.norm({ x: 3, y: 4 }), 5);
+  assert.equal(await calculator.echo('multi\n\nline'), 'multi\n\nline');
   assert.deepEqual(await calculator.stats([1, 2, 6]), { count: 3, mean: 3 });
   assert.deepEqual(await calculator.stats([]), { count: 0, mean: null });
   await assert.rejects(calculator.divide(1, 0), (error) => error instanceof RpcError && error.code === -32602);

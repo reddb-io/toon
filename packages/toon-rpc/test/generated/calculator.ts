@@ -18,6 +18,7 @@ export interface Calculator {
   divide(a: number, b: number): number | Promise<number>;
   norm(v: Vec2): number | Promise<number>;
   stats(values: number[]): Stats | Promise<Stats>;
+  echo(text: string): string | Promise<string>;
 }
 
 /** Register every Calculator method on `server`, answered by `service`. */
@@ -37,6 +38,10 @@ export function registerCalculator(server: Server, service: Calculator): void {
   server.register('stats', async (params) => {
     const [values] = calculatorParams(params, ['values']);
     return (await service.stats(values as number[])) as unknown as CoreValue;
+  });
+  server.register('echo', async (params) => {
+    const [text] = calculatorParams(params, ['text']);
+    return (await service.echo(text as string)) as unknown as CoreValue;
   });
 }
 
@@ -66,6 +71,11 @@ export class CalculatorClient {
   async stats(values: number[]): Promise<Stats> {
     const params = { values } as unknown as Params;
     return (await this.client.call('stats', params)) as unknown as Stats;
+  }
+
+  async echo(text: string): Promise<string> {
+    const params = { text } as unknown as Params;
+    return (await this.client.call('echo', params)) as unknown as string;
   }
 }
 
