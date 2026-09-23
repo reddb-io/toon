@@ -13,6 +13,13 @@ now; this file is how it got there.
 
 ### Changed
 
+- **Rust `decode` builds its `Value` directly and jumps with `memchr`.** The
+  value is assembled while the grammar emits, without an intermediate event
+  vector, and strict mode skips the duplicate-key search it never needs
+  (+12–22%). The scanners jump to the next delimiter, quote or backslash with
+  `memchr`: long text gains 26%, tabular data 5–11%. Decode now runs 1.6–2.2×
+  toon-format on tables and 1.6× on long text.
+
 - **Rust decoding scans bytes instead of chars.** Delimiters, quotes and colons
   are ASCII, so the hot scanners no longer decode UTF-8 one `char` at a time.
   Cells are borrowed slices, and quoted strings copy whole runs between
