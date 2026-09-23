@@ -40,10 +40,18 @@ export async function* readLinesFromSource(source, strict, io) {
         yield buffer;
     }
 }
-/** Writes the pieces to a file or to stdout, always ending with a newline. */
+/**
+ * Writes the pieces to a file or to stdout, always ending with a newline.
+ *
+ * A file is written beside its target and renamed into place only once the
+ * whole document is out, so a conversion that fails partway through leaves an
+ * existing output untouched and no truncated file behind.
+ */
 export async function writeStream(pieces, options) {
     const { outputPath, separator, io } = options;
-    const handle = outputPath ? await fsp.open(outputPath, 'w') : undefined;
+    const tempPath = outputPath ? temporarySibling(outputPath) : undefined;
+    const handle = tempPath ? await openOutput(tempPath, outputPath) : undefined;
+    let completed = false;
     try {
         // The event stream arrives in token-sized pieces; batching them keeps a
         // large document from costing one write syscall per piece.
@@ -71,9 +79,27 @@ export async function writeStream(pieces, options) {
         }
         await write('\n');
         await flush();
+        completed = true;
     }
     finally {
         await handle?.close();
+        if (tempPath) {
+            if (completed)
+                await fsp.rename(tempPath, outputPath);
+            else
+                await fsp.rm(tempPath, { force: true });
+        }
+    }
+}
+function temporarySibling(outputPath) {
+    return path.join(path.dirname(outputPath), `.${path.basename(outputPath)}.tmp-${process.pid}`);
+}
+async function openOutput(tempPath, outputPath) {
+    try {
+        return await fsp.open(tempPath, 'w');
+    }
+    catch (error) {
+        throw new CliError(`Failed to write \`${outputPath}\`: ${error.message}`, { cause: error });
     }
 }
 /** Names an input the way the upstream success lines do. */
