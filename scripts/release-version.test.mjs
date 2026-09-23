@@ -144,7 +144,7 @@ test('release publication waits for drift and exact-commit CI gates', () => {
   const dependencyNames = (job) =>
     dependencies.filter((entry) => entry.job === job).map((entry) => entry.dependency)
 
-  for (const job of ['publish-github', 'publish-cargo', 'publish-npm']) {
+  for (const job of ['publish-github', 'publish-cargo', 'publish-npm', 'publish-vscode']) {
     assert.deepEqual(
       dependencyNames(job).filter((name) => ['upstream-drift', 'verify-ci'].includes(name)),
       ['upstream-drift', 'verify-ci'],
@@ -157,6 +157,22 @@ test('release publication waits for drift and exact-commit CI gates', () => {
   )
   assert.match(release, /upstream-drift:[\s\S]*?if: needs\.plan\.outputs\.should_skip != 'true'/)
   assert.match(release, /verify-ci:[\s\S]*?if: needs\.plan\.outputs\.should_skip != 'true'/)
+})
+
+test('the VS Code extension publishes the released .vsix on stable tags only', () => {
+  const release = text(root, '.github/workflows/release.yml')
+  const job = release.match(/\n  publish-vscode:\n([\s\S]*?)\n  [a-z-]+:\n/)?.[1]
+  assert.ok(job, 'release.yml must declare publish-vscode')
+  assert.match(job, /needs: \[plan, build-vsix, upstream-drift, verify-ci\]/)
+  assert.match(job, /release_channel == 'stable'/)
+  assert.match(job, /sha256sum -c reddb-toon\.vsix\.sha256/)
+  for (const [secret, command] of [
+    ['VSCE_PAT', '@vscode/vsce publish'],
+    ['OVSX_PAT', 'ovsx publish'],
+  ]) {
+    assert.match(job, new RegExp(`if \\[\\[ -z "\\$\\{${secret}\\}" \\]\\]; then[\\s\\S]*?exit 0`))
+    assert.match(job, new RegExp(`${command} --packagePath reddb-toon\\.vsix --skip-duplicate`))
+  }
 })
 
 test('GitHub Actions run project JavaScript on the pinned Node version', () => {

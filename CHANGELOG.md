@@ -175,10 +175,15 @@ now; this file is how it got there.
 
 ### Added
 
+- **The VS Code extension publishes to the Marketplace and Open VSX.** A new
+  `publish-vscode` release job sends the stable `.vsix` to both registries.
+  Each registry is skipped with a warning while its token (`VSCE_PAT`,
+  `OVSX_PAT`) is missing, and a version already published is skipped.
 - **A weekly cross-implementation diff.** `.github/workflows/toon-diff.yml`
   runs toon-diff's corpus and mutation generator through every ordered pair of
   the upstream TypeScript reference, `@reddb-io/toon` and the Rust `toon` CLI,
-  using the driver in `scripts/toon-diff/`. It is report-only.
+  using the driver in `scripts/toon-diff/`. A finding fails the run, but it
+  never gates a release.
 - **Decode limits for untrusted input:** `maxInputBytes`, `maxArrayLength` and
   `maxKeys` in TypeScript (`max_input_bytes`, `max_array_length`, `max_keys` in
   Rust); `0` or `Infinity` means unlimited, the default.
