@@ -1,8 +1,8 @@
 # RedDB Toon (`packages/vscode-toon`)
 
-Syntax highlighting for **TOON** (Token-Oriented Object Notation) and **TOONL**
-(the line-oriented streaming layer) in VS Code, as a declarative TextMate
-extension — no activation code.
+Syntax highlighting, strict-decode diagnostics, formatting, and JSON↔TOON
+conversion for **TOON** (Token-Oriented Object Notation) and **TOONL** (the
+line-oriented streaming layer) in VS Code.
 
 **Naming.** TOON is the work of the
 [toon-format](https://github.com/toon-format/spec) team. This extension ships
@@ -44,6 +44,27 @@ of them.
 TOON v4.1 full-line comments are highlighted when `#` is the first character
 after zero or more spaces. TOONL has no comment syntax, so its language
 configuration deliberately declares none.
+
+## Editor features
+
+The extension activates for `.toon`, `.toonl`, and JSON documents and runs the
+same `@reddb-io/toon` codec the npm package ships (vendored into the `.vsix` by
+`pnpm --filter reddb-toon build`).
+
+- **Diagnostics.** Every `.toon` and `.toonl` document is strict-decoded as you
+  type; the first error is underlined on its line, at its column when the
+  decoder knows it, with the stable error `kind` as its code. Turn it off with
+  `reddbToon.validate`.
+- **Format Document.** Re-encodes a `.toon` document canonically, using the
+  editor's tab size as the indent and `reddbToon.delimiter` for rows. A
+  document with comment lines is left alone, because formatting goes through
+  the JSON value and would drop them; so is a document that does not decode.
+- **Commands.** *RedDB Toon: Convert JSON to TOON* and *Convert TOON to JSON*
+  open the converted selection (or whole document) in a new editor; TOONL
+  converts to a JSON array of records.
+- **Status bar.** Shows the size and estimated tokens of a TOON document, and
+  for JSON the token change TOON would bring (`TOON -38% tokens`), using the
+  same estimator as `toon --stats`.
 
 ## Known limits
 

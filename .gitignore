@@ -7,3 +7,6 @@ target/
 **/.red/tmp/
 **/.red/state/
 coverage/
+
+# Vendored codec copy the VS Code extension build writes before packaging.
+packages/vscode-toon/dist/
