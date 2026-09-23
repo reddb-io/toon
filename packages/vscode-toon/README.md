@@ -86,15 +86,15 @@ curl -fsSL https://github.com/reddb-io/toon/releases/latest/download/reddb-toon.
 One-liner from a clone of this repository:
 
 ```sh
-(cd packages/vscode-toon && pnpm dlx @vscode/vsce package -o reddb-toon.vsix) && code --install-extension packages/vscode-toon/reddb-toon.vsix
+(cd packages/vscode-toon && pnpm build && pnpm dlx @vscode/vsce package -o reddb-toon.vsix) && code --install-extension packages/vscode-toon/reddb-toon.vsix
 ```
 
 VSCodium and Cursor users: swap `code` for `codium` / `cursor`. Once the
 extension is listed on the Marketplace and Open VSX (planned), the in-editor
 one-liner becomes `Ctrl+P` → `ext install reddb-io.reddb-toon`.
 
-Or press `F5` with this folder open in VS Code to launch an Extension
-Development Host. `examples/sample.toon` and `examples/sample.toonl` exercise
+Or run `pnpm build` here (it vendors the codec into `dist/codec/`), then press
+`F5` with this folder open in VS Code to launch an Extension Development Host. `examples/sample.toon` and `examples/sample.toonl` exercise
 every construct the grammars know about.
 
 ## Tests

@@ -48,6 +48,35 @@ Main entry points:
 - `try_to_canonical_toon()` and `try_to_toon_with_options(options)` return `EncodeError`.
 - `to_json_value()` and `to_json_string(compact)` convert back to `serde_json`.
 
+## Typed serde API
+
+With the default `serde` feature, `to_string` and `from_str` (plus their
+`_with_options` variants) convert any `Serialize` / `DeserializeOwned` type.
+Both directions go through the JSON data model, so serde attributes such as
+`rename` and `skip_serializing_if` shape the TOON document exactly as they shape
+JSON. `SerdeError` tells a malformed document (`Decode`), an unencodable value
+(`Encode`) and a type mismatch (`Data`) apart.
+
+```rust
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct User {
+    id: u32,
+    name: String,
+}
+
+let users = vec![User { id: 1, name: "Ada".into() }, User { id: 2, name: "Linus".into() }];
+let toon = reddb_io_toon::to_string(&users)?;
+assert_eq!(toon, "[2]{id,name}:\n  1,Ada\n  2,Linus");
+
+let back: Vec<User> = reddb_io_toon::from_str(&toon)?;
+assert_eq!(back, users);
+# Ok::<(), reddb_io_toon::SerdeError>(())
+```
+
+Build with `default-features = false` to drop the `serde` dependency.
+
 ## Parse Options
 
 Strict mode is on by default and enforces the hardened v4.1 error checklist.
@@ -87,6 +116,40 @@ assert_eq!(error.line(), 3);
 assert!(error.to_string().contains("maxDepth 1"));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
+
+`max_input_bytes`, `max_array_length` and `max_keys` bound untrusted input,
+such as model output: total bytes, the length an array header declares, and the
+keys of one object or tabular field list. `0`, the default, means unlimited.
+`decode_reader_with_options` stops reading one byte past `max_input_bytes`.
+
+Every `DecodeError` reports `line()`, a stable `kind()` shared with the
+TypeScript decoder's `kind` (`ErrorKind::Syntax`, `Indentation`,
+`LengthMismatch`, `DuplicateKey`, `DepthLimit`, `InputLimit`, `Io`), the
+configured `limit()` a limit error tripped, and a 1-based `column()` for
+indentation errors. Branch on `kind()` rather than on message wording.
+
+```rust
+use reddb_io_toon::{decode, decode_with_options, DecodeOptions, ErrorKind};
+
+let limited = DecodeOptions {
+    max_array_length: 1000,
+    ..DecodeOptions::default()
+};
+let error = decode_with_options("items[4294967296]: 1", &limited).expect_err("declared length");
+assert_eq!(error.kind(), ErrorKind::InputLimit);
+assert_eq!(error.to_string(), "line 1: array length exceeds maxArrayLength (1000)");
+
+let indentation = decode("a:\n   b: 1").expect_err("three spaces");
+assert_eq!((indentation.kind(), indentation.column()), (ErrorKind::Indentation, Some(4)));
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Numbers keep their integer digits verbatim, so a `u64` or larger survives a
+round trip (the TypeScript package rounds past `Number.MAX_SAFE_INTEGER`).
+Non-integral numbers are written with shortest round-trip digits in the
+reference encoder's `Number#toString` layout: plain inside `[1e-6, 1e21)`,
+exponent form outside it (`5e-324`, `1e+21`), so both engines emit the same
+bytes.
 
 ## Encode options
 
