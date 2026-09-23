@@ -1,9 +1,15 @@
 // The iterator boundary of the event decoder (ADR 0006): the sink the
 // recursive grammar emits through, and the `EventDecoder` handle that pulls
-// events across a zero-capacity channel. Splitting it from the grammar in
+// batches of events across a zero-capacity channel. Splitting it from the grammar in
 // `stream.rs` keeps both parts inside the shared file-length budget.
 
 const EVENT_DECODER_STACK_SIZE: usize = 8 * 1024 * 1024;
+
+/// Events per channel message. One thread handoff per event cost about 3.5 µs
+/// per key or value; a batch amortizes it while memory stays bounded.
+const EVENT_BATCH: usize = 256;
+
+type EventBatch = Vec<Result<ToonEvent, ParseError>>;
 
 trait EventSink {
     fn emit(&mut self, event: ToonEvent) -> Result<(), ParseError>;
@@ -17,15 +23,91 @@ impl EventSink for Vec<ToonEvent> {
 }
 
 struct ChannelSink {
-    sender: SyncSender<Result<ToonEvent, ParseError>>,
+    sender: SyncSender<EventBatch>,
+    batch: EventBatch,
+}
+
+/// The worker's sink, shared with [`FlushingReader`] so a pending batch goes
+/// out before the parser waits on input.
+struct SharedSink(std::rc::Rc<std::cell::RefCell<ChannelSink>>);
+
+impl EventSink for SharedSink {
+    fn emit(&mut self, event: ToonEvent) -> Result<(), ParseError> {
+        self.0.borrow_mut().emit(event)
+    }
+}
+
+/// Wraps the input so the parser only reads from the source on demand: under
+/// `BufRead` semantics, once every byte the last `fill_buf` returned is
+/// consumed, the next `fill_buf` goes to the underlying source, so the pending
+/// batch is delivered and the worker waits for the consumer first. Input that
+/// is already buffered decodes in full batches without a handoff per event.
+struct FlushingReader<R> {
+    inner: R,
+    buffered: usize,
+    sink: std::rc::Rc<std::cell::RefCell<ChannelSink>>,
+}
+
+impl<R: BufRead> std::io::Read for FlushingReader<R> {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        let available = self.fill_buf()?;
+        let count = available.len().min(out.len());
+        out[..count].copy_from_slice(&available[..count]);
+        self.consume(count);
+        Ok(count)
+    }
+}
+
+impl<R: BufRead> BufRead for FlushingReader<R> {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        if self.buffered == 0 {
+            self.sink
+                .borrow_mut()
+                .wait_for_demand()
+                .map_err(|_| std::io::Error::new(std::io::ErrorKind::BrokenPipe, "event consumer disconnected"))?;
+        }
+        let available = self.inner.fill_buf()?;
+        self.buffered = available.len();
+        Ok(available)
+    }
+
+    fn consume(&mut self, amount: usize) {
+        self.buffered = self.buffered.saturating_sub(amount);
+        self.inner.consume(amount);
+    }
+}
+
+impl ChannelSink {
+    /// Blocks until the consumer has drained everything delivered so far and
+    /// asks for more: a rendezvous send of an empty batch only completes on the
+    /// consumer's next `recv`. Called before a read that may go to the source,
+    /// so the parser never reads ahead of demand.
+    fn wait_for_demand(&mut self) -> Result<(), ParseError> {
+        self.flush(0)?;
+        self.sender
+            .send(Vec::new())
+            .map_err(|_| stream_error(0, "event consumer disconnected"))
+    }
+
+    fn flush(&mut self, line: usize) -> Result<(), ParseError> {
+        if self.batch.is_empty() {
+            return Ok(());
+        }
+        let batch = std::mem::replace(&mut self.batch, Vec::with_capacity(EVENT_BATCH));
+        self.sender
+            .send(batch)
+            .map_err(|_| stream_error(line, "event consumer disconnected"))
+    }
 }
 
 impl EventSink for ChannelSink {
     fn emit(&mut self, event: ToonEvent) -> Result<(), ParseError> {
         let line = event.line();
-        self.sender
-            .send(Ok(event))
-            .map_err(|_| stream_error(line, "event consumer disconnected"))
+        self.batch.push(Ok(event));
+        if self.batch.len() >= EVENT_BATCH {
+            self.flush(line)?;
+        }
+        Ok(())
     }
 }
 
@@ -43,22 +125,30 @@ impl ToonEvent {
 }
 
 /// Iterator over positioned decode events. A zero-capacity channel keeps the
-/// parser coupled to iteration, so neither input nor events are accumulated.
+/// parser coupled to iteration: it runs at most one batch of events ahead, so
+/// memory stays bounded whatever the input size. A consumer of a slow source
+/// sees events a batch at a time rather than one by one.
 pub struct EventDecoder {
-    receiver: Receiver<Result<ToonEvent, ParseError>>,
+    receiver: Receiver<EventBatch>,
+    pending: std::vec::IntoIter<Result<ToonEvent, ParseError>>,
     worker: Option<JoinHandle<()>>,
 }
 
 impl Iterator for EventDecoder {
     type Item = Result<ToonEvent, ParseError>;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.receiver.recv() {
-            Ok(event) => Some(event),
-            Err(_) => {
-                if let Some(worker) = self.worker.take() {
-                    let _ = worker.join();
+        loop {
+            if let Some(event) = self.pending.next() {
+                return Some(event);
+            }
+            match self.receiver.recv() {
+                Ok(batch) => self.pending = batch.into_iter(),
+                Err(_) => {
+                    if let Some(worker) = self.worker.take() {
+                        let _ = worker.join();
+                    }
+                    return None;
                 }
-                None
             }
         }
     }
@@ -94,18 +184,29 @@ where
         max_keys: options.max_keys,
         truncation_span: Cell::new(None),
     };
-    let error_sender = sender.clone();
     let worker = std::thread::Builder::new()
         .stack_size(EVENT_DECODER_STACK_SIZE)
         .spawn(move || {
-            let mut sink = ChannelSink { sender };
+            let shared = std::rc::Rc::new(std::cell::RefCell::new(ChannelSink {
+                sender,
+                batch: Vec::with_capacity(EVENT_BATCH),
+            }));
+            let reader = FlushingReader {
+                inner: reader,
+                buffered: 0,
+                sink: std::rc::Rc::clone(&shared),
+            };
+            let mut sink = SharedSink(std::rc::Rc::clone(&shared));
             if let Err(error) = decode_events_into(reader, &ctx, &mut sink) {
-                let _ = error_sender.send(Err(error));
+                shared.borrow_mut().batch.push(Err(error));
             }
+            // The consumer may already be gone; nothing is left to report to.
+            let _ = shared.borrow_mut().flush(0);
         })
         .expect("failed to spawn TOON event decoder");
     EventDecoder {
         receiver,
+        pending: Vec::new().into_iter(),
         worker: Some(worker),
     }
 }

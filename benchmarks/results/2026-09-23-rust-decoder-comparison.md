@@ -26,6 +26,25 @@ repository and is not part of `cargo bench`.
 | mixed list form | 59,065 | 1.88 | 26.1 | 30.5 | 157.0 | 181.1 |
 | long text | 364,599 | 50.3 | 122.6 | 190.4 | 1,178.5 | 1,276.8 |
 
+### After the fix, including the streaming path
+
+Second run on the shipped change: `decode` on one worker handoff per call, and
+`decode_iter` / `decode_event_reader` (behind `toon -d`) batching up to 256
+events per channel message. MiB/s; this run measured about 20% lower than the
+prototype run on the same inputs, which is within this laptop's thermal
+variance.
+
+| Input | decode, 0.30.0 | decode | decode_iter (streaming) |
+| --- | ---: | ---: | ---: |
+| tabular, 1k rows | 1.03 | 20.8 | 18.2 |
+| tabular, 10k rows | 1.27 | 25.9 | 20.0 |
+| nested objects | 2.04 | 22.5 | 22.3 |
+| mixed list form | 1.88 | 21.8 | 20.9 |
+| long text | 50.3 | 97.5 | 94.1 |
+
+The 0.30.0 `decode` drove the same per-event channel as the streaming API, so
+its column is also the streaming baseline.
+
 ## Encode
 
 | Input | reddb-io-toon | toon-format |
@@ -48,9 +67,11 @@ repository and is not part of `cargo bench`.
   nesting keeps its stack. That alone lifts decode to 26–34 MiB/s, ahead of
   toon-format on tabular input, and the full `reddb-io-toon` test suite passes
   unchanged.
-- **The streaming paths still pay per event.** `decode_event_reader` also
-  backs `toon -d` and the event APIs; batching events per channel message
-  would carry the same win there without giving up streaming.
+- **Streaming keeps its contract.** `decode_event_reader` now batches events,
+  and before any read that may reach the source it hands the batch over and
+  waits until the consumer asks for more. A slow stream still yields events
+  before EOF, and the parser never reads ahead of demand (the existing
+  gated-reader test pins both), while buffered input decodes in full batches.
 - **simd-toon stays 4–10× ahead** after the fix. Its SIMD structural scan and
   borrowed values are the remaining gap. A `memchr`-based line and delimiter
   scanner is the incremental step toward it; a full SIMD port is not justified
