@@ -33,6 +33,15 @@ now; this file is how it got there.
   empty message for a notification, caps message and frame sizes, and answers
   in the kind of message the request used.
 
+- **Breaking (toon-rpc, Rust):** SSE follows the §8.2 duplex profile. The
+  event stream stays open and carries each response as one `data:` event; a
+  POST is only acknowledged (`202`). Both legs name a client-chosen `session`
+  query parameter, and closing the stream ends the session. `SseTransport` is
+  the new client. The old registry, whose stream closed after one event and
+  answered in the POST body, is gone. Long polling stays unpublished (spec §9
+  defers it): its unauthenticated `/notify` route is removed, events are pushed
+  in-process only, and the waiter table is bounded and cleaned up.
+
 - **Rust `decode` builds its `Value` directly and jumps with `memchr`.** The
   value is assembled while the grammar emits, without an intermediate event
   vector, and strict mode skips the duplicate-key search it never needs

@@ -1243,11 +1243,8 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "parking_lot",
  "reddb-io-toon-rpc",
- "serde_json",
  "tokio",
- "tokio-test",
 ]
 
 [[package]]
@@ -1274,16 +1271,16 @@ dependencies = [
 name = "reddb-io-toon-rpc-sse"
 version = "0.30.4"
 dependencies = [
+ "async-trait",
  "bytes",
+ "futures",
  "http",
  "http-body-util",
  "hyper",
  "hyper-util",
- "parking_lot",
  "reddb-io-toon-rpc",
  "serde_json",
  "tokio",
- "tokio-test",
 ]
 
 [[package]]
