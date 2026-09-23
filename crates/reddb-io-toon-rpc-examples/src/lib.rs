@@ -32,6 +32,10 @@ impl calculator_api::Calculator for Calculator {
         Ok(v.x.hypot(v.y))
     }
 
+    fn echo(&self, text: String) -> RpcResult<String> {
+        Ok(text)
+    }
+
     fn stats(&self, values: Vec<f64>) -> RpcResult<Stats> {
         let count = u32::try_from(values.len())
             .map_err(|_| RpcError::InvalidParams("too many values".into()))?;
