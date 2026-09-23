@@ -1,337 +1,245 @@
-use reddb_io_toon_rpc::{ClientTransport, Dispatcher, RpcError};
-use std::net::SocketAddr;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
+//! TOON-RPC over TCP and Unix sockets, framed per spec §8.1.
+//!
+//! Each connection carries length-prefixed frames in both directions. The
+//! server dispatches every request document in order and answers with one
+//! frame per non-empty response; a framing error closes the connection, since
+//! the stream has no point to resynchronize from.
 
-/// TCP server that handles TOON-RPC requests line-by-line (newline-delimited)
+use std::io;
+use std::net::SocketAddr;
+
+use reddb_io_toon_rpc::{serve_framed, Dispatcher, FramedTransport, RpcError};
+use tokio::net::{tcp, TcpListener, TcpStream, ToSocketAddrs};
+
+/// A client transport over one TCP connection.
+pub type TcpTransport = FramedTransport<tcp::OwnedReadHalf, tcp::OwnedWriteHalf>;
+
+/// Connect to a TOON-RPC TCP server.
+pub async fn connect_tcp(addr: impl ToSocketAddrs) -> Result<TcpTransport, RpcError> {
+    let stream = TcpStream::connect(addr)
+        .await
+        .map_err(|error| RpcError::TransportError(error.to_string()))?;
+    let (reader, writer) = stream.into_split();
+    Ok(FramedTransport::new(reader, writer))
+}
+
+/// A TCP server bound to an address the caller chose.
 pub struct TcpServer {
-    pub addr: SocketAddr,
+    listener: TcpListener,
     dispatcher: Dispatcher,
 }
 
 impl TcpServer {
-    pub fn new(addr: SocketAddr, dispatcher: Dispatcher) -> Self {
-        Self { addr, dispatcher }
+    pub async fn bind(addr: impl ToSocketAddrs, dispatcher: Dispatcher) -> io::Result<Self> {
+        Ok(Self::from_listener(
+            TcpListener::bind(addr).await?,
+            dispatcher,
+        ))
     }
 
-    pub async fn serve(self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let listener = TcpListener::bind(self.addr).await?;
-        println!("TOON-RPC TCP server listening on {}", self.addr);
-
-        loop {
-            let (stream, _) = listener.accept().await?;
-            let dispatcher = self.dispatcher.clone();
-            tokio::spawn(async move {
-                if let Err(e) = handle_connection(stream, dispatcher).await {
-                    eprintln!("[TCP] Connection error: {}", e);
-                }
-            });
-        }
-    }
-}
-
-async fn handle_connection(
-    stream: TcpStream,
-    dispatcher: Dispatcher,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let (read_half, mut write_half) = stream.into_split();
-    let mut reader = BufReader::new(read_half);
-    let mut buffer = String::new();
-
-    loop {
-        let mut line = String::new();
-        let n = reader.read_line(&mut line).await?;
-        if n == 0 {
-            // EOF
-            if !buffer.is_empty() {
-                let response = dispatch_to_string(&dispatcher, &buffer);
-                write_half.write_all(response.as_bytes()).await?;
-            }
-            break;
-        }
-
-        // Empty line marks end of a TOON message
-        if line == "\n" || line == "\r\n" {
-            if !buffer.is_empty() {
-                let response = dispatch_to_string(&dispatcher, &buffer);
-                write_half.write_all(response.as_bytes()).await?;
-                buffer.clear();
-            }
-        } else {
-            buffer.push_str(&line);
-        }
-    }
-
-    Ok(())
-}
-
-fn dispatch_to_string(dispatcher: &Dispatcher, buffer: &str) -> String {
-    match dispatcher.dispatch(buffer.trim().as_bytes()) {
-        Ok(bytes) => {
-            let mut s = String::from_utf8(bytes).unwrap_or_default();
-            s.push_str("\n\n");
-            s
-        }
-        Err(e) => {
-            let err = serde_json::json!({
-                "toonrpc": "1.0",
-                "error": {"code": -32603, "message": e.to_string()},
-                "id": null
-            });
-            let mut s = err.to_string();
-            s.push_str("\n\n");
-            s
-        }
-    }
-}
-
-/// TCP client transport
-pub struct TcpClient {
-    pub addr: SocketAddr,
-    stream: Mutex<Option<TcpStream>>,
-}
-
-impl TcpClient {
-    pub async fn connect(addr: SocketAddr) -> Result<Self, RpcError> {
-        let stream = TcpStream::connect(addr)
-            .await
-            .map_err(|e| RpcError::TransportError(e.to_string()))?;
-        Ok(Self {
-            addr,
-            stream: Mutex::new(Some(stream)),
-        })
-    }
-}
-
-#[async_trait::async_trait]
-impl ClientTransport for TcpClient {
-    async fn send(&self, data: Vec<u8>) -> Result<(), RpcError> {
-        let mut guard = self.stream.lock().await;
-        let stream = guard
-            .as_mut()
-            .ok_or_else(|| RpcError::TransportError("not connected".to_string()))?;
-        let mut payload = data;
-        payload.push(b'\n');
-        payload.push(b'\n');
-        stream
-            .write_all(&payload)
-            .await
-            .map_err(|e| RpcError::TransportError(e.to_string()))?;
-        Ok(())
-    }
-
-    async fn recv(&self) -> Result<Vec<u8>, RpcError> {
-        let mut guard = self.stream.lock().await;
-        let stream = guard
-            .as_mut()
-            .ok_or_else(|| RpcError::TransportError("not connected".to_string()))?;
-        use tokio::io::AsyncBufReadExt;
-        let mut reader = BufReader::new(stream);
-        let mut buffer = String::new();
-        let mut line = String::new();
-        loop {
-            line.clear();
-            let n = reader
-                .read_line(&mut line)
-                .await
-                .map_err(|e| RpcError::TransportError(e.to_string()))?;
-            if n == 0 {
-                break;
-            }
-            if line == "\n" || line == "\r\n" {
-                break;
-            }
-            buffer.push_str(&line);
-        }
-        Ok(buffer.trim().as_bytes().to_vec())
-    }
-}
-
-/// Unix Socket server
-#[cfg(unix)]
-pub struct UnixServer {
-    pub path: std::path::PathBuf,
-    dispatcher: Dispatcher,
-}
-
-#[cfg(unix)]
-impl UnixServer {
-    pub fn new(path: impl Into<std::path::PathBuf>, dispatcher: Dispatcher) -> Self {
+    pub fn from_listener(listener: TcpListener, dispatcher: Dispatcher) -> Self {
         Self {
-            path: path.into(),
+            listener,
             dispatcher,
         }
     }
 
-    pub async fn serve(self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        use tokio::net::UnixListener;
-        // Remove existing socket file if present
-        let _ = std::fs::remove_file(&self.path);
-        let listener = UnixListener::bind(&self.path)?;
-        println!("TOON-RPC Unix Socket server listening on {:?}", self.path);
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.listener.local_addr()
+    }
 
+    /// Accept connections until accepting fails, serving each on its own task.
+    pub async fn serve(self) -> io::Result<()> {
         loop {
-            let (stream, _) = listener.accept().await?;
+            let (stream, _) = self.listener.accept().await?;
             let dispatcher = self.dispatcher.clone();
             tokio::spawn(async move {
-                if let Err(e) = handle_unix_connection(stream, dispatcher).await {
-                    eprintln!("[Unix] Connection error: {}", e);
-                }
+                let (reader, writer) = stream.into_split();
+                // A failed connection only ends itself.
+                let _ = serve_framed(reader, writer, &dispatcher).await;
             });
         }
     }
 }
 
 #[cfg(unix)]
-async fn handle_unix_connection(
-    stream: tokio::net::UnixStream,
-    dispatcher: Dispatcher,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let (read_half, mut write_half) = stream.into_split();
-    let mut reader = BufReader::new(read_half);
-    let mut buffer = String::new();
-
-    loop {
-        let mut line = String::new();
-        let n = reader.read_line(&mut line).await?;
-        if n == 0 {
-            if !buffer.is_empty() {
-                let response = dispatch_to_string(&dispatcher, &buffer);
-                write_half.write_all(response.as_bytes()).await?;
-            }
-            break;
-        }
-
-        if line == "\n" || line == "\r\n" {
-            if !buffer.is_empty() {
-                let response = dispatch_to_string(&dispatcher, &buffer);
-                write_half.write_all(response.as_bytes()).await?;
-                buffer.clear();
-            }
-        } else {
-            buffer.push_str(&line);
-        }
-    }
-
-    Ok(())
-}
-
-/// Unix Socket client
-#[cfg(unix)]
-pub struct UnixClient {
-    pub path: std::path::PathBuf,
-    stream: Mutex<Option<tokio::net::UnixStream>>,
-}
+pub use unix::{connect_unix, UnixServer, UnixTransport};
 
 #[cfg(unix)]
-impl UnixClient {
-    pub async fn connect(path: impl Into<std::path::PathBuf>) -> Result<Self, RpcError> {
-        let path = path.into();
-        let stream = tokio::net::UnixStream::connect(&path)
+mod unix {
+    use std::io;
+    use std::path::{Path, PathBuf};
+
+    use reddb_io_toon_rpc::{serve_framed, Dispatcher, FramedTransport, RpcError};
+    use tokio::net::{unix, UnixListener, UnixStream};
+
+    /// A client transport over one Unix socket connection.
+    pub type UnixTransport = FramedTransport<unix::OwnedReadHalf, unix::OwnedWriteHalf>;
+
+    /// Connect to a TOON-RPC Unix socket server.
+    pub async fn connect_unix(path: impl AsRef<Path>) -> Result<UnixTransport, RpcError> {
+        let stream = UnixStream::connect(path)
             .await
-            .map_err(|e| RpcError::TransportError(e.to_string()))?;
-        Ok(Self {
-            path,
-            stream: Mutex::new(Some(stream)),
-        })
-    }
-}
-
-#[cfg(unix)]
-#[async_trait::async_trait]
-impl ClientTransport for UnixClient {
-    async fn send(&self, data: Vec<u8>) -> Result<(), RpcError> {
-        let mut guard = self.stream.lock().await;
-        let stream = guard
-            .as_mut()
-            .ok_or_else(|| RpcError::TransportError("not connected".to_string()))?;
-        let mut payload = data;
-        payload.push(b'\n');
-        payload.push(b'\n');
-        stream
-            .write_all(&payload)
-            .await
-            .map_err(|e| RpcError::TransportError(e.to_string()))?;
-        Ok(())
+            .map_err(|error| RpcError::TransportError(error.to_string()))?;
+        let (reader, writer) = stream.into_split();
+        Ok(FramedTransport::new(reader, writer))
     }
 
-    async fn recv(&self) -> Result<Vec<u8>, RpcError> {
-        let mut guard = self.stream.lock().await;
-        let stream = guard
-            .as_mut()
-            .ok_or_else(|| RpcError::TransportError("not connected".to_string()))?;
-        use tokio::io::AsyncBufReadExt;
-        let mut reader = BufReader::new(stream);
-        let mut buffer = String::new();
-        let mut line = String::new();
-        loop {
-            line.clear();
-            let n = reader
-                .read_line(&mut line)
-                .await
-                .map_err(|e| RpcError::TransportError(e.to_string()))?;
-            if n == 0 {
-                break;
+    /// A Unix socket server. Binding replaces a stale socket file.
+    pub struct UnixServer {
+        listener: UnixListener,
+        path: PathBuf,
+        dispatcher: Dispatcher,
+    }
+
+    impl UnixServer {
+        pub fn bind(path: impl Into<PathBuf>, dispatcher: Dispatcher) -> io::Result<Self> {
+            let path = path.into();
+            match std::fs::remove_file(&path) {
+                Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error),
+                _ => {}
             }
-            if line == "\n" || line == "\r\n" {
-                break;
-            }
-            buffer.push_str(&line);
+            let listener = UnixListener::bind(&path)?;
+            Ok(Self {
+                listener,
+                path,
+                dispatcher,
+            })
         }
-        Ok(buffer.trim().as_bytes().to_vec())
+
+        pub fn path(&self) -> &Path {
+            &self.path
+        }
+
+        /// Accept connections until accepting fails, serving each on its own task.
+        pub async fn serve(self) -> io::Result<()> {
+            loop {
+                let (stream, _) = self.listener.accept().await?;
+                let dispatcher = self.dispatcher.clone();
+                tokio::spawn(async move {
+                    let (reader, writer) = stream.into_split();
+                    let _ = serve_framed(reader, writer, &dispatcher).await;
+                });
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reddb_io_toon_rpc::{Client, ClientError, ClientOptions, ErrorCode, Params};
+    use serde_json::json;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    fn dispatcher() -> Dispatcher {
+        let mut dispatcher = Dispatcher::new();
+        dispatcher.register("echo", |params, _id| match params {
+            Params::ByPosition(mut values) if !values.is_empty() => Ok(values.remove(0)),
+            _ => Ok(json!(null)),
+        });
+        dispatcher
+    }
+
+    async fn server() -> SocketAddr {
+        let server = TcpServer::bind("127.0.0.1:0", dispatcher()).await.unwrap();
+        let addr = server.local_addr().unwrap();
+        tokio::spawn(server.serve());
+        addr
+    }
 
     #[tokio::test]
-    async fn test_tcp_request_response() {
-        let mut dispatcher = Dispatcher::new();
-        dispatcher.register("echo", |_params, _id| Ok(serde_json::json!("hello back")));
+    async fn concurrent_calls_are_correlated_by_id() {
+        let client = Client::duplex(
+            connect_tcp(server().await).await.unwrap(),
+            ClientOptions::default(),
+        );
+        // A multi-line document with a blank line inside must survive framing.
+        let text = "line one\n\nline three";
+        let calls = (0..16).map(|n| {
+            client.call(
+                "echo",
+                Params::ByPosition(vec![json!(format!("{text} #{n}"))]),
+            )
+        });
+        let results = futures_join(calls).await;
+        for (n, result) in results.into_iter().enumerate() {
+            assert_eq!(result.unwrap(), json!(format!("{text} #{n}")));
+        }
+        let missing = client.call("missing", Params::Absent).await.unwrap_err();
+        assert!(
+            matches!(missing, ClientError::Rpc(error) if error.code == ErrorCode::MethodNotFound)
+        );
+        client.close().await.unwrap();
+    }
 
-        // Bind to a random port
+    #[tokio::test]
+    async fn notifications_get_no_frame_back() {
+        let mut stream = TcpStream::connect(server().await).await.unwrap();
+        let notification = b"toonrpc: \"1.0\"\nmethod: echo";
+        stream
+            .write_all(&reddb_io_toon_rpc::encode_frame(notification))
+            .await
+            .unwrap();
+        stream.shutdown().await.unwrap();
+        let mut rest = Vec::new();
+        stream.read_to_end(&mut rest).await.unwrap();
+        assert_eq!(rest, b"");
+    }
+
+    #[tokio::test]
+    async fn a_framing_error_closes_the_connection() {
+        let mut stream = TcpStream::connect(server().await).await.unwrap();
+        stream.write_all(b"toonrpc: \"1.0\"\n\n").await.unwrap();
+        let mut rest = Vec::new();
+        stream.read_to_end(&mut rest).await.unwrap();
+        assert_eq!(rest, b"");
+    }
+
+    #[tokio::test]
+    async fn the_server_closing_rejects_pending_calls() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        drop(listener);
-
-        // Start server
-        let dispatcher_clone = dispatcher.clone();
         tokio::spawn(async move {
-            let server = TcpServer::new(addr, dispatcher_clone);
-            let _ = server.serve().await;
+            let (stream, _) = listener.accept().await.unwrap();
+            drop(stream);
         });
+        let client = Client::duplex(connect_tcp(addr).await.unwrap(), ClientOptions::default());
+        let error = client.call("echo", Params::Absent).await.unwrap_err();
+        assert!(matches!(
+            error,
+            ClientError::Closed(_) | ClientError::Transport(_)
+        ));
+        assert_eq!(client.pending_call_count(), 0);
+    }
 
-        // Give server time to start
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unix_sockets_use_the_same_framing() {
+        let path = std::env::temp_dir().join(format!("toon-rpc-{}.sock", std::process::id()));
+        let server = UnixServer::bind(&path, dispatcher()).unwrap();
+        tokio::spawn(server.serve());
+        let client = Client::duplex(connect_unix(&path).await.unwrap(), ClientOptions::default());
+        let result = client
+            .call("echo", Params::ByPosition(vec![json!("over unix")]))
+            .await
+            .unwrap();
+        assert_eq!(result, json!("over unix"));
+        client.close().await.unwrap();
+        let _ = std::fs::remove_file(path);
+    }
 
-        // Connect client and send a request
-        let client = TcpClient::connect(addr).await.unwrap();
-
-        // Build a proper TOON-RPC request using to_wire
-        let request_msg = reddb_io_toon_rpc::protocol::Message::Single(
-            reddb_io_toon_rpc::protocol::Call::Request(reddb_io_toon_rpc::protocol::Request::new(
-                "echo".to_string(),
-                reddb_io_toon_rpc::types::Params::ByPosition(vec![serde_json::Value::String(
-                    "hello".to_string(),
-                )]),
-                reddb_io_toon_rpc::types::Id::Number(1),
-            )),
-        );
-        let bytes = reddb_io_toon_rpc::to_wire(&request_msg).unwrap();
-        eprintln!("Request TOON: {}", String::from_utf8_lossy(&bytes));
-        client.send(bytes).await.unwrap();
-        let response = client.recv().await.unwrap();
-        eprintln!("Response: {}", String::from_utf8_lossy(&response));
-
-        let response_msg = reddb_io_toon_rpc::from_wire(&response).unwrap();
-        match response_msg {
-            reddb_io_toon_rpc::protocol::Message::SingleResponse(resp) => {
-                assert!(resp.result.is_some());
-            }
-            _ => panic!("Expected SingleResponse"),
+    async fn futures_join<F: std::future::Future + Send + 'static>(
+        futures: impl Iterator<Item = F>,
+    ) -> Vec<F::Output>
+    where
+        F::Output: Send + 'static,
+    {
+        let handles = futures.map(tokio::spawn).collect::<Vec<_>>();
+        let mut outputs = Vec::new();
+        for handle in handles {
+            outputs.push(handle.await.unwrap());
         }
+        outputs
     }
 }

@@ -1,42 +1,33 @@
-//! Calculator client using stdio transport
+//! Calculator client using the stdio transport
 //!
-//! Usage:
-//!   echo '{ toonrpc: "1.0" method: add params: [5, 3] id: 1 }' | cargo run --bin calculator_stdio_client
+//! Spawns `calculator_stdio_server` (built next to this binary) and calls it
+//! over the child's pipes with §8.1 framing.
 //!
-//! Or in a pipe: cat request.txt | cargo run --bin calculator_stdio_client
-//!
-//! Messages must end with an empty line.
+//! Usage: cargo run --bin calculator_stdio_client <method> <a> <b>
+//! Example: cargo run --bin calculator_stdio_client add 5 3
 
-use reddb_io_toon_rpc::from_wire;
-use std::io::{self, BufRead, Write};
+use reddb_io_toon_rpc::{Client, ClientOptions, Params};
+use tokio::process::Command;
 
-fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let stdin = io::stdin();
-    let mut stdout = io::stdout();
-
-    let mut buffer = String::new();
-    for line in stdin.lock().lines() {
-        let line = line?;
-
-        if line.is_empty() {
-            if !buffer.is_empty() {
-                match from_wire(buffer.trim().as_bytes()) {
-                    Ok(msg) => {
-                        writeln!(stdout, "{:#?}", msg)?;
-                        stdout.flush()?;
-                    }
-                    Err(e) => {
-                        writeln!(stdout, "Error: {}", e)?;
-                        stdout.flush()?;
-                    }
-                }
-                buffer.clear();
-            }
-        } else {
-            buffer.push_str(&line);
-            buffer.push('\n');
-        }
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 4 {
+        eprintln!("Usage: {} <method> <a> <b>", args[0]);
+        std::process::exit(1);
     }
+    let method = &args[1];
+    let a: f64 = args[2].parse()?;
+    let b: f64 = args[3].parse()?;
 
+    let server = std::env::current_exe()?.with_file_name("calculator_stdio_server");
+    let (transport, _child) = reddb_io_toon_rpc_stdio::spawn(&mut Command::new(server))?;
+    let client = Client::duplex(transport, ClientOptions::default());
+    let params = Params::ByPosition(vec![serde_json::json!(a), serde_json::json!(b)]);
+    match client.call(method, params).await {
+        Ok(result) => println!("{method} {a} {b} = {result}"),
+        Err(error) => eprintln!("Error: {error}"),
+    }
+    client.close().await?;
     Ok(())
 }

@@ -1,98 +1,49 @@
-use bytes::Bytes;
-use futures::Stream;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use tokio::io::{stdin, stdout, AsyncRead, AsyncWrite, Stdin, Stdout};
+//! TOON-RPC over stdio, framed per spec §8.1.
+//!
+//! A server reads request frames from stdin and writes response frames to
+//! stdout. A client spawns the server process and talks to it through the
+//! child's pipes. Anything else the server prints must go to stderr.
 
-pub struct StdioTransport {
-    input: Stdin,
-    output: Stdout,
+use reddb_io_toon_rpc::{serve_framed, Dispatcher, FramedTransport, RpcError};
+use tokio::process::{Child, ChildStdin, ChildStdout, Command};
+
+/// Serve this process's stdin and stdout until stdin ends.
+pub async fn serve_stdio(dispatcher: &Dispatcher) -> Result<(), RpcError> {
+    serve_framed(tokio::io::stdin(), tokio::io::stdout(), dispatcher).await
 }
 
-impl StdioTransport {
-    pub fn new() -> Self {
-        Self {
-            input: stdin(),
-            output: stdout(),
+/// A client transport over a child process's stdout (in) and stdin (out).
+pub type StdioTransport = FramedTransport<ChildStdout, ChildStdin>;
+
+/// Spawn `command` with piped stdin and stdout and wrap its pipes. The child
+/// is killed when the returned handle is dropped; stderr is inherited.
+pub fn spawn(command: &mut Command) -> Result<(StdioTransport, Child), RpcError> {
+    let mut child = command
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|error| RpcError::TransportError(error.to_string()))?;
+    let stdin = child.stdin.take().expect("piped stdin");
+    let stdout = child.stdout.take().expect("piped stdout");
+    Ok((FramedTransport::new(stdout, stdin), child))
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use reddb_io_toon_rpc::DuplexTransport;
+
+    #[tokio::test]
+    async fn frames_cross_the_child_pipes_intact() {
+        // `cat` echoes every frame, so each document must come back whole.
+        let (transport, mut child) = spawn(&mut Command::new("cat")).unwrap();
+        for document in [&b"a: 1\n\nb: 2"[..], b"", b"c"] {
+            transport.send(document.to_vec()).await.unwrap();
+            assert_eq!(transport.recv().await.unwrap().as_deref(), Some(document));
         }
-    }
-}
-
-impl Default for StdioTransport {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub struct StdioSend {
-    output: Stdout,
-}
-
-pub struct StdioRecv {
-    input: Stdin,
-}
-
-impl StdioTransport {
-    pub fn split(self) -> (StdioSend, StdioRecv) {
-        (
-            StdioSend {
-                output: self.output,
-            },
-            StdioRecv { input: self.input },
-        )
-    }
-}
-
-impl Stream for StdioRecv {
-    type Item = Result<Bytes, std::io::Error>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut buf = vec![0u8; 4096];
-        let mut read_buf = tokio::io::ReadBuf::new(&mut buf);
-
-        match Pin::new(&mut self.input).poll_read(cx, &mut read_buf) {
-            Poll::Ready(Ok(())) => {
-                let n = read_buf.filled().len();
-                if n == 0 {
-                    return Poll::Ready(None);
-                }
-                buf.truncate(n);
-                Poll::Ready(Some(Ok(Bytes::from(buf))))
-            }
-            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-impl AsyncWrite for StdioSend {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.output).poll_write(cx, buf)
-    }
-
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.output).poll_flush(cx)
-    }
-
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.output).poll_shutdown(cx)
-    }
-}
-
-impl Stream for StdioSend {
-    type Item = Result<Bytes, std::io::Error>;
-
-    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Poll::Pending
+        transport.close().await.unwrap();
+        assert_eq!(transport.recv().await.unwrap(), None);
+        assert!(child.wait().await.unwrap().success());
     }
 }
