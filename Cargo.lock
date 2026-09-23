@@ -1216,8 +1216,10 @@ version = "0.30.4"
 dependencies = [
  "reddb-io-toon-rpc",
  "reddb-io-toon-rpc-http",
+ "reddb-io-toon-rpc-sse",
  "reddb-io-toon-rpc-stdio",
  "reddb-io-toon-rpc-tcp",
+ "reddb-io-toon-rpc-ws",
  "serde",
  "serde_json",
  "tokio",

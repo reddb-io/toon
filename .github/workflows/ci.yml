@@ -80,6 +80,37 @@ jobs:
       - name: TypeScript coverage
         run: pnpm --filter @reddb-io/toon test:coverage
 
+  rpc-gates:
+    name: RPC gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.release_sha || github.sha }}
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.7.0
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build the Rust interop peer
+        run: cargo build -p reddb-io-toon-rpc-examples --bin interop_peer
+      - name: TypeScript ↔ Rust interop matrix
+        run: RUST_PEER=target/debug/interop_peer pnpm test:rpc-interop
+      - name: Install every RPC package from its packed tarball
+        run: node scripts/rpc-package-smoke.mjs
+      - name: Coverage per RPC component
+        run: |
+          set -o pipefail
+          node scripts/rpc-coverage.mjs | tee -a "$GITHUB_STEP_SUMMARY"
+
   encoder-parity:
     name: Rust ↔ TypeScript encoder parity
     runs-on: ubuntu-latest

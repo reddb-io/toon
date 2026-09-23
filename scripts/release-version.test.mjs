@@ -410,7 +410,7 @@ test('stable release dispatches and watches uniquely correlated CI on the exact 
   assert.match(ci, /workflow_dispatch:[\s\S]*release_sha:[\s\S]*correlation:/)
   assert.equal(
     ci.match(/ref: \$\{\{ inputs\.release_sha \|\| github\.sha \}\}/g)?.length,
-    3,
+    ci.match(/^    runs-on: /gm)?.length,
     'all exact-commit CI jobs must check out the requested release SHA',
   )
   assert.match(release, /release_sha:\s*\n\s+description: Exact commit to release/)
