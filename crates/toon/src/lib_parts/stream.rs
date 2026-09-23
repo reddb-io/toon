@@ -106,6 +106,7 @@ fn stream_error(line: usize, message: &'static str) -> ParseError {
         message,
         limit: None,
         column: None,
+        counts: None,
     }
 }
 
@@ -115,6 +116,21 @@ fn stream_limit_error(line: usize, message: &'static str, limit: usize) -> Parse
         message,
         limit: Some(limit),
         column: None,
+        counts: None,
+    }
+}
+
+fn stream_count_error(line: usize, expected: usize, found: usize, unit: &'static str) -> ParseError {
+    ParseError {
+        line,
+        message: "array count mismatch",
+        limit: None,
+        column: None,
+        counts: Some(Box::new(CountMismatch {
+            expected,
+            found,
+            unit,
+        })),
     }
 }
 
@@ -124,6 +140,7 @@ fn stream_depth_error(line: usize, max_depth: usize) -> ParseError {
         message: "maximum nesting depth exceeded",
         limit: Some(max_depth),
         column: None,
+        counts: None,
     }
 }
 
@@ -198,11 +215,11 @@ fn parse_stream_header(content: &str, line: usize) -> Result<Option<StreamHeader
         segment = &segment[..segment.len() - 1];
     }
     if !valid_stream_length(segment) {
-        return Err(stream_error(line, "malformed array header length"));
+        return Err(stream_error(line, "invalid array length"));
     }
     let length: usize = segment
         .parse()
-        .map_err(|_| stream_error(line, "malformed array header length"))?;
+        .map_err(|_| stream_error(line, "invalid array length"))?;
 
     let mut rest = &content[close + 1..];
     let mut fields = None;
@@ -306,7 +323,7 @@ fn stream_closing_quote(text: &str, line: usize) -> Result<usize, ParseError> {
             _ => {}
         }
     }
-    Err(stream_error(line, "invalid quoted string"))
+    Err(unterminated_string(line))
 }
 
 fn count_stream_leaves(fields: &[StreamFieldNode]) -> usize {
@@ -566,47 +583,6 @@ fn check_header_limits(
     Ok(header)
 }
 
-/// Decodes the document into the full event sequence, stopping at the first
-/// error. The events emitted before the error are returned alongside it, so
-/// iterator consumers observe the same prefix the TS generator yields.
-pub fn decode_events(
-    input: &str,
-    options: &DecodeStreamOptions,
-) -> (Vec<ToonEvent>, Option<ParseError>) {
-    let ctx = StreamCtx {
-        indent_size: options.indent,
-        strict: options.strict,
-        object_array_columns: options.object_array_columns,
-        max_depth: options.max_depth,
-        max_input_bytes: options.max_input_bytes,
-        max_array_length: options.max_array_length,
-        max_keys: options.max_keys,
-        truncation_span: Cell::new(None),
-    };
-    let mut events = Vec::new();
-    let error = decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut events).err();
-    (events, error)
-}
-
-fn decode_events_for_truncation(
-    input: &str,
-    options: &DecodeStreamOptions,
-) -> (Option<ParseError>, Option<ArraySpanState>) {
-    let ctx = StreamCtx {
-        indent_size: options.indent.max(1),
-        strict: options.strict,
-        object_array_columns: options.object_array_columns,
-        max_depth: options.max_depth,
-        max_input_bytes: options.max_input_bytes,
-        max_array_length: options.max_array_length,
-        max_keys: options.max_keys,
-        truncation_span: Cell::new(None),
-    };
-    let mut events = Vec::new();
-    let error = decode_events_into(Cursor::new(input.as_bytes()), &ctx, &mut events).err();
-    (error, ctx.truncation_span.get())
-}
-
 fn decode_events_into<R: BufRead, S: EventSink>(
     input: R,
     ctx: &StreamCtx,
@@ -809,7 +785,7 @@ fn emit_entry<R: BufRead, S: EventSink>(
     }
 
     let colon = find_unquoted(content, ':', line.number)?
-        .ok_or_else(|| stream_error(line.number, "expected key-value line"))?;
+        .ok_or_else(|| stream_error(line.number, "missing colon after key"))?;
     let key = decode_stream_key(trim_u0020(&content[..colon]), line.number)?;
     let rest = trim_u0020(&content[colon + 1..]);
     record_stream_key(seen, &key, line.number, ctx)?;
@@ -875,7 +851,12 @@ fn emit_array<R: BufRead, S: EventSink>(
         let values = split_stream_cells(inline, info.delimiter, header.number);
         if ctx.strict && values.len() != info.length {
             record_array_span(ctx, header.number, info.length, values.len(), "items");
-            return Err(stream_error(header.number, "array count mismatch"));
+            return Err(stream_count_error(
+                header.number,
+                info.length,
+                values.len(),
+                "inline-form values",
+            ));
         }
         for value in values {
             out.emit(ToonEvent::Primitive {
@@ -919,7 +900,7 @@ fn emit_array<R: BufRead, S: EventSink>(
     let end_line = reader.last_number(header.number);
     if ctx.strict && items != info.length {
         record_array_span(ctx, end_line, info.length, items, "rows");
-        return Err(stream_error(end_line, "array count mismatch"));
+        return Err(stream_count_error(end_line, info.length, items, "list items"));
     }
     out.emit(ToonEvent::EndArray { line: end_line })?;
     Ok(())
@@ -1049,7 +1030,7 @@ fn emit_tabular_rows<R: BufRead, S: EventSink>(
         }
         rows += 1;
         let cells = split_stream_cells(&line.content, info.delimiter, line.number);
-        assert_stream_count(cells.len(), leaf_count, line.number, ctx)?;
+        assert_stream_count(cells.len(), leaf_count, line.number, "row cells", ctx)?;
         let mut cursor = 0usize;
         emit_row_object(fields, &cells, &mut cursor, line.number, out)?;
     }
@@ -1059,7 +1040,7 @@ fn emit_tabular_rows<R: BufRead, S: EventSink>(
     let end_line = reader.last_number(header.number);
     if ctx.strict && rows != info.length {
         record_array_span(ctx, end_line, info.length, rows, "rows");
-        return Err(stream_error(end_line, "array count mismatch"));
+        return Err(stream_count_error(end_line, info.length, rows, "tabular rows"));
     }
     out.emit(ToonEvent::EndArray { line: end_line })?;
     Ok(())
@@ -1164,7 +1145,7 @@ fn emit_keyed_object<R: BufRead, S: EventSink>(
             line: line.number,
         })?;
         let cells = split_stream_cells(&line.content[colon + 1..], info.delimiter, line.number);
-        assert_stream_count(cells.len(), leaf_count, line.number, ctx)?;
+        assert_stream_count(cells.len(), leaf_count, line.number, "entry row cells", ctx)?;
         let mut cursor = 0usize;
         emit_row_object(fields, &cells, &mut cursor, line.number, out)?;
     }
@@ -1174,7 +1155,7 @@ fn emit_keyed_object<R: BufRead, S: EventSink>(
     let end_line = reader.last_number(header.number);
     if ctx.strict && rows != info.length {
         record_array_span(ctx, end_line, info.length, rows, "rows");
-        return Err(stream_error(end_line, "array count mismatch"));
+        return Err(stream_count_error(end_line, info.length, rows, "entry rows"));
     }
     out.emit(ToonEvent::EndObject { line: end_line })?;
     Ok(())
@@ -1186,10 +1167,11 @@ fn assert_stream_count(
     got: usize,
     expected: usize,
     line: usize,
+    unit: &'static str,
     ctx: &StreamCtx,
 ) -> Result<(), ParseError> {
     if ctx.strict && got != expected {
-        return Err(stream_error(line, "array count mismatch"));
+        return Err(stream_count_error(line, expected, got, unit));
     }
     Ok(())
 }

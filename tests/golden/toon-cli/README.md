@@ -37,12 +37,10 @@ instead:
   to append and carries the cause chain alone.
 - **Messages that quote a host error.** A missing input file or malformed JSON
   reports what Node or `serde_json` said, and the two disagree by wording.
-- **Codec diagnostics that disagree across ports.** A row-count mismatch reads
-  `expected 3 tabular rows, but got 2` in TypeScript and `array count mismatch`
-  in Rust. That divergence lives in the codec, not the front-end; the CLI
-  renders whichever reason it is handed, and
-  `error-decode-tab-indentation` pins that rendering with a reason both ports
-  agree on.
+Codec diagnostics are no longer on this list: both ports now word every
+decode error identically, including row counts (`expected 3 tabular rows, but
+got 2`) and unterminated strings, and `error-decode-count-mismatch` and
+`error-decode-unterminated-string` pin that.
 
 ## Regenerating
 

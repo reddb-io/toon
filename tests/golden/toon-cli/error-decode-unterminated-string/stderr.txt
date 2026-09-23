@@ -1,0 +1,4 @@
+✖ Failed to decode TOON at line 2: unterminated string: missing closing quote
+
+  2 | greeting: "hello
+      ^

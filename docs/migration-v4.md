@@ -200,7 +200,7 @@ invariant are strict errors rather than best-effort recoveries:
 
 ```text
 # declared 3 elements, supplied 2
-items[3]: a,b            ->   decode error "array count mismatch"
+items[3]: a,b            ->   decode error "expected 3 inline-form values, but got 2"
 
 # duplicate sibling key
 a: 1

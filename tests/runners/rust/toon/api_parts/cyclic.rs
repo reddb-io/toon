@@ -106,11 +106,11 @@ fn rejects_a_keyless_header_and_a_malformed_key_outside_root_position() {
     // Whitespace inside an unquoted key is not an error: it is part of the key.
     assert_eq!(json_of("a b: 1\n"), json!({"a b": 1}));
     // A bad header on the first line is an error at root too, not a literal key.
-    assert_eq!(error("[03]: a\n"), "line 1: malformed array header length");
+    assert_eq!(error("[03]: a\n"), "line 1: invalid array length");
     // A delimiter symbol the spec does not define.
     assert_eq!(
         error("items[2x]: a,b\n"),
-        "line 1: malformed array header length"
+        "line 1: invalid array length"
     );
 }
 
@@ -119,7 +119,7 @@ fn a_key_value_line_at_row_depth_ends_the_rows() {
     // The sibling field stops the row scan, so the declared count goes unmet.
     assert_eq!(
         error("items[2]{id}:\n  1\nother: 2\n"),
-        "line 2: array count mismatch"
+        "line 2: expected 2 tabular rows, but got 1"
     );
 }
 
@@ -139,7 +139,7 @@ fn a_single_column_tabular_row_that_looks_like_a_field_ends_the_rows_early() {
     // rather than a row — one short of the declared length.
     assert_eq!(
         error("items[2]{a}:\n  1\n  x: 2\n"),
-        "line 2: array count mismatch"
+        "line 2: expected 2 tabular rows, but got 1"
     );
 }
 
@@ -191,7 +191,7 @@ fn rejects_malformed_keyed_map_headers_in_strict_mode() {
         ("m[1:]{a: 1\n", "line 1: malformed tabular header fields"),
         ("m[1:]{}:\n", "line 1: empty field entry in header"),
         ("m[1:]{a,a}: \n", "line 1: duplicate field name in header"),
-        ("[1:]{a}:\n", "line 1: array count mismatch"),
+        ("[1:]{a}:\n", "line 1: expected 1 entry rows, but got 0"),
         (
             "m[1:]{a}: 1\n",
             "line 1: unexpected content after fields-bearing header colon",
@@ -213,7 +213,7 @@ fn rejects_malformed_keyed_map_rows() {
             "m[2:]{a,b}:\n  k: 1,2\n\n  j: 3,4\n",
             "line 3: blank line inside a header span",
         ),
-        ("m[1:]{a,b}:\n  k: 1,2,3\n", "line 2: array count mismatch"),
+        ("m[1:]{a,b}:\n  k: 1,2,3\n", "line 2: expected 2 entry row cells, but got 3"),
         (
             "m[2:]{a,b}:\n  k: 1,2\n  k: 3,4\n",
             "line 3: duplicate object key",
@@ -278,9 +278,9 @@ fn decodes_primitive_list_columns_with_declared_sub_delimiters() {
 #[test]
 fn rejects_malformed_structured_rows() {
     let cases = [
-        ("items[1]{a,b}:\n  1,2,3\n", "line 2: array count mismatch"),
-        ("items[2]{a,b}:\n  1,2\n", "line 2: array count mismatch"),
-        ("items[1]{a,b}:\n  1,2\n  3,4\n", "line 3: array count mismatch"),
+        ("items[1]{a,b}:\n  1,2,3\n", "line 2: expected 2 row cells, but got 3"),
+        ("items[2]{a,b}:\n  1,2\n", "line 2: expected 2 tabular rows, but got 1"),
+        ("items[1]{a,b}:\n  1,2\n  3,4\n", "line 3: expected 1 tabular rows, but got 2"),
         (
             "items[2]{a,b}:\n  1,2\n\n  3,4\n",
             "line 3: blank line inside a header span",

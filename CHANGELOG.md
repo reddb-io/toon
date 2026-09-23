@@ -13,6 +13,13 @@ now; this file is how it got there.
 
 ### Changed
 
+- **The TypeScript codec is faster than the upstream reference.** Object keys
+  were set with `Object.defineProperty`, three times the cost of an assignment,
+  which made normalization half of a tabular encode; only `__proto__` still
+  needs it. Cycle tracking starts at depth 32. On the same inputs, encode goes
+  from 0.70× to 1.24× the reference on a 10k-row table (1.38–1.66× elsewhere)
+  and decode runs at 1.56–2.06×.
+
 - **Rust decoding is 12–25× faster.** `decode` and the `Value` parsers ran the
   grammar on a worker thread that handed every event across a rendezvous
   channel, about 3.5 µs per key or value (tabular input decoded at about
@@ -107,6 +114,21 @@ now; this file is how it got there.
 
 ### Fixed
 
+- **TypeScript and Rust report every decode error identically**, in the
+  upstream reference's words where its tests pin them. Rust now spells out
+  counts (`expected 3 tabular rows, but got 2`) through `ParseError::detail()`
+  and its `Display`, while `message()` keeps the fixed category
+  (`array count mismatch`). Both engines say `missing colon after key`,
+  `invalid array length`, and `unterminated string: missing closing quote`
+  where they said `expected key-value line`, `malformed array header length`,
+  and `invalid quoted string`. The shared CLI goldens now cover these errors,
+  and the upstream package suite runs with no wording skips (643/643). Branch
+  on `kind` rather than message text.
+- **Deep documents no longer overflow small thread stacks in Rust.**
+  `detect_truncation` and `decode_events` ran the recursive grammar on the
+  caller's thread, so a document nested past `max_depth` aborted the process
+  from a 2 MiB thread instead of returning the depth error. Every entry point
+  now runs on the decoder's own stack, raised to 16 MiB.
 - **The Rust `toon -d` writes integers of any size exactly.** Integer tokens
   beyond `i64`/`u64` went through `serde_json` and came out as the nearest
   `f64` (`18446744073709551616` became `1.8446744073709552e+19`); they are now

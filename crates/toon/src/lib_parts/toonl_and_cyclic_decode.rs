@@ -1018,6 +1018,7 @@ fn cyclic_invalid(line: usize) -> ParseError {
         message: "invalid cyclic array wire",
         limit: None,
         column: None,
+        counts: None,
     }
 }
 
@@ -1027,6 +1028,7 @@ fn cyclic_len_error(line: usize) -> ParseError {
         message: "cyclic array length mismatch",
         limit: None,
         column: None,
+        counts: None,
     }
 }
 
@@ -1036,6 +1038,7 @@ fn cyclic_group_len_error(line: usize) -> ParseError {
         message: "cyclic array group length mismatch",
         limit: None,
         column: None,
+        counts: None,
     }
 }
 

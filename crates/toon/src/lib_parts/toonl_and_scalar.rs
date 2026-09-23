@@ -393,6 +393,7 @@ fn parse_scalar(value: &str, line: usize) -> Result<Value, ParseError> {
             message: "invalid quoted string",
             limit: None,
             column: None,
+            counts: None,
         });
     }
 
@@ -416,6 +417,7 @@ fn parse_key(value: &str, line: usize) -> Result<(String, bool), ParseError> {
             message: "expected non-empty field name",
             limit: None,
             column: None,
+            counts: None,
         });
     }
     Ok((value.to_owned(), false))
@@ -457,7 +459,7 @@ fn parse_quoted_string(value: &str, line: usize) -> Result<String, ParseError> {
         }
     }
 
-    Err(invalid_quoted_string(line))
+    Err(unterminated_string(line))
 }
 
 fn parse_unicode_escape(
@@ -474,12 +476,24 @@ fn parse_unicode_escape(
     char::from_u32(value).ok_or(invalid_quoted_string(line))
 }
 
+/// A quoted token with no closing quote, worded like the upstream reference.
+fn unterminated_string(line: usize) -> ParseError {
+    ParseError {
+        line,
+        message: "unterminated string: missing closing quote",
+        limit: None,
+        column: None,
+        counts: None,
+    }
+}
+
 fn invalid_quoted_string(line: usize) -> ParseError {
     ParseError {
         line,
         message: "invalid quoted string",
         limit: None,
         column: None,
+        counts: None,
     }
 }
 
@@ -512,7 +526,7 @@ fn split_delimited(value: &str, delimiter: char, line: usize) -> Result<Vec<Stri
     }
 
     if in_string || escaped {
-        return Err(invalid_quoted_string(line));
+        return Err(unterminated_string(line));
     }
 
     values.push(trim_u0020(&value[start..]).to_owned());
@@ -538,7 +552,7 @@ fn find_unquoted(value: &str, needle: char, line: usize) -> Result<Option<usize>
     }
 
     if in_string || escaped {
-        return Err(invalid_quoted_string(line));
+        return Err(unterminated_string(line));
     }
 
     Ok(None)

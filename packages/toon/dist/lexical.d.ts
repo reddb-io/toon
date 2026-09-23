@@ -9,6 +9,8 @@ export declare const DOCUMENT_DELIMITER = ",";
  * final newline would otherwise produce, and stripping a `\r` before each `\n`.
  */
 export declare function splitLines(input: any): any;
+/** A quoted token with no closing quote, worded like the upstream reference. */
+export declare function unterminatedString(line: any): import("./errors.js").ToonError;
 /** Decodes a scalar token (spec §4): quoted string, literal, number, or bare string. */
 export declare function parseScalar(value: any, line: any): any;
 /** Token trimming is exactly U+0020 (§12); NBSP, HTAB and other whitespace are content. */

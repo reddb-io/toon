@@ -30,16 +30,9 @@ pub fn decode_with_options(
             options.max_input_bytes,
         ));
     }
-    // Decode on one big-stack worker per call (deep nesting needs the stack),
-    // collecting the events there instead of handing each one across threads.
-    let (events, error) = std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .stack_size(EVENT_DECODER_STACK_SIZE)
-            .spawn_scoped(scope, || decode_events(input, options))
-            .expect("failed to spawn TOON decoder")
-            .join()
-            .expect("TOON decoder panicked")
-    });
+    // decode_events runs the grammar on the decoder's big-stack worker and
+    // joins it once, instead of handing each event across threads.
+    let (events, error) = decode_events(input, options);
     let mut value = build_value_from_event_results(
         events
             .into_iter()
@@ -85,6 +78,7 @@ pub fn decode_reader_with_options<R: BufRead>(
         message: "failed to read input",
         limit: None,
         column: None,
+        counts: None,
     })?;
     decode_with_options(&input, options)
 }

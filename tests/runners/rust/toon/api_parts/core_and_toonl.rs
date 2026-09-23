@@ -636,8 +636,11 @@ fn toonl_error_exposes_the_line_and_message_it_was_built_from() {
         .expect_err("an unterminated quote is rejected");
 
     assert_eq!(failure.line(), 2);
-    assert_eq!(failure.message(), "invalid quoted string");
-    assert_eq!(failure.to_string(), "line 2: invalid quoted string");
+    assert_eq!(failure.message(), "unterminated string: missing closing quote");
+    assert_eq!(
+        failure.to_string(),
+        "line 2: unterminated string: missing closing quote"
+    );
 }
 
 #[test]

@@ -132,6 +132,19 @@ pub struct ParseError {
     limit: Option<usize>,
     /// 1-based column, when the decoder knows where on the line it failed.
     column: Option<usize>,
+    /// The declared and actual sizes behind a length mismatch. Boxed so the
+    /// error, returned through every level of the recursive grammar, stays
+    /// small enough for deep documents on the decoder's stack.
+    counts: Option<Box<CountMismatch>>,
+}
+
+/// A declared length and what the input held, worded like the TypeScript
+/// decoder: `expected 3 tabular rows, but got 2`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CountMismatch {
+    expected: usize,
+    found: usize,
+    unit: &'static str,
 }
 
 /// A stable, coarse classification of a [`ParseError`], shared with the
@@ -351,6 +364,7 @@ impl Document {
                 message: "expected `key: value`",
                 limit: None,
                 column: None,
+                counts: None,
             }),
         }
     }
@@ -509,6 +523,7 @@ impl ParseError {
                 ErrorKind::Indentation
             }
             "array count mismatch"
+            | "array row length mismatch"
             | "array length mismatch"
             | "cyclic array length mismatch"
             | "cyclic array group length mismatch" => ErrorKind::LengthMismatch,
@@ -517,6 +532,28 @@ impl ParseError {
             INPUT_BYTES_EXCEEDED | ARRAY_LENGTH_EXCEEDED | KEYS_EXCEEDED => ErrorKind::InputLimit,
             "failed to read input" | "event consumer disconnected" => ErrorKind::Io,
             _ => ErrorKind::Syntax,
+        }
+    }
+
+    /// The full reason, identical to the TypeScript decoder's `reason`: the
+    /// counts of a length mismatch and the bound a limit error tripped are
+    /// spelled out (`expected 3 tabular rows, but got 2`), where [`message`]
+    /// stays a fixed category string.
+    ///
+    /// [`message`]: ParseError::message
+    pub fn detail(&self) -> String {
+        if let Some(counts) = &self.counts {
+            return format!(
+                "expected {} {}, but got {}",
+                counts.expected, counts.unit, counts.found
+            );
+        }
+        match self.limit {
+            Some(limit) if self.message == DEPTH_EXCEEDED => {
+                format!("{} (maxDepth {limit})", self.message)
+            }
+            Some(limit) => format!("{} ({limit})", self.message),
+            None => self.message.to_owned(),
         }
     }
 
@@ -533,15 +570,7 @@ const KEYS_EXCEEDED: &str = "object exceeds maxKeys";
 
 impl fmt::Display for ParseError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "line {}: {}", self.line, self.message)?;
-        match self.limit {
-            Some(limit) if self.message == DEPTH_EXCEEDED => {
-                write!(formatter, " (maxDepth {limit})")?;
-            }
-            Some(limit) => write!(formatter, " ({limit})")?,
-            None => {}
-        }
-        Ok(())
+        write!(formatter, "line {}: {}", self.line, self.detail())
     }
 }
 
