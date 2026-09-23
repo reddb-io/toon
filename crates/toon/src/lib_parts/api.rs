@@ -30,7 +30,22 @@ pub fn decode_with_options(
             options.max_input_bytes,
         ));
     }
-    let mut value = build_value_from_event_results(decode_event_stream(input, options))?;
+    // Decode on one big-stack worker per call (deep nesting needs the stack),
+    // collecting the events there instead of handing each one across threads.
+    let (events, error) = std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(EVENT_DECODER_STACK_SIZE)
+            .spawn_scoped(scope, || decode_events(input, options))
+            .expect("failed to spawn TOON decoder")
+            .join()
+            .expect("TOON decoder panicked")
+    });
+    let mut value = build_value_from_event_results(
+        events
+            .into_iter()
+            .map(Ok)
+            .chain(error.map(Err)),
+    )?;
     if options.cyclic_discriminated_arrays {
         if let Value::Object(document) = value {
             value = Value::Object(expand_cyclic_discriminated_arrays(document)?);
