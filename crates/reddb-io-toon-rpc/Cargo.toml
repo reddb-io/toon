@@ -29,3 +29,7 @@ uuid = "=1.8.0"
 [[test]]
 name = "toon_rpc_contract"
 path = "../../tests/runners/rust/toon-rpc/contract.rs"
+
+[[test]]
+name = "toon_rpc_multi"
+path = "../../tests/runners/rust/toon-rpc/multi.rs"

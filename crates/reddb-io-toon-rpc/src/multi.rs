@@ -44,7 +44,7 @@
 
 use crate::error::{ErrorCode, RpcError};
 use crate::protocol::{Call, Message, Response};
-use crate::types::{Id, Params};
+use crate::types::Id;
 use crate::Dispatcher;
 use serde_json::{json, Value as JsonValue};
 
@@ -69,52 +69,50 @@ impl Protocol {
     }
 }
 
-/// Detect the protocol from a content-type hint and/or raw bytes.
+/// Detect the protocol from a content-type hint and/or raw bytes, exactly as
+/// `detectProtocol` in `@reddb-io/multi-rpc` does.
 ///
-/// An explicit content-type hint (when provided) wins over byte sniffing.
+/// A `Content-Type` of `application/json` or `application/toon` (parameters
+/// ignored) wins. Otherwise a body that parses as JSON and carries a
+/// `jsonrpc` member (on the object, or on any entry of a batch) is JSON-RPC,
+/// and so is a body opening with `{` that fails to parse: TOON never starts
+/// with `{`, so its JSON client gets a JSON-RPC Parse error. Everything else
+/// is TOON-RPC.
 pub fn detect_protocol(raw: &[u8], content_type: Option<&str>) -> Protocol {
-    if let Some(ct) = content_type {
-        let lower = ct.to_ascii_lowercase();
-        if lower.contains("application/json") {
-            return Protocol::JsonRpc;
-        }
-        if lower.contains("application/toon") {
-            return Protocol::ToonRpc;
+    if let Some(content_type) = content_type {
+        let media_type = content_type
+            .split(';')
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase();
+        match media_type.as_str() {
+            "application/json" => return Protocol::JsonRpc,
+            "application/toon" => return Protocol::ToonRpc,
+            _ => {}
         }
     }
 
-    // Body sniffing: skip leading whitespace, then peek at the first few bytes.
-    let s = match std::str::from_utf8(raw) {
-        Ok(s) => s,
-        Err(_) => return Protocol::ToonRpc,
+    let Ok(text) = std::str::from_utf8(raw) else {
+        return Protocol::ToonRpc;
     };
-    let trimmed = s.trim_start();
-
-    // JSON-RPC bodies (single or batch) — they contain `"jsonrpc"` within
-    // the first ~80 bytes. Batch requests start with `[` but the first
-    // object inside carries the discriminator.
-    if trimmed.starts_with('{') || trimmed.starts_with('[') {
-        let head: String = trimmed.chars().take(80).collect();
-        if head.contains("\"jsonrpc\"") {
-            return Protocol::JsonRpc;
-        }
-        // Could still be JSON but not JSON-RPC; fall through and let the parser
-        // decide (it'll surface a "missing jsonrpc" error if it really was meant
-        // to be JSON-RPC). Default to TOON-RPC since that's our canonical format.
+    let trimmed = text.trim_start();
+    if !trimmed.starts_with('{') && !trimmed.starts_with('[') {
         return Protocol::ToonRpc;
     }
-
-    // TOON-RPC bodies start with `toonrpc:` or `{ toonrpc`.
-    if trimmed.starts_with("toonrpc:") || trimmed.starts_with("{toonrpc") {
-        return Protocol::ToonRpc;
+    match serde_json::from_str::<JsonValue>(trimmed) {
+        Ok(value) if has_jsonrpc_member(&value) => Protocol::JsonRpc,
+        Ok(_) => Protocol::ToonRpc,
+        Err(_) if trimmed.starts_with('{') => Protocol::JsonRpc,
+        Err(_) => Protocol::ToonRpc,
     }
+}
 
-    // Last resort: if the bytes are pure JSON (start with `{` or `[`), prefer JSON-RPC.
-    // Otherwise assume TOON-RPC.
-    if trimmed.starts_with('{') || trimmed.starts_with('[') {
-        Protocol::JsonRpc
-    } else {
-        Protocol::ToonRpc
+fn has_jsonrpc_member(value: &JsonValue) -> bool {
+    let member = |value: &JsonValue| value.as_object().is_some_and(|o| o.contains_key("jsonrpc"));
+    match value {
+        JsonValue::Array(entries) => entries.iter().any(member),
+        value => member(value),
     }
 }
 
@@ -172,7 +170,7 @@ impl MultiRpc {
                 return json_bytes(json_error_response(
                     Id::Null,
                     ErrorCode::ParseError.code(),
-                    &format!("JSON parse error: {error}"),
+                    &format!("Parse error: {error}"),
                 ));
             }
         };
@@ -188,7 +186,14 @@ impl MultiRpc {
             return json_bytes(json_error_response(
                 Id::Null,
                 ErrorCode::InvalidRequest.code(),
-                "empty batch",
+                "Invalid Request: empty batch",
+            ));
+        }
+        if entries.len() > self.dispatcher.max_batch_length() {
+            return json_bytes(json_error_response(
+                Id::Null,
+                ErrorCode::InvalidRequest.code(),
+                "Invalid Request: batch too large",
             ));
         }
 
@@ -214,67 +219,16 @@ impl MultiRpc {
         }
     }
 
-    /// Dispatch a single JSON-RPC entry. Returns `None` for notifications
-    /// (no response should be sent).
+    /// Dispatch a single JSON-RPC entry through the TOON-RPC core, so both
+    /// dialects validate envelopes, IDs and params identically. Returns `None`
+    /// for a notification.
     fn dispatch_jsonrpc_entry(&self, entry: JsonValue) -> Result<Option<JsonValue>, RpcError> {
-        // Sanity-check that this looks like a request, not a stray response.
-        let obj = match entry.as_object() {
-            Some(o) => o,
-            None => {
-                return Ok(Some(json_error_response(
-                    Id::Null,
-                    ErrorCode::InvalidRequest.code(),
-                    "request must be an object",
-                )));
-            }
+        let call = match crate::serialization::validate_core_value(&entry) {
+            Ok(()) => crate::serialization::call_from_value(to_toon_entry(entry)),
+            Err(reason) => Call::Invalid(reason),
         };
-
-        let id = id_from_json(obj.get("id"));
-        if obj.get("jsonrpc").and_then(JsonValue::as_str) != Some(JSONRPC_VERSION) {
-            return Ok(Some(json_error_response(
-                id,
-                ErrorCode::InvalidRequest.code(),
-                &format!(
-                    "expected jsonrpc {JSONRPC_VERSION}, got {:?}",
-                    obj.get("jsonrpc")
-                ),
-            )));
-        }
-
-        let method = match obj.get("method").and_then(JsonValue::as_str) {
-            Some(m) => m.to_string(),
-            None => {
-                return Ok(Some(json_error_response(
-                    id,
-                    ErrorCode::InvalidRequest.code(),
-                    "missing method field",
-                )));
-            }
-        };
-
-        let is_notification = !obj.contains_key("id");
-
-        // Build a TOON-RPC Request so we can reuse the dispatcher.
-        let params_value = obj.get("params").cloned().unwrap_or(JsonValue::Null);
-        let params = params_from_json(params_value);
-
-        let request = crate::protocol::Request {
-            toonrpc: crate::TOONRPC_VERSION.to_string(),
-            method,
-            params,
-            id: id.clone(),
-        };
-
-        let responses = self
-            .dispatcher
-            .dispatch_message(Message::Single(Call::Request(request)))?;
-
-        if is_notification || responses.is_empty() {
-            return Ok(None);
-        }
-
-        let resp = responses.into_iter().next().unwrap();
-        Ok(Some(json_response_from(resp)))
+        let responses = self.dispatcher.dispatch_message(Message::Single(call))?;
+        Ok(responses.into_iter().next().map(json_response_from))
     }
 
     // ── TOON-RPC path ──────────────────────────────────────────────────────
@@ -292,16 +246,6 @@ impl Default for MultiRpc {
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
-/// Convert a JSON-RPC `id` field (string | number | null) into our typed `Id`.
-pub(crate) fn id_from_json(v: Option<&JsonValue>) -> Id {
-    match v {
-        None | Some(JsonValue::Null) => Id::Null,
-        Some(JsonValue::String(s)) => Id::String(s.clone()),
-        Some(JsonValue::Number(n)) => Id::Number(n.as_i64().unwrap_or(0)),
-        _ => Id::Null,
-    }
-}
-
 /// Convert our typed `Id` back into a JSON value for the response.
 pub(crate) fn id_to_json(id: &Id) -> JsonValue {
     match id {
@@ -311,14 +255,22 @@ pub(crate) fn id_to_json(id: &Id) -> JsonValue {
     }
 }
 
-/// Parse a JSON-RPC `params` field into our `Params` enum.
-pub(crate) fn params_from_json(v: JsonValue) -> Params {
-    match v {
-        JsonValue::Null => Params::ByPosition(vec![]),
-        JsonValue::Array(arr) => Params::ByPosition(arr),
-        JsonValue::Object(map) => Params::ByName(map),
-        _ => Params::ByPosition(vec![v]),
+/// Rename a JSON-RPC 2.0 envelope to TOON-RPC 1.0. Any other `jsonrpc`
+/// value is dropped, so the core refuses the entry as an Invalid Request.
+fn to_toon_entry(entry: JsonValue) -> JsonValue {
+    let JsonValue::Object(object) = entry else {
+        return entry;
+    };
+    let mut members = serde_json::Map::new();
+    if object.get("jsonrpc").and_then(JsonValue::as_str) == Some(JSONRPC_VERSION) {
+        members.insert("toonrpc".into(), JsonValue::from(crate::TOONRPC_VERSION));
     }
+    for (key, value) in object {
+        if key != "jsonrpc" && key != "toonrpc" {
+            members.insert(key, value);
+        }
+    }
+    JsonValue::Object(members)
 }
 
 /// Build a JSON-RPC 2.0 error response object.
@@ -539,13 +491,34 @@ mod tests {
     }
 
     #[test]
-    fn invalid_jsonrpc_returns_parse_error() {
+    fn unstructured_or_null_params_are_invalid_requests() {
         let multi = MultiRpc::new(build_dispatcher());
-        let raw = br#"{"jsonrpc":"2.0","method":"add","params":"not-an-array","id":1}"#;
-        let out = multi.handle(raw, None).unwrap();
+        for raw in [
+            &br#"{"jsonrpc":"2.0","method":"add","params":"not-an-array","id":1}"#[..],
+            br#"{"jsonrpc":"2.0","method":"add","params":null,"id":1}"#,
+        ] {
+            let out = multi.handle(raw, None).unwrap();
+            let parsed: JsonValue = serde_json::from_slice(&out).unwrap();
+            assert_eq!(parsed["error"]["code"], -32600);
+            assert!(parsed["id"].is_null());
+        }
+    }
+
+    #[test]
+    fn malformed_json_and_fractional_ids_stay_in_the_json_dialect() {
+        let multi = MultiRpc::new(build_dispatcher());
+        let (protocol, out) = multi
+            .handle_with_protocol(br#"{"jsonrpc":"2.0","#, None)
+            .unwrap();
+        assert_eq!(protocol, Protocol::JsonRpc);
         let parsed: JsonValue = serde_json::from_slice(&out).unwrap();
-        assert!(parsed["error"].is_object());
-        assert_eq!(parsed["error"]["code"], -32602);
+        assert_eq!(parsed["error"]["code"], -32700);
+
+        let fractional = br#"{"jsonrpc":"2.0","method":"add","params":[1,2],"id":1.5}"#;
+        let parsed: JsonValue =
+            serde_json::from_slice(&multi.handle(fractional, None).unwrap()).unwrap();
+        assert_eq!(parsed["error"]["code"], -32600);
+        assert!(parsed["id"].is_null());
     }
 
     #[test]
@@ -598,7 +571,7 @@ mod tests {
         let out = multi.handle(wrong_version, None).unwrap();
         let parsed: JsonValue = serde_json::from_slice(&out).unwrap();
         assert_eq!(parsed["error"]["code"], -32600);
-        assert_eq!(parsed["id"], 7);
+        assert!(parsed["id"].is_null());
 
         let empty_batch = multi.handle(b"[]", Some("application/json")).unwrap();
         let parsed: JsonValue = serde_json::from_slice(&empty_batch).unwrap();
@@ -620,7 +593,7 @@ mod tests {
         let responses = parsed.as_array().unwrap();
 
         assert_eq!(responses[0]["error"]["code"], -32600);
-        assert_eq!(responses[0]["id"], 1);
+        assert!(responses[0]["id"].is_null());
         assert_eq!(responses[1]["result"], 7);
         assert_eq!(responses[1]["id"], 2);
     }

@@ -14,7 +14,8 @@ export interface ServerOptions {
 }
 export declare class Server {
     private methods;
-    private readonly maxBatchLength;
+    /** Most entries a batch may hold; a longer batch is one Invalid Request. */
+    readonly maxBatchLength: number;
     constructor(options?: ServerOptions);
     register(method: string, handler: MethodHandler): void;
     handle(raw: Uint8Array): Promise<Uint8Array>;

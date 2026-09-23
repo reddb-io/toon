@@ -45,7 +45,10 @@ function detect(raw, contentType) {
         }
     }
     catch {
-        // Existing fallback policy treats unrecognized input as TOON-RPC.
+        // TOON never opens with `{`, so a broken `{` body came from a JSON
+        // client and gets a JSON-RPC Parse error. A broken `[` may be TOON.
+        if (trimmed.startsWith('{'))
+            return { protocol: 'jsonrpc' };
     }
     return { protocol: 'toonrpc' };
 }
@@ -95,6 +98,13 @@ export class MultiRpc {
             return jsonBytes({
                 jsonrpc: JSONRPC_VERSION,
                 error: { code: -32600, message: 'Invalid Request: empty batch' },
+                id: null,
+            });
+        }
+        if (entries.length > this.server.maxBatchLength) {
+            return jsonBytes({
+                jsonrpc: JSONRPC_VERSION,
+                error: { code: -32600, message: 'Invalid Request: batch too large' },
                 id: null,
             });
         }
