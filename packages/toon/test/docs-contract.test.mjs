@@ -74,7 +74,7 @@ test('known upstream issue mappings cannot regress', () => {
 
 test('frontier status is dated and separates every authority state', () => {
   const official = read('docs/toon-official-spec.md')
-  assert.match(official, /audited (?:on|at) 2026-08-07/i)
+  assert.match(official, /audited (?:on|at) 2026-09-23/i)
   for (const status of ['released', 'merged', 'draft', 'conflicting', 'rejected', 'userland-only']) {
     assert.match(official, new RegExp(`\\b${status}\\b`, 'i'), `missing ${status} status`)
   }
