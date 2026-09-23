@@ -481,7 +481,7 @@ function parseCursorHeader(cursor) {
   if (typeof cursor.activeHeaderLine !== 'string' || cursor.activeHeaderLine === '') {
     throw toonlError(0, 'invalid cursor activeHeaderLine')
   }
-  const header = parseHeaderLine(cursor.activeHeaderLine.trimEnd(), 0)
+  const header = parseHeaderLine(cursor.activeHeaderLine.replace(/\r?\n$/, '').replace(/ +$/, ''), 0)
   if (header === null || header.continuation || header.tag !== null) {
     throw toonlError(0, 'invalid cursor activeHeaderLine')
   }

@@ -515,9 +515,10 @@ fn rejects_the_strict_mode_error_checklist() {
 /// the canonical decoder: it only reads `[...]` as a header when the bracket
 /// closes, and it does not reserve the empty field name. Pinned here so the
 /// difference stays visible rather than merely absent from the checklist above.
+/// Token trimming removes U+0020 only (§12), so the tab stays in the key.
 #[test]
 fn the_canonical_decoder_reads_two_former_header_errors_as_plain_keys() {
-    assert_eq!(json_of("items[2\t: a"), json!({"items[2": "a"}));
+    assert_eq!(json_of("items[2\t: a"), json!({"items[2\t": "a"}));
     assert_eq!(json_of(": 1"), json!({"": 1}));
 }
 

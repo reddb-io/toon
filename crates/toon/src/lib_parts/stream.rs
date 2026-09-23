@@ -394,7 +394,9 @@ impl<R: BufRead> StreamReader<R> {
             }
             text = text.strip_suffix('\r').unwrap_or(text);
             text = text.trim_end_matches(' ');
-            if text.trim().is_empty() {
+            // Blank means empty once trailing spaces are gone: only U+0020 is
+            // trimmed (§12), so NBSP, U+3000 or a tab still carry content.
+            if text.is_empty() {
                 self.blank_pending = true;
                 continue;
             }
