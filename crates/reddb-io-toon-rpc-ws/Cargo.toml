@@ -1,8 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-ws"
 version.workspace = true
-publish = false
-description = "TOON-RPC WebSocket transport"
+description = "TOON-RPC over WebSocket: server and client"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

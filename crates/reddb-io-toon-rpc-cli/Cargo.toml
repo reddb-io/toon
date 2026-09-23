@@ -1,8 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-cli"
 version.workspace = true
-publish = false
-description = "TOON-RPC CLI (dev server, call, generate)"
+description = "TOON-RPC CLI: generate service code and call servers over HTTP, WebSocket or TCP"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

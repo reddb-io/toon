@@ -1,8 +1,7 @@
 [package]
 name = "reddb-io-toon-rpc-tcp"
 version.workspace = true
-publish = false
-description = "TOON-RPC TCP and Unix Socket transports"
+description = "TOON-RPC over TCP and Unix sockets with §8.1 framing: servers and clients"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
