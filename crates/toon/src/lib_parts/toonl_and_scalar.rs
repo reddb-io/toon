@@ -388,13 +388,13 @@ fn parse_scalar(value: &str, line: usize) -> Result<Value, ParseError> {
     }
 
     if value.contains('"') {
-        return Err(ParseError {
+        return Err(ParseError::from(ParseErrorData {
             line,
             message: "invalid quoted string",
             limit: None,
             column: None,
             counts: None,
-        });
+        }));
     }
 
     Ok(match value {
@@ -412,64 +412,78 @@ fn parse_key(value: &str, line: usize) -> Result<(String, bool), ParseError> {
         return parse_quoted_string(value, line).map(|key| (key, true));
     }
     if value.contains('"') || value.contains(char::is_whitespace) {
-        return Err(ParseError {
+        return Err(ParseError::from(ParseErrorData {
             line,
             message: "expected non-empty field name",
             limit: None,
             column: None,
             counts: None,
-        });
+        }));
     }
     Ok((value.to_owned(), false))
 }
 
 fn parse_quoted_string(value: &str, line: usize) -> Result<String, ParseError> {
-    let mut characters = value.chars();
-    if characters.next() != Some('"') {
+    let bytes = value.as_bytes();
+    if bytes.first() != Some(&b'"') {
         return Err(invalid_quoted_string(line));
     }
 
-    let mut output = String::new();
-    while let Some(character) = characters.next() {
-        match character {
-            '"' => {
+    // Copies whole runs between the bytes that need attention (the closing
+    // quote, an escape, a C0 control). All of them are ASCII, so every slice
+    // boundary is a UTF-8 character boundary.
+    let mut output = String::with_capacity(value.len());
+    let mut run = 1usize;
+    let mut index = 1usize;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        match byte {
+            b'"' => {
+                output.push_str(&value[run..index]);
                 // Only trailing U+0020 may follow the closing quote (§12).
-                if trim_u0020(characters.as_str()).is_empty() {
+                if trim_u0020(&value[index + 1..]).is_empty() {
                     return Ok(output);
                 }
                 return Err(invalid_quoted_string(line));
             }
-            '\\' => {
-                let escaped = characters.next().ok_or(invalid_quoted_string(line))?;
+            b'\\' => {
+                output.push_str(&value[run..index]);
+                let escaped = *bytes.get(index + 1).ok_or(invalid_quoted_string(line))?;
+                index += 2;
                 match escaped {
-                    '"' => output.push('"'),
-                    '\\' => output.push('\\'),
-                    'n' => output.push('\n'),
-                    'r' => output.push('\r'),
-                    't' => output.push('\t'),
-                    'u' => output.push(parse_unicode_escape(&mut characters, line)?),
+                    b'"' => output.push('"'),
+                    b'\\' => output.push('\\'),
+                    b'n' => output.push('\n'),
+                    b'r' => output.push('\r'),
+                    b't' => output.push('\t'),
+                    b'u' => {
+                        output.push(parse_unicode_escape(bytes.get(index..index + 4), line)?);
+                        index += 4;
+                    }
                     _ => return Err(invalid_quoted_string(line)),
                 }
+                run = index;
+                continue;
             }
             // Literal HTAB is tolerated; other C0 controls must be escaped (§7.1).
-            character if (character as u32) < 0x20 && character != '\t' => {
-                return Err(invalid_quoted_string(line));
-            }
-            character => output.push(character),
+            byte if byte < 0x20 && byte != b'\t' => return Err(invalid_quoted_string(line)),
+            _ => {}
         }
+        index += 1;
     }
 
     Err(unterminated_string(line))
 }
 
-fn parse_unicode_escape(
-    characters: &mut std::str::Chars<'_>,
-    line: usize,
-) -> Result<char, ParseError> {
+/// The four hex digits of a `\uXXXX` escape.
+fn parse_unicode_escape(digits: Option<&[u8]>, line: usize) -> Result<char, ParseError> {
+    let digits = digits.ok_or(invalid_quoted_string(line))?;
     let mut value = 0;
-    for _ in 0..4 {
-        let character = characters.next().ok_or(invalid_quoted_string(line))?;
-        value = value * 16 + character.to_digit(16).ok_or(invalid_quoted_string(line))?;
+    for &digit in digits {
+        value = value * 16
+            + char::from(digit)
+                .to_digit(16)
+                .ok_or(invalid_quoted_string(line))?;
     }
 
     // `char::from_u32` rejects lone surrogates, which §7.1 requires.
@@ -478,29 +492,44 @@ fn parse_unicode_escape(
 
 /// A quoted token with no closing quote, worded like the upstream reference.
 fn unterminated_string(line: usize) -> ParseError {
-    ParseError {
+    ParseError::from(ParseErrorData {
         line,
         message: "unterminated string: missing closing quote",
         limit: None,
         column: None,
         counts: None,
-    }
+    })
 }
 
 fn invalid_quoted_string(line: usize) -> ParseError {
-    ParseError {
+    ParseError::from(ParseErrorData {
         line,
         message: "invalid quoted string",
         limit: None,
         column: None,
         counts: None,
-    }
+    })
 }
 
 /// Splits on unquoted occurrences of `delimiter`, preserving empty tokens (§11.2).
 fn split_delimited(value: &str, delimiter: char, line: usize) -> Result<Vec<String>, ParseError> {
     if value.is_empty() {
         return Ok(Vec::new());
+    }
+
+    if let Some(needle) = ascii_needle(delimiter) {
+        let mut values = Vec::new();
+        let mut start = 0;
+        let unterminated = scan_unquoted_ascii(value, needle, |index| {
+            values.push(trim_u0020(&value[start..index]).to_owned());
+            start = index + 1;
+            true
+        });
+        if unterminated {
+            return Err(unterminated_string(line));
+        }
+        values.push(trim_u0020(&value[start..]).to_owned());
+        return Ok(values);
     }
 
     let mut values = Vec::new();
@@ -534,6 +563,19 @@ fn split_delimited(value: &str, delimiter: char, line: usize) -> Result<Vec<Stri
 }
 
 fn find_unquoted(value: &str, needle: char, line: usize) -> Result<Option<usize>, ParseError> {
+    if let Some(byte) = ascii_needle(needle) {
+        let mut found = None;
+        let unterminated = scan_unquoted_ascii(value, byte, |index| {
+            found = Some(index);
+            false
+        });
+        // A match ends the walk early, as the char walk does, so only a scan
+        // that ran to the end can report an open quote.
+        if found.is_none() && unterminated {
+            return Err(unterminated_string(line));
+        }
+        return Ok(found);
+    }
     let mut in_string = false;
     let mut escaped = false;
 

@@ -13,25 +13,27 @@ fn check_stream_header_depth(
     line: usize,
     max_depth: usize,
 ) -> Result<(), ParseError> {
-    if max_depth == 0 {
+    // Most lines carry no `{` at all; `contains` on bytes is a memchr scan.
+    if max_depth == 0 || !content.as_bytes().contains(&b'{') {
         return Ok(());
     }
+    // ASCII structure only, so bytes stand in for chars (see `scan.rs`).
     let mut depth = 0usize;
     let mut quoted = false;
     let mut escaped = false;
-    for character in content.chars() {
+    for &byte in content.as_bytes() {
         if escaped {
             escaped = false;
-        } else if quoted && character == '\\' {
+        } else if quoted && byte == b'\\' {
             escaped = true;
-        } else if character == '"' {
+        } else if byte == b'"' {
             quoted = !quoted;
-        } else if !quoted && character == '{' {
+        } else if !quoted && byte == b'{' {
             depth += 1;
             if depth > max_depth {
                 return Err(stream_depth_error(line, max_depth));
             }
-        } else if !quoted && character == '}' {
+        } else if !quoted && byte == b'}' {
             depth = depth.saturating_sub(1);
         }
     }

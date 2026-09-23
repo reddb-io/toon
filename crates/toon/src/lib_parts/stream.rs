@@ -101,47 +101,47 @@ struct StreamLine {
 }
 
 fn stream_error(line: usize, message: &'static str) -> ParseError {
-    ParseError {
+    ParseError::from(ParseErrorData {
         line,
         message,
         limit: None,
         column: None,
         counts: None,
-    }
+    })
 }
 
 fn stream_limit_error(line: usize, message: &'static str, limit: usize) -> ParseError {
-    ParseError {
+    ParseError::from(ParseErrorData {
         line,
         message,
         limit: Some(limit),
         column: None,
         counts: None,
-    }
+    })
 }
 
 fn stream_count_error(line: usize, expected: usize, found: usize, unit: &'static str) -> ParseError {
-    ParseError {
+    ParseError::from(ParseErrorData {
         line,
         message: "array count mismatch",
         limit: None,
         column: None,
-        counts: Some(Box::new(CountMismatch {
+        counts: Some(CountMismatch {
             expected,
             found,
             unit,
-        })),
-    }
+        }),
+    })
 }
 
 fn stream_depth_error(line: usize, max_depth: usize) -> ParseError {
-    ParseError {
+    ParseError::from(ParseErrorData {
         line,
         message: "maximum nesting depth exceeded",
         limit: Some(max_depth),
         column: None,
         counts: None,
-    }
+    })
 }
 
 // #region Header grammar (§6)
@@ -359,9 +359,12 @@ fn assert_no_duplicate_stream_fields(
 /// Splits on the active delimiter, quote-aware, preserving empty tokens and
 /// trimming exactly U+0020 around each token (§11.2). Content that trims to
 /// nothing is zero cells.
-fn split_stream_cells(content: &str, delimiter: char, _line: usize) -> Vec<String> {
+fn split_stream_cells(content: &str, delimiter: char, _line: usize) -> Vec<&str> {
     if trim_u0020(content).is_empty() {
         return Vec::new();
+    }
+    if let Some(delimiter) = ascii_needle(delimiter) {
+        return split_stream_cells_ascii(content, delimiter);
     }
     let mut cells = Vec::new();
     let mut start = 0usize;
@@ -383,11 +386,11 @@ fn split_stream_cells(content: &str, delimiter: char, _line: usize) -> Vec<Strin
         if ch == '"' {
             in_quotes = true;
         } else if ch == delimiter {
-            cells.push(trim_u0020(&content[start..i]).to_owned());
+            cells.push(trim_u0020(&content[start..i]));
             start = i + ch.len_utf8();
         }
     }
-    cells.push(trim_u0020(&content[start..]).to_owned());
+    cells.push(trim_u0020(&content[start..]));
     cells
 }
 
@@ -860,7 +863,7 @@ fn emit_array<R: BufRead, S: EventSink>(
         }
         for value in values {
             out.emit(ToonEvent::Primitive {
-                value: parse_scalar(&value, header.number)?,
+                value: parse_scalar(value, header.number)?,
                 line: header.number,
             })?;
         }
@@ -1061,7 +1064,7 @@ fn is_stream_row(content: &str, delimiter: char, line: usize) -> Result<bool, Pa
 
 fn emit_row_object<S: EventSink>(
     fields: &[StreamFieldNode],
-    cells: &[String],
+    cells: &[&str],
     cursor: &mut usize,
     line: usize,
     out: &mut S,
@@ -1074,8 +1077,7 @@ fn emit_row_object<S: EventSink>(
         })?;
         match &field.children {
             None => {
-                let empty = String::new();
-                let cell = cells.get(*cursor).unwrap_or(&empty);
+                let cell = cells.get(*cursor).copied().unwrap_or("");
                 *cursor += 1;
                 out.emit(ToonEvent::Primitive {
                     value: parse_scalar(cell, line)?,

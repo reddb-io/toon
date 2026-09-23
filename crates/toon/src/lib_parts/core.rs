@@ -124,18 +124,21 @@ pub struct Field {
     value: Value,
 }
 
+/// A positioned decode failure. The data sits behind one pointer so the
+/// `Result` every level of the recursive grammar returns stays pointer-sized.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseError {
+pub struct ParseError(Box<ParseErrorData>);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParseErrorData {
     line: usize,
     message: &'static str,
     /// The configured bound a limit error tripped (`maxDepth`, `maxInputBytes`, …).
     limit: Option<usize>,
     /// 1-based column, when the decoder knows where on the line it failed.
     column: Option<usize>,
-    /// The declared and actual sizes behind a length mismatch. Boxed so the
-    /// error, returned through every level of the recursive grammar, stays
-    /// small enough for deep documents on the decoder's stack.
-    counts: Option<Box<CountMismatch>>,
+    /// The declared and actual sizes behind a length mismatch.
+    counts: Option<CountMismatch>,
 }
 
 /// A declared length and what the input held, worded like the TypeScript
@@ -359,13 +362,13 @@ impl Document {
     pub fn parse_with_options(input: &str, options: &DecodeOptions) -> Result<Self, ParseError> {
         match decode_with_options(input, options)? {
             Value::Object(document) => Ok(document),
-            _ => Err(ParseError {
+            _ => Err(ParseError::from(ParseErrorData {
                 line: 1,
                 message: "expected `key: value`",
                 limit: None,
                 column: None,
                 counts: None,
-            }),
+            })),
         }
     }
 
@@ -499,26 +502,26 @@ pub fn detect_toonl_truncation(input: &str) -> TruncationReport {
 
 impl ParseError {
     pub fn line(&self) -> usize {
-        self.line
+        self.0.line
     }
 
     pub fn message(&self) -> &'static str {
-        self.message
+        self.0.message
     }
 
     /// 1-based column, when the decoder knows it.
     pub fn column(&self) -> Option<usize> {
-        self.column
+        self.0.column
     }
 
     /// The configured bound a limit error tripped.
     pub fn limit(&self) -> Option<usize> {
-        self.limit
+        self.0.limit
     }
 
     /// The coarse kind of failure, stable across message wording changes.
     pub fn kind(&self) -> ErrorKind {
-        match self.message {
+        match self.0.message {
             "over-indented line" | "invalid indentation" | "tab used as indentation" => {
                 ErrorKind::Indentation
             }
@@ -542,23 +545,23 @@ impl ParseError {
     ///
     /// [`message`]: ParseError::message
     pub fn detail(&self) -> String {
-        if let Some(counts) = &self.counts {
+        if let Some(counts) = &self.0.counts {
             return format!(
                 "expected {} {}, but got {}",
                 counts.expected, counts.unit, counts.found
             );
         }
-        match self.limit {
-            Some(limit) if self.message == DEPTH_EXCEEDED => {
-                format!("{} (maxDepth {limit})", self.message)
+        match self.0.limit {
+            Some(limit) if self.0.message == DEPTH_EXCEEDED => {
+                format!("{} (maxDepth {limit})", self.0.message)
             }
-            Some(limit) => format!("{} ({limit})", self.message),
-            None => self.message.to_owned(),
+            Some(limit) => format!("{} ({limit})", self.0.message),
+            None => self.0.message.to_owned(),
         }
     }
 
     fn with_column(mut self, column: usize) -> Self {
-        self.column = Some(column);
+        self.0.column = Some(column);
         self
     }
 }
@@ -570,11 +573,17 @@ const KEYS_EXCEEDED: &str = "object exceeds maxKeys";
 
 impl fmt::Display for ParseError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "line {}: {}", self.line, self.detail())
+        write!(formatter, "line {}: {}", self.0.line, self.detail())
     }
 }
 
 impl std::error::Error for ParseError {}
+
+impl From<ParseErrorData> for ParseError {
+    fn from(data: ParseErrorData) -> Self {
+        Self(Box::new(data))
+    }
+}
 
 impl EncodeError {
     pub fn message(&self) -> &'static str {
@@ -710,8 +719,8 @@ impl Value {
 impl ToonlError {
     fn from_parse_error(error: ParseError) -> Self {
         Self {
-            line: error.line,
-            message: error.message.to_owned(),
+            line: error.line(),
+            message: error.message().to_owned(),
         }
     }
 
