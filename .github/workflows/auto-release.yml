@@ -9,9 +9,7 @@ name: Auto release
 # commit CI are then started through workflow_dispatch.
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -27,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     # Belt and braces: GITHUB_TOKEN pushes never trigger this workflow, but a
     # maintainer pushing a release commit by hand must not loop either.
-    if: "!startsWith(github.event.head_commit.message, 'chore: release')"
+    if: "(github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') && (!startsWith(github.event.head_commit.message, 'chore: release'))"
     steps:
       - uses: actions/checkout@v4
         with:

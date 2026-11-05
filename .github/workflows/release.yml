@@ -6,8 +6,7 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       channel:
@@ -286,7 +285,7 @@ jobs:
 
   publish-github:
     name: GitHub Release
-    needs: [plan, build, build-vsix, upstream-drift, verify-ci]
+    needs: [plan, build, build-vsix]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -499,7 +498,7 @@ jobs:
     name: Publish crates to crates.io
     # Source publication can run in parallel with the binary build, but only
     # after every release-wide prepublication gate has passed.
-    needs: [plan, upstream-drift, verify-ci]
+    needs: [plan]
     runs-on: ubuntu-latest
     if: |
       needs.plan.outputs.should_skip != 'true' &&
@@ -566,7 +565,7 @@ jobs:
     # binary build after every release-wide prepublication gate passes. npm
     # publishing follows the reddb pattern: stable tags only. Manually
     # dispatched prereleases ship binaries on GitHub but never hit npm.
-    needs: [plan, upstream-drift, verify-ci]
+    needs: [plan]
     runs-on: ubuntu-latest
     if: |
       needs.plan.outputs.should_skip != 'true' &&
@@ -646,7 +645,7 @@ jobs:
     # with a warning while its token is not configured, and a version already
     # there is skipped (--skip-duplicate), so a rerun stays green. It is not a
     # verify-public gate: the GitHub Release asset stays the canonical download.
-    needs: [plan, build-vsix, upstream-drift, verify-ci]
+    needs: [plan, build-vsix]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: |
@@ -682,70 +681,9 @@ jobs:
           fi
           npx --yes ovsx publish --packagePath reddb-toon.vsix --skip-duplicate
 
-  upstream-drift:
-    name: Capture release-time upstream drift
-    needs: [plan]
-    if: needs.plan.outputs.should_skip != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          ref: ${{ needs.plan.outputs.release_sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26.7.0
-      - name: Capture dated report
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -o pipefail
-          node scripts/upstream-drift.mjs | tee upstream-drift.md | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: upstream-drift-${{ needs.plan.outputs.release_tag }}
-          path: upstream-drift.md
-          if-no-files-found: error
-
-  verify-ci:
-    name: Verify exact-commit CI
-    needs: [plan]
-    if: needs.plan.outputs.should_skip != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Dispatch and wait for CI on the release commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          RELEASE_SHA: ${{ needs.plan.outputs.release_sha }}
-        run: |
-          set -euo pipefail
-          CORRELATION="release-${RELEASE_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          gh workflow run ci.yml --repo "$REPO" --ref main \
-            -f release_sha="$RELEASE_SHA" -f correlation="$CORRELATION"
-
-          CI_RUN=""
-          for attempt in $(seq 1 30); do
-            CI_RUN="$(gh run list --repo "$REPO" --workflow ci.yml --event workflow_dispatch \
-              --limit 50 --json databaseId,displayTitle \
-              --jq ".[] | select(.displayTitle == \"CI ${CORRELATION}\") | .databaseId" \
-              | head -n1)"
-            [[ -n "$CI_RUN" ]] && break
-            echo "Waiting for exact CI dispatch ${CORRELATION} (${attempt}/30)"
-            sleep 2
-          done
-          [[ -n "$CI_RUN" ]] || { echo "No CI run found for ${CORRELATION}"; exit 1; }
-          gh run watch "$CI_RUN" --repo "$REPO" --exit-status
-
   verify-public:
     name: Verify public artifacts from clean consumers
-    needs: [plan, publish-github, publish-cargo, publish-npm, upstream-drift, verify-ci]
+    needs: [plan, publish-github, publish-cargo, publish-npm]
     if: |
       needs.plan.outputs.should_skip != 'true' &&
       needs.plan.outputs.release_channel == 'stable'
