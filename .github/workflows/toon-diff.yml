@@ -7,8 +7,6 @@ name: Cross-implementation diff
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "43 9 * * 1"
 
 permissions:
   contents: read

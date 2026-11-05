@@ -2,8 +2,6 @@ name: Upstream release watch
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "17 9 * * 1"
 
 permissions:
   contents: read

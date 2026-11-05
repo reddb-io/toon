@@ -12,10 +12,6 @@ on:
         description: Unique release-run correlation key
         required: true
         type: string
-  pull_request:
-  push:
-    branches:
-      - main
 
 jobs:
   cargo:
